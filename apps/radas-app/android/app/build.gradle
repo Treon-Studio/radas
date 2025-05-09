@@ -1,0 +1,112 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+
+def enableProguardInReleaseBuilds = false
+def appcompat_version = "1.7.0"
+def lynx_version = "3.2.0-rc.1"
+def fresco_version = "2.3.0"
+
+
+project.ext.lynxConfig = [
+    buildCommand: 'build',  // or your specific build command
+    sourceDir: rootProject.projectDir.parent,  // adjust if your source directory is different
+    bundlePath: 'dist/main.lynx.bundle',  // adjust to your bundle path
+    assetsPath: 'app/src/main/assets'  // adjust if your assets path is different
+]
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.helloworld"
+    defaultConfig {
+        applicationId "com.helloworld"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    // Lynx SDK 依赖 (Lynx SDK dependencies)
+    implementation "org.lynxsdk.lynx:lynx:$lynx_version"
+    implementation "org.lynxsdk.lynx:lynx-jssdk:$lynx_version"
+    implementation "org.lynxsdk.lynx:lynx-trace:$lynx_version"
+    implementation "org.lynxsdk.lynx:lynx-devtool:$lynx_version"
+    implementation "org.lynxsdk.lynx:lynx-service-devtool:$lynx_version"
+    // integrating image-service
+    // 集成图像服务 (Integrating image-service)
+    implementation "org.lynxsdk.lynx:lynx-service-image:$lynx_version"
+    implementation "org.lynxsdk.lynx:primjs:2.11.1-rc.0"
+    // integrating log-service
+    // 集成日志服务 (Integrating log-service)
+    implementation "org.lynxsdk.lynx:lynx-service-log:$lynx_version"
+    // integrating http-service
+    // 集成HTTP服务 (Integrating http-service)
+    implementation "org.lynxsdk.lynx:lynx-service-http:$lynx_version"
+
+    // 图像服务依赖，如果未添加，则无法加载图像；如果主机APP需要使用其他图像库，您可以自定义图像服务并删除此依赖项
+    // Image-service dependencies, if not added, images cannot be loaded; if the host APP needs to use other image libraries, you can customize the image-service and remove this dependency
+    implementation "com.facebook.fresco:fresco:$fresco_version"
+    implementation "com.facebook.fresco:animated-gif:$fresco_version"
+    implementation "com.facebook.fresco:animated-webp:$fresco_version"
+    implementation "com.facebook.fresco:webpsupport:$fresco_version"
+    implementation "com.facebook.fresco:animated-base:$fresco_version"
+
+    implementation "com.squareup.okhttp3:okhttp:4.9.0"
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.9.0'
+
+
+
+    implementation("androidx.appcompat:appcompat:$appcompat_version")
+
+ 
+}
+// Apply the Lynx Gradle script (assumes lynx.gradle is in the root project directory)
+apply from: "${rootProject.projectDir}/lynx.gradle"
+
+// Call configureLynxBuild to create the buildLynxApp task
+configureLynxBuild(project, lynxConfig)
+
+// Ensure that the custom task is attached to preBuild
+afterEvaluate {
+    def preReleaseBuildTask = tasks.findByName("preReleaseBuild")
+    if (preReleaseBuildTask != null) {
+        preReleaseBuildTask.dependsOn tasks.findByName("buildLynxApp")
+    } else {
+        println "Warning: preReleaseBuild task not found in project ${project.name}"
+    }
+}

@@ -1,0 +1,61 @@
+def configureLynxBuild(Project project, Map config = [:]) {
+    def buildCommand = config.buildCommand ?: 'build'
+    def sourceDir = config.sourceDir ?: project.rootProject.projectDir.parent
+    def assetsPath = config.assetsPath ?: 'app/src/main/assets'
+
+    project.task('buildLynxApp', type: Exec) {
+        workingDir sourceDir
+
+        def useYarn = new File(workingDir, 'yarn.lock').exists()
+        def commandList = []
+
+        if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+            commandList.add('cmd')
+            commandList.add('/c')
+            commandList.add(useYarn ? 'yarn' : 'npm')
+            commandList.add(buildCommand)
+        } else {
+            commandList.add(useYarn ? 'yarn' : 'npm')
+            commandList.add(buildCommand)
+        }
+
+        commandLine commandList
+
+        // Create output streams to capture standard output and error
+        def stdout = new ByteArrayOutputStream()
+        def stderr = new ByteArrayOutputStream()
+        standardOutput = stdout
+        errorOutput = stderr
+
+        doLast {
+            println "Executing Lynx build command: ${commandList.join(' ')} in ${workingDir}"
+            println "Standard Output: ${stdout.toString('UTF-8')}"
+            if (stderr.toString('UTF-8')) {
+                println "Standard Error: ${stderr.toString('UTF-8')}"
+            }
+            
+            // Instead of copying a single bundle file, copy the entire 'dist' directory.
+            def distDir = new File(workingDir, 'dist')
+            if (distDir.exists()) {
+                println "Copying all dist assets from ${distDir} to ${assetsPath}"
+                project.copy {
+                    from distDir
+                    into assetsPath
+                }
+                println "Lynx assets copied successfully."
+            } else {
+                println "Warning: 'dist' directory not found at ${distDir}"
+            }
+        }
+    }
+
+    project.tasks.whenTaskAdded { task ->
+        if (task.name == 'preBuild') {
+            task.dependsOn 'buildLynxApp'
+        }
+    }
+}
+
+ext {
+    configureLynxBuild = this.&configureLynxBuild
+}

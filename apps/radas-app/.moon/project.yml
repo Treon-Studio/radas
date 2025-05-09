@@ -1,0 +1,46 @@
+# https://moonrepo.dev/docs/config/project
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+type: 'application'
+language: 'typescript'
+
+fileGroups:
+  sources:
+    - 'src/**/*'
+  tests:
+    - 'tests/**/*'
+  configs:
+    - '*.json'
+    - '*.ts'
+
+# We'll use Deno instead of Node.js
+toolchain:
+  deno:
+    enabled: true
+
+tasks:
+  dev:
+    command: 'deno run --watch --allow-net --allow-read --allow-env ./src/main.ts'
+    local: true
+    options:
+      persistent: true
+
+  lint:
+    command: 'deno lint'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+
+  format:
+    command: 'deno fmt'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+
+  test:
+    command: 'deno test --allow-net --allow-read --allow-env'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - '~:lint' 

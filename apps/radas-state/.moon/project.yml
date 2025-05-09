@@ -1,0 +1,68 @@
+# https://moonrepo.dev/docs/config/project
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+type: 'application'
+language: 'typescript' # Changing from Elixir to TypeScript for Deno
+
+fileGroups:
+  sources:
+    - 'src/**/*'
+  tests:
+    - 'tests/**/*'
+  configs:
+    - '*.json'
+    - '*.ts'
+
+# We'll use Deno instead of Elixir
+toolchain:
+  deno:
+    enabled: true
+
+tasks:
+  dev:
+    command: 'deno run --watch --allow-net --allow-read --allow-env --allow-ffi ./src/main.ts'
+    local: true
+    options:
+      persistent: true
+
+  build:
+    command: 'deno compile --allow-net --allow-read --allow-env --allow-ffi --output ./bin/radas-state ./src/main.ts'
+    inputs:
+      - '@globs(sources)'
+    outputs:
+      - 'bin/radas-state'
+
+  lint:
+    command: 'deno lint'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+
+  format:
+    command: 'deno fmt'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+
+  test:
+    command: 'deno test --allow-net --allow-read --allow-env --allow-ffi'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - '~:lint'
+      
+  # Database related tasks
+  db:migrate:
+    command: 'deno run --allow-net --allow-read --allow-env --allow-ffi ./src/db/migrate.ts'
+    inputs:
+      - 'src/db/migrations/**/*'
+      - 'src/db/migrate.ts'
+    
+  db:seed:
+    command: 'deno run --allow-net --allow-read --allow-env --allow-ffi ./src/db/seed.ts'
+    inputs:
+      - 'src/db/seeds/**/*'
+      - 'src/db/seed.ts'
+    deps:
+      - '~:db:migrate' 

@@ -1,0 +1,25 @@
+gfcli:
+  build:
+    - name: "radas-windows"
+      arch: "amd64"
+      system: "windows"
+      output: "./bin"
+      extra: "-ldflags \"-s -w\""
+      
+    - name: "radas-linux"
+      arch: "amd64"
+      system: "linux"
+      output: "./bin"
+      extra: "-ldflags \"-s -w\""
+      
+    - name: "radas-darwin-amd64"
+      arch: "amd64"
+      system: "darwin"
+      output: "./bin"
+      extra: "-ldflags \"-s -w\""
+      
+    - name: "radas-darwin-arm64"
+      arch: "arm64"
+      system: "darwin"
+      output: "./bin"
+      extra: "-ldflags \"-s -w\""

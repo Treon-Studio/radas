@@ -1,0 +1,61 @@
+# https://moonrepo.dev/docs/config/toolchain
+# yaml-language-server: $schema=https://moonrepo.dev/schemas/toolchain.json
+$schema: 'https://moonrepo.dev/schemas/toolchain.json'
+
+# Extend and inherit an external configuration file. Must be a valid HTTPS URL or file system path.
+# extends: './shared/toolchain.yml'
+
+# Comment out Node.js configuration since we're using Deno
+# node:
+#   version: '20'
+#   packageManager: 'pnpm'
+#   inferTasksFromScripts: true
+#   addEnginesConstraint: false
+#   dedupeOnLockfileChange: false
+#   syncPackageManagerField: true
+#   rootPackageOnly: true
+#   syncProjectWorkspaceDependencies: true
+#   syncVersionManagerConfig: null
+#   dependencyVersionFormat: workspace
+#   pnpm:
+#     version: '10.4.0'
+
+# Configure Deno within the toolchain
+deno:
+  version: '1.44.4'  # Use the latest stable version
+  createWorkspaceConfig: true  # Create a deno.json in workspace root
+  lockfile: true  # Generate a lock file for reproducible builds
+  formatter:  # Configure formatter options
+    indentWidth: 2
+    lineWidth: 100
+    singleQuote: true
+    proseWrap: 'preserve'
+  lint:  # Configure linter options
+    files:
+      include: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx']
+    rules:
+      include: ['recommended']
+  compiler:  # Configure compiler options
+    allowJs: true
+    strict: true
+    target: 'esnext'
+    lib: ['dom', 'dom.iterable', 'esnext']
+  # Configure tasks that map to Deno commands
+  taskEmission:
+    includeTask: 'lint'  # Emit a lint task
+
+# Comment out TypeScript configuration since Deno has built-in TypeScript support
+# typescript:
+#   includeSharedTypes: false
+#   syncProjectReferences: false
+#   includeProjectReferenceSources: false
+
+# Comment out Rust configuration
+# rust:
+#   version: '1.86'
+#   syncToolchainConfig: true
+#   targets:
+#     - 'aarch64-apple-darwin'
+#     - 'x86_64-apple-darwin'
+#     - 'x86_64-pc-windows-msvc'
+#   bins: ['cargo-nextest', 'cargo-watch']
