@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://moonrepo.dev/schemas/tasks.json
+$schema: 'https://moonrepo.dev/schemas/tasks.json'
+
+taskOptions:
+  runDepsInParallel: false
+
+# Defines task deps that are implicitly inserted into all inherited tasks within a project.
+# This is extremely useful for pre-building projects that are used extensively throughout
+# the repo, or always building project dependencies.
+# implicitDeps:
+#   - '^:format'
+
+# Common tasks that can be inherited by all projects.
+# @see: https://moonrepo.dev/docs/config/tasks
+tasks:
+  # System tasks
+  env:
+    command: 'printenv'
+    toolchain: 'system'
+    options:
+      outputStyle: stream
+      envFile: '/.env'
+
+  # Deno-specific tasks
+  deno-run:
+    command: 'deno run --allow-net --allow-read --allow-env $projectRoot/src/main.ts'
+    inputs:
+      - 'src/**/*'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  deno-dev:
+    command: 'deno run --watch --allow-net --allow-read --allow-env $projectRoot/src/main.ts'
+    inputs:
+      - 'src/**/*'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+      persistent: true
+
+  deno-test:
+    command: 'deno test --allow-net --allow-read --allow-env'
+    inputs:
+      - '**/*.{ts,js}'
+      - '**/*.{test,spec}.{ts,js}'
+    outputs:
+      - 'coverage/**/*'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  deno-lint:
+    command: 'deno lint'
+    inputs:
+      - 'src/**/*.{ts,js}'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  deno-fmt:
+    command: 'deno fmt'
+    inputs:
+      - 'src/**/*.{ts,js}'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  deno-bundle:
+    command: 'deno bundle $projectRoot/src/main.ts $projectRoot/dist/bundle.js'
+    inputs:
+      - 'src/**/*.{ts,js}'
+    outputs:
+      - 'dist/**/*'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  deno-cache:
+    command: 'deno cache --reload $projectRoot/src/deps.ts'
+    inputs:
+      - 'src/deps.ts'
+    options:
+      runFromWorkspaceRoot: false
+      outputStyle: stream
+
+  # Docker tasks (preserved from original)
+  docker-build:
+    command: >
+      docker build -f $projectRoot/Dockerfile . -t $IMAGE_NAME:$APP_VERSION
+      && docker image list --filter reference=$APP_PREFIX-\\*
+    options:
+      mergeEnv: replace
+      runFromWorkspaceRoot: true
+      interactive: false
+      outputStyle: buffer-only-failure
+      runInCI: false
+      cache: false
+      shell: true
+
+  docker-images:
+    command: 'docker image list --filter reference=$APP_PREFIX-\\*'
+    options:
+      mergeEnv: replace
+      runFromWorkspaceRoot: true
+      interactive: false
+      outputStyle: none
+      runInCI: false
+      cache: false
+      shell: true

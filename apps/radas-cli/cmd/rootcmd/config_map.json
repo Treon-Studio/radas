@@ -1,0 +1,15 @@
+{
+  "biome": "configs/linting/biome",
+  "eslint": ".eslintrc",
+  "editor-config": ".editorconfig",
+  "prettier": "configs/formatting/prettier",
+  "git-hooks": ".git-hooks",
+  "better-commit": ".better-commit",
+  "commitlint": ".commitlintrc",
+  "git-templates": ".github",
+  "ncu": "configs/dependency/ncu",
+  "flake-nix": "configs/building/flake-nix",
+  "changelog": "docs/changelog",
+  "contributing": "docs/contributing",
+  "cursorrule": ".cursorrule"
+}

@@ -1,0 +1,2 @@
+# Service layer directory for business logic modules (see plans.md)
+# Example: environment_service.ex, feature_flag_service.ex, etc.
