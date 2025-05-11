@@ -64,9 +64,13 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	rootCmd.AddCommand(rootcmd.EnvCmd)
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
 	rootCmd.AddCommand(rootcmd.SyncConfigCmd)
+
+	// GIT commands
 	rootCmd.AddCommand(rootcmd.CommitCmd)
 	rootCmd.AddCommand(rootcmd.PushCmd)
 	rootCmd.AddCommand(rootcmd.CreateBranchCmd)
+	rootCmd.AddCommand(rootcmd.PullCmd)
+	rootCmd.AddCommand(rootcmd.JustPushCmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
