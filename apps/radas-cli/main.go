@@ -72,6 +72,7 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	rootCmd.AddCommand(rootcmd.PullCmd)
 	rootCmd.AddCommand(rootcmd.JustPushCmd)
 	rootCmd.AddCommand(rootcmd.ListBranchCmd)
+	rootCmd.AddCommand(rootcmd.DelBranchCmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
