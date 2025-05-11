@@ -49,6 +49,7 @@ var ListBranchCmd = &cobra.Command{
 			LastUsed  string
 			Current   bool
 			Origin    string
+			SizeMB    string // Size in MB, string for display
 		}
 		var infos []branchInfo
 		for _, branch := range branches {
@@ -57,7 +58,7 @@ var ListBranchCmd = &cobra.Command{
 			logCmd.Stdout = &logOut
 			logCmd.Stderr = os.Stderr
 			if err := logCmd.Run(); err != nil {
-				infos = append(infos, branchInfo{Name: branch, LastUsed: "(error)", Current: branch == current, Origin: "-"})
+				infos = append(infos, branchInfo{Name: branch, LastUsed: "(error)", Current: branch == current, Origin: "-", SizeMB: "-"})
 				continue
 			}
 			lastUsed := strings.TrimSpace(logOut.String())
@@ -71,7 +72,20 @@ var ListBranchCmd = &cobra.Command{
 			if err := showRefCmd.Run(); err == nil {
 				originName = "origin/" + branch
 			}
-			infos = append(infos, branchInfo{Name: branch, LastUsed: lastUsed, Current: branch == current, Origin: originName})
+
+			// Estimate branch unique size (vs main)
+			sizeMB := "-"
+			if branch != "main" && branch != "master" {
+				cmd := exec.Command("bash", "-c", "git rev-list --objects "+branch+" --not main | git cat-file --batch-check='%(objectsize)' | awk '{s+=$1} END {if(s>0) printf \"%.2f\", s/1024/1024; else print \"-\"}'")
+				out, err := cmd.Output()
+				if err == nil {
+					sizeMB = strings.TrimSpace(string(out))
+					if sizeMB != "-" && sizeMB != "" {
+						sizeMB += " MB"
+					}
+				}
+			}
+			infos = append(infos, branchInfo{Name: branch, LastUsed: lastUsed, Current: branch == current, Origin: originName, SizeMB: sizeMB})
 		}
 
 		// Sort by lastUsed desc (most recent first)
@@ -100,6 +114,7 @@ var ListBranchCmd = &cobra.Command{
 			text.FgHiCyan.Sprint("Branch"),
 			text.FgHiCyan.Sprint("Last Used"),
 			text.FgHiCyan.Sprint("Origin"),
+			text.FgHiCyan.Sprint("Size"),
 		})
 		for _, info := range infos {
 			currentMark := ""
@@ -112,7 +127,7 @@ var ListBranchCmd = &cobra.Command{
 			if t, err := time.Parse("2006-01-02 15:04:05 -0700", info.LastUsed); err == nil {
 				displayTime = t.Format("2006-01-02 15:04")
 			}
-			row := table.Row{currentMark, info.Name, displayTime, info.Origin}
+			row := table.Row{currentMark, info.Name, displayTime, info.Origin, info.SizeMB}
 			if info.Current {
 				for i := range row {
 					row[i] = text.FgHiGreen.Sprint(row[i])
