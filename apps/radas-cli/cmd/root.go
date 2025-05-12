@@ -25,6 +25,7 @@ func init() {
 	// Register clone command
 	RootCmd.AddCommand(rootcmd.CloneCmd)
 	RootCmd.AddCommand(rootcmd.GotoCmd)
+	RootCmd.AddCommand(rootcmd.DoctorCmd)
 
 	// Register all team commands
 	rootCmd.AddCommand(frontend.Cmd)
