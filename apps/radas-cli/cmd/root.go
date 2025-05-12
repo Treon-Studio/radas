@@ -24,6 +24,7 @@ func Execute() error {
 func init() {
 	// Register clone command
 	RootCmd.AddCommand(rootcmd.CloneCmd)
+	RootCmd.AddCommand(rootcmd.GotoCmd)
 
 	// Register all team commands
 	rootCmd.AddCommand(frontend.Cmd)
