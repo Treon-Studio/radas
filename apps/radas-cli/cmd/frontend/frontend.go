@@ -20,4 +20,5 @@ func init() {
 	Cmd.AddCommand(FreshCmd)
 	Cmd.AddCommand(InitCmd)
 	Cmd.AddCommand(BuildCmd)
+	Cmd.AddCommand(BlackholeCmd)
 }
