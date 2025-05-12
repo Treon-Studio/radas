@@ -8,18 +8,19 @@ import (
 	"strings"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	"radas/constants"
 )
 
 var CreateBranchCmd = &cobra.Command{
 	Use:   "create-branch",
 	Short: "Create new git branch with conventional name",
 	Run: func(cmd *cobra.Command, args []string) {
-		branchTypes := []string{"feature", "fix", "chore", "hotfix", "refactor", "test", "docs"}
+		branchTypes := constants.BranchTypes
 		var btype string
 		_ = survey.AskOne(&survey.Select{
 			Message: "Branch type:",
 			Options: branchTypes,
-			Default: "feature",
+			Default: branchTypes[0],
 		}, &btype)
 
 		var scope string
