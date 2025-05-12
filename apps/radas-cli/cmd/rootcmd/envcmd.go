@@ -6,9 +6,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"radas/internal/utils"
-)
+) // go-pretty for beautiful tables
 
 var envList = []string{"staging", "canary", "production"}
 
@@ -50,7 +51,13 @@ var EnvGetCmd = &cobra.Command{
 				{"DB_HOST", "mock-db"},
 				{"SECRET_KEY", "mock-secret"},
 			}
-			utils.PrintTable([]string{"KEY", "VALUE"}, mockRows)
+			headers := []string{"KEY", "VALUE", "ROLE"}
+			headerColors := []text.Colors{
+				{text.FgHiCyan, text.Bold},
+				{text.FgHiYellow, text.Bold},
+				{text.FgHiMagenta, text.Bold},
+			}
+			utils.PrettyPrintTable(headers, headerColors, mockRows, utils.EnvRole)
 			return
 		}
 		lines := strings.Split(string(data), "\n")
@@ -64,7 +71,13 @@ var EnvGetCmd = &cobra.Command{
 				rows = append(rows, []string{parts[0], parts[1]})
 			}
 		}
-		utils.PrintTable([]string{"KEY", "VALUE"}, rows)
+		headers := []string{"KEY", "VALUE", "ROLE"}
+		headerColors := []text.Colors{
+			{text.FgHiCyan, text.Bold},
+			{text.FgHiYellow, text.Bold},
+			{text.FgHiMagenta, text.Bold},
+		}
+		utils.PrettyPrintTable(headers, headerColors, rows, utils.EnvRole)
 	},
 }
 

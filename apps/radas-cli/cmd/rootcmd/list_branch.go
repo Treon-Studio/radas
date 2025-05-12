@@ -73,15 +73,30 @@ var ListBranchCmd = &cobra.Command{
 				originName = "origin/" + branch
 			}
 
-			// Estimate branch unique size (vs main)
+			// Estimate branch unique size (vs main/master)
 			sizeMB := "-"
 			if branch != "main" && branch != "master" {
-				cmd := exec.Command("bash", "-c", "git rev-list --objects "+branch+" --not main | git cat-file --batch-check='%(objectsize)' | awk '{s+=$1} END {if(s>0) printf \"%.2f\", s/1024/1024; else print \"-\"}'")
-				out, err := cmd.Output()
-				if err == nil {
-					sizeMB = strings.TrimSpace(string(out))
-					if sizeMB != "-" && sizeMB != "" {
-						sizeMB += " MB"
+				// Determine base branch: prefer main, fallback to master
+				base := "main"
+				baseExists := false
+				chkMain := exec.Command("git", "show-ref", "refs/heads/main")
+				if err := chkMain.Run(); err == nil {
+					baseExists = true
+				} else {
+					chkMaster := exec.Command("git", "show-ref", "refs/heads/master")
+					if err := chkMaster.Run(); err == nil {
+						base = "master"
+						baseExists = true
+					}
+				}
+				if baseExists {
+					cmd := exec.Command("bash", "-c", "git rev-list --objects "+branch+" --not "+base+" | git cat-file --batch-check='%(objectsize)' | awk '{s+=$1} END {if(s>0) printf \"%.2f\", s/1024/1024; else print \"0.00\"}'")
+					out, err := cmd.Output()
+					if err == nil {
+						sizeMB = strings.TrimSpace(string(out))
+						if sizeMB != "" {
+							sizeMB += " MB"
+						}
 					}
 				}
 			}
