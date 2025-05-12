@@ -9,9 +9,8 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"radas/internal/utils"
+	"radas/constants"
 ) // go-pretty for beautiful tables
-
-var envList = []string{"staging", "canary", "production"}
 
 var EnvCmd = &cobra.Command{
 	Use:   "env",
@@ -31,18 +30,18 @@ var EnvGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		found := false
-		for _, v := range envList {
+		for _, v := range constants.EnvList {
 			if v == env {
 				found = true
 				break
 			}
 		}
 		if !found {
-			fmt.Printf("Environment '%s' not found. Available: staging, canary, production\n", env)
+			fmt.Printf("Environment '%s' not found. Available: %s\n", env, strings.Join(constants.EnvList, ", "))
 			os.Exit(1)
 		}
 		// Example: load env file (envs/.env.{env})
-		filePath := fmt.Sprintf("envs/.env.%s", env)
+		filePath := fmt.Sprintf(constants.EnvDir+"/"+constants.EnvFilePattern, env)
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			fmt.Printf("[MOCK] File %s not found. Showing mock data for '%s':\n", filePath, env)
@@ -51,7 +50,7 @@ var EnvGetCmd = &cobra.Command{
 				{"DB_HOST", "mock-db"},
 				{"SECRET_KEY", "mock-secret"},
 			}
-			headers := []string{"KEY", "VALUE", "ROLE"}
+			headers := constants.EnvHeaders
 			headerColors := []text.Colors{
 				{text.FgHiCyan, text.Bold},
 				{text.FgHiYellow, text.Bold},
@@ -71,7 +70,7 @@ var EnvGetCmd = &cobra.Command{
 				rows = append(rows, []string{parts[0], parts[1]})
 			}
 		}
-		headers := []string{"KEY", "VALUE", "ROLE"}
+		headers := constants.EnvHeaders
 		headerColors := []text.Colors{
 			{text.FgHiCyan, text.Bold},
 			{text.FgHiYellow, text.Bold},
@@ -94,7 +93,7 @@ var EnvSetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		found := false
-		for _, v := range envList {
+		for _, v := range constants.EnvList {
 			if v == env {
 				found = true
 				break
@@ -113,7 +112,7 @@ var EnvSetCmd = &cobra.Command{
 		}
 		editor := os.Getenv("EDITOR")
 		if editor == "" {
-			editor = "code" // fallback to VSCode
+			editor = constants.DefaultEditor // fallback to VSCode
 		}
 		cmdExec := exec.Command(editor, filePath)
 		cmdExec.Stdout = os.Stdout

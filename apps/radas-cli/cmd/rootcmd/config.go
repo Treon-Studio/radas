@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/AlecAivazis/survey/v2"
 	"gopkg.in/yaml.v3"
+	"radas/constants"
 )
 
 var ConfigCmd = &cobra.Command{
@@ -79,21 +80,13 @@ var ConfigInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a radas.yml config file in the current directory",
 	Run: func(cmd *cobra.Command, args []string) {
-		filename := "radas.yml"
+		filename := constants.ConfigFileName
 		if _, err := os.Stat(filename); err == nil {
 			fmt.Printf("%s already exists. Initialization aborted.\n", filename)
 			os.Exit(1)
 		}
 
-		projectTypes := []string{
-			"monorepo-frontend",
-			"frontend-web",
-			"frontend-app",
-			"frontend-desktop",
-			"monorepo-backend",
-			"backend-api",
-			"docs",
-		}
+		projectTypes := constants.ProjectTypes
 		var selectedType string
 		ptPrompt := &survey.Select{
 			Message: "Select project type:",

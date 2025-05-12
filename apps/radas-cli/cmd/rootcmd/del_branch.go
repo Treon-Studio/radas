@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"radas/constants"
 )
 
 var (
@@ -29,7 +30,7 @@ var DelBranchCmd = &cobra.Command{
 			deleteAllOriginBranches()
 			return
 		}
-		protected := map[string]bool{"main": true, "master": true, "develop": true}
+		protected := constants.ProtectedBranches
 		if len(args) == 0 {
 			fmt.Fprintln(os.Stderr, "Please specify a branch name or use --all-type/--all-origin.")
 			fmt.Fprintln(os.Stderr, "Available branches:")
@@ -79,7 +80,7 @@ func deleteOriginBranch(branch string) {
 }
 
 func deleteAllLocalBranches() {
-	protected := map[string]bool{"main": true, "master": true, "develop": true}
+	protected := constants.ProtectedBranches
 	// Get current branch
 	curOut, _ := exec.Command("git", "branch", "--show-current").Output()
 	current := strings.TrimSpace(string(curOut))
@@ -94,7 +95,7 @@ func deleteAllLocalBranches() {
 }
 
 func deleteAllOriginBranches() {
-	protected := map[string]bool{"main": true, "master": true, "develop": true}
+	protected := constants.ProtectedBranches
 	out, _ := exec.Command("git", "branch", "-r").Output()
 	for _, line := range strings.Split(string(out), "\n") {
 		remote := strings.TrimSpace(line)
