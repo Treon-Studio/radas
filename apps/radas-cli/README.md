@@ -23,6 +23,24 @@ radas update --force
 
 ## For Maintainers: How to Release New Versions
 
+## Installation
+
+You can install the radas CLI with a single command. The installer script will automatically detect your OS and architecture, download the correct `.tar.gz` release asset from GitHub, extract the binary, and place it in your `/usr/local/bin`.
+
+**Install with curl:**
+```sh
+curl -fsSL https://raw.githubusercontent.com/Treon-Studio/radas/main/apps/radas-cli/install.sh | bash
+```
+
+**Or with wget:**
+```sh
+wget -qO- https://raw.githubusercontent.com/Treon-Studio/radas/main/apps/radas-cli/install.sh | bash
+```
+
+> The release assets are now distributed as `.tar.gz` archives. The install script will extract and install the correct binary for your platform automatically.
+
+---
+
 To create a new release that will be automatically detected by the self-update mechanism:
 
 1. Update the version constant in `constants/version.go`
