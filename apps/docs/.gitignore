@@ -1,10 +1,13 @@
 # deps
-/node_modules
+node_modules
 
 # generated content
-.contentlayer
-.content-collections
+.map.ts
 .source
+.contentlayer
+api-reference.json
+content/docs/api-reference/*.mdx
+!content/docs/api-reference/index.mdx
 
 # test & build
 /coverage
@@ -23,6 +26,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # others
-.env*.local
+!.env.example
+.env.*
 .vercel
 next-env.d.ts
+
