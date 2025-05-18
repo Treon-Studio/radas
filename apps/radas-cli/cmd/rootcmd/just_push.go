@@ -14,16 +14,19 @@ var JustPushCmd = &cobra.Command{
 	Short: "Add, commit, and push changes in one step",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		// 1. git add [files] if provided
+		// 1. git add [files] if provided, default to '.' if not
+		addArgs := []string{"add"}
 		if len(args) > 0 {
-			addArgs := append([]string{"add"}, args...)
-			gitAdd := exec.Command("git", addArgs...)
-			gitAdd.Stdout = os.Stdout
-			gitAdd.Stderr = os.Stderr
-			if err := gitAdd.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "git add failed: %v\n", err)
-				os.Exit(1)
-			}
+			addArgs = append(addArgs, args...)
+		} else {
+			addArgs = append(addArgs, ".")
+		}
+		gitAdd := exec.Command("git", addArgs...)
+		gitAdd.Stdout = os.Stdout
+		gitAdd.Stderr = os.Stderr
+		if err := gitAdd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "git add failed: %v\n", err)
+			os.Exit(1)
 		}
 
 		// 2. cz commit (interactive)
