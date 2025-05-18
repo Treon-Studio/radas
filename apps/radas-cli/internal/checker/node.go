@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"radas/internal/utils"
 )
 
@@ -159,6 +160,46 @@ func InstallFrontendDependencies() {
 
 	// No lock file found
 	utils.Warning("⚠ No lock file found (package-lock.json, pnpm-lock.yaml, or yarn.lock)\n")
+
+	// Prompt user to choose package manager
+	var pkgManager string
+	options := []string{"pnpm", "npm", "yarn"}
+	prompt := &survey.Select{
+		Message: "No lock file found. Which package manager would you like to use to install dependencies?",
+		Options: options,
+		Default: "pnpm",
+	}
+	err := survey.AskOne(prompt, &pkgManager)
+	if err != nil {
+		fmt.Println("Prompt cancelled.")
+		return
+	}
+
+	var cmd *exec.Cmd
+	switch pkgManager {
+	case "pnpm":
+		if !utils.CheckIfCommandExists("pnpm") {
+			utils.Failure("✘ pnpm not found, please install with: npm install -g pnpm\n")
+			return
+		}
+		cmd = exec.Command("pnpm", "install")
+	case "npm":
+		cmd = exec.Command("npm", "install")
+	case "yarn":
+		if !utils.CheckIfCommandExists("yarn") {
+			utils.Failure("✘ yarn not found, please install with: npm install -g yarn\n")
+			return
+		}
+		cmd = exec.Command("yarn")
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		utils.Failure("✘ %s install failed: %v\n", pkgManager, err)
+	} else {
+		utils.Success("✓ %s install completed successfully\n", pkgManager)
+	}
 }
 
 // StartApp starts an app using its package.json scripts
