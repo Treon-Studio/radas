@@ -1,0 +1,123 @@
+---
+title: "Usage Guide"
+description: "Overview of Radas CLI tools and commands by category"
+---
+
+# Radas CLI Usage Guide
+
+Radas CLI provides specialized tools for different development teams and workflows. This guide provides an overview of available commands by category with links to detailed documentation for each.
+
+## Core Commands
+
+These commands are available across all contexts and provide essential functionality for all users.
+
+### Getting Help
+
+```bash
+# Show general help and list all commands
+radas --help
+
+# Get help for a specific command
+radas <command> --help
+```
+
+### Version Management
+
+```bash
+# Display current version
+radas version
+
+# Check for and install updates
+radas update
+
+# Check if updates are available without installing
+radas update --check
+
+# Force update to latest version
+radas update --force
+```
+
+## Category-Specific Commands
+
+Radas CLI is organized into specialized command sets for different development teams and workflows:
+
+### [Frontend Commands](/docs/features/radas-cli/frontend)
+
+Tools for frontend developers to manage UI projects efficiently:
+
+```bash
+radas fe init      # Initialize frontend project structure
+radas fe build     # Build frontend application
+radas fe test      # Run frontend tests
+radas fe lint      # Lint frontend codebase
+```
+
+[View all Frontend commands →](/docs/features/radas-cli/frontend)
+
+### [Backend Commands](/docs/features/radas-cli/backend)
+
+Tools for backend developers to manage APIs and server-side services:
+
+```bash
+radas be init      # Initialize backend service
+radas be migrate   # Run database migrations
+radas be test      # Run backend tests
+radas be lint      # Lint backend codebase
+```
+
+[View all Backend commands →](/docs/features/radas-cli/backend)
+
+### [DevOps Commands](/docs/features/radas-cli/devops)
+
+Tools for streamlining deployment and infrastructure management:
+
+```bash
+radas devops deploy   # Deploy application to environment
+radas devops status   # Check deployment status
+radas devops logs     # View deployment logs
+```
+
+[View all DevOps commands →](/docs/features/radas-cli/devops)
+
+### [Design Commands](/docs/features/radas-cli/design)
+
+Tools for bridging design and development:
+
+```bash
+radas design export   # Export design assets
+radas design sync     # Sync design system
+radas design tokens   # Manage design tokens
+```
+
+[View all Design commands →](/docs/features/radas-cli/design)
+
+### [Git Workflow Commands](/docs/features/radas-cli/git)
+
+Tools for enhancing Git repository management:
+
+```bash
+radas create-branch   # Create a new branch
+radas commit          # Commit changes with a message
+radas push            # Push changes to remote
+radas pull            # Pull from remote repository
+```
+
+[View all Git commands →](/docs/features/radas-cli/git)
+
+## Configuration
+
+```bash
+# View current configuration
+radas config show
+
+# Set a configuration value
+radas config set <key> <value>
+
+# Synchronize configuration with remote
+radas sync-config
+```
+
+## Next Steps
+
+- [Installation Guide](/docs/features/radas-cli/installation)
+- [Radas CLI Philosophy](/docs/features/radas-cli/philosophy)

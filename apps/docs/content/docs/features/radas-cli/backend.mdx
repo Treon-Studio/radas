@@ -1,0 +1,127 @@
+---
+title: "Backend Commands"
+description: "Guide to Radas CLI backend development tools"
+---
+
+# Backend Commands
+
+Radas CLI provides specialized tools for backend developers to efficiently manage API development, database operations, and server-side services.
+
+## Backend (BE) Commands
+
+### Project Initialization
+
+Initialize a new backend service with standardized structure:
+
+```bash
+# Initialize backend service
+radas be init
+```
+
+This command creates:
+- Proper directory structure for API services
+- Base configuration files
+- Database connection templates
+- Initial README.md with setup instructions
+
+### Database Operations
+
+Manage database schema and migrations:
+
+```bash
+# Run database migrations
+radas be migrate
+
+# Create a new migration
+radas be migrate create --name=add_users_table
+
+# Rollback the last migration
+radas be migrate rollback
+```
+
+### Testing
+
+Run tests for your backend services:
+
+```bash
+# Run all backend tests
+radas be test
+
+# Run tests with specific pattern
+radas be test --pattern=user_service
+
+# Run tests with code coverage
+radas be test --coverage
+```
+
+### Linting & Code Quality
+
+Enforce code quality standards:
+
+```bash
+# Lint backend codebase
+radas be lint
+
+# Fix linting issues automatically
+radas be lint --fix
+```
+
+## API Development
+
+Radas CLI provides specialized commands for API development:
+
+```bash
+# Generate a new API endpoint
+radas be api create --name=users
+
+# Generate API documentation
+radas be api docs
+```
+
+## Database Utilities
+
+Database management tools:
+
+```bash
+# Connect to database CLI
+radas be db connect
+
+# Create a database backup
+radas be db backup
+
+# Restore from a backup
+radas be db restore --file=backup.sql
+```
+
+## Best Practices
+
+### Project Structure
+
+Follow this recommended structure for backend projects:
+
+```
+src/
+├── api/          # API endpoints and controllers
+├── services/     # Business logic layer
+├── models/       # Data models and schema
+├── database/     # Migrations and database access
+├── middleware/   # Request middleware
+├── utils/        # Helper functions
+└── config/       # Configuration files
+```
+
+### Development Workflow
+
+1. Begin with `radas be init` for standardized project setup
+2. Use `radas be lint` regularly to maintain code quality
+3. Create and run migrations with `radas be migrate`
+4. Test thoroughly with `radas be test` before deploying
+
+## Integration with Backend Frameworks
+
+Radas CLI integrates with popular backend frameworks and tools:
+
+- **Node.js**: Express, NestJS, and other frameworks
+- **Go**: Standard Go applications and frameworks
+- **Python**: Django, Flask, and other frameworks
+- **Database Systems**: PostgreSQL, MySQL, MongoDB

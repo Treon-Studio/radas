@@ -1,0 +1,141 @@
+---
+title: "Design Commands"
+description: "Guide to Radas CLI design integration tools"
+---
+
+# Design Commands
+
+Radas CLI provides specialized tools for design integration, helping bridge the gap between design assets and development implementation.
+
+## Design Team Commands
+
+### Design Export
+
+Export design assets from design tools to development-ready formats:
+
+```bash
+# Export all design assets
+radas design export
+
+# Export specific design components
+radas design export --components=buttons,forms
+
+# Export to a specific format
+radas design export --format=svg
+```
+
+### Design Synchronization
+
+Synchronize design systems with development codebase:
+
+```bash
+# Sync design system with development
+radas design sync
+
+# Verify design/code consistency
+radas design sync --verify
+
+# Sync and generate change report
+radas design sync --report
+```
+
+### Token Management
+
+Manage design tokens (colors, typography, spacing, etc.):
+
+```bash
+# Export design tokens
+radas design tokens export
+
+# Update design tokens
+radas design tokens update
+
+# Validate token usage
+radas design tokens validate
+```
+
+## Design-to-Code Workflows
+
+### Component Generation
+
+Generate code components from design specifications:
+
+```bash
+# Generate code from design components
+radas design generate --from=figma
+
+# Generate specific components
+radas design generate --components=button,card
+```
+
+### Asset Management
+
+Handle design assets within development projects:
+
+```bash
+# Optimize design assets
+radas design assets optimize
+
+# Import new assets
+radas design assets import --source=path/to/assets
+
+# Clean unused assets
+radas design assets clean
+```
+
+## Integration with Design Tools
+
+Radas CLI can connect directly with popular design tools:
+
+```bash
+# Connect to Figma
+radas design connect --tool=figma
+
+# Set up design tool API tokens
+radas design config --tool=sketch --token=your-api-token
+
+# List connected design tools
+radas design tools list
+```
+
+## Best Practices
+
+### Design System Workflow
+
+1. Keep design tokens as the source of truth for visual styles
+2. Regularly sync with `radas design sync` to maintain consistency
+3. Automate asset optimization in your CI/CD pipeline
+4. Generate component documentation from design specs
+
+### Handoff Process
+
+Streamline the design-to-development handoff process:
+
+```bash
+# Create design handoff package
+radas design handoff create
+
+# Export design specs for development
+radas design handoff specs --format=html
+
+# Generate development guidelines
+radas design handoff guidelines
+```
+
+## Design System Integration
+
+Radas CLI enhances design system integration:
+
+- **Consistency**: Automatically enforce design system rules across codebases
+- **Automation**: Extract design tokens and components without manual work
+- **Documentation**: Generate living documentation for design systems
+- **Versioning**: Track and manage design system changes over time
+
+## Supported Design Tools
+
+Radas CLI integrates with popular design platforms:
+
+- **Figma**: Direct integration via Figma API
+- **Sketch**: Import and export via Sketch files
+- **Adobe XD**: Asset extraction and spec export
+- **Design tokens**: Support for standard token formats
