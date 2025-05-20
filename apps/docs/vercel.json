@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "https://treonstudio.com"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/getting-started/why-radas",
+      "destination": "/why-radas"
+    },
+    {
+      "source": "/features/virtual-branches",
+      "destination": "/features/virtual-branches/overview"
+    },
+    {
+      "source": "/features/virtual-branches/verifying-commits",
+      "destination": "/features/virtual-branches/signing-commits"
+    }
+  ]
+}
