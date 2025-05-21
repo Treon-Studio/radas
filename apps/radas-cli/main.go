@@ -23,11 +23,15 @@ var (
 )
 
 func main() {
+	// Handle aliases if first argument is an alias
+	handleAliases()
+	
 	// Root command
 	rootCmd := &cobra.Command{
 		Use:   "radas",
 		Short: "Radas CLI - Developer Tools",
-		Long: `Radas CLI provides tools for various development teams.
+		Long: constants.RadasASCIIArt + `
+Radas CLI provides tools for various development teams.
 It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`,
 		Version: constants.Version,
 	}
@@ -60,6 +64,9 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 
 	// Add version command
 	rootCmd.AddCommand(rootcmd.VersionCmd)
+	
+	// Add aliases command
+	rootCmd.AddCommand(rootcmd.AliasesCmd)
 
 	rootCmd.AddCommand(rootcmd.EnvCmd)
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
@@ -83,6 +90,39 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+// handleAliases checks if the first argument is an alias and replaces it with the full command
+func handleAliases() {
+	// Need at least one argument (the alias)
+	if len(os.Args) < 2 {
+		return
+	}
+	
+	// Check if the first argument is an alias
+	alias := os.Args[1]
+	if fullCommand, exists := constants.CommandAliases[alias]; exists {
+		// Split the full command into parts
+		cmdParts := strings.Split(fullCommand, " ")
+		
+		// Create a new args slice with "radas" as the program name,
+		// followed by the expanded command parts,
+		// followed by any additional args provided by the user
+		newArgs := make([]string, 0, len(cmdParts) + len(os.Args) - 1)
+		newArgs = append(newArgs, os.Args[0]) // Program name (radas)
+		newArgs = append(newArgs, cmdParts...) // Expanded command
+		
+		// Add any additional arguments that were provided (if any)
+		if len(os.Args) > 2 {
+			newArgs = append(newArgs, os.Args[2:]...)
+		}
+		
+		// Replace os.Args with the new arguments
+		os.Args = newArgs
+		
+		// Print a message to show the alias expansion (optional)
+		fmt.Printf("Using alias: %s → radas %s\n\n", alias, fullCommand)
 	}
 }
 

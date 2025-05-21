@@ -19,6 +19,10 @@ var VersionCmd = &cobra.Command{
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
+	// Display ASCII banner first
+	fmt.Print(constants.RadasASCIIArt)
+	fmt.Println()
+	
 	fmt.Printf("Radas CLI version: %s\n", constants.Version)
 	fmt.Printf("Operating system: %s\n", runtime.GOOS)
 	fmt.Printf("Architecture: %s\n", runtime.GOARCH)

@@ -34,3 +34,56 @@ var EnvHeaders = []string{"KEY", "VALUE", "ROLE"}
 
 // Protected branches
 var ProtectedBranches = map[string]bool{"main": true, "master": true, "develop": true}
+
+// RadasASCIIArt is the ASCII art banner for Radas CLI
+const RadasASCIIArt = `
+▗▄▄▖  ▗▄▖ ▗▄▄▄   ▗▄▖  ▗▄▄▖
+▐▌ ▐▌▐▌ ▐▌▐▌  █ ▐▌ ▐▌▐▌   
+▐▛▀▚▖▐▛▀▜▌▐▌  █ ▐▛▀▜▌ ▝▀▚▖
+▐▌ ▐▌▐▌ ▐▌▐▙▄▄▀ ▐▌ ▐▌▗▄▄▞▘
+`
+
+// CommandAliases defines short aliases for common radas commands
+var CommandAliases = map[string]string{
+	// Git commands
+	"rcb": "create-branch",
+	"rcm": "commit",
+	"rp":  "push",
+	"rpl": "pull",
+	"rlb": "list-branch",
+	"rdb": "del-branch",
+	"rjp": "just-push",
+	
+	// Frontend commands
+	"rfd": "fe doctor",
+	"rfi": "fe init",
+	"rfin": "fe install",
+	"rfb": "fe build",
+	"rfc": "fe clean",
+	"rff": "fe fresh",
+	"rfde": "fe dev",
+	
+	// Backend commands
+	"rbd": "be doctor",
+	"rbi": "be init",
+	"rbin": "be install",
+	"rbc": "be clean",
+	"rbf": "be fresh",
+	
+	// DevOps commands
+	"rdd": "devops doctor",
+	
+	// Design commands
+	"rdsd": "design doctor",
+	
+	// Other commands
+	"rdr": "doctor",
+	"ri":  "install",
+	"rsc": "sync-config",
+	"rsr": "sync-repo",
+	"rrb": "rebuild",
+	"ru":  "update",
+	"rv":  "version",
+	"rcf": "config",
+	"re":  "env",
+}
