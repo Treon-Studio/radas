@@ -49,17 +49,7 @@ var genAPICmd = &cobra.Command{
 			fmt.Printf("Output directory: %s\n", outputDir)
 		}
 
-		// Panggil logic generator di internal/frontend/generator
-		gen := generator.New(&generator.Config{
-			InputSpec:   genAPISpec,
-			OutputDir:   outputDir,
-			BaseURL:     baseURL,
-			GenerateAll: genAPIAll,
-			ZodiosOnly:  genAPIZodios,
-			HooksOnly:   genAPIHooks,
-			StoresOnly:  genAPIStores,
-			Verbose:     verbose,
-		})
-		return gen.Generate()
+		// Call API generator with the new architecture
+		return generator.GenerateAPI(genAPISpec, outputDir, baseURL, verbose)
 	},
 }

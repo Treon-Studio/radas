@@ -1,4 +1,4 @@
-package generator
+package api
 
 // Templates embedded directly in the code
 var templates = map[string]string{
@@ -152,21 +152,9 @@ export default api;`,
 
 	"queries.tmpl": `// AUTO-GENERATED React Query hooks
 import { useQuery, useMutation, useQueryClient, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
-import api, { ValidationError } from './client';
-import type * as DTO from './dto';
+import api from './client';
 
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: (failureCount, error) => {
-        if (error instanceof ValidationError) return false;
-        return failureCount < 3;
-      },
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
+import { queryClient } from './queryClient';
 
 {{ range $namespace, $operations := .GroupedOps }}// {{ capitalize $namespace }} hooks
 {{ range $operations }}{{ if eq (toUpper .Method) "GET" }}
@@ -179,7 +167,7 @@ export function use{{ capitalize .ID }}(
     {{ end }}{{ if .RequestBody }}body{{ if not .RequestBody.Required }}?{{ end }}: DTO.{{ extractDTOType .RequestBody.Schema }};
     {{ end }}
   },{{ end }}
-  options
+  options: UseQueryOptions<ReturnType<typeof api.{{ .ID }}>> = {}
 ) {
   return useQuery({
     queryKey: ['{{ .ID }}'{{ if hasParams . }}, params{{ end }}],
@@ -191,24 +179,27 @@ export function use{{ capitalize .ID }}(
 /**
  * {{ .Description }}
  */
-export function use{{ capitalize .ID }}(options) {
-  const queryClient = useQueryClient();
+export function use{{ capitalize .ID }}(options: UseMutationOptions<
+  ReturnType<typeof api.{{ .ID }}>,
+  unknown,
+  Parameters<typeof api.{{ .ID }}>[0]
+> = {}) {
   return useMutation({
     mutationFn: api.{{ .ID }},
     onSuccess: (data, variables) => {
-      {{ if shouldInvalidateQueries . }}{{ range $relatedOp := $operations }}{{ if and (eq (toUpper $relatedOp.Method) "GET") (eq $relatedOp.Entity .Entity) }}
-      queryClient.invalidateQueries({ queryKey: ['{{ $relatedOp.ID }}'] });
-      {{ end }}{{ end }}{{ end }}
+      {{ if shouldInvalidateQueries . }}
+      queryClient.invalidateQueries([
+        {{ range $index, $relatedOp := $operations }}{{ if and (eq (toUpper $relatedOp.Method) "GET") (eq $relatedOp.Entity .Entity) }}{{ if $index }}, {{ end }}'{{ $relatedOp.ID }}'{{ end }}{{ end }}
+      ]);
+      {{ end }}
       options?.onSuccess?.(data, variables, undefined);
     },
-    onError: (err, variables, context) => {
+    onError: (_error, _variables, context) => {
       queryClient.setQueryData(['{{ .ID }}'], context?.previousData);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['{{ .ID }}'] });
-      {{ if hasRelatedGetOperation . $operations }}
-      queryClient.invalidateQueries({ queryKey: ['{{ getRelatedListOperation . $operations }}'] });
-      {{ end }}
+      // Combine invalidation queries
+      queryClient.invalidateQueries(['{{ .ID }}'{{ if hasRelatedGetOperation . $operations }}, '{{ getRelatedListOperation . $operations }}'{{ end }}]);
     },
     ...options,
   });
@@ -217,51 +208,91 @@ export function use{{ capitalize .ID }}(options) {
 /**
  * {{ .Description }} with optimistic updates
  */
-export function use{{ capitalize .ID }}Optimistic(options) {
-  const queryClient = useQueryClient();
+export function use{{ capitalize .ID }}Optimistic(options: UseMutationOptions<
+  ReturnType<typeof api.{{ .ID }}>,
+  unknown,
+  Parameters<typeof api.{{ .ID }}>[0]
+> = {}) {
   return useMutation({
     mutationFn: api.{{ .ID }},
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ['{{ .ID }}'] });
+    onMutate: async (_variables) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries(['{{ .ID }}']);
+      
+      // Snapshot the previous value
       const previousData = queryClient.getQueryData(['{{ .ID }}']);
+      
+      {{ if hasRelatedGetOperation . $operations }}const variables = _variables;
       {{ if and (hasRelatedGetOperation . $operations) (eq (toLower .Method) "delete") }}
+      // Cancel any outgoing refetches for the related list query
+      await queryClient.cancelQueries(['{{ getRelatedListOperation . $operations }}']);
+      
       const idParam = variables{{ range .Parameters }}{{ if eq .Name "id" }}.id{{ end }}{{ end }};
       if (idParam) {
-        queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], function(old) {
+        // Snapshot the previous list data
+        const previousListData = queryClient.getQueryData(['{{ getRelatedListOperation . $operations }}']);
+        
+        // Optimistically update the list by removing the deleted item
+        queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], (old: any) => {
           const arr = old || [];
-          return arr.filter(function(item) { return item.id !== idParam; });
+          return arr.filter((item: any) => item.id !== idParam);
         });
+        
+        // Return both snapshots for rollback
+        return { previousData, previousListData };
       }
       {{ else if and (hasRelatedGetOperation . $operations) (eq (toLower .Method) "post") }}{{ if .RequestBody }}
-      queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], function(old) {
+      // Cancel any outgoing refetches for the related list query
+      await queryClient.cancelQueries(['{{ getRelatedListOperation . $operations }}']);
+      
+      // Snapshot the previous list data
+      const previousListData = queryClient.getQueryData(['{{ getRelatedListOperation . $operations }}']);
+      
+      // Optimistically update the list by adding the new item
+      queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], (old: any) => {
         const arr = old || [];
-        return arr.concat([Object.assign({}, variables.body, {id: 'temp-id'})]);
+        return [...arr, { ...variables.body, id: 'temp-id-' + Date.now() }];
       });
+      
+      // Return both snapshots for rollback
+      return { previousData, previousListData };
       {{ end }}{{ else if and (hasRelatedGetOperation . $operations) (or (eq (toLower .Method) "put") (eq (toLower .Method) "patch")) }}
       const idParam = variables{{ range .Parameters }}{{ if eq .Name "id" }}.id{{ end }}{{ end }};
       if (idParam) {
-        queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], function(old) {
+        // Cancel any outgoing refetches for related queries
+        await queryClient.cancelQueries(['{{ getRelatedListOperation . $operations }}']);
+        await queryClient.cancelQueries(['{{ getRelatedGetOperation . $operations }}', idParam]);
+        
+        // Snapshot the previous data
+        const previousListData = queryClient.getQueryData(['{{ getRelatedListOperation . $operations }}']);
+        const previousItemData = queryClient.getQueryData(['{{ getRelatedGetOperation . $operations }}', idParam]);
+        
+        // Optimistically update the list
+        queryClient.setQueryData(['{{ getRelatedListOperation . $operations }}'], (old: any) => {
           const arr = old || [];
-          return arr.map(function(item) {
-            if (item.id === idParam) return Object.assign({}, item, variables.body);
-            return item;
-          });
+          return arr.map((item: any) => 
+            item.id === idParam ? { ...item, ...variables.body } : item
+          );
         });
-        queryClient.setQueryData(['{{ getRelatedGetOperation . $operations }}', idParam], function(old) {
-          return old ? Object.assign({}, old, variables.body) : old;
-        });
+        
+        // Optimistically update the individual item
+        queryClient.setQueryData(['{{ getRelatedGetOperation . $operations }}', idParam], (old: any) => 
+          old ? { ...old, ...variables.body } : old
+        );
+        
+        // Return all snapshots for rollback
+        return { previousData, previousListData, previousItemData };
       }
-      {{ end }}
+      {{ end }}{{ end }}
+      
       return { previousData };
     },
-    onError: (err, variables, context) => {
+    onError: (_error, _variables, context) => {
       queryClient.setQueryData(['{{ .ID }}'], context?.previousData);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['{{ .ID }}'] });
-      {{ if hasRelatedGetOperation . $operations }}
-      queryClient.invalidateQueries({ queryKey: ['{{ getRelatedListOperation . $operations }}'] });
-      {{ end }}
+      // Combine invalidation queries
+      queryClient.invalidateQueries(['{{ .ID }}'{{ if hasRelatedGetOperation . $operations }}, '{{ getRelatedListOperation . $operations }}'{{ end }}]);
     },
     ...options,
   });

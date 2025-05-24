@@ -1,4 +1,4 @@
-package generator
+package api
 
 import (
 	"fmt"
