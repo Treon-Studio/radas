@@ -1,13 +1,44 @@
 package generator
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"radas/internal/frontend/parser"
 )
+
+// templateFuncs contains helper functions for templates
+var templateFuncs = template.FuncMap{
+	"toLower":               strings.ToLower,
+	"toUpper":               strings.ToUpper,
+	"capitalize":            capitalize,
+	"schemaToZod":           schemaToZodTemplate,
+	"tsType":                goTypeToTSType,
+	"isRequired":            isRequired,
+	"hasErrorResponses":     hasErrorResponses,
+	"isErrorStatus":         isErrorStatus,
+	"getResponseSchema":     getResponseSchema,
+	"hasParams":             hasParams,
+	"paramType":             paramTypeTemplate,
+	"returnType":            returnTypeTemplate,
+	"shouldInvalidateCache": shouldInvalidateCache,
+	"actionName":            actionName,
+	"extractTSType":         extractTSType,
+	"extractDTOType":        extractDTOType,
+	"hasPathParams":         hasPathParams,
+	"hasQueryParams":        hasQueryParams,
+	"returnTypePromise":     returnTypePromise,
+	"shouldInvalidateQueries": shouldInvalidateQueries,
+	"hasRelatedGetOperation": hasRelatedGetOperation,
+	"getRelatedListOperation": getRelatedListOperation,
+	"getRelatedGetOperation": getRelatedGetOperation,
+	"pathWithParams":        pathWithParams,
+	"getSuccessResponseSchema": getSuccessResponseSchema,
+}
 
 type Config struct {
 	InputSpec   string
@@ -49,7 +80,7 @@ func (g *Generator) Generate() error {
 		}
 	}
 	if g.config.GenerateAll || g.config.HooksOnly {
-		if err := g.generateReactQuery(spec); err != nil {
+		if err := g.generateQueries(spec); err != nil {
 			return fmt.Errorf("failed to generate React Query hooks: %w", err)
 		}
 	}
@@ -58,9 +89,9 @@ func (g *Generator) Generate() error {
 			return fmt.Errorf("failed to generate Zustand stores: %w", err)
 		}
 	}
-	// Always generate types
-	if err := g.generateTypes(); err != nil {
-		return fmt.Errorf("failed to generate types: %w", err)
+	// Always generate DTOs
+	if err := g.generateDTO(); err != nil {
+		return fmt.Errorf("failed to generate DTOs: %w", err)
 	}
 
 	if g.config.Verbose {
@@ -69,80 +100,48 @@ func (g *Generator) Generate() error {
 	return nil
 }
 
+// execTemplate executes a template with the given data and returns the result as a string
+func (g *Generator) execTemplate(templateName string, data interface{}) (string, error) {
+	// Get template content from embedded templates
+	templateContent, exists := templates[templateName]
+	if !exists {
+		return "", fmt.Errorf("template %s not found in embedded templates", templateName)
+	}
+	
+	// Parse the template
+	tmpl, err := template.New(templateName).Funcs(templateFuncs).Parse(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template %s: %w", templateName, err)
+	}
+	
+	buf := new(bytes.Buffer)
+	err = tmpl.Execute(buf, data)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute template %s: %w", templateName, err)
+	}
+	
+	return buf.String(), nil
+}
+
 func (g *Generator) generateZodios(spec *parser.ParsedSpec) error {
 	if g.config.Verbose {
 		fmt.Println("[GEN] Generating Zodios client...")
 	}
 
-	schemaTS, schemaNames := generateSchemasTS(spec)
-
-	content := "// AUTO-GENERATED Zodios client\n" +
-		"import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core'\n" +
-		"import { z } from 'zod'\n\n"
-	content += schemaTS + "\n"
-	content += "export const schemas = {\n"
-	for _, name := range schemaNames {
-		content += "\t" + name + ",\n"
+	// Create template data with BaseURL
+	templateData := struct {
+		*parser.ParsedSpec
+		BaseURL string
+	}{
+		ParsedSpec: spec,
+		BaseURL:    g.config.BaseURL,
 	}
-	content += "};\n\n"
 
-	content += "const endpoints = makeApi([\n"
-	for _, op := range spec.Operations {
-		content += "\t{\n"
-		content += fmt.Sprintf("\t\tmethod: \"%s\",\n", strings.ToLower(op.Method))
-		content += fmt.Sprintf("\t\tpath: \"%s\",\n", op.Path)
-		content += fmt.Sprintf("\t\talias: \"%s\",\n", op.ID)
-		if op.Description != "" {
-			content += fmt.Sprintf("\t\tdescription: `%s`,\n", op.Description)
-		}
-		content += "\t\trequestFormat: \"json\",\n"
-
-		// Parameters
-		if len(op.Parameters) > 0 || op.RequestBody != nil {
-			content += "\t\tparameters: [\n"
-			for _, p := range op.Parameters {
-				schema := goTypeToZod(p.Schema)
-				content += fmt.Sprintf("\t\t\t{ name: \"%s\", type: \"%s\", schema: %s },\n", p.Name, p.Type, schema)
-			}
-			if op.RequestBody != nil {
-				schema := goTypeToZod(op.RequestBody.Schema)
-				content += fmt.Sprintf("\t\t\t{ name: \"body\", type: \"Body\", schema: %s },\n", schema)
-			}
-			content += "\t\t],\n"
-		}
-
-		// Response
-		respSchema := "z.any()"
-		for _, resp := range op.Responses {
-			if resp.Schema != "" {
-				respSchema = goTypeToZod(resp.Schema)
-				break
-			}
-		}
-		content += fmt.Sprintf("\t\tresponse: %s,\n", respSchema)
-
-		// Errors
-		hasError := false
-		for status, resp := range op.Responses {
-			if status != "200" && status != "201" && resp.Schema != "" {
-				hasError = true
-				break
-			}
-		}
-		if hasError {
-			content += "\t\terrors: [\n"
-			for status, resp := range op.Responses {
-				if status != "200" && status != "201" && resp.Schema != "" {
-					content += fmt.Sprintf("\t\t\t{ status: %s, description: `%s`, schema: %s },\n", status, resp.Description, goTypeToZod(resp.Schema))
-				}
-			}
-			content += "\t\t],\n"
-		}
-		content += "\t},\n"
+	content, err := g.execTemplate("client.tmpl", templateData)
+	if err != nil {
+		return fmt.Errorf("failed to generate client: %w", err)
 	}
-	content += "])\n\n"
-	content += "export const api = new Zodios(endpoints);\n\n"
-	content += "export function createApiClient(baseUrl: string, options?: ZodiosOptions) {\n    return new Zodios(baseUrl, endpoints, options);\n}\n"
+
 	return g.writeFile("client.ts", content)
 }
 
@@ -189,17 +188,54 @@ func goTypeToZod(t string) string {
 }
 
 
-func (g *Generator) generateReactQuery(spec *parser.ParsedSpec) error {
+func (g *Generator) generateQueries(spec *parser.ParsedSpec) error {
 	if g.config.Verbose {
 		fmt.Println("[GEN] Generating React Query hooks...")
 	}
-	content := "// AUTO-GENERATED React Query hooks\nimport { useQuery } from '@tanstack/react-query'\nimport { apiClient } from './client'\n\n"
-	for _, op := range spec.Operations {
-		if strings.ToUpper(op.Method) == "GET" {
-			content += fmt.Sprintf("export function use%sQuery(params?: any) {\n  return useQuery(['%s'], () => apiClient.%s(params))\n}\n\n", capitalize(op.ID), op.ID, op.ID)
-		}
+
+	// First generate the queryClient file
+	queryClientData := struct {
+		BaseURL string
+	}{
+		BaseURL: g.config.BaseURL,
 	}
-	return g.writeFile("hooks.ts", content)
+	queryClientContent, err := g.execTemplate("queryClient.tmpl", queryClientData)
+	if err != nil {
+		return fmt.Errorf("failed to generate query client: %w", err)
+	}
+
+	if err := g.writeFile("queryClient.ts", queryClientContent); err != nil {
+		return err
+	}
+
+	// Group operations by namespace/entity for better organization
+	groupedOps := make(map[string][]parser.Operation)
+	for _, op := range spec.Operations {
+		namespace := op.Namespace
+		if namespace == "" {
+			namespace = "api"
+		}
+		groupedOps[namespace] = append(groupedOps[namespace], op)
+	}
+
+	// Create data for the template
+	templateData := struct {
+		GroupedOps map[string][]parser.Operation
+		Spec       *parser.ParsedSpec
+		BaseURL    string
+	}{
+		GroupedOps: groupedOps,
+		Spec:       spec,
+		BaseURL:    g.config.BaseURL,
+	}
+
+	// Generate queries content using template
+	content, err := g.execTemplate("queries.tmpl", templateData)
+	if err != nil {
+		return fmt.Errorf("failed to generate queries: %w", err)
+	}
+
+	return g.writeFile("queries.ts", content)
 }
 
 func capitalize(s string) string {
@@ -213,16 +249,70 @@ func (g *Generator) generateZustand() error {
 	if g.config.Verbose {
 		fmt.Println("[GEN] Generating Zustand stores...")
 	}
-	content := "// Zustand stores (mock)\nexport const useStore = () => {}"
+	
+	// First we need to get the parsed spec to group operations by namespace
+	spec, err := parser.ParseOpenAPI(g.config.InputSpec)
+	if err != nil {
+		return fmt.Errorf("failed to parse OpenAPI spec: %w", err)
+	}
+	
+	// Group operations by namespace/entity for better organization
+	groupedOps := make(map[string][]parser.Operation)
+	for _, op := range spec.Operations {
+		namespace := op.Namespace
+		if namespace == "" {
+			namespace = "api"
+		}
+		groupedOps[namespace] = append(groupedOps[namespace], op)
+	}
+	
+	// Create data for the template
+	templateData := struct {
+		GroupedOps map[string][]parser.Operation
+		Spec       *parser.ParsedSpec
+		BaseURL    string
+	}{
+		GroupedOps: groupedOps,
+		Spec:       spec,
+		BaseURL:    g.config.BaseURL,
+	}
+	
+	// Generate stores content using template
+	content, err := g.execTemplate("stores.tmpl", templateData)
+	if err != nil {
+		return fmt.Errorf("failed to generate stores: %w", err)
+	}
+	
 	return g.writeFile("stores.ts", content)
 }
 
-func (g *Generator) generateTypes() error {
+func (g *Generator) generateDTO() error {
 	if g.config.Verbose {
-		fmt.Println("[GEN] Generating TypeScript types...")
+		fmt.Println("[GEN] Generating TypeScript DTOs...")
 	}
-	content := "// Types (mock)\nexport type User = {}"
-	return g.writeFile("types.ts", content)
+	
+	// Read the spec to get the schemas
+	spec, err := parser.ParseOpenAPI(g.config.InputSpec)
+	if err != nil {
+		return fmt.Errorf("failed to parse OpenAPI spec: %w", err)
+	}
+	
+	// Create template data with BaseURL
+	templateData := struct {
+		*parser.ParsedSpec
+		BaseURL string
+	}{
+		ParsedSpec: spec,
+		BaseURL:    g.config.BaseURL,
+	}
+	
+	// Generate content using template
+	content, err := g.execTemplate("dto.tmpl", templateData)
+	if err != nil {
+		return fmt.Errorf("failed to generate DTOs: %w", err)
+	}
+	
+	return g.writeFile("dto.ts", content)
 }
 
 func (g *Generator) writeFile(filename, content string) error {

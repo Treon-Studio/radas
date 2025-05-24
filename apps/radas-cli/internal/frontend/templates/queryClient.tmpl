@@ -1,0 +1,30 @@
+// AUTO-GENERATED tRPC Query Client
+import { QueryClient } from '@tanstack/react-query';
+import { httpBatchLink } from '@trpc/client';
+import { createTRPCProxyClient } from '@trpc/client';
+import type { AppRouter } from './client';
+
+// Create a QueryClient for React Query
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
+
+// Create a tRPC client
+export function createTRPCClient(baseUrl: string = 'http://localhost:3000/api/trpc') {
+  return createTRPCProxyClient<AppRouter>({
+    links: [
+      httpBatchLink({
+        url: baseUrl,
+      }),
+    ],
+  });
+}
+
+// Default client instance
+export const trpcClient = createTRPCClient();
