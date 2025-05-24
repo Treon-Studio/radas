@@ -2,11 +2,15 @@ package frontend
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"radas/internal/frontend/generator"
 )
+
+
 
 var (
 	genAPISpec     string
@@ -35,6 +39,8 @@ func init() {
 	viper.BindPFlag("frontend.gen-api.verbose", genAPICmd.Flags().Lookup("verbose"))
 }
 
+
+
 var genAPICmd = &cobra.Command{
 	Use:   "gen-api",
 	Short: "Generate TypeScript client code from OpenAPI spec",
@@ -43,13 +49,43 @@ var genAPICmd = &cobra.Command{
 		outputDir := viper.GetString("frontend.gen-api.output")
 		baseURL := viper.GetString("frontend.gen-api.base-url")
 		verbose := viper.GetBool("frontend.gen-api.verbose")
+		specPath := genAPISpec
+
+		// Check if a flag was explicitly provided
+		specProvided := cmd.Flags().Changed("spec")
+
+		// If spec was not explicitly provided, try to find radas.yml
+		if !specProvided {
+			configPath, err := FindConfig()
+			if err == nil {
+				// Found radas.yml, try to parse it
+				cfg, err := ParseConfig(configPath)
+				if err == nil && len(cfg.Contract.API) > 0 {
+					// Use the first API spec from the configuration
+					baseDir := filepath.Dir(configPath)
+					specPath = ResolvePath(baseDir, cfg.Contract.API[0].Path)
+					
+					// Use the project name for output directory if it's not explicitly provided
+					if !cmd.Flags().Changed("output") {
+						outputDir = filepath.Join(baseDir, "__generated__/api")
+					}
+					
+					fmt.Printf("Using API spec from radas.yml: %s\n", specPath)
+				}
+			}
+		}
+
+		// Verify the spec file exists
+		if _, err := os.Stat(specPath); os.IsNotExist(err) {
+			return fmt.Errorf("API spec file not found: %s", specPath)
+		}
 
 		if verbose {
-			fmt.Printf("Generating client code from: %s\n", genAPISpec)
+			fmt.Printf("Generating client code from: %s\n", specPath)
 			fmt.Printf("Output directory: %s\n", outputDir)
 		}
 
 		// Call API generator with the new architecture
-		return generator.GenerateAPI(genAPISpec, outputDir, baseURL, verbose)
+		return generator.GenerateAPI(specPath, outputDir, baseURL, verbose)
 	},
 }

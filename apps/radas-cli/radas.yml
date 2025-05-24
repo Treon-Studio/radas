@@ -1,0 +1,18 @@
+name: investrack
+description: "App Investrack"
+type: web-app
+stacks:
+  - nextjs
+  - typescript
+  - biome
+  - tailwindcss
+  - react-query
+  - zod
+  - react
+contract:
+  design:
+    - path: contracts/bungas/design
+      type: css
+  api:
+    - path: contracts/investrack/api/openapi.json
+      type: open-api
