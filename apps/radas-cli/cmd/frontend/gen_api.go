@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"saru/internal/frontend/generator"
+	"radas/internal/frontend/generator"
 )
 
 var (
@@ -22,7 +22,7 @@ var (
 func init() {
 
 	genAPICmd.Flags().StringVarP(&genAPISpec, "spec", "s", "./merged-api.json", "Input OpenAPI specification file")
-	genAPICmd.Flags().StringVar(&genAPIOutput, "output", "./src/api", "Output directory")
+	genAPICmd.Flags().StringVar(&genAPIOutput, "output", "./src/__generated__/api", "Output directory")
 	genAPICmd.Flags().StringVar(&genAPIBaseURL, "base-url", "https://api.example.com", "Base URL for API")
 	genAPICmd.Flags().BoolVar(&genAPIVerbose, "verbose", false, "Enable verbose logging")
 	genAPICmd.Flags().BoolVar(&genAPIAll, "all", true, "Generate all client types")

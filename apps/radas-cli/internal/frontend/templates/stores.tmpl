@@ -1,0 +1,31 @@
+// AUTO-GENERATED Zustand stores with tRPC integration
+import { create } from 'zustand';
+import { trpcClient } from './queryClient';
+
+{{ range $namespace, $operations := .GroupedOps }}export const use{{ capitalize $namespace }}Store = create((set) => ({
+  data: null, loading: false, error: null,
+  // Actions
+  {{ range $operations }}{{ if eq (toUpper .Method) "GET" }}fetch{{ capitalize .ID }}: async (params = {}) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await trpcClient.{{ .ID }}.query(params);
+      set({ data: result, loading: false });
+      return result;
+    } catch (error) {
+      set({ error, loading: false }); throw error;
+    }
+  },
+  {{ else }}{{ actionName .Method .ID }}: async (params = {}) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await trpcClient.{{ .ID }}.mutate(params);
+      return result;
+    } catch (error) {
+      set({ error, loading: false }); throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+  {{ end }}{{ end }}
+})); // {{ capitalize $namespace }} store
+{{ end }}

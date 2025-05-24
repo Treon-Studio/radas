@@ -248,8 +248,18 @@ func extractRequestBody(requestBody *openapi3.RequestBodyRef) *RequestBody {
 
 	// Extract schema from content (assuming JSON)
 	if content := requestBody.Value.Content["application/json"]; content != nil {
-		if content.Schema != nil && content.Schema.Value != nil {
-			rb.Schema = getSchemaReference(content.Schema.Value)
+		if content.Schema != nil {
+			// Check if it's a reference to a component schema
+			if content.Schema.Ref != "" {
+				// Extract the schema name from the reference (e.g., "#/components/schemas/User" -> "User")
+				parts := strings.Split(content.Schema.Ref, "/")
+				if len(parts) > 0 {
+					rb.Schema = parts[len(parts)-1]
+				}
+			} else if content.Schema.Value != nil {
+				// Process inline schema
+				rb.Schema = getSchemaReference(content.Schema.Value)
+			}
 		}
 	}
 
@@ -267,8 +277,18 @@ func extractResponses(responses *openapi3.Responses) map[string]Response {
 
 			// Extract schema from content (assuming JSON)
 			if content := responseRef.Value.Content["application/json"]; content != nil {
-				if content.Schema != nil && content.Schema.Value != nil {
-					response.Schema = getSchemaReference(content.Schema.Value)
+				if content.Schema != nil {
+					// Check if it's a reference to a component schema
+					if content.Schema.Ref != "" {
+						// Extract the schema name from the reference (e.g., "#/components/schemas/User" -> "User")
+						parts := strings.Split(content.Schema.Ref, "/")
+						if len(parts) > 0 {
+							response.Schema = parts[len(parts)-1]
+						}
+					} else if content.Schema.Value != nil {
+						// Process inline schema
+						response.Schema = getSchemaReference(content.Schema.Value)
+					}
 				}
 			}
 

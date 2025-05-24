@@ -1,0 +1,5 @@
+// AUTO-GENERATED TypeScript DTOs
+{{ range .Schemas }}export interface {{ .Name }} {
+{{ range $propName, $propType := .Properties }}  {{ $propName }}: {{ tsType $propType }};
+{{ end }}}
+{{ end }}

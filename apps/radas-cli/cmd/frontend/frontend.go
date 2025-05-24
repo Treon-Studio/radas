@@ -21,4 +21,5 @@ func init() {
 	Cmd.AddCommand(InitCmd)
 	Cmd.AddCommand(BuildCmd)
 	Cmd.AddCommand(BlackholeCmd)
+	Cmd.AddCommand(genAPICmd)
 }

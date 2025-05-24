@@ -1,0 +1,38 @@
+// AUTO-GENERATED tRPC client
+import { initTRPC } from '@trpc/server';
+import { createTRPCProxyClient, httpBatchLink } from '@trpc/client';
+import { z } from 'zod';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
+
+// Define Zod schemas for validation
+{{ range .Schemas }}export const {{ .Name }}Schema = {{ schemaToZod . }}
+{{ end }}
+
+// Initialize tRPC server
+const t = initTRPC.create();
+const router = t.router;
+const publicProcedure = t.procedure;
+
+// Define procedures
+export const appRouter = router({
+{{ range .Operations }}  {{ .ID }}: publicProcedure{{ if or (gt (len .Parameters) 0) .RequestBody }}.input(z.object({{{ range .Parameters }}{{ .Name }}: {{ .Schema }},{{ end }}{{ if .RequestBody }}{{ if .RequestBody.Required }}body: {{ .RequestBody.Schema }}{{ else }}body: {{ .RequestBody.Schema }}.optional(){{ end }},{{ end }}})){{ end }}
+    .query(async ({ input }) => {
+      // Mock response based on method type
+      {{ if eq (toLower .Method) "get" }}return { success: true, data: {} };{{ else if eq (toLower .Method) "post" }}return { success: true, data: { id: 'new-id' } };{{ else if eq (toLower .Method) "put" }}return { success: true, data: { updated: true } };{{ else if eq (toLower .Method) "delete" }}return { success: true, data: { deleted: true } };{{ else }}return { success: true };{{ end }}
+    }),
+{{ end }}});
+
+// Export type definitions
+export type AppRouter = typeof appRouter;
+export type RouterInputs = inferRouterInputs<AppRouter>;
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
+
+// Create a tRPC client
+export function createClient(baseUrl: string) {
+  return createTRPCProxyClient<AppRouter>({
+    links: [httpBatchLink({ url: baseUrl })],
+  });
+}
+
+// Default client instance
+export const client = createClient('http://localhost:3000/api/trpc');

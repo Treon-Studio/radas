@@ -1,0 +1,37 @@
+// AUTO-GENERATED tRPC React hooks
+import { createTRPCReact } from '@trpc/react-query';
+import { type AppRouter } from './client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './queryClient';
+import type * as DTO from './dto';
+
+// Create tRPC React hooks
+export const trpc = createTRPCReact<AppRouter>();
+
+// TRPCProvider component
+export function TRPCProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <trpc.Provider client={trpc.client} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+
+{{ range $namespace, $operations := .GroupedOps }}// {{ capitalize $namespace }} hooks
+{{ range $operations }}{{ if eq (toUpper .Method) "GET" }}
+// {{ .Description }}
+export function use{{ capitalize .ID }}({{ if hasParams . }}params: { {{ range .Parameters }}{{ .Name }}{{ if not .Required }}?{{ end }}: {{ extractTSType .Schema }};{{ end }}{{ if .RequestBody }} body{{ if not .RequestBody.Required }}?{{ end }}: DTO.{{ extractDTOType .RequestBody.Schema }};{{ end }} }{{ end }}) {
+  return trpc.{{ .ID }}.useQuery({{ if hasParams . }}params{{ else }}{}{{ end }});
+}
+{{ else }}
+// {{ .Description }}
+export function use{{ capitalize .ID }}({{ if .RequestBody }}body: DTO.{{ extractDTOType .RequestBody.Schema }}{{ end }}) {
+  const mutation = trpc.{{ .ID }}.useMutation();
+  return {
+    ...mutation,
+    mutate: ({{ if hasParams . }}params: { {{ range .Parameters }}{{ .Name }}{{ if not .Required }}?{{ end }}: {{ extractTSType .Schema }};{{ end }} }{{ end }}) => 
+      mutation.mutate({ {{ if hasParams . }}...params,{{ end }}{{ if .RequestBody }} body{{ end }} })
+  };
+}
+{{ end }}{{ end }}
+{{ end }}
