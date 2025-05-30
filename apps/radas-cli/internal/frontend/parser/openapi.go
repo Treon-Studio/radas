@@ -20,6 +20,7 @@ type Operation struct {
 	Responses   map[string]Response
 	Namespace   string
 	Entity      string
+	IsWebhook   bool
 }
 
 type Parameter struct {
@@ -41,17 +42,26 @@ type Response struct {
 }
 
 type Schema struct {
-	Name       string
-	Type       string
-	Properties map[string]interface{}
-	Required   []string
-	Namespace  string
+	Name        string
+	Type        string
+	Properties  map[string]interface{}
+	Required    []string
+	Namespace   string
+	Description string
+	Nullable    bool
+	Format      string
+	Deprecated  bool
+	ReadOnly    bool
+	WriteOnly   bool
+	MinItems    *uint64
+	MaxItems    *uint64
 }
 
 type ParsedSpec struct {
 	Operations []Operation
 	Schemas    []Schema
 	Namespaces map[string][]string
+	IsOpenAPI31 bool
 }
 
 func ParseOpenAPI(specPath string) (*ParsedSpec, error) {
@@ -67,10 +77,14 @@ func ParseOpenAPI(specPath string) (*ParsedSpec, error) {
 		return nil, fmt.Errorf("invalid OpenAPI spec: %w", err)
 	}
 
+	// Detect OpenAPI version
+	isOpenAPI31 := doc.OpenAPI == "3.1.0"
+
 	parsed := &ParsedSpec{
 		Operations: []Operation{},
 		Schemas:    []Schema{},
 		Namespaces: make(map[string][]string),
+		IsOpenAPI31: isOpenAPI31,
 	}
 
 	// Parse schemas
@@ -97,18 +111,14 @@ func ParseOpenAPI(specPath string) (*ParsedSpec, error) {
 	return parsed, nil
 }
 
-func getSchemaType(types *openapi3.Types) string {
-	if types == nil || len(*types) == 0 {
-		return ""
+// Helper function to get the primary type from a schema
+func getPrimaryType(schema *openapi3.Schema) string {
+	if schema.Type == nil || len(schema.Type.Slice()) == 0 {
+		return "object" // Default to object if no type is specified
 	}
-	return (*types)[0]
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
+	
+	// Return the first type in the slice
+	return schema.Type.Slice()[0]
 }
 
 func parseSchema(name string, schema *openapi3.Schema) Schema {
@@ -128,18 +138,41 @@ func parseSchema(name string, schema *openapi3.Schema) Schema {
 		}
 	}
 
+	// Get the primary type as a string
+	schemaType := getPrimaryType(schema)
+
+	// Create a Schema object with the fields supported by the current kin-openapi version
 	return Schema{
-		Name:       originalName,
-		Type:       getSchemaType(schema.Type),
-		Properties: properties,
-		Required:   schema.Required,
-		Namespace:  namespace,
+		Name:        originalName,
+		Type:        schemaType,
+		Properties:  properties,
+		Required:    schema.Required,
+		Namespace:   namespace,
+		Description: schema.Description,
+		Nullable:    schema.Nullable,
+		Format:      schema.Format,
+		Deprecated:  schema.Deprecated,
+		ReadOnly:    schema.ReadOnly,
+		WriteOnly:   schema.WriteOnly,
+		MinItems:    &schema.MinItems,
+		MaxItems:    schema.MaxItems,
 	}
 }
 
 func convertSchemaType(schema *openapi3.Schema) interface{} {
-	switch getSchemaType(schema.Type) {
+	// Get the primary type
+	schemaType := getPrimaryType(schema)
+	
+	// Handle type based on the primary type
+	switch schemaType {
 	case "string":
+		// Include format information if available
+		if schema.Format != "" {
+			return map[string]interface{}{
+				"type": "string",
+				"format": schema.Format,
+			}
+		}
 		return "string"
 	case "integer", "number":
 		return "number"
@@ -162,20 +195,13 @@ func convertSchemaType(schema *openapi3.Schema) interface{} {
 
 func extractOperations(path string, pathItem *openapi3.PathItem) []Operation {
 	operations := []Operation{}
-
-	methods := map[string]*openapi3.Operation{
-		"GET":    pathItem.Get,
-		"POST":   pathItem.Post,
-		"PUT":    pathItem.Put,
-		"DELETE": pathItem.Delete,
-		"PATCH":  pathItem.Patch,
-	}
-
-	for method, operation := range methods {
+	
+	// Helper function to handle each operation
+	processOperation := func(method string, operation *openapi3.Operation) {
 		if operation == nil {
-			continue
+			return
 		}
-
+		
 		op := Operation{
 			ID:          operation.OperationID,
 			Method:      method,
@@ -207,8 +233,25 @@ func extractOperations(path string, pathItem *openapi3.PathItem) []Operation {
 		if operation.RequestBody != nil {
 			op.RequestBody = extractRequestBody(operation.RequestBody)
 		}
+		
+		// Extract responses
+		op.Responses = extractResponses(operation.Responses)
 
 		operations = append(operations, op)
+	}
+
+	methods := map[string]*openapi3.Operation{
+		"GET":     pathItem.Get,
+		"POST":    pathItem.Post,
+		"PUT":     pathItem.Put,
+		"DELETE":  pathItem.Delete,
+		"PATCH":   pathItem.Patch,
+		"HEAD":    pathItem.Head,
+		"OPTIONS": pathItem.Options,
+	}
+
+	for method, operation := range methods {
+		processOperation(method, operation)
 	}
 
 	return operations
@@ -271,8 +314,14 @@ func extractResponses(responses *openapi3.Responses) map[string]Response {
 
 	for status, responseRef := range responses.Map() {
 		if responseRef.Value != nil {
+			// Handle nil Description pointer
+			description := ""
+			if responseRef.Value.Description != nil {
+				description = *responseRef.Value.Description
+			}
+			
 			response := Response{
-				Description: derefString(responseRef.Value.Description),
+				Description: description,
 			}
 
 			// Extract schema from content (assuming JSON)
@@ -315,13 +364,16 @@ func getParameterType(in string) string {
 }
 
 func getSchemaReference(schema *openapi3.Schema) string {
+	// Get the primary type
+	schemaType := getPrimaryType(schema)
+	
 	// This is a simplified version - you might want to handle more complex cases
-	if getSchemaType(schema.Type) == "array" && schema.Items != nil {
+	if schemaType == "array" && schema.Items != nil {
 		itemRef := getSchemaReference(schema.Items.Value)
 		return fmt.Sprintf("z.array(%s)", itemRef)
 	}
 
-	switch getSchemaType(schema.Type) {
+	switch schemaType {
 	case "string":
 		return "z.string()"
 	case "integer", "number":

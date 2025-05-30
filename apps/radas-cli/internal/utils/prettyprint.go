@@ -43,8 +43,68 @@ func PrettyPrintTable(headers []string, headerColors []text.Colors, rows [][]str
 		}
 		t.AppendRow(rowData, rowStyle)
 	}
-	t.Style().Color.Row = text.Colors{text.BgBlack, text.FgWhite}
-	t.Style().Color.RowAlternate = text.Colors{text.BgHiBlack, text.FgHiWhite}
+	// Use no background colors
+	t.Style().Color.Row = text.Colors{text.FgWhite}
+	t.Style().Color.RowAlternate = text.Colors{text.FgWhite}
+	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
+	t.Render()
+}
+
+// PrettyPrintTableWithRowColors prints a pretty table with custom header colors and row colors.
+// headerColors: must be same length as headers, each is a text.Colors slice (e.g. text.Colors{text.FgHiCyan, text.Bold})
+// If roleFunc != nil, it will be called for each row to fill the last column (ROLE)
+// If rowColorFunc != nil, it will be called for each row to determine its color
+func PrettyPrintTableWithRowColors(headers []string, headerColors []text.Colors, rows [][]string, roleFunc func([]string) string, rowColorFunc func([]string) text.Colors) {
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.Style().Options.DrawBorder = true
+	t.Style().Options.SeparateRows = true
+	t.SetStyle(table.StyleLight)
+	t.Style().Box.PaddingLeft = " "; t.Style().Box.PaddingRight = " "
+
+	headerRow := table.Row{}
+	for i, h := range headers {
+		if i < len(headerColors) && len(headerColors[i]) > 0 {
+			headerRow = append(headerRow, headerColors[i].Sprint(h))
+		} else {
+			headerRow = append(headerRow, h)
+		}
+	} 
+	t.AppendHeader(headerRow)
+
+	for _, row := range rows {
+		rowStyle := table.RowConfig{}
+		
+		// Apply row colors if provided
+		if rowColorFunc != nil {
+			colors := rowColorFunc(row)
+			if len(colors) > 0 {
+				rowData := make(table.Row, 0, len(row)+1)
+				for _, v := range row {
+					rowData = append(rowData, colors.Sprint(v))
+				}
+				if roleFunc != nil {
+					rowData = append(rowData, roleFunc(row))
+				}
+				t.AppendRow(rowData, rowStyle)
+				continue
+			}
+		}
+		
+		// Default case (no colors)
+		rowData := make(table.Row, 0, len(row)+1)
+		for _, v := range row {
+			rowData = append(rowData, v)
+		}
+		if roleFunc != nil {
+			rowData = append(rowData, roleFunc(row))
+		}
+		t.AppendRow(rowData, rowStyle)
+	}
+	
+	// Use no background colors
+	t.Style().Color.Row = text.Colors{}
+	t.Style().Color.RowAlternate = text.Colors{}
 	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
 	t.Render()
 }
