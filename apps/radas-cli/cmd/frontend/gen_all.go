@@ -90,7 +90,10 @@ It will process both design tokens and API specifications as defined in the cont
 				fmt.Printf("Generating API client from: %s\n", specPath)
 				
 				// Generate API client
-				if err := generator.GenerateAPI(specPath, outputDir, "", true); err != nil {
+				// Default to skipping validation for OpenAPI 3.1.0 specs
+				skipValidation := true // Skip validation by default for batch generation
+				errorsOnly := true     // Only show errors, not warnings
+				if err := generator.GenerateAPI(specPath, outputDir, "", true, skipValidation, errorsOnly); err != nil {
 					return fmt.Errorf("failed to generate API client: %w", err)
 				}
 			}

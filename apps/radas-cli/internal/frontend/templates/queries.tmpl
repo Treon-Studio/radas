@@ -3,7 +3,6 @@ import { createTRPCReact } from '@trpc/react-query';
 import { type AppRouter } from './client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './queryClient';
-import type * as DTO from './dto';
 
 // Create tRPC React hooks
 export const trpc = createTRPCReact<AppRouter>();

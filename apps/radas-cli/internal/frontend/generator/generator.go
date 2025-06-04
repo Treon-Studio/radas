@@ -7,13 +7,15 @@ import (
 )
 
 
-func GenerateAPI(inputSpec, outputDir, baseURL string, verbose bool) error {
+func GenerateAPI(inputSpec, outputDir, baseURL string, verbose bool, skipValidation bool, errorsOnly bool) error {
 	config := &api.Config{
-		InputSpec:   inputSpec,
-		OutputDir:   outputDir,
-		BaseURL:     baseURL,
-		GenerateAll: true,
-		Verbose:     verbose,
+		InputSpec:      inputSpec,
+		OutputDir:      outputDir,
+		BaseURL:        baseURL,
+		GenerateAll:    true,
+		Verbose:        verbose,
+		SkipValidation: skipValidation,
+		ErrorsOnly:     errorsOnly,
 	}
 	generator := api.New(config)
 	return generator.Generate()

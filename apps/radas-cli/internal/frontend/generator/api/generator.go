@@ -13,42 +13,53 @@ import (
 
 // templateFuncs contains helper functions for templates
 var templateFuncs = template.FuncMap{
-	"toLower":               strings.ToLower,
-	"toUpper":               strings.ToUpper,
-	"capitalize":            capitalize,
-	"schemaToZod":           schemaToZodTemplate,
-	"tsType":                goTypeToTSType,
-	"isRequired":            isRequired,
-	"hasErrorResponses":     hasErrorResponses,
-	"isErrorStatus":         isErrorStatus,
-	"getResponseSchema":     getResponseSchema,
-	"hasParams":             hasParams,
-	"paramType":             paramTypeTemplate,
-	"returnType":            returnTypeTemplate,
-	"shouldInvalidateCache": shouldInvalidateCache,
-	"actionName":            actionName,
-	"extractTSType":         extractTSType,
-	"extractDTOType":        extractDTOType,
-	"hasPathParams":         hasPathParams,
-	"hasQueryParams":        hasQueryParams,
-	"returnTypePromise":     returnTypePromise,
+	"capitalize":             capitalize,
+	"extractTSType":          extractTSType,
+	"hasParams":              hasParams,
+	"toUpper":                strings.ToUpper,
+	"toLower":                strings.ToLower,
+	"dict":                   dict,
+	"set":                    set,
+	"replace":                 replace,
+	"camelCase":              camelCase,
+	"contains":               contains,
+	"last":                  last,
+	"schemaToZod":            schemaToZodTemplate,
+	"tsType":                 goTypeToTSType,
+	"isRequired":             isRequired,
+	"hasErrorResponses":      hasErrorResponses,
+	"isErrorStatus":          isErrorStatus,
+	"getResponseSchema":      getResponseSchema,
+	"paramType":              paramTypeTemplate,
+	"returnType":             returnTypeTemplate,
+	"shouldInvalidateCache":  shouldInvalidateCache,
+	"actionName":             actionName,
+	"extractDTOType":         extractDTOType,
+	"hasPathParams":          hasPathParams,
+	"hasQueryParams":         hasQueryParams,
+	"hasHeaderParams":        hasHeaderParams,
+	"returnTypePromise":      returnTypePromise,
 	"shouldInvalidateQueries": shouldInvalidateQueries,
-	"hasRelatedGetOperation": hasRelatedGetOperation,
+	"hasRelatedGetOperation":  hasRelatedGetOperation,
 	"getRelatedListOperation": getRelatedListOperation,
-	"getRelatedGetOperation": getRelatedGetOperation,
-	"pathWithParams":        pathWithParams,
+	"getRelatedGetOperation":  getRelatedGetOperation,
+	"pathWithParams":         pathWithParams,
+	"pathToTemplate":         pathToTemplate,
+	"zodType":                zodType,
 	"getSuccessResponseSchema": getSuccessResponseSchema,
 }
 
 type Config struct {
-	InputSpec   string
-	OutputDir   string
-	BaseURL     string
-	GenerateAll bool
-	ZodiosOnly  bool
-	HooksOnly   bool
-	StoresOnly  bool
-	Verbose     bool
+	InputSpec      string
+	OutputDir      string
+	BaseURL        string
+	GenerateAll    bool
+	ZodiosOnly     bool
+	HooksOnly      bool
+	StoresOnly     bool
+	Verbose        bool
+	SkipValidation bool
+	ErrorsOnly     bool
 }
 
 type Generator struct {
@@ -64,7 +75,13 @@ func (g *Generator) Generate() error {
 		fmt.Printf("[GEN] Parsing OpenAPI spec: %s\n", g.config.InputSpec)
 	}
 
-	spec, err := parser.ParseOpenAPI(g.config.InputSpec)
+	// Pass validation flags to the parser
+	parserOptions := parser.OpenAPIOptions{
+		SkipValidation: g.config.SkipValidation,
+		ErrorsOnly:     g.config.ErrorsOnly,
+	}
+
+	spec, err := parser.ParseOpenAPI(g.config.InputSpec, parserOptions)
 	if err != nil {
 		return fmt.Errorf("failed to parse OpenAPI spec: %w", err)
 	}
@@ -168,23 +185,40 @@ func schemaToZod(s parser.Schema) string {
 
 // goTypeToZod mengubah tipe Go/schema ke string zod
 func goTypeToZod(t string) string {
+	// Check if the type includes nullable information
+	isNullable := false
+	if strings.HasSuffix(t, " | null") {
+		isNullable = true
+		t = strings.TrimSuffix(t, " | null")
+	}
+	
+	var zodType string
 	switch t {
 	case "string":
-		return "z.string()"
+		zodType = "z.string()"
 	case "number":
-		return "z.number()"
+		zodType = "z.number()"
 	case "boolean":
-		return "z.boolean()"
+		zodType = "z.boolean()"
 	case "array":
-		return "z.array(z.any())"
+		zodType = "z.array(z.any())"
 	case "object":
-		return "z.object({}).passthrough()"
+		zodType = "z.object({}).passthrough()"
+	case "null":
+		return "z.null()" // Direct null type from OpenAPI 3.1.0
 	default:
 		if strings.HasSuffix(t, "Schema") || strings.HasPrefix(t, "z.") {
-			return t
+			return t // Already a Zod schema reference
 		}
-		return "z.any()"
+		zodType = "z.any()"
 	}
+	
+	// Add nullable() if needed
+	if isNullable {
+		return zodType + ".nullable()"
+	}
+	
+	return zodType
 }
 
 
@@ -251,7 +285,12 @@ func (g *Generator) generateZustand() error {
 	}
 	
 	// First we need to get the parsed spec to group operations by namespace
-	spec, err := parser.ParseOpenAPI(g.config.InputSpec)
+	parserOptions := parser.OpenAPIOptions{
+		SkipValidation: g.config.SkipValidation,
+		ErrorsOnly:     g.config.ErrorsOnly,
+	}
+	
+	spec, err := parser.ParseOpenAPI(g.config.InputSpec, parserOptions)
 	if err != nil {
 		return fmt.Errorf("failed to parse OpenAPI spec: %w", err)
 	}
@@ -292,7 +331,12 @@ func (g *Generator) generateDTO() error {
 	}
 	
 	// Read the spec to get the schemas
-	spec, err := parser.ParseOpenAPI(g.config.InputSpec)
+	parserOptions := parser.OpenAPIOptions{
+		SkipValidation: g.config.SkipValidation,
+		ErrorsOnly:     g.config.ErrorsOnly,
+	}
+	
+	spec, err := parser.ParseOpenAPI(g.config.InputSpec, parserOptions)
 	if err != nil {
 		return fmt.Errorf("failed to parse OpenAPI spec: %w", err)
 	}

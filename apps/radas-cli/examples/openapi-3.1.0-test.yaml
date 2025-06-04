@@ -1,0 +1,48 @@
+openapi: 3.1.0
+info:
+  title: Test API for OpenAPI 3.1.0
+  version: 1.0.0
+  description: A test API to validate OpenAPI 3.1.0 support in RADAS CLI
+
+paths:
+  /test:
+    get:
+      operationId: getTest
+      summary: Test endpoint
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResponse'
+
+components:
+  schemas:
+    UnitSchema:
+      type: "null"
+      description: A schema with null type (OpenAPI 3.1.0 feature)
+    
+    NullableString:
+      type: ["string", "null"]
+      description: A string that can be null (OpenAPI 3.1.0 style)
+    
+    TestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        unit:
+          $ref: '#/components/schemas/UnitSchema'
+        description:
+          $ref: '#/components/schemas/NullableString'
+        metadata:
+          type: ["object", "null"]
+          properties:
+            key:
+              type: string
+      required:
+        - id
+        - name

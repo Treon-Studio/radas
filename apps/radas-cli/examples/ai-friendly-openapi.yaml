@@ -1,0 +1,626 @@
+openapi: 3.1.0
+info:
+  title: AI-Friendly API
+  description: |
+    # AI-Friendly API Documentation
+    
+    This API is designed with clear documentation to be easily understood by both developers and AI tools.
+    It follows OpenAPI 3.1.0 standards and best practices for maximum compatibility.
+    
+    ## Features
+    - Clear descriptions for all schemas, properties, and operations
+    - Consistent naming patterns
+    - Proper error handling
+    - Well-defined data types with constraints
+    - Examples for all schemas and responses
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+    url: https://example.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+  - url: https://dev-api.example.com/v1
+    description: Development server
+
+tags:
+  - name: users
+    description: Operations related to user management
+  - name: products
+    description: Operations related to product management
+  - name: orders
+    description: Operations related to order processing
+
+paths:
+  /users:
+    get:
+      summary: List all users
+      description: |
+        Retrieves a paginated list of all users.
+        Results can be filtered by various criteria and sorted by supported fields.
+      operationId: listUsers
+      tags:
+        - users
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (starts at 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: sort
+          in: query
+          description: Field to sort by (prefix with - for descending order)
+          schema:
+            type: string
+            enum: [id, name, email, createdAt, -id, -name, -email, -createdAt]
+          example: -createdAt
+      responses:
+        '200':
+          description: Successfully retrieved list of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+              example:
+                data:
+                  - id: "1"
+                    name: "John Doe"
+                    email: "john@example.com"
+                    age: 30
+                    createdAt: "2025-01-01T12:00:00Z"
+                  - id: "2"
+                    name: "Jane Smith"
+                    email: "jane@example.com"
+                    age: 28
+                    createdAt: "2025-01-02T14:30:00Z"
+                pagination:
+                  total: 42
+                  page: 1
+                  limit: 20
+                  hasMore: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Create a new user
+      description: |
+        Creates a new user with the provided information.
+        Email must be unique across all users.
+      operationId: createUser
+      tags:
+        - users
+      requestBody:
+        description: User information to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+            example:
+              name: "New User"
+              email: "newuser@example.com"
+              age: 25
+      responses:
+        '201':
+          description: User successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                data:
+                  id: "3"
+                  name: "New User"
+                  email: "newuser@example.com"
+                  age: 25
+                  createdAt: "2025-05-30T13:25:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 409
+                message: "Email already exists"
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        description: Unique identifier of the user
+        required: true
+        schema:
+          type: string
+        example: "1"
+    get:
+      summary: Get user by ID
+      description: |
+        Retrieves detailed information about a specific user.
+        Returns 404 if the user does not exist.
+      operationId: getUserById
+      tags:
+        - users
+      responses:
+        '200':
+          description: Successfully retrieved user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                data:
+                  id: "1"
+                  name: "John Doe"
+                  email: "john@example.com"
+                  age: 30
+                  createdAt: "2025-01-01T12:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update user
+      description: |
+        Updates all fields of an existing user.
+        Returns 404 if the user does not exist.
+      operationId: updateUser
+      tags:
+        - users
+      requestBody:
+        description: Updated user information
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+            example:
+              name: "Updated Name"
+              email: "updated@example.com"
+              age: 31
+      responses:
+        '200':
+          description: User successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                data:
+                  id: "1"
+                  name: "Updated Name"
+                  email: "updated@example.com"
+                  age: 31
+                  createdAt: "2025-01-01T12:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 409
+                message: "Email already exists"
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      summary: Delete user
+      description: |
+        Permanently deletes a user.
+        Returns 404 if the user does not exist.
+      operationId: deleteUser
+      tags:
+        - users
+      responses:
+        '204':
+          description: User successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /products:
+    get:
+      summary: List all products
+      description: |
+        Retrieves a paginated list of all products.
+        Results can be filtered by various criteria and sorted by supported fields.
+      operationId: listProducts
+      tags:
+        - products
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (starts at 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: category
+          in: query
+          description: Filter products by category
+          schema:
+            type: string
+          example: "electronics"
+      responses:
+        '200':
+          description: Successfully retrieved list of products
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+              example:
+                data:
+                  - id: "1"
+                    name: "Smartphone"
+                    description: "Latest smartphone model with advanced features"
+                    price: 999.99
+                    category: "electronics"
+                    inStock: true
+                    createdAt: "2025-01-01T12:00:00Z"
+                  - id: "2"
+                    name: "Laptop"
+                    description: "High-performance laptop for professionals"
+                    price: 1499.99
+                    category: "electronics"
+                    inStock: true
+                    createdAt: "2025-01-02T14:30:00Z"
+                pagination:
+                  total: 42
+                  page: 1
+                  limit: 20
+                  hasMore: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    UserInput:
+      type: object
+      description: Information required to create or update a user
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          description: Full name of the user
+          minLength: 1
+          maxLength: 100
+          example: "John Doe"
+        email:
+          type: string
+          description: Email address of the user (must be unique)
+          format: email
+          example: "john@example.com"
+        age:
+          type: integer
+          description: Age of the user in years
+          minimum: 0
+          maximum: 120
+          example: 30
+      additionalProperties: false
+    
+    User:
+      type: object
+      description: Represents a user in the system with all their details
+      required:
+        - id
+        - name
+        - email
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the user
+          example: "1"
+        name:
+          type: string
+          description: Full name of the user
+          minLength: 1
+          maxLength: 100
+          example: "John Doe"
+        email:
+          type: string
+          description: Email address of the user
+          format: email
+          example: "john@example.com"
+        age:
+          type: integer
+          description: Age of the user in years
+          minimum: 0
+          maximum: 120
+          nullable: true
+          example: 30
+        createdAt:
+          type: string
+          description: Timestamp when the user was created
+          format: date-time
+          example: "2025-01-01T12:00:00Z"
+      additionalProperties: false
+    
+    UserResponse:
+      type: object
+      description: Response containing a single user
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+          description: User data
+      additionalProperties: false
+    
+    UserListResponse:
+      type: object
+      description: Response containing a list of users with pagination
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: Array of users
+          items:
+            $ref: '#/components/schemas/User'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+          description: Pagination information
+      additionalProperties: false
+    
+    Product:
+      type: object
+      description: Represents a product in the system with all its details
+      required:
+        - id
+        - name
+        - price
+        - category
+        - inStock
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the product
+          example: "1"
+        name:
+          type: string
+          description: Name of the product
+          minLength: 1
+          maxLength: 100
+          example: "Smartphone"
+        description:
+          type: string
+          description: Detailed description of the product
+          nullable: true
+          example: "Latest smartphone model with advanced features"
+        price:
+          type: number
+          description: Price of the product in USD
+          format: float
+          minimum: 0
+          example: 999.99
+        category:
+          type: string
+          description: Category the product belongs to
+          example: "electronics"
+        inStock:
+          type: boolean
+          description: Whether the product is currently in stock
+          example: true
+        createdAt:
+          type: string
+          description: Timestamp when the product was created
+          format: date-time
+          example: "2025-01-01T12:00:00Z"
+      additionalProperties: false
+    
+    ProductListResponse:
+      type: object
+      description: Response containing a list of products with pagination
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: Array of products
+          items:
+            $ref: '#/components/schemas/Product'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+          description: Pagination information
+      additionalProperties: false
+    
+    Pagination:
+      type: object
+      description: Pagination information for list responses
+      required:
+        - total
+        - page
+        - limit
+        - hasMore
+      properties:
+        total:
+          type: integer
+          description: Total number of items available
+          minimum: 0
+          example: 42
+        page:
+          type: integer
+          description: Current page number
+          minimum: 1
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          minimum: 1
+          example: 20
+        hasMore:
+          type: boolean
+          description: Whether there are more pages available
+          example: true
+      additionalProperties: false
+    
+    Error:
+      type: object
+      description: Standard error response format
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+          minimum: 400
+          maximum: 599
+          example: 400
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid request parameters"
+        details:
+          type: array
+          description: Detailed error information (optional)
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                description: The field that caused the error
+                example: "email"
+              message:
+                type: string
+                description: Specific error message for this field
+                example: "Must be a valid email address"
+          example:
+            - field: "email"
+              message: "Must be a valid email address"
+            - field: "age"
+              message: "Must be between 0 and 120"
+      additionalProperties: false
+  
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 400
+            message: "Invalid request parameters"
+            details:
+              - field: "email"
+                message: "Must be a valid email address"
+    
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 401
+            message: "Authentication required"
+    
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 403
+            message: "Permission denied"
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 404
+            message: "Resource not found"
+    
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 500
+            message: "Internal server error"
+  
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Authorization header using the Bearer scheme.
+        
+        Enter your token in the format: `Bearer {token}`
+
+security:
+  - bearerAuth: []
