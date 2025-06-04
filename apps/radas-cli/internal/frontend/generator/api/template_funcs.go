@@ -2,11 +2,59 @@ package api
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"regexp"
 
 	"radas/internal/frontend/parser"
 )
+
+// dict creates a new map for use in templates
+func dict() map[string]interface{} {
+	return make(map[string]interface{})
+}
+
+// set adds a key-value pair to a map and returns the map
+func set(m map[string]interface{}, key string, value interface{}) map[string]interface{} {
+	m[key] = value
+	return m
+}
+
+// replace replaces all occurrences of old with new in s
+func replace(s, old, new string) string {
+	return strings.ReplaceAll(s, old, new)
+}
+
+// camelCase converts a string to camelCase (first letter lowercase, rest capitalized)
+func camelCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	// First, capitalize the string
+	cap := capitalize(s)
+	// Then make the first letter lowercase
+	return strings.ToLower(cap[:1]) + cap[1:]
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
+// last returns the last n elements of a slice
+func last(n int, a interface{}) interface{} {
+	v := reflect.ValueOf(a)
+	if v.Kind() != reflect.Slice {
+		return nil
+	}
+	len := v.Len()
+	if len == 0 {
+		return nil
+	}
+	if n > len {
+		n = len
+	}
+	return v.Slice(len-n, len).Interface()
+}
 
 // Helper functions for templates
 func schemaToZodTemplate(s parser.Schema) string {
@@ -15,6 +63,51 @@ func schemaToZodTemplate(s parser.Schema) string {
 		props = append(props, fmt.Sprintf("%s: %s", k, goTypeToZod(fmt.Sprintf("%v", t))))
 	}
 	return fmt.Sprintf("z.object({ %s }).partial().passthrough()", strings.Join(props, ", "))
+}
+
+// zodType converts a property type to a Zod type
+func zodType(propType interface{}) string {
+	switch val := propType.(type) {
+	case string:
+		switch val {
+		case "string":
+			return "z.string()"
+		case "number":
+			return "z.number()"
+		case "boolean":
+			return "z.boolean()"
+		case "array":
+			return "z.array(z.any())"
+		case "object":
+			return "z.record(z.string(), z.any())"
+		case "null":
+			return "z.null()"
+		default:
+			return "z.any()"
+		}
+	case map[string]interface{}:
+		if val["type"] == "array" {
+			itemType := "z.any()"
+			if items, ok := val["items"].(string); ok {
+				itemType = zodType(items)
+			}
+			return fmt.Sprintf("z.array(%s)", itemType)
+		} else if val["nullable"] == true {
+			baseType := "z.any()"
+			if baseTypeVal, ok := val["type"].(string); ok {
+				baseType = zodType(baseTypeVal)
+			}
+			return fmt.Sprintf("%s.nullable()", baseType)
+		}
+	}
+	return "z.any()"
+}
+
+// pathToTemplate converts an OpenAPI path to a template literal path
+func pathToTemplate(path string) string {
+	// Replace {param} with ${params.param}
+	regex := regexp.MustCompile(`\{([^}]+)\}`)
+	return regex.ReplaceAllString(path, "${params.$1}")
 }
 
 func goTypeToTSType(propType interface{}) string {
@@ -31,6 +124,9 @@ func goTypeToTSType(propType interface{}) string {
 			return "any[]"
 		case "object":
 			return "Record<string, any>"
+		case "null":
+			// Handle null type from OpenAPI 3.1.0
+			return "null"
 		default:
 			return "any"
 		}
@@ -41,6 +137,13 @@ func goTypeToTSType(propType interface{}) string {
 				itemType = goTypeToTSType(items)
 			}
 			return fmt.Sprintf("%s[]", itemType)
+		} else if val["nullable"] == true {
+			// Handle nullable property
+			baseType := "any"
+			if baseTypeVal, ok := val["type"].(string); ok {
+				baseType = goTypeToTSType(baseTypeVal)
+			}
+			return fmt.Sprintf("%s | null", baseType)
 		}
 		return "Record<string, any>"
 	default:
@@ -180,33 +283,50 @@ func actionName(method, id string) string {
 
 // extractTSType extracts a TypeScript type from a Zod schema
 func extractTSType(schema string) string {
-	if schema == "" || schema == "z.any()" {
+	if schema == "" {
 		return "any"
 	}
 	
-	// Match Zod type patterns
-	if schema == "z.string()" {
-		return "string"
-	} else if schema == "z.number()" {
-		return "number"
-	} else if schema == "z.boolean()" {
-		return "boolean"
-	} else if strings.HasPrefix(schema, "z.array(") {
-		// Extract the inner type
-		inner := strings.TrimPrefix(schema, "z.array(")
-		inner = strings.TrimSuffix(inner, ")")
-		return extractTSType(inner) + "[]"
-	} else if strings.HasPrefix(schema, "z.object(") {
-		return "Record<string, any>"
+	// Handle schema references
+	if !strings.HasPrefix(schema, "z.") {
+		return schema
+	} else {
+		// Check for nullable types
+		isNullable := strings.Contains(schema, ".nullable()")
+		schema = strings.ReplaceAll(schema, ".nullable()", "")
+		
+		// Extract type from Zod schema
+		schemaStr := strings.TrimPrefix(schema, "z.")
+		schemaStr = strings.TrimSuffix(schemaStr, "()")
+		
+		// Handle basic Zod types
+		var baseType string
+		if schemaStr == "string" {
+			baseType = "string"
+		} else if schemaStr == "number" {
+			baseType = "number"
+		} else if schemaStr == "boolean" {
+			baseType = "boolean"
+		} else if strings.HasPrefix(schemaStr, "array") {
+			baseType = "any[]"
+		} else if strings.HasPrefix(schemaStr, "object") {
+			baseType = "Record<string, any>"
+		} else if schemaStr == "null" {
+			return "null" // Direct null type
+		} else {
+			baseType = "any"
+		}
+		
+		// Add null union type if nullable
+		if isNullable {
+			return baseType + " | null"
+		}
+		
+		return baseType
 	}
 	
-	// Try to extract a schema reference
-	schemaName := extractDTOType(schema)
-	if schemaName != "" {
-		return schemaName
-	}
-	
-	return "any"
+	// Handle direct reference to a schema name
+	return schema
 }
 
 // extractDTOType extracts a DTO type name from a schema reference
@@ -248,9 +368,17 @@ func extractDTOType(schema interface{}) string {
 	
 	// Handle Zod schema syntax
 	if strings.HasPrefix(schemaStr, "z.") {
-		// Try to extract schema name from complex patterns like z.UserSchema
-		re := regexp.MustCompile(`z\.([A-Za-z0-9]+)Schema`)
+		// Try to extract schema name from complex patterns like z.UserSchema or z.TagRequestSchemaSchema
+		// First check for the double Schema pattern (e.g., TagRequestSchemaSchema -> TagRequestSchema)
+		re := regexp.MustCompile(`z\.([A-Za-z0-9]+)SchemaSchema`)
 		matches := re.FindStringSubmatch(schemaStr)
+		if len(matches) > 1 {
+			return matches[1] + "Schema"
+		}
+		
+		// Then check for the regular pattern (e.g., UserSchema -> User)
+		re = regexp.MustCompile(`z\.([A-Za-z0-9]+)Schema`)
+		matches = re.FindStringSubmatch(schemaStr)
 		if len(matches) > 1 {
 			return matches[1]
 		}
@@ -394,6 +522,16 @@ func hasPathParams(op parser.Operation) bool {
 func hasQueryParams(op parser.Operation) bool {
 	for _, param := range op.Parameters {
 		if param.In == "query" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasHeaderParams checks if an operation has header parameters
+func hasHeaderParams(op parser.Operation) bool {
+	for _, param := range op.Parameters {
+		if param.In == "header" {
 			return true
 		}
 	}

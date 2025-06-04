@@ -13,14 +13,16 @@ import (
 
 
 var (
-	genAPISpec     string
-	genAPIOutput   string
-	genAPIBaseURL  string
-	genAPIVerbose  bool
-	genAPIAll      bool
-	genAPIZodios   bool
-	genAPIHooks    bool
-	genAPIStores   bool
+	genAPISpec             string
+	genAPIOutput           string
+	genAPIBaseURL          string
+	genAPIVerbose          bool
+	genAPIAll              bool
+	genAPIZodios           bool
+	genAPIHooks            bool
+	genAPIStores           bool
+	genAPISkipValidation   bool
+	genAPIErrorsOnly       bool
 )
 
 func init() {
@@ -33,10 +35,14 @@ func init() {
 	genAPICmd.Flags().BoolVar(&genAPIZodios, "zodios", false, "Generate only Zodios client")
 	genAPICmd.Flags().BoolVar(&genAPIHooks, "hooks", false, "Generate only React Query hooks")
 	genAPICmd.Flags().BoolVar(&genAPIStores, "stores", false, "Generate only Zustand stores")
+	genAPICmd.Flags().BoolVar(&genAPISkipValidation, "skip-validation", false, "Skip OpenAPI validation before code generation")
+	genAPICmd.Flags().BoolVar(&genAPIErrorsOnly, "validation-errors-only", false, "Show only error level validation issues (not warnings)")
 
 	viper.BindPFlag("frontend.gen-api.output", genAPICmd.Flags().Lookup("output"))
 	viper.BindPFlag("frontend.gen-api.base-url", genAPICmd.Flags().Lookup("base-url"))
 	viper.BindPFlag("frontend.gen-api.verbose", genAPICmd.Flags().Lookup("verbose"))
+	viper.BindPFlag("frontend.gen-api.skip-validation", genAPICmd.Flags().Lookup("skip-validation"))
+	viper.BindPFlag("frontend.gen-api.validation-errors-only", genAPICmd.Flags().Lookup("validation-errors-only"))
 }
 
 
@@ -49,6 +55,8 @@ var genAPICmd = &cobra.Command{
 		outputDir := viper.GetString("frontend.gen-api.output")
 		baseURL := viper.GetString("frontend.gen-api.base-url")
 		verbose := viper.GetBool("frontend.gen-api.verbose")
+		skipValidation := viper.GetBool("frontend.gen-api.skip-validation")
+		errorsOnly := viper.GetBool("frontend.gen-api.validation-errors-only")
 		specPath := genAPISpec
 
 		// Check if a flag was explicitly provided
@@ -86,6 +94,6 @@ var genAPICmd = &cobra.Command{
 		}
 
 		// Call API generator with the new architecture
-		return generator.GenerateAPI(specPath, outputDir, baseURL, verbose)
+		return generator.GenerateAPI(specPath, outputDir, baseURL, verbose, skipValidation, errorsOnly)
 	},
 }

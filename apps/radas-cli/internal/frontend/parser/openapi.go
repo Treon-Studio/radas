@@ -54,17 +54,50 @@ type ParsedSpec struct {
 	Namespaces map[string][]string
 }
 
-func ParseOpenAPI(specPath string) (*ParsedSpec, error) {
+// OpenAPIOptions contains options for parsing OpenAPI specifications
+type OpenAPIOptions struct {
+	SkipValidation bool // Skip OpenAPI validation entirely
+	ErrorsOnly     bool // Show only error level validation issues (not warnings)
+}
+
+func ParseOpenAPI(specPath string, options ...OpenAPIOptions) (*ParsedSpec, error) {
+	// Process options
+	var opts OpenAPIOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	ctx := context.Background()
-	loader := &openapi3.Loader{Context: ctx, IsExternalRefsAllowed: true}
+	// Configure loader for OpenAPI 3.1.0 support
+	loader := &openapi3.Loader{
+		Context: ctx, 
+		IsExternalRefsAllowed: true,
+	}
 
 	doc, err := loader.LoadFromFile(specPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load OpenAPI spec: %w", err)
 	}
 
-	if err := doc.Validate(ctx); err != nil {
-		return nil, fmt.Errorf("invalid OpenAPI spec: %w", err)
+	// Handle validation based on options
+	if !opts.SkipValidation {
+		validationErr := doc.Validate(ctx)
+		if validationErr != nil {
+			// Check if this might be an OpenAPI 3.1.0 spec
+			is31 := strings.HasPrefix(doc.OpenAPI, "3.1")
+			
+			// For OpenAPI 3.1.0 specs, we can be more lenient
+			if is31 {
+				fmt.Printf("⚠️ OpenAPI 3.1.0 spec detected. Continuing despite validation issues.\n")
+				if !opts.ErrorsOnly {
+					fmt.Printf("Validation warnings: %v\n", validationErr)
+				}
+			} else {
+				// For OpenAPI 3.0 and below, we enforce strict validation
+				return nil, fmt.Errorf("invalid OpenAPI spec: %w", validationErr)
+			}
+		}
+	} else if strings.HasPrefix(doc.OpenAPI, "3.1") {
+		fmt.Printf("⚠️ OpenAPI 3.1.0 spec detected. Validation skipped.\n")
 	}
 
 	parsed := &ParsedSpec{
@@ -101,6 +134,14 @@ func getSchemaType(types *openapi3.Types) string {
 	if types == nil || len(*types) == 0 {
 		return ""
 	}
+	// Handle OpenAPI 3.1.0 types, including 'null'
+	// If there are multiple types, prefer non-null types
+	for _, t := range *types {
+		if t != "null" {
+			return t
+		}
+	}
+	// If only null is available, return it
 	return (*types)[0]
 }
 
@@ -138,7 +179,9 @@ func parseSchema(name string, schema *openapi3.Schema) Schema {
 }
 
 func convertSchemaType(schema *openapi3.Schema) interface{} {
-	switch getSchemaType(schema.Type) {
+	schemaType := getSchemaType(schema.Type)
+	
+	switch schemaType {
 	case "string":
 		return "string"
 	case "integer", "number":
@@ -155,6 +198,9 @@ func convertSchemaType(schema *openapi3.Schema) interface{} {
 		return "array"
 	case "object":
 		return "object"
+	case "null":
+		// Handle null type from OpenAPI 3.1.0
+		return "null"
 	default:
 		return "any"
 	}
@@ -316,21 +362,51 @@ func getParameterType(in string) string {
 
 func getSchemaReference(schema *openapi3.Schema) string {
 	// This is a simplified version - you might want to handle more complex cases
-	if getSchemaType(schema.Type) == "array" && schema.Items != nil {
+	schemaType := getSchemaType(schema.Type)
+	
+	// Check if the schema is nullable (OpenAPI 3.0 style)
+	hasNullType := false
+	if schema.Type != nil {
+		for _, t := range *schema.Type {
+			if t == "null" {
+				hasNullType = true
+				break
+			}
+		}
+	}
+	
+	// Also check OpenAPI 3.0 nullable flag
+	isNullable := schema.Nullable || hasNullType
+	
+	if schemaType == "array" && schema.Items != nil {
 		itemRef := getSchemaReference(schema.Items.Value)
+		if isNullable {
+			return fmt.Sprintf("z.array(%s).nullable()", itemRef)
+		}
 		return fmt.Sprintf("z.array(%s)", itemRef)
 	}
 
-	switch getSchemaType(schema.Type) {
+	// Handle different schema types with nullable support
+	var zodType string
+	switch schemaType {
 	case "string":
-		return "z.string()"
+		zodType = "z.string()"
 	case "integer", "number":
-		return "z.number()"
+		zodType = "z.number()"
 	case "boolean":
-		return "z.boolean()"
+		zodType = "z.boolean()"
 	case "object":
-		return "z.object({})" // Simplified
+		zodType = "z.object({}).passthrough()" // Better for handling unknown properties
+	case "null":
+		return "z.null()" // Direct null type
 	default:
-		return "z.any()"
+		zodType = "z.any()"
 	}
+	
+	// Add nullable() if the schema is nullable
+	if isNullable && schemaType != "null" {
+		return zodType + ".nullable()"
+	}
+	
+	return zodType
 }
