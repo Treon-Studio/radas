@@ -1,4 +1,0 @@
-{
-  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
-  "/(docs)/[[...slug]]/page": "app/(docs)/[[...slug]]/page.js"
-}
