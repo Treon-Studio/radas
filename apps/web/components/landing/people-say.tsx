@@ -68,7 +68,7 @@ const testimonials = [
 		profession: "Creator of ElysiaJS",
 		link: "https://x.com/saltyAom/status/1916919136565051491",
 		description: `Strategies to win at Auth:
-1. Copy Better Auth - 
+1. Copy Radas - 
 2. Go back to 1`,
 		avatar: "/people-say/saltyatom.jpg",
 		image: "",

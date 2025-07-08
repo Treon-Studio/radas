@@ -1,9 +1,9 @@
 ---
-title: Migrating from Supabase Auth to Better Auth
-description: A step-by-step guide to transitioning from Supabase Auth to Better Auth.
+title: Migrating from Supabase Auth to Radas
+description: A step-by-step guide to transitioning from Supabase Auth to Radas.
 ---
 
-In this guide, we'll walk through the steps to migrate a project from Supabase Auth to Better Auth. 
+In this guide, we'll walk through the steps to migrate a project from Supabase Auth to Radas. 
 
 <Callout type="warn">
 This migration will invalidate all active sessions. While this guide doesn't currently cover migrating two-factor (2FA) or Row Level Security (RLS) configurations, both should be possible with additional steps.
@@ -12,7 +12,7 @@ This migration will invalidate all active sessions. While this guide doesn't cur
 
 ## Before You Begin
 
-Before starting the migration process, set up Better Auth in your project. Follow the [installation guide](/docs/installation) to get started.
+Before starting the migration process, set up Radas in your project. Follow the [installation guide](/docs/installation) to get started.
 
 
 <Steps>
@@ -131,7 +131,7 @@ This tables will be created on the `public` schema.
 <Step>
 ### Copy the migration script
 
-Now that we have the necessary tables in our database, we can run the migration script to migrate the users and accounts from Supabase to Better Auth.
+Now that we have the necessary tables in our database, we can run the migration script to migrate the users and accounts from Supabase to Radas.
 
 Start by creating a `.ts` file in your project.
 
@@ -265,7 +265,7 @@ migrateFromSupabase();
 <Step>
 ### Run the migration script
 
-Run the migration script to migrate the users and accounts from Supabase to Better Auth.
+Run the migration script to migrate the users and accounts from Supabase to Radas.
 
 ```bash title="Terminal"
 bun migration.ts # or use node, ts-node, etc.
@@ -274,9 +274,9 @@ bun migration.ts # or use node, ts-node, etc.
 <Step>
 ### Update your code
 
-Update your codebase from Supabase auth calls to Better Auth API.
+Update your codebase from Supabase auth calls to Radas API.
 
-Here's a list of the Supabase auth API calls and their Better Auth counterparts.
+Here's a list of the Supabase auth API calls and their Radas counterparts.
 
 - `supabase.auth.signUp` -> `authClient.signUp.email`
 - `supabase.auth.signInWithPassword` -> `authClient.signIn.email`
@@ -302,6 +302,6 @@ To protect routes with middleware, refer to the [Next.js middleware guide](/docs
 
 ## Wrapping Up
 
-Congratulations! You've successfully migrated from Supabase Auth to Better Auth.
+Congratulations! You've successfully migrated from Supabase Auth to Radas.
 
-Better Auth offers greater flexibility and more features—be sure to explore the [documentation](/docs) to unlock its full potential.
+Radas offers greater flexibility and more features—be sure to explore the [documentation](/docs) to unlock its full potential.

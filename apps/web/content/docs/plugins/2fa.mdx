@@ -173,7 +173,7 @@ const { data } = await authClient.twoFactor.disable({
 
 ### TOTP
 
-TOTP (Time-Based One-Time Password) is an algorithm that generates a unique password for each login attempt using time as a counter. Every fixed interval (Better Auth defaults to 30 seconds), a new password is generated. This addresses several issues with traditional passwords: they can be forgotten, stolen, or guessed. OTPs solve some of these problems, but their delivery via SMS or email can be unreliable (or even risky, considering it opens new attack vectors).
+TOTP (Time-Based One-Time Password) is an algorithm that generates a unique password for each login attempt using time as a counter. Every fixed interval (Radas defaults to 30 seconds), a new password is generated. This addresses several issues with traditional passwords: they can be forgotten, stolen, or guessed. OTPs solve some of these problems, but their delivery via SMS or email can be unreliable (or even risky, considering it opens new attack vectors).
 
 TOTP, however, generates codes offline, making it both secure and convenient. You just need an authenticator app on your phone, and you’re set—no internet required.
 
@@ -209,7 +209,7 @@ export default function UserCard(){
 ```
 
 <Callout>
-By default the issuer for TOTP is set to the app name provided in the auth config or if not provided it will be set to `Better Auth`. You can override this by passing `issuer` to the plugin config.
+By default the issuer for TOTP is set to the app name provided in the auth config or if not provided it will be set to `Radas`. You can override this by passing `issuer` to the plugin config.
 </Callout>
 
 #### Verifying TOTP
@@ -226,7 +226,7 @@ const verifyTotp = async (code: string) => {
 
 OTP (One-Time Password) is similar to TOTP but a random code is generated and sent to the user's email or phone.
 
-Before using OTP to verify the second factor, you need to configure `sendOTP` in your Better Auth instance. This function is responsible for sending the OTP to the user's email, phone, or any other method supported by your application.
+Before using OTP to verify the second factor, you need to configure `sendOTP` in your Radas instance. This function is responsible for sending the OTP to the user's email, phone, or any other method supported by your application.
 
 ```ts title="auth.ts"
 import { betterAuth } from "better-auth"
@@ -247,7 +247,7 @@ export const auth = betterAuth({
 
 #### Sending OTP
 
-Sending an OTP is done by calling the `twoFactor.sendOtp` function. This function will trigger your sendOTP implementation that you provided in the Better Auth configuration.
+Sending an OTP is done by calling the `twoFactor.sendOtp` function. This function will trigger your sendOTP implementation that you provided in the Radas configuration.
 
 ```ts
 const { data, error } = await authClient.twoFactor.sendOtp()
@@ -341,7 +341,7 @@ When `trustDevice` is set to `true`, the current device will be remembered for 6
 
 By adding an `issuer` you can set your application name for the 2fa application.
 
-For example, if your user uses Google Auth, the default appName will show up as `Better Auth`. However, by using the following code, it will show up as `my-app-name`.
+For example, if your user uses Google Auth, the default appName will show up as `Radas`. However, by using the following code, it will show up as `my-app-name`.
 
 ```ts
 twoFactor({

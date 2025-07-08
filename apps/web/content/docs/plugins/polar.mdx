@@ -1,9 +1,9 @@
 ---
 title: Polar
-description: Better Auth Plugin for Payment and Checkouts using Polar
+description: Radas Plugin for Payment and Checkouts using Polar
 ---
 
-[Polar](https://polar.sh) is a developer first payment infrastructure. Out of the box it provides a lot of developer first integrations for payments, checkouts and more. This plugin helps you integrate Polar with Better Auth to make your auth + payments flow seamless.
+[Polar](https://polar.sh) is a developer first payment infrastructure. Out of the box it provides a lot of developer first integrations for payments, checkouts and more. This plugin helps you integrate Polar with Radas to make your auth + payments flow seamless.
 
 <Callout>
   This plugin is maintained by Polar team. For bugs, issues or feature requests,
@@ -58,7 +58,7 @@ const polarClient = new Polar({
 });
 
 const auth = betterAuth({
-    // ... Better Auth config
+    // ... Radas config
     plugins: [
         polar({
             client: polarClient,
@@ -127,7 +127,7 @@ const polarClient = new Polar({
 });
 
 const auth = betterAuth({
-  // ... Better Auth config
+  // ... Radas config
   plugins: [
     polar({
       client: polarClient,
@@ -168,7 +168,7 @@ To support checkouts in your app, simply pass the Checkout plugin to the use-pro
 import { polar, checkout } from "@polar-sh/better-auth";
 
 const auth = betterAuth({
-    // ... Better Auth config
+    // ... Radas config
     plugins: [
         polar({
             ...
@@ -227,7 +227,7 @@ A plugin which enables customer management of their purchases, orders and subscr
 import { polar, checkout, portal } from "@polar-sh/better-auth";
 
 const auth = betterAuth({
-    // ... Better Auth config
+    // ... Radas config
     plugins: [
         polar({
             ...
@@ -350,7 +350,7 @@ A simple plugin for Usage Based Billing.
 import { polar, checkout, portal, usage } from "@polar-sh/better-auth";
 
 const auth = betterAuth({
-    // ... Better Auth config
+    // ... Radas config
     plugins: [
         polar({
             ...
@@ -411,7 +411,7 @@ The Webhooks plugin can be used to capture incoming events from your Polar organ
 import { polar, webhooks } from "@polar-sh/better-auth";
 
 const auth = betterAuth({
-    // ... Better Auth config
+    // ... Radas config
     plugins: [
         polar({
             ...

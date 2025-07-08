@@ -1,9 +1,9 @@
 ---
-title: Migrating from Clerk to Better Auth
-description: A step-by-step guide to transitioning from Clerk to Better Auth.
+title: Migrating from Clerk to Radas
+description: A step-by-step guide to transitioning from Clerk to Radas.
 ---
 
-In this guide, we'll walk through the steps to migrate a project from Clerk to Better Auth — including email/password with proper hashing, social/external accounts, phone number, two-factor data, and more.
+In this guide, we'll walk through the steps to migrate a project from Clerk to Radas — including email/password with proper hashing, social/external accounts, phone number, two-factor data, and more.
 
 <Callout type="warn">
 This migration will invalidate all active sessions. This guide doesn't currently show you how to migrate Organization but it should be possible with additional steps and the [Organization](/docs/plugins/organization) Plugin.
@@ -11,7 +11,7 @@ This migration will invalidate all active sessions. This guide doesn't currently
 
 ## Before You Begin
 
-Before starting the migration process, set up Better Auth in your project. Follow the [installation guide](/docs/installation) to get started. And go to 
+Before starting the migration process, set up Radas in your project. Follow the [installation guide](/docs/installation) to get started. And go to 
 
 <Steps>
 <Step>
@@ -397,7 +397,7 @@ migrateFromClerk()
   Make sure to:
   1. Test the migration in a development environment first
   2. Monitor the migration process for any errors
-  3. Verify the migrated data in Better Auth before proceeding
+  3. Verify the migrated data in Radas before proceeding
   4. Keep Clerk installed and configured until the migration is complete
   </Callout>
 
@@ -410,7 +410,7 @@ migrateFromClerk()
   <Step>
   ### Update your components
 
-  Now that the data is migrated, you can start updating your components to use Better Auth. Here's an example for the sign-in component:
+  Now that the data is migrated, you can start updating your components to use Radas. Here's an example for the sign-in component:
 
   ```tsx title="components/auth/sign-in.tsx"
   import { authClient } from "better-auth/client";
@@ -440,7 +440,7 @@ migrateFromClerk()
 <Step>
   ### Update the middleware
 
-  Replace your Clerk middleware with Better Auth's middleware:
+  Replace your Clerk middleware with Radas's middleware:
 
   ```ts title="middleware.ts"
 
@@ -466,7 +466,7 @@ migrateFromClerk()
   <Step>
   ### Remove Clerk Dependencies
 
-  Once you've verified that everything is working correctly with Better Auth, you can remove Clerk:
+  Once you've verified that everything is working correctly with Radas, you can remove Clerk:
 
   ```bash title="Remove Clerk"
   pnpm remove @clerk/nextjs @clerk/themes @clerk/types
@@ -476,10 +476,10 @@ migrateFromClerk()
 
 ## Additional Resources
 
-[Goodbye Clerk, Hello Better Auth – Full Migration Guide!](https://www.youtube.com/watch?v=Za_QihbDSuk)
+[Goodbye Clerk, Hello Radas – Full Migration Guide!](https://www.youtube.com/watch?v=Za_QihbDSuk)
 
 ## Wrapping Up
 
-Congratulations! You've successfully migrated from Clerk to Better Auth.
+Congratulations! You've successfully migrated from Clerk to Radas.
 
-Better Auth offers greater flexibility and more features—be sure to explore the [documentation](/docs) to unlock its full potential.
+Radas offers greater flexibility and more features—be sure to explore the [documentation](/docs) to unlock its full potential.

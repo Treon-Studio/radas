@@ -1,6 +1,6 @@
 ---
 title: OIDC Provider
-description: Open ID Connect plugin for Better Auth that allows you to have your own OIDC provider.
+description: Open ID Connect plugin for Radas that allows you to have your own OIDC provider.
 ---
 
 The **OIDC Provider Plugin** enables you to build and manage your own OpenID Connect (OIDC) provider, granting full control over user authentication without relying on third-party services like Okta or Azure AD. It also allows other services to authenticate users through your OIDC provider.
@@ -126,7 +126,7 @@ The `getAdditionalUserInfoClaim` function receives the user object and the reque
 
 ### Consent Screen
 
-When a user is redirected to the OIDC provider for authentication, they may be prompted to authorize the application to access their data. This is known as the consent screen. By default, Better Auth will display a sample consent screen. You can customize the consent screen by providing a `consentPage` option during initialization.
+When a user is redirected to the OIDC provider for authentication, they may be prompted to authorize the application to access their data. This is known as the consent screen. By default, Radas will display a sample consent screen. You can customize the consent screen by providing a `consentPage` option during initialization.
 
 ```ts title="auth.ts"
 import { betterAuth } from "better-auth";

@@ -1,9 +1,9 @@
 ---
 title: Basic Usage
-description: Getting started with Better Auth
+description: Getting started with Radas
 ---
 
-Better Auth provides built-in authentication support for:
+Radas provides built-in authentication support for:
 
 - **Email and password**
 - **Social provider (Google, GitHub, Apple, and more)**
@@ -102,7 +102,7 @@ Always invoke client methods from the client side. Don't call them from the serv
 To authenticate a user on the server, you can use the `auth.api` methods.
 
 ```ts title="server.ts"
-import { auth } from "./auth"; // path to your Better Auth server instance
+import { auth } from "./auth"; // path to your Radas server instance
 
 const response = await auth.api.signInEmail({
     body: {
@@ -119,7 +119,7 @@ If the server cannot return a response object, you'll need to manually parse and
 
 ## Social Sign-On
 
-Better Auth supports multiple social providers, including Google, GitHub, Apple, Discord, and more. To use a social provider, you need to configure the ones you need in the `socialProviders` option on your `auth` object.
+Radas supports multiple social providers, including Google, GitHub, Apple, Discord, and more. To use a social provider, you need to configure the ones you need in the `socialProviders` option on your `auth` object.
 
 ```ts title="auth.ts"
 import { betterAuth } from "better-auth";
@@ -192,13 +192,13 @@ await authClient.signOut({
 
 ## Session
 
-Once a user is signed in, you'll want to access the user session. Better Auth allows you easily to access the session data from the server and client side.
+Once a user is signed in, you'll want to access the user session. Radas allows you easily to access the session data from the server and client side.
 
 ### Client Side
 
 #### Use Session
 
-Better Auth provides a `useSession` hook to easily access session data on the client side. This hook is implemented using nanostore and has support for each supported framework and vanilla client, ensuring that any changes to the session (such as signing out) are immediately reflected in your UI.
+Radas provides a `useSession` hook to easily access session data on the client side. This hook is implemented using nanostore and has support for each supported framework and vanilla client, ensuring that any changes to the session (such as signing out) are immediately reflected in your UI.
 
 <Tabs items={["React", "Vue","Svelte", "Solid", "Vanilla"]} defaultValue="React">
     <Tab value="React">
@@ -299,7 +299,7 @@ The server provides a `session` object that you can use to access the session da
 <Tabs items={["Next.js", "Nuxt", "Svelte", "Astro", "Hono", "TanStack"]}>
     <Tab value="Next.js">
     ```ts title="server.ts"
-    import { auth } from "./auth"; // path to your Better Auth server instance
+    import { auth } from "./auth"; // path to your Radas server instance
     import { headers } from "next/headers";
 
     const session = await auth.api.getSession({
@@ -309,7 +309,7 @@ The server provides a `session` object that you can use to access the session da
     </Tab>
     <Tab value="Remix">
     ```ts title="route.ts"
-    import { auth } from "lib/auth"; // path to your Better Auth server instance
+    import { auth } from "lib/auth"; // path to your Radas server instance
 
     export async function loader({ request }: LoaderFunctionArgs) {
         const session = await auth.api.getSession({
@@ -395,7 +395,7 @@ For more details check [session-management](/docs/concepts/session-management) d
 
 ## Using Plugins
 
-One of the unique features of Better Auth is a plugins ecosystem. It allows you to add complex auth related functionality with small lines of code.
+One of the unique features of Radas is a plugins ecosystem. It allows you to add complex auth related functionality with small lines of code.
 
 Below is an example of how to add two factor authentication using two factor plugin.
 

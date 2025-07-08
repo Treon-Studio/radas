@@ -3,7 +3,7 @@ title: User & Accounts
 description: User and account management.
 ---
 
-Beyond authenticating users, Better Auth also provides a set of methods to manage users. This includes, updating user information, changing passwords, and more.
+Beyond authenticating users, Radas also provides a set of methods to manage users. This includes, updating user information, changing passwords, and more.
 
 The user table stores the authentication data of the user [Click here to view the schema](/docs/concepts/database#user).
 
@@ -94,7 +94,7 @@ await auth.api.setPassword({
 
 ## Delete User
 
-Better Auth provides a utility to hard delete a user from your database. It's disabled by default, but you can enable it easily by passing `enabled:true`
+Radas provides a utility to hard delete a user from your database. It's disabled by default, but you can enable it easily by passing `enabled:true`
 
 ```ts
 export const auth = betterAuth({
@@ -111,7 +111,7 @@ Once enabled, you can call `authClient.deleteUser` to permanently delete user da
 
 ### Adding Verification Before Deletion
 
-For added security, you’ll likely want to confirm the user’s intent before deleting their account. A common approach is to send a verification email. Better Auth provides a `sendDeleteAccountVerification` utility for this purpose. 
+For added security, you’ll likely want to confirm the user’s intent before deleting their account. A common approach is to send a verification email. Radas provides a `sendDeleteAccountVerification` utility for this purpose. 
 This is especially needed if you have OAuth setup and want them to be able to delete their account without forcing them to login again for a fresh session.
 
 Here’s how you can set it up:
@@ -257,7 +257,7 @@ export const auth = betterAuth({
 
 ## Accounts
 
-Better Auth supports multiple authentication methods. Each authentication method is called a provider. For example, email and password authentication is a provider, Google authentication is a provider, etc.
+Radas supports multiple authentication methods. Each authentication method is called a provider. For example, email and password authentication is a provider, Google authentication is a provider, etc.
 
 When a user signs in using a provider, an account is created for the user. The account stores the authentication data returned by the provider. This data includes the access token, refresh token, and other information returned by the provider.
 
@@ -274,7 +274,7 @@ const accounts = await authClient.listAccounts();
 
 ### Token Encryption
 
-Better Auth doesn’t encrypt tokens by default and that’s intentional. We want you to have full control over how encryption and decryption are handled, rather than baking in behavior that could be confusing or limiting. If you need to store encrypted tokens (like accessToken or refreshToken), you can use databaseHooks to encrypt them before they’re saved to your database.
+Radas doesn’t encrypt tokens by default and that’s intentional. We want you to have full control over how encryption and decryption are handled, rather than baking in behavior that could be confusing or limiting. If you need to store encrypted tokens (like accessToken or refreshToken), you can use databaseHooks to encrypt them before they’re saved to your database.
 
 ```ts
 export const auth = betterAuth({
@@ -305,7 +305,7 @@ Then whenever you retrieve back the account make sure to decrypt the tokens befo
 
 ### Account Linking
 
-Account linking enables users to associate multiple authentication methods with a single account. With Better Auth, users can connect additional social sign-ons or OAuth providers to their existing accounts if the provider confirms the user's email as verified.
+Account linking enables users to associate multiple authentication methods with a single account. With Radas, users can connect additional social sign-ons or OAuth providers to their existing accounts if the provider confirms the user's email as verified.
 
 If account linking is disabled, no accounts can be linked, regardless of the provider or email verification status.
 

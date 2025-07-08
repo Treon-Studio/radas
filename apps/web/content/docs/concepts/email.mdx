@@ -1,9 +1,9 @@
 ---
 title: Email
-description: Learn how to use email with Better Auth.
+description: Learn how to use email with Radas.
 ---
 
-Email is a key part of Better Auth, required for all users regardless of their authentication method. Better Auth provides email and password authentication out of the box, and a lot of utilities to help you manage email verification, password reset, and more.
+Email is a key part of Radas, required for all users regardless of their authentication method. Radas provides email and password authentication out of the box, and a lot of utilities to help you manage email verification, password reset, and more.
 
 
 ## Email Verification
@@ -60,7 +60,7 @@ export const auth = betterAuth({
 This sends a verification email when a user signs up. For social logins, email verification status is read from the SSO.
 
 <Callout>
-    With `sendOnSignUp` enabled, when the user logs in with an SSO that does not claim the email as verified, Better Auth will dispatch a verification email, but the verification is not required to login even when `requireEmailVerification` is enabled.
+    With `sendOnSignUp` enabled, when the user logs in with an SSO that does not claim the email as verified, Radas will dispatch a verification email, but the verification is not required to login even when `requireEmailVerification` is enabled.
 </Callout>
 
 #### 2. Require Email Verification
@@ -137,7 +137,7 @@ const auth = betterAuth({
 
 ## Password Reset Email
 
-Password reset allows users to reset their password if they forget it. Better Auth provides a simple way to implement password reset functionality.
+Password reset allows users to reset their password if they forget it. Radas provides a simple way to implement password reset functionality.
 
 You can enable password reset by passing a function that sends a password reset email with a link.
 

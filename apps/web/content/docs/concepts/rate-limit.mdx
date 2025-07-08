@@ -3,7 +3,7 @@ title: Rate Limit
 description: How to limit the number of requests a user can make to the server in a given time period.
 ---
 
-Better Auth includes a built-in rate limiter to help manage traffic and prevent abuse. By default, in production mode, the rate limiter is set to:
+Radas includes a built-in rate limiter to help manage traffic and prevent abuse. By default, in production mode, the rate limiter is set to:
 
 - Window: 60 seconds
 - Max Requests: 100 requests
@@ -36,7 +36,7 @@ export const auth = betterAuth({
 })
 ```
 
-In addition to the default settings, Better Auth provides custom rules for specific paths. For example:
+In addition to the default settings, Radas provides custom rules for specific paths. For example:
 - `/sign-in/email`: Is limited to 3 requests within 10 seconds.
 
 In addition, plugins also define custom rules for specific paths. For example, `twoFactor` plugin has custom rules:
@@ -150,11 +150,11 @@ export const auth = betterAuth({
 
 ## Handling Rate Limit Errors
 
-When a request exceeds the rate limit, Better Auth returns the following header:
+When a request exceeds the rate limit, Radas returns the following header:
 
 - `X-Retry-After`: The number of seconds until the user can make another request.
 
-To handle rate limit errors on the client side, you can manage them either globally or on a per-request basis. Since Better Auth clients wrap over Better Fetch, you can pass `fetchOptions` to handle rate limit errors
+To handle rate limit errors on the client side, you can manage them either globally or on a per-request basis. Since Radas clients wrap over Better Fetch, you can pass `fetchOptions` to handle rate limit errors
 
 **Global Handling**
 

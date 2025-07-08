@@ -1,19 +1,19 @@
 ---
 title: Database
-description: Learn how to use a database with Better Auth.
+description: Learn how to use a database with Radas.
 ---
 
 ## Adapters
 
-Better Auth requires a database connection to store data. It comes with a query builder called <Link href="https://kysely.dev/">Kysely</Link> to manage and query your database. The database will be used to store data such as users, sessions, and more. Plugins can also define their own database tables to store data.
+Radas requires a database connection to store data. It comes with a query builder called <Link href="https://kysely.dev/">Kysely</Link> to manage and query your database. The database will be used to store data such as users, sessions, and more. Plugins can also define their own database tables to store data.
 
-You can pass a database connection to Better Auth by passing a supported database instance, a dialect instance or a Kysely instance in the database options.
+You can pass a database connection to Radas by passing a supported database instance, a dialect instance or a Kysely instance in the database options.
 
 You can learn more about supported Kysely dialects in the [Other relational databases](/docs/adapters/other-relational-databases) documentation. Or if you're using an ORM, you can find our supported ORM adapters in that same category on the documentation sidebar.
 
 ## CLI
 
-Better Auth comes with a CLI tool to manage database migrations and generate schema.
+Radas comes with a CLI tool to manage database migrations and generate schema.
 
 ### Running Migrations
 
@@ -25,7 +25,7 @@ npx @better-auth/cli migrate
 
 ### Generating Schema
 
-Better Auth also provides a `generate` command to generate the schema required by Better Auth. The `generate` command creates the schema required by Better Auth. If you're using a database adapter like Prisma or Drizzle, this command will generate the right schema for your ORM. If you're using the built-in Kysely adapter, it will generate an SQL file you can run directly on your database.
+Radas also provides a `generate` command to generate the schema required by Radas. The `generate` command creates the schema required by Radas. If you're using a database adapter like Prisma or Drizzle, this command will generate the right schema for your ORM. If you're using the built-in Kysely adapter, it will generate an SQL file you can run directly on your database.
 
 ```bash
 npx @better-auth/cli generate
@@ -35,13 +35,13 @@ See the [CLI](/docs/concepts/cli) documentation for more information on the CLI.
 
 <Callout>
   If you prefer adding tables manually, you can do that as well. The core schema
-  required by Better Auth is described below and you can find additional schema
+  required by Radas is described below and you can find additional schema
   required by plugins in the plugin documentation.
 </Callout>
 
 ## Secondary Storage
 
-Secondary storage in Better Auth allows you to use key-value stores for managing session data, rate limiting counters, etc. This can be useful when you want to offload the storage of this intensive records to a high performance storage or even RAM.
+Secondary storage in Radas allows you to use key-value stores for managing session data, rate limiting counters, etc. This can be useful when you want to offload the storage of this intensive records to a high performance storage or even RAM.
 
 ### Implementation
 
@@ -97,11 +97,11 @@ export const auth = betterAuth({
 });
 ```
 
-This implementation allows Better Auth to use Redis for storing session data and rate limiting counters. You can also add prefixes to the keys names.
+This implementation allows Radas to use Redis for storing session data and rate limiting counters. You can also add prefixes to the keys names.
 
 ## Core Schema
 
-Better Auth requires the following tables to be present in the database. The types are in `typescript` format. You can use corresponding types in your database.
+Radas requires the following tables to be present in the database. The types are in `typescript` format. You can use corresponding types in your database.
 
 ### User
 
@@ -330,7 +330,7 @@ Table Name: `verification`
 
 ## Custom Tables
 
-Better Auth allows you to customize the table names and column names for the core schema. You can also extend the core schema by adding additional fields to the user and session tables.
+Radas allows you to customize the table names and column names for the core schema. You can also extend the core schema by adding additional fields to the user and session tables.
 
 ### Custom Table Names
 
@@ -383,7 +383,7 @@ export const auth = betterAuth({
 
 ### Extending Core Schema
 
-Better Auth provides a type-safe way to extend the `user` and `session` schemas. You can add custom fields to your auth config, and the CLI will automatically update the database schema. These additional fields will be properly inferred in functions like `useSession`, `signUp.email`, and other endpoints that work with user or session objects.
+Radas provides a type-safe way to extend the `user` and `session` schemas. You can add custom fields to your auth config, and the CLI will automatically update the database schema. These additional fields will be properly inferred in functions like `useSession`, `signUp.email`, and other endpoints that work with user or session objects.
 
 To add custom fields, use the `additionalFields` property in the `user` or `session` object of your auth config. The `additionalFields` object uses field names as keys, with each value being a `FieldAttributes` object containing:
 
@@ -474,7 +474,7 @@ export const auth = betterAuth({
 
 ### ID Generation
 
-Better Auth by default will generate unique IDs for users, sessions, and other entities. If you want to customize how IDs are generated, you can configure this in the `advanced.database.generateId` option in your auth config.
+Radas by default will generate unique IDs for users, sessions, and other entities. If you want to customize how IDs are generated, you can configure this in the `advanced.database.generateId` option in your auth config.
 
 You can also disable ID generation by setting the `advanced.database.generateId` option to `false`. This will assume your database will generate the ID automatically.
 
@@ -498,7 +498,7 @@ export const auth = betterAuth({
 
 ### Database Hooks
 
-Database hooks allow you to define custom logic that can be executed during the lifecycle of core database operations in Better Auth. You can create hooks for the following models: **user**, **session**, and **account**.
+Database hooks allow you to define custom logic that can be executed during the lifecycle of core database operations in Radas. You can create hooks for the following models: **user**, **session**, and **account**.
 
 There are two types of hooks you can define:
 

@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Learn how to configure Better Auth in your project.
+description: Learn how to configure Radas in your project.
 ---
 
 <Steps>
@@ -8,14 +8,14 @@ description: Learn how to configure Better Auth in your project.
 <Step>
 ### Install the Package
 
-Let's start by adding Better Auth to your project:
+Let's start by adding Radas to your project:
 
 ```package-install
 better-auth
 ```
 
 <Callout type="info">
-If you're using a separate client and server setup, make sure to install Better Auth in both parts of your project.
+If you're using a separate client and server setup, make sure to install Radas in both parts of your project.
 </Callout>
 </Step>
 
@@ -41,7 +41,7 @@ BETTER_AUTH_URL=http://localhost:3000 #Base URL of your app
 </Step>
 
 <Step>
-### Create A Better Auth Instance
+### Create A Radas Instance
 
 Create a file named `auth.ts` in one of these locations:
    - Project root
@@ -50,7 +50,7 @@ Create a file named `auth.ts` in one of these locations:
 
 You can also nest any of these folders under `src/`, `app/` or `server/` folder. (e.g. `src/lib/auth.ts`, `app/lib/auth.ts`).
 
-And in this file, import Better Auth and create your auth instance. Make sure to export the auth instance with the variable name `auth` or as a `default` export.
+And in this file, import Radas and create your auth instance. Make sure to export the auth instance with the variable name `auth` or as a `default` export.
 
 ```ts title="auth.ts"
 import { betterAuth } from "better-auth";
@@ -64,7 +64,7 @@ export const auth = betterAuth({
 <Step>
 ### Configure Database
 
-Better Auth requires a database to store user data. You can easily configure Better Auth to use SQLite, PostgreSQL, or MySQL, with Kysely handling queries and migrations for these databases.
+Radas requires a database to store user data. You can easily configure Radas to use SQLite, PostgreSQL, or MySQL, with Kysely handling queries and migrations for these databases.
 
 <Tabs items={["sqlite", "postgres", "mysql"]}>
     <Tab value="sqlite">
@@ -175,7 +175,7 @@ If you prefer to use an ORM or if your database is not supported by Kysely, you 
 
 <Step>
     ### Create Database Tables
-    Better Auth includes a CLI tool to help manage the schema required by the library.
+    Radas includes a CLI tool to help manage the schema required by the library.
 
     - **Generate**: This command generates an ORM schema or SQL migration file.
 
@@ -203,7 +203,7 @@ If you prefer to use an ORM or if your database is not supported by Kysely, you 
 <Step>
 
 ### Authentication Methods
-Configure the authentication methods you want to use. Better Auth comes with built-in support for email/password, and social sign-on providers.
+Configure the authentication methods you want to use. Radas comes with built-in support for email/password, and social sign-on providers.
 
 ```ts title="auth.ts"
 import { betterAuth } from "better-auth"
@@ -234,7 +234,7 @@ To handle API requests, you need to set up a route handler on your server.
 Create a new file or route in your framework's designated catch-all route handler. This route should handle requests for the path `/api/auth/*` (unless you've configured a different base path).
 
 <Callout>
-Better Auth supports any backend framework with standard Request and Response objects and offers helper functions for popular frameworks.
+Radas supports any backend framework with standard Request and Response objects and offers helper functions for popular frameworks.
 </Callout>
 
 <Tabs items={["next-js", "nuxt", "svelte-kit", "remix", "solid-start", "hono", "express", "elysia", "tanstack-start", "expo"]} defaultValue="react">
@@ -325,12 +325,12 @@ Better Auth supports any backend framework with standard Request and Response ob
 
     app.all("/api/auth/*", toNodeHandler(auth));
 
-    // Mount express json middleware after Better Auth handler
-    // or only apply it to routes that don't interact with Better Auth
+    // Mount express json middleware after Radas handler
+    // or only apply it to routes that don't interact with Radas
     app.use(express.json());
 
     app.listen(port, () => {
-        console.log(`Better Auth app listening on port ${port}`);
+        console.log(`Radas app listening on port ${port}`);
     });
     ```
     This will also work for any other node server framework like express, fastify, hapi, etc., but may require some modifications. See [fastify guide](/docs/integrations/fastify). Note that CommonJS (cjs) isn't supported.
@@ -400,7 +400,7 @@ Better Auth supports any backend framework with standard Request and Response ob
 <Step>
 ### Create Client Instance
 
-The client-side library helps you interact with the auth server. Better Auth comes with a client for all the popular web frameworks, including  vanilla JavaScript.
+The client-side library helps you interact with the auth server. Radas comes with a client for all the popular web frameworks, including  vanilla JavaScript.
 
 1. Import `createAuthClient` from the package for your framework (e.g., "better-auth/react" for React).
 2. Call the function to create your client.

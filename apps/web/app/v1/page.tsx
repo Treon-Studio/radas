@@ -7,11 +7,11 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
 	title: "V1.0 Release",
-	description: "Better Auth V1.0 release notes",
+	description: "Radas V1.0 release notes",
 	openGraph: {
 		images: "https://better-auth.com/v1-og.png",
 		title: "V1.0 Release",
-		description: "Better Auth V1.0 release notes",
+		description: "Radas V1.0 release notes",
 		url: "https://better-auth.com/v1",
 		type: "article",
 		siteName: "RADAS",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 		site: "@better_auth",
 		creator: "@better_auth",
 		title: "V1.0 Release",
-		description: "Better Auth V1.0 release notes",
+		description: "Radas V1.0 release notes",
 	},
 };
 
@@ -34,7 +34,7 @@ export default function V1Ship() {
 					<div className="absolute bottom-1/3 left-1/2 transform -translate-x-1/2 text-center">
 						<h1 className="text-5xl mb-4">V1.0 - nov.22</h1>
 						<p className="text-lg text-gray-400 max-w-xl mx-auto">
-							We are excited to announce the Better Auth V1.0 release.
+							We are excited to announce the Radas V1.0 release.
 						</p>
 					</div>
 				</BackgroundLines>
@@ -68,14 +68,14 @@ export default function V1Ship() {
 						What does V1 means?
 					</h2>
 					<p>
-						Since introducing Better Auth, the community's excitement has been
+						Since introducing Radas, the community's excitement has been
 						incredibly motivating—thank you! <br /> <br />
 						V1 is an important milestone, but it simply means we believe you can
 						use it in production and that we'll strive to keep the APIs stable
 						until the next major version. However, we'll continue improving,
 						adding new features, and fixing bugs at the same pace as before.
 						<br /> <br />
-						If you were using Better Auth for production, we recommend updating
+						If you were using Radas for production, we recommend updating
 						to V1 as soon as possible. There are some breaking changes, feel
 						free to join us on{" "}
 						<Link href="https://discord.gg/better-auth">Discord</Link>, and
@@ -159,7 +159,7 @@ function ReleaseRelated() {
 							<code className="text-xs dark:bg-white/5 bg-black/10 px-1 py-0.5 rounded">
 								schema required
 							</code>{" "}
-							by Better Auth.
+							by Radas.
 							<code className="text-xs dark:bg-white/5 bg-black/10 px-1 py-0.5 rounded">
 								You can also
 							</code>{" "}

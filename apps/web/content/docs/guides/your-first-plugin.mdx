@@ -1,13 +1,13 @@
 ---
 title: Create your first plugin
-description: A step-by-step guide to creating your first Better Auth plugin.
+description: A step-by-step guide to creating your first Radas plugin.
 ---
 
-In this guide, we’ll walk you through the steps of creating your first Better Auth plugin.
+In this guide, we’ll walk you through the steps of creating your first Radas plugin.
 
 
 <Callout type="warn">
-This guide assumes you have <Link href="/docs/installation">setup the basics</Link> of Better Auth and are ready to create your first plugin.
+This guide assumes you have <Link href="/docs/installation">setup the basics</Link> of Radas and are ready to create your first plugin.
 </Callout>
 
 <Steps>
@@ -20,7 +20,7 @@ In this guide, we’ll create a **birthday plugin** to keep track of user birth 
 
 <Step>
 ## Server plugin first
-Better Auth plugins operate as a pair: a <Link href="/docs/concepts/plugins#create-a-server-plugin">server plugin</Link> and a <Link href="/docs/concepts/plugins#create-a-client-plugin">client plugin</Link>.
+Radas plugins operate as a pair: a <Link href="/docs/concepts/plugins#create-a-server-plugin">server plugin</Link> and a <Link href="/docs/concepts/plugins#create-a-client-plugin">client plugin</Link>.
 The server plugin forms the foundation of your authentication system, while the client plugin provides convenient frontend APIs to interact with your server implementation.
 
 
@@ -56,7 +56,7 @@ Although this does nothing, you have technically just made yourself your first p
 ### Defining a schema
 In order to save each user’s birthday data, we must create a schema on top of the `user` model.
 
-By creating a schema here, this also allows <Link href="/docs/concepts/cli">Better Auth’s CLI</Link> to generate the schemas required to update your database.
+By creating a schema here, this also allows <Link href="/docs/concepts/cli">Radas’s CLI</Link> to generate the schemas required to update your database.
 
 <Callout type="info">
 You can learn more about <Link href="/docs/concepts/plugins#schema">plugin schemas here</Link>.
@@ -224,7 +224,7 @@ npx @better-auth/cli@latest generate
 
 ## Wrapping Up
 
-Congratulations! You’ve successfully created your first ever Better Auth plugin.
+Congratulations! You’ve successfully created your first ever Radas plugin.
 We highly recommend you visit our <Link href="/docs/concepts/plugins">plugins documentation</Link> to learn more information.
 
 If you have a plugin you’d like to share with the community, feel free to let us know through 

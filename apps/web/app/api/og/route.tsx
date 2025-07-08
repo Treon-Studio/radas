@@ -156,7 +156,7 @@ export async function GET(req: Request) {
 							tw="flex text-xl"
 							style={{ fontFamily: "GeistSans", fontWeight: "semibold" }}
 						>
-							Better Auth.
+							Radas.
 						</div>
 						<div tw="flex gap-2 items-center text-xl">
 							<svg

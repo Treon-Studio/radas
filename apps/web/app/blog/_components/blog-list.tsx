@@ -21,7 +21,7 @@ export async function BlogPage() {
 					</h1>
 
 					<p className="text-sm text-gray-600 dark:text-gray-300">
-						Latest updates, articles, and insights about Better Auth
+						Latest updates, articles, and insights about Radas
 					</p>
 					<hr className="h-px bg-gray-300 mt-5" />
 					<div className="mt-8 flex flex-wrap text-gray-600 dark:text-gray-300 gap-x-1 gap-y-3 sm:gap-x-2">

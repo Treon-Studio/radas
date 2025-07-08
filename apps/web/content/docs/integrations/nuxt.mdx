@@ -1,9 +1,9 @@
 ---
 title: Nuxt Integration
-description: Integrate Better Auth with Nuxt.
+description: Integrate Radas with Nuxt.
 ---
 
-Before you start, make sure you have a Better Auth instance configured. If you haven't done that yet, check out the [installation](/docs/installation).
+Before you start, make sure you have a Radas instance configured. If you haven't done that yet, check out the [installation](/docs/installation).
 
 ### Create API Route
 
@@ -70,7 +70,7 @@ const session = authClient.useSession()
 
 ### Server Usage
 
-The `api` object exported from the auth instance contains all the actions that you can perform on the server. Every endpoint made inside Better Auth is a invocable as a function. Including plugins endpoints.
+The `api` object exported from the auth instance contains all the actions that you can perform on the server. Every endpoint made inside Radas is a invocable as a function. Including plugins endpoints.
 
 **Example: Getting Session on a server API route**
 
@@ -129,4 +129,4 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 - [Nuxt and Nuxt Hub example](https://github.com/atinux/nuxthub-better-auth) on GitHub.
 - [NuxtZzle is Nuxt,Drizzle ORM example](https://github.com/leamsigc/nuxt-better-auth-drizzle) on GitHub [preview](https://nuxt-better-auth.giessen.dev/)
 - [Nuxt example](https://stackblitz.com/github/better-auth/better-auth/tree/main/examples/nuxt-example) on StackBlitz.
-- [NuxSaaS (Github)](https://github.com/NuxSaaS/NuxSaaS) is a full-stack SaaS Starter Kit that leverages Better Auth for secure and efficient user authentication. [Demo](https://nuxsaas.com/)
+- [NuxSaaS (Github)](https://github.com/NuxSaaS/NuxSaaS) is a full-stack SaaS Starter Kit that leverages Radas for secure and efficient user authentication. [Demo](https://nuxsaas.com/)

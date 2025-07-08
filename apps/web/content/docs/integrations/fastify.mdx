@@ -1,12 +1,12 @@
 ---
-title: Better Auth Fastify Integration Guide
-description: Learn how to seamlessly integrate Better Auth with your Fastify application.
+title: Radas Fastify Integration Guide
+description: Learn how to seamlessly integrate Radas with your Fastify application.
 ---
 
 This guide provides step-by-step instructions for configuring both essential handlers and CORS settings.
 
 <Callout type="important">
-A configured Better Auth instance is required before proceeding. If you haven't set this up yet, please consult our [Installation Guide](/docs/installation).
+A configured Radas instance is required before proceeding. If you haven't set this up yet, please consult our [Installation Guide](/docs/installation).
 </Callout>
 
 ### Prerequisites
@@ -26,11 +26,11 @@ Verify the following requirements before integration:
 
 ### Authentication Handler Setup
 
-Configure Better Auth to process authentication requests by creating a catch-all route:
+Configure Radas to process authentication requests by creating a catch-all route:
 
 ```ts title="server.ts"
 import Fastify from "fastify";
-import { auth } from "./auth"; // Your configured Better Auth instance
+import { auth } from "./auth"; // Your configured Radas instance
 
 const fastify = Fastify({ logger: true });
 

@@ -2,7 +2,7 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
 	title: "Blog - RADAS",
-	description: "Latest updates, articles, and insights about RADAS,
+	description: "Latest updates, articles, and insights about RADAS",
 };
 
 interface BlogLayoutProps {

@@ -76,7 +76,7 @@ const ChangelogPage = async () => {
 						<span className="">available here.</span>
 					</h1>
 					<p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-						Better Auth is comprehensive authentication library for TypeScript
+						Radas is comprehensive authentication library for TypeScript
 						that provides a wide range of features to make authentication easier
 						and more secure.
 					</p>

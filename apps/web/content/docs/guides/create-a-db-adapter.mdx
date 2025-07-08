@@ -116,8 +116,8 @@ If you haven't already, check out the `options` object in the [config section](#
 
 Before we get into the adapter function, let's go over the parameters that are available to you.
 
-- `options`: The Better Auth options.
-- `schema`: The schema from the user's Better Auth instance.
+- `options`: The Radas options.
+- `schema`: The schema from the user's Radas instance.
 - `debugLog`: The debug log function.
 - `getField`: The get field function.
 - `getDefaultModelName`: The get default model name function.
@@ -152,7 +152,7 @@ The `create` method is used to create a new record in the database.
 
 <Callout>
 Note:
-If the user has enabled the `useNumberId` option, or if `generateId` is `false` in the user's Better Auth config,
+If the user has enabled the `useNumberId` option, or if `generateId` is `false` in the user's Radas config,
 then it's expected that the `id` is provided in the `data` object. Otherwise, the `id` will be automatically generated.
 
 Additionally, it's possible to pass `forceAllowId` as a parameter to the `create` method, which allows `id` to be provided in the `data` object.
@@ -337,7 +337,7 @@ const myAdapter = (config: CustomAdapterConfig) =>
 
 ### `createSchema` (optional)
 
-The `createSchema` method allows the [Better Auth CLI](/docs/concepts/cli) to [generate](/docs/concepts/cli/#generate) a schema for the database.
+The `createSchema` method allows the [Radas CLI](/docs/concepts/cli) to [generate](/docs/concepts/cli/#generate) a schema for the database.
 
 parameters:
 
@@ -535,7 +535,7 @@ The `customTransformInput` function receives the following arguments:
 - `select`: The `select` values which the query expects to return.
 - `model`: The model that is being transformed.
 - `schema`: The schema that is being transformed.
-- `options`: Better Auth options.
+- `options`: Radas options.
 
 The `customTransformInput` function runs at every key in the data object of a given action.
 

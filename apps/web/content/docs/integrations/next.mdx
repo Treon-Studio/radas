@@ -1,9 +1,9 @@
 ---
 title: Next.js integration
-description: Integrate Better Auth with Next.js.
+description: Integrate Radas with Next.js.
 ---
 
-Better Auth can be easily integrated with Next.js. Before you start, make sure you have a Better Auth instance configured. If you haven't done that yet, check out the [installation](/docs/installation).
+Radas can be easily integrated with Next.js. Before you start, make sure you have a Radas instance configured. If you haven't done that yet, check out the [installation](/docs/installation).
 
 ### Create API Route
 
@@ -53,7 +53,7 @@ The client also uses [better-fetch](https://github.com/bekacru/better-fetch) to 
 
 ## RSC and Server actions
 
-The `api` object exported from the auth instance contains all the actions that you can perform on the server. Every endpoint made inside Better Auth is a invocable as a function. Including plugins endpoints.
+The `api` object exported from the auth instance contains all the actions that you can perform on the server. Every endpoint made inside Radas is a invocable as a function. Including plugins endpoints.
 
 **Example: Getting Session on a server action**
 
@@ -129,7 +129,7 @@ const signIn = async () => {
 
 In Next.js middleware, it's recommended to only check for the existence of a session cookie to handle redirection. To avoid blocking requests by making API or database calls.
 
-You can use the `getSessionCookie` helper from Better Auth for this purpose:
+You can use the `getSessionCookie` helper from Radas for this purpose:
 
 <Callout type="warn">
 The <code>getSessionCookie()</code> function does not automatically reference the auth config specified in <code>auth.ts</code>. Therefore, if you customized the cookie name or prefix, you need to ensure that the configuration in <code>getSessionCookie()</code> matches the config defined in your <code>auth.ts</code>.

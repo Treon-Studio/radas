@@ -1,9 +1,9 @@
 ---
 title: Options
-description: Better Auth configuration options reference.
+description: Radas configuration options reference.
 ---
 
-List of all the available options for configuring Better Auth. See [Better Auth Options](https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/types/options.ts#L13).
+List of all the available options for configuring Radas. See [Radas Options](https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/types/options.ts#L13).
 
 ## `appName`
 
@@ -18,7 +18,7 @@ export const auth = betterAuth({
 
 ## `baseURL`
 
-Base URL for Better Auth. This is typically the root URL where your application server is hosted. Note: If you include a path in the baseURL, it will take precedence over the default path.
+Base URL for Radas. This is typically the root URL where your application server is hosted. Note: If you include a path in the baseURL, it will take precedence over the default path.
 
 ```ts
 import { betterAuth } from "better-auth";
@@ -31,7 +31,7 @@ If not explicitly set, the system will check for the environment variable `proce
 
 ## `basePath`
 
-Base path for Better Auth. This is typically the path where the Better Auth routes are mounted. It will be overridden if there is a path component within `baseURL`.
+Base path for Radas. This is typically the path where the Radas routes are mounted. It will be overridden if there is a path component within `baseURL`.
 
 ```ts
 import { betterAuth } from "better-auth";
@@ -64,7 +64,7 @@ export const auth = betterAuth({
 })
 ```
 
-By default, Better Auth will look for the following environment variables:
+By default, Radas will look for the following environment variables:
 - `process.env.BETTER_AUTH_SECRET`
 - `process.env.AUTH_SECRET`
 
@@ -78,7 +78,7 @@ openssl rand -base64 32
 
 ## `database`
 
-Database configuration for Better Auth.
+Database configuration for Radas.
 
 ```ts
 import { betterAuth } from "better-auth";
@@ -91,7 +91,7 @@ export const auth = betterAuth({
 })
 ```
 
-Better Auth supports various database configurations including [PostgreSQL](/docs/adapters/postgresql), [MySQL](/docs/adapters/mysql), and [SQLite](/docs/adapters/sqlite).
+Radas supports various database configurations including [PostgreSQL](/docs/adapters/postgresql), [MySQL](/docs/adapters/mysql), and [SQLite](/docs/adapters/sqlite).
 
 Read more about databases [here](/docs/concepts/database).
 
@@ -201,7 +201,7 @@ export const auth = betterAuth({
 
 ## `plugins`
 
-List of Better Auth plugins.
+List of Radas plugins.
 
 ```ts
 import { betterAuth } from "better-auth";

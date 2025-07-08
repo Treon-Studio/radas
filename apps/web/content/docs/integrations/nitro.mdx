@@ -1,11 +1,11 @@
 ---
 title: Nitro Integration
-description: Integrate Better Auth with Nitro.
+description: Integrate Radas with Nitro.
 ---
 
-Better Auth can be integrated with your [Nitro Application](https://nitro.build/) (an open source framework to build web servers).
+Radas can be integrated with your [Nitro Application](https://nitro.build/) (an open source framework to build web servers).
 
-This guide aims to help you integrate Better Auth with your Nitro application in a few simple steps.
+This guide aims to help you integrate Radas with your Nitro application in a few simple steps.
 
 ## Create a new Nitro Application
 
@@ -74,11 +74,11 @@ Run the following command to generate the Prisma client & sync the database:
 npx prisma db push
 ```
 
-### Install & Configure Better Auth
+### Install & Configure Radas
 
-Follow steps 1 & 2 from the [installation guide](/docs/installation) to install Better Auth in your Nitro application & set up the environment variables.
+Follow steps 1 & 2 from the [installation guide](/docs/installation) to install Radas in your Nitro application & set up the environment variables.
 
-Once that is done, create your Better Auth instance within the `server/utils/auth.ts` file.
+Once that is done, create your Radas instance within the `server/utils/auth.ts` file.
 
 ```ts title="server/utils/auth.ts"
 import { betterAuth } from "better-auth";
@@ -94,14 +94,14 @@ export const auth = betterAuth({
 
 ### Update Prisma Schema
 
-Use the Better Auth CLI to update your Prisma schema with the required models by running the following command:
+Use the Radas CLI to update your Prisma schema with the required models by running the following command:
 
 ```bash title="Terminal"
 npx @better-auth/cli generate --config server/utils/auth.ts
 ```
 
 <Callout>
-  The `--config` flag is used to specify the path to the file where you have created your Better Auth instance.
+  The `--config` flag is used to specify the path to the file where you have created your Radas instance.
 </Callout>
 
 Head over to the `prisma/schema.prisma` file & save the file to trigger the format on save.
@@ -110,7 +110,7 @@ After saving the file, you can run the `npx prisma db push` command to update th
 
 ## Mount The Handler
 
-You can now mount the Better Auth handler in your Nitro application. You can do this by adding the following code to your `server/routes/api/auth/[...all].ts` file:
+You can now mount the Radas handler in your Nitro application. You can do this by adding the following code to your `server/routes/api/auth/[...all].ts` file:
 
 ```ts title="server/routes/api/auth/[...all].ts"
 export default defineEventHandler((event) => {
@@ -194,4 +194,4 @@ export default defineEventHandler({
 
 ### Example
 
-You can find an example of a Nitro application integrated with Better Auth & Prisma [here](https://github.com/BayBreezy/nitrojs-better-auth-prisma).
+You can find an example of a Nitro application integrated with Radas & Prisma [here](https://github.com/BayBreezy/nitrojs-better-auth-prisma).

@@ -1,9 +1,9 @@
 ---
 title: Session Management
-description: Better Auth session management.
+description: Radas session management.
 ---
 
-Better Auth manages session using a traditional cookie-based session management. The session is stored in a cookie and is sent to the server on every request. The server then verifies the session and returns the user data if the session is valid.
+Radas manages session using a traditional cookie-based session management. The session is stored in a cookie and is sent to the server on every request. The server then verifies the session and returns the user data if the session is valid.
 
 ## Session table
 
@@ -50,7 +50,7 @@ export const auth = betterAuth({
 
 ## Session Freshness
 
-Some endpoints in Better Auth require the session to be **fresh**. A session is considered fresh if its `createdAt` is within the `freshAge` limit. By default, the `freshAge` is set to **1 day** (60 * 60 * 24).  
+Some endpoints in Radas require the session to be **fresh**. A session is considered fresh if its `createdAt` is within the `freshAge` limit. By default, the `freshAge` is set to **1 day** (60 * 60 * 24).  
 
 You can customize the `freshAge` value by passing a `session` object in the `auth` configuration:  
 
@@ -79,7 +79,7 @@ export const auth = betterAuth({
 ```
 ## Session Management
 
-Better Auth provides a set of functions to manage sessions.
+Radas provides a set of functions to manage sessions.
 
 ### Get Session
 
