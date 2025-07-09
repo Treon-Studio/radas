@@ -314,7 +314,7 @@ function CodePreview() {
 								</motion.div>
 								<motion.div layout className="self-end">
 									<Link
-										href="https://demo.better-auth.com"
+										href="https://demo.radas.treonstudio.com"
 										target="_blank"
 										className="shadow-md  border shadow-primary-foreground mb-4 ml-auto mr-4 mt-auto flex cursor-pointer items-center gap-2 px-3 py-1 transition-all ease-in-out hover:opacity-70"
 									>

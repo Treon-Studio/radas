@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 	title: "V1.0 Release",
 	description: "Radas V1.0 release notes",
 	openGraph: {
-		images: "https://better-auth.com/v1-og.png",
+		images: "https://radas.treonstudio.com/v1-og.png",
 		title: "V1.0 Release",
 		description: "Radas V1.0 release notes",
-		url: "https://better-auth.com/v1",
+		url: "https://radas.treonstudio.com/v1",
 		type: "article",
 		siteName: "RADAS",
 	},
 	twitter: {
-		images: "https://better-auth.com/v1-og.png",
+		images: "https://radas.treonstudio.com/v1-og.png",
 		card: "summary_large_image",
 		site: "@better_auth",
 		creator: "@better_auth",

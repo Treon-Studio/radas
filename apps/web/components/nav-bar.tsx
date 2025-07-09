@@ -65,7 +65,7 @@ export const Navbar = () => {
 							logo={
 								<div className="flex items-center gap-2">
 									<Logo />
-									<p className="select-none">BETTER-AUTH.</p>
+									<p className="select-none">RADAS.</p>
 								</div>
 							}
 							logoAssets={logoAssets}
