@@ -20,7 +20,6 @@ const features = [
 	{
 		id: 1,
 		label: "Framework Agnostic",
-		title: "Support for popular <strong>frameworks</strong>.",
 		description:
 			"Supports popular frameworks, including React, Vue, Svelte, Astro, Solid, Next.js, Nuxt, Tanstack Start, Hono, and more.",
 		icon: PlugZap2Icon,
@@ -28,7 +27,6 @@ const features = [
 	{
 		id: 2,
 		label: "Authentication",
-		title: "Email & Password <strong>Authentication</strong>.",
 		description:
 			"Built-in support for email and password authentication, with session and account management features.",
 		icon: LockClosedIcon,
@@ -36,7 +34,6 @@ const features = [
 	{
 		id: 3,
 		label: "Social Sign-on",
-		title: "Support multiple <strong>OAuth providers</strong>.",
 		description:
 			"Allow users to sign in with their accounts, including GitHub, Google, Discord, Twitter, and more.",
 		icon: Webhook,
@@ -44,7 +41,6 @@ const features = [
 	{
 		id: 4,
 		label: "Two Factor",
-		title: "Multi Factor <strong>Authentication</strong>.",
 		description:
 			"Secure your users accounts with two factor authentication with a few lines of code.",
 		icon: ShieldCheckIcon,
@@ -62,7 +58,6 @@ const features = [
 	{
 		id: 6,
 		label: "Plugin Ecosystem",
-		title: "A lot more features with <strong>plugins</strong>.",
 		description:
 			"Improve your application experience with our official plugins and those created by the community.",
 		icon: PlugIcon,
@@ -93,16 +88,6 @@ export default function Features({ stars }: { stars: string | null }) {
 								</p>
 							</div>
 							<div className="mt-2">
-								<div className="max-w-full">
-									<div className="flex gap-3 ">
-										<p
-											className="max-w-lg text-xl font-normal tracking-tighter md:text-2xl"
-											dangerouslySetInnerHTML={{
-												__html: feature.title,
-											}}
-										/>
-									</div>
-								</div>
 								<p className="mt-2 text-sm text-left text-muted-foreground">
 									{feature.description}
 									<a className="ml-2 underline" href="/docs" target="_blank">
