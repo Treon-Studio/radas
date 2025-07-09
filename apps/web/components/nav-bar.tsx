@@ -3,6 +3,7 @@ import { ThemeToggle } from "@/components/theme-toggler";
 import { NavbarMobile, NavbarMobileBtn } from "./nav-mobile";
 import { NavLink } from "./nav-link";
 import { Logo } from "./logo";
+import LogoSvg from "../assets/logo.svg";
 import LogoContextMenu from "./logo-context-menu";
 import DarkPng from "../public/branding/better-auth-logo-dark.png";
 import WhitePng from "../public/branding/better-auth-logo-light.png";
@@ -64,8 +65,8 @@ export const Navbar = () => {
 						<LogoContextMenu
 							logo={
 								<div className="flex items-center gap-2">
-									<Logo />
-									<p className="select-none">BETTER-AUTH.</p>
+									<img src={LogoSvg.src} alt="Logo" width={24} height={24} />
+									<p className="select-none">RADAS.</p>
 								</div>
 							}
 							logoAssets={logoAssets}

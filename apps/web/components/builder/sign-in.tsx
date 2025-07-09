@@ -141,7 +141,7 @@ export default function SignIn() {
 						<p className="text-center text-xs text-neutral-500">
 							built with{" "}
 							<Link
-								href="https://better-auth.com"
+								href="https://radas.treonstudio.com"
 								className="underline"
 								target="_blank"
 							>
@@ -411,7 +411,7 @@ export default function SignIn() {
             <p className="text-center text-xs text-neutral-500">
              built with{" "}
               <Link
-                href="https://better-auth.com"
+                href="https://radas.treonstudio.com"
                 className="underline"
                 target="_blank"
               >
