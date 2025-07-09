@@ -37,6 +37,7 @@ export default async function HomePage() {
 				<Hero />
 				<Features stars={stars} />
 				<hr className="h-px bg-gray-200" />
+				<Hero />
 			</Section>
 		</main>
 	);
