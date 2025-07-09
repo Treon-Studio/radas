@@ -7,12 +7,11 @@ export const Logo = (props: SVGProps<any>) => {
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
   className={cn("w-5 h-5", props.className)}
+  {...props}
 >
-  <g>
-    <polygon points="170,340 340,510 510,340 340,170" fill="#FAF9F5" />
-    <polygon points="340,170 510,340 680,340 510,170" fill="#FAF9F5" />
-    <polygon points="340,510 170,340 0,340 170,510" fill="#FAF9F5" />
-  </g>
+  <rect width="680" height="680" fill="#000" />
+  <polygon points="90,420 170,340 590,220 510,300" fill="#FAF9F5" />
+  <polygon points="590,260 510,340 90,560 170,480" fill="#FAF9F5" />
 </svg>
 	);
 };
