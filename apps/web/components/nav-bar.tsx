@@ -109,24 +109,16 @@ export const Navbar = () => {
 
 export const navMenu = [
 	{
-		name: "helo_",
-		path: "/",
-	},
-	{
-		name: "docs",
+		name: "Docs",
 
 		path: "/docs",
 	},
 	{
-		name: "changelogs",
+		name: "Changelogs",
 		path: "/changelogs",
 	},
 	{
-		name: "blogs",
-		path: "/blog",
-	},
-	{
-		name: "community",
-		path: "/community",
+		name: "Dashboard",
+		path: "/tools",
 	},
 ];

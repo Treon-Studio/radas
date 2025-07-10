@@ -16,62 +16,73 @@ import { Ripple } from "./ripple";
 import { GithubStat } from "./github-stat";
 import { cn } from "@/lib/utils";
 import { Testimonial } from "./landing/people-say";
+import InstallationStep from "./installation-step";
 const features = [
 	{
 		id: 1,
-		label: "Framework Agnostic",
-		title: "Support for popular <strong>frameworks</strong>.",
+		label: "Lightning Fast",
 		description:
-			"Supports popular frameworks, including React, Vue, Svelte, Astro, Solid, Next.js, Nuxt, Tanstack Start, Hono, and more.",
-		icon: PlugZap2Icon,
+			"Start new projects in seconds, not hours. Eliminate boilerplate and focus on building.",
+		icon: RabbitIcon,
 	},
 	{
 		id: 2,
-		label: "Authentication",
-		title: "Email & Password <strong>Authentication</strong>.",
+		label: "Multi-Stack Support",
 		description:
-			"Built-in support for email and password authentication, with session and account management features.",
-		icon: LockClosedIcon,
+			"Frontend, Backend, DevOps, and Design tools all in one unified CLI experience.",
+		icon: PlugZap2Icon,
 	},
 	{
 		id: 3,
-		label: "Social Sign-on",
-		title: "Support multiple <strong>OAuth providers</strong>.",
+		label: "Production Ready",
 		description:
-			"Allow users to sign in with their accounts, including GitHub, Google, Discord, Twitter, and more.",
-		icon: Webhook,
-	},
-	{
-		id: 4,
-		label: "Two Factor",
-		title: "Multi Factor <strong>Authentication</strong>.",
-		description:
-			"Secure your users accounts with two factor authentication with a few lines of code.",
+			"Built-in best practices and configurations for enterprise-grade applications.",
 		icon: ShieldCheckIcon,
 	},
 	{
-		id: 5,
-		label: "Multi Tenant",
-		title: "<strong>Organization</strong> Members and Invitation.",
+		id: 4,
+		label: "DevOps Integration",
 		description:
-			"Multi tenant support with members, organization, teams and invitation with access control.",
-
-		icon: RabbitIcon,
+			"Seamless deployment and container management with automated workflows.",
+		icon: Globe2Icon,
 	},
-
+	{
+		id: 5,
+		label: "Design & Asset Tools",
+		description:
+			"Bridge design and development with asset management and export tools.",
+		icon: Webhook,
+	},
 	{
 		id: 6,
-		label: "Plugin Ecosystem",
-		title: "A lot more features with <strong>plugins</strong>.",
+		label: "Exceptional DX",
 		description:
-			"Improve your application experience with our official plugins and those created by the community.",
+			"Exceptional Developer Experience leads to exceptional products.",
 		icon: PlugIcon,
 	},
 ];
 
+const installations = [
+	{
+		method: "Quick Install (curl)",
+		command: "curl -fsSL https://raw.githubusercontent.com/Treon-Studio/radas/main/apps/radas-cli/install.sh | bash",
+		description: "One-line installation script for Unix-like systems"
+	},
+	{
+		method: "Using Go",
+		command: "go run github.com/Radas/Radas/v3@latest create",
+		description: "Run directly with Go without installation"
+	},
+	{
+		method: "Homebrew",
+		command: "brew tap Radas/tap && brew install Radas/tap/Radas",
+		description: "Install via Homebrew package manager"
+	}
+];
+
 export default function Features({ stars }: { stars: string | null }) {
 	return (
-		<div className="md:w-10/12 mt-10 mx-auto font-geist relative md:border-l-0 md:border-b-0 md:border-[1.2px] rounded-none -pr-2 dark:bg-black/[0.95]">
+		<div className="md:w-10/12 my-10 mx-auto font-geist relative md:border-l-0 md:border-b-0 md:border-[1.2px] rounded-none -pr-2 dark:bg-black/[0.95]">
 			<div className="w-full md:mx-0">
 				<div className="grid grid-cols-1 relative md:grid-rows-2 md:grid-cols-3 border-b-[1.2px]">
 					<div className="hidden md:grid top-1/2 left-0 -translate-y-1/2 w-full grid-cols-3 z-10 pointer-events-none select-none absolute">
@@ -93,16 +104,6 @@ export default function Features({ stars }: { stars: string | null }) {
 								</p>
 							</div>
 							<div className="mt-2">
-								<div className="max-w-full">
-									<div className="flex gap-3 ">
-										<p
-											className="max-w-lg text-xl font-normal tracking-tighter md:text-2xl"
-											dangerouslySetInnerHTML={{
-												__html: feature.title,
-											}}
-										/>
-									</div>
-								</div>
 								<p className="mt-2 text-sm text-left text-muted-foreground">
 									{feature.description}
 									<a className="ml-2 underline" href="/docs" target="_blank">
@@ -122,31 +123,22 @@ export default function Features({ stars }: { stars: string | null }) {
 							<div className="flex items-center gap-2">
 								<Globe2Icon className="w-4 h-4" />
 								<p className="text-gray-600 dark:text-gray-400">
-									Own your auth
+									RADAS — The All-in-One Platform
 								</p>
 							</div>
-							<p className="max-w-md mx-auto mt-4 text-4xl font-normal tracking-tighter text-center md:text-4xl">
-								<strong>Roll your own auth with confidence in minutes!</strong>
+							<p className="max-w-md mx-auto mt-4 mb-8 text-4xl font-normal tracking-tighter text-center md:text-4xl">
+								<strong>Ready to experience ?</strong>
 							</p>
-							<div className="flex mt-[10px] z-20 justify-center items-start">
-								<TechStackDisplay
-									skills={[
-										"nextJs",
-										"nuxt",
-										"svelteKit",
-										"astro",
-										"solidStart",
-										// "react",
-										// "hono",
-										"expo",
-										"tanstack",
-									]}
-								/>
+
+
+							<div className="space-y-6">
+								{installations.map((installation, index) => (
+									<InstallationStep key={index} {...installation} />
+								))}
 							</div>
 							<div className="flex items-center gap-2">
 								<GithubStat stars={stars} />
 							</div>
-							<Ripple />
 						</div>
 					</div>
 				</div>
