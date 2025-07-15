@@ -114,11 +114,7 @@ export const navMenu = [
 		path: "/docs",
 	},
 	{
-		name: "Changelogs",
-		path: "/changelogs",
-	},
-	{
-		name: "Dashboard",
+		name: "Tools",
 		path: "/tools",
 	},
 ];

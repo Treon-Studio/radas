@@ -95,6 +95,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.1.8
         version: 1.2.7(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@remixicon/react':
+        specifier: ^4.6.0
+        version: 4.6.0(react@19.1.0)
       '@scalar/nextjs-api-reference':
         specifier: ^0.5.15
         version: 0.5.15(next@15.2.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
@@ -1507,6 +1510,11 @@ packages:
 
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
+
+  '@remixicon/react@4.6.0':
+    resolution: {integrity: sha512-bY56maEgT5IYUSRotqy9h03IAKJC85vlKtWFg2FKzfs8JPrkdBAYSa9dxoUSKFwGzup8Ux6vjShs9Aec3jvr2w==}
+    peerDependencies:
+      react: '>=18.2.0'
 
   '@scalar/nextjs-api-reference@0.5.15':
     resolution: {integrity: sha512-+4E3vyJLlK+ZuccuOn0yufh2nv10FfA4y1qJw5/Djjo0n9j3zyT7lzp7oRq0APVSY658LpPwKMJChulTeOoO0A==}
@@ -4324,6 +4332,10 @@ snapshots:
       '@types/react-dom': 19.1.6(@types/react@19.1.8)
 
   '@radix-ui/rect@1.1.1': {}
+
+  '@remixicon/react@4.6.0(react@19.1.0)':
+    dependencies:
+      react: 19.1.0
 
   '@scalar/nextjs-api-reference@0.5.15(next@15.2.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)':
     dependencies:
