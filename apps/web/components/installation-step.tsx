@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import GlitchText from './ui/glitch-text';
+import { GlowingEffect } from './ui/glowing-effect';
 
 interface InstallationStepProps {
   method: string;
@@ -32,6 +33,7 @@ const InstallationStep: React.FC<InstallationStepProps> = ({ method, command, de
       </p>
       
       <div className="relative">
+
         <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-3 font-mono text-sm">
           <span className="text-green-400">$</span>
           <code className="text-gray-300 flex-1">
@@ -44,6 +46,7 @@ const InstallationStep: React.FC<InstallationStepProps> = ({ method, command, de
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
+
       </div>
     </div>
   );
