@@ -1,0 +1,140 @@
+name: Push Notification
+
+on:
+  push:
+    branches: [ develop ]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+        
+    - name: Get changed files
+      id: changes
+      run: |
+        echo "changed_files=$(git diff --name-only HEAD^ HEAD)" >> $GITHUB_OUTPUT
+
+        # Get all changed apps in apps directory
+        CHANGED_APPS_LIST=$(git diff --name-only HEAD^ HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u)
+        echo "changed_apps_list<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_APPS_LIST" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        # Check if any apps changed
+        if [ -n "$CHANGED_APPS_LIST" ]; then
+          echo "apps_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "apps_changed=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Get commit info
+      id: commit
+      run: |
+        echo "commit_message=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
+        echo "commit_author=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
+        echo "commit_short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        
+    - name: Send Discord notification
+      run: |
+        # Determine which apps changed
+        CHANGED_APPS=""
+        APP_COUNT=0
+
+        # Function to get emoji for app type
+        get_app_emoji() {
+          case "$1" in
+            "web") echo "🌐" ;;
+            "cli") echo "⌨️" ;;
+            "app") echo "📱" ;;
+            "website") echo "🖥️" ;;
+            "browser-extension") echo "🧩" ;;
+            *) echo "📦" ;;
+          esac
+        }
+
+        # Function to get app description
+        get_app_description() {
+          case "$1" in
+            "web") echo "Web Application" ;;
+            "cli") echo "CLI Tool" ;;
+            "app") echo "Mobile App" ;;
+            "website") echo "Website" ;;
+            "browser-extension") echo "Browser Extension" ;;
+            *) echo "Application" ;;
+          esac
+        }
+
+        if [[ "${{ steps.changes.outputs.apps_changed }}" == "true" ]]; then
+          # Process each changed app
+          while IFS= read -r app; do
+            if [[ -n "$app" ]]; then
+              EMOJI=$(get_app_emoji "$app")
+              DESC=$(get_app_description "$app")
+              CHANGED_APPS="$CHANGED_APPS\n$EMOJI  **$DESC**\n     *(apps/$app)*\n"
+              APP_COUNT=$((APP_COUNT + 1))
+            fi
+          done <<< "${{ steps.changes.outputs.changed_apps_list }}"
+        fi
+
+        # If no apps changed, show generic message
+        if [[ $APP_COUNT -eq 0 ]]; then
+          CHANGED_APPS="\n📋  **Project Configuration**\n     *(Build scripts, configs, etc)*"
+          APP_COUNT=1
+        fi
+        
+        # Set title and description based on which apps changed
+        if [[ $APP_COUNT == 1 && "${{ steps.changes.outputs.apps_changed }}" == "true" ]]; then
+          # Single app changed
+          SINGLE_APP=$(echo "${{ steps.changes.outputs.changed_apps_list }}" | head -n1)
+          EMOJI=$(get_app_emoji "$SINGLE_APP")
+          DESC=$(get_app_description "$SINGLE_APP")
+          TITLE="$EMOJI ${{ steps.commit.outputs.commit_author }} just pushed"
+          DESCRIPTION="Updates deployed to **$DESC** on develop branch"
+        elif [[ $APP_COUNT == 1 ]]; then
+          # No apps changed (project configuration)
+          TITLE="📋 ${{ steps.commit.outputs.commit_author }} just pushed"
+          DESCRIPTION="Directly push to **Project Configuration** on develop branch"
+        else
+          # Multiple apps changed
+          TITLE="🚀 ${{ steps.commit.outputs.commit_author }} just pushed"
+          DESCRIPTION="Directly push to **$APP_COUNT applications** on develop branch"
+        fi
+        
+        curl -H "Content-Type: application/json" \
+        -X POST \
+        -d "{
+          \"embeds\": [
+            {
+              \"author\": {
+                \"name\": \"Muslimfy Development Update\",
+                \"icon_url\": \"https://cdn.jsdelivr.net/gh/primer/octicons/icons/code-24.svg\"
+              },
+              \"title\": \"$TITLE\",
+              \"description\": \"$DESCRIPTION\",
+              \"color\": 3447003,
+              \"fields\": [
+                {
+                  \"name\": \"📝 What Changed\",
+                  \"value\": \"\n> *${{ steps.commit.outputs.commit_message }}*\n\",
+                  \"inline\": false
+                },
+                {
+                  \"name\": \"🔗 Quick Actions\",
+                  \"value\": \"\n🔍 [View Commit Details](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\n\n🌿 [Browse Source Code](https://github.com/${{ github.repository }}/tree/develop)\n\n📊 [Compare All Changes](https://github.com/${{ github.repository }}/compare/${{ github.sha }}^..${{ github.sha }})\n\",
+                  \"inline\": false
+                }
+              ],
+              \"footer\": {
+                \"text\": \"Commit ${{ steps.commit.outputs.commit_short_sha }} • $(date +'%B %d, %Y at %I:%M %p')\",
+                \"icon_url\": \"https://cdn.jsdelivr.net/gh/primer/octicons/icons/git-branch-24.svg\"
+              },
+              \"timestamp\": \"${{ github.event.head_commit.timestamp }}\"
+            }
+          ]
+        }" \
+        https://discord.com/api/webhooks/1417629457224569014/AcwTbsQRb5-psBaLJ8fUuXt2gaJRmNMWg9N3xwxLvVot6IOYmMgmWOPjRb3eJK89pgza
