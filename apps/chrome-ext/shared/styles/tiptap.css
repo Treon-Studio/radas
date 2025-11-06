@@ -1,0 +1,134 @@
+/* Tiptap Editor Styles - Notion-like */
+
+.tiptap {
+  outline: none;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
+/* Typography */
+.tiptap p {
+  margin: 0.5rem 0;
+}
+
+.tiptap p:first-child {
+  margin-top: 0;
+}
+
+.tiptap p:last-child {
+  margin-bottom: 0;
+}
+
+.tiptap h1,
+.tiptap h2,
+.tiptap h3 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1rem 0 0.5rem;
+}
+
+.tiptap h1:first-child,
+.tiptap h2:first-child,
+.tiptap h3:first-child {
+  margin-top: 0;
+}
+
+.tiptap h1 {
+  font-size: 1.5rem;
+}
+
+.tiptap h2 {
+  font-size: 1.25rem;
+}
+
+.tiptap h3 {
+  font-size: 1.1rem;
+}
+
+/* Lists */
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.tiptap ul {
+  list-style-type: disc;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+}
+
+.tiptap li {
+  margin: 0.25rem 0;
+}
+
+.tiptap li p {
+  margin: 0;
+}
+
+/* Code */
+.tiptap code {
+  background-color: hsl(var(--muted));
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.tiptap pre {
+  background-color: hsl(var(--muted));
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+}
+
+.tiptap pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+/* Blockquote */
+.tiptap blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Horizontal Rule */
+.tiptap hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1rem 0;
+}
+
+/* Bold, Italic */
+.tiptap strong {
+  font-weight: 600;
+}
+
+.tiptap em {
+  font-style: italic;
+}
+
+/* Links */
+.tiptap a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tiptap a:hover {
+  text-decoration: none;
+}

@@ -76,10 +76,21 @@ vitest.workspace.*
 !vitest.workspace.mts
 
 # envars
+.env
 .env.*
 !.env.example
 compose.env*
 !compose.env.example
+
+# Infisical
+.infisical.json
+**/.infisical.json
+.infisical-token
+.infisical-token.*
+**/.infisical-token
+**/.infisical-token.*
+.infisical-config
+**/.infisical-config
 
 # Disable this line in your real app
 playwright/.cache/

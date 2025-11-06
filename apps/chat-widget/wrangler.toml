@@ -1,0 +1,28 @@
+name = "chat-widget"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+[env.production]
+routes = [
+  { pattern = "widget.yourdomain.com/*", zone_name = "yourdomain.com" }
+]
+
+[[env.production.rules]]
+type = "Header"
+header = "Cache-Control"
+value = "public, max-age=31536000, immutable"
+
+[[env.production.rules]]
+type = "Header"
+header = "Access-Control-Allow-Origin"
+value = "*"
+
+[[env.production.rules]]
+type = "Header"
+header = "X-Content-Type-Options"
+value = "nosniff"
+
+[env.staging]
+routes = [
+  { pattern = "widget-staging.yourdomain.com/*", zone_name = "yourdomain.com" }
+]

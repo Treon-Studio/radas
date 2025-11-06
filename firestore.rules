@@ -1,0 +1,225 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && userExists() &&
+             getUserData().roleIds is list && role in getUserData().roleIds;
+    }
+
+    function hasRoleName(roleName) {
+      return isAuthenticated() && userExists() &&
+             getUserData().role != null && getUserData().role.name == roleName;
+    }
+
+    function isAdmin() {
+      return hasRole('admin') || hasRoleName('Admin');
+    }
+
+    function inWorkspace(workspaceId) {
+      return isAuthenticated() &&
+             (!userExists() ||
+              (getUserData().workspaceIds is list && workspaceId in getUserData().workspaceIds) ||
+              getUserData().currentWorkspaceId == workspaceId ||
+              getUserData().workspaceId == workspaceId);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow creating first admin user during setup
+      allow update: if isAuthenticated() && (isOwner(userId) || !userExists() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Workspaces collection
+    match /workspaces/{workspaceId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow initial workspace creation during setup
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Roles collection
+    match /roles/{roleId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow creating default roles during setup
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Permissions collection
+    match /permissions/{permissionId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow creating default permissions during setup
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Configs collection (public read for setup status check)
+    match /configs/{configId} {
+      allow read: if true; // Allow public read for setup status check
+      allow create: if true; // Allow creating config during setup
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Tasks collection
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Epics collection
+    match /epics/{epicId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Project configuration collections
+    match /project_statuses/{statusId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /project_labels/{labelId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /project_priorities/{priorityId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Time entries collection
+    match /time_entries/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Task history collection
+    match /task_history/{historyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Pages collection
+    match /pages/{pageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Documents collection
+    match /documents/{documentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Document folders collection
+    match /document_folders/{folderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Links collection
+    match /links/{linkId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Link categories collection
+    match /link_categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Test cases collection
+    match /test_cases/{testCaseId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Test suites collection
+    match /test_suites/{suiteId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Test executions collection
+    match /test_executions/{executionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Cycles collection
+    match /cycles/{cycleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Views collection
+    match /views/{viewId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Hiring module collections
+    match /job_positions/{positionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /job_applications/{applicationId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow public applications
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /interviews/{interviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

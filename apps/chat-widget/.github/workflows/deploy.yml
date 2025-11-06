@@ -1,0 +1,110 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build widget
+        run: pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: chat-widget
+          directory: dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+
+      - name: Create versioned deployment
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Copy files with version prefix
+          mkdir -p versioned-dist/${{ steps.version.outputs.VERSION }}
+          cp -r dist/* versioned-dist/${{ steps.version.outputs.VERSION }}/
+
+      - name: Deploy versioned build
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: chat-widget
+          directory: versioned-dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SRI Hash
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          HASH=$(openssl dgst -sha384 -binary dist/chat-widget.js | openssl base64 -A)
+          echo "SRI Hash: sha384-${HASH}"
+          echo "sha384-${HASH}" > sri-hash.txt
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/chat-widget.js
+            dist/chat-widget.css
+            sri-hash.txt
+          body: |
+            ## Installation
+            ```html
+            <script
+              src="https://widget.yourdomain.com/${{ steps.version.outputs.VERSION }}/chat-widget.js"
+              integrity="$(cat sri-hash.txt)"
+              crossorigin="anonymous">
+            </script>
+            ```
+
+            ## Initialize
+            ```javascript
+            ChatWidget.init({
+              apiKey: 'your-api-key',
+              position: 'bottom-right',
+              primaryColor: '#3b82f6'
+            })
+            ```
