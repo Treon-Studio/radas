@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Widget Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="container mx-auto px-4 py-16">
+    <div class="max-w-4xl mx-auto">
+      <h1 class="text-4xl font-bold mb-4">Chat Widget Demo</h1>
+      <p class="text-gray-600 mb-8">Try out our embeddable chat widget with different configurations</p>
+
+      <!-- Config Options -->
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">Configuration</h2>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-2">API Key</label>
+            <input type="text" id="apiKey" value="demo-key" class="w-full p-2 border rounded">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">Position</label>
+            <select id="position" class="w-full p-2 border rounded">
+              <option value="bottom-right">Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="top-right">Top Right</option>
+              <option value="top-left">Top Left</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">Primary Color</label>
+            <input type="color" id="color" value="#3b82f6" class="w-full h-10 border rounded">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">Locale</label>
+            <select id="locale" class="w-full p-2 border rounded">
+              <option value="en">English</option>
+              <option value="id">Bahasa Indonesia</option>
+            </select>
+          </div>
+
+          <button
+            id="apply-config"
+            class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+          >
+            Apply Configuration
+          </button>
+        </div>
+      </div>
+
+      <!-- API Methods -->
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">API Methods</h2>
+        <div class="space-y-2">
+          <button id="open-widget" class="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700">
+            Open Widget
+          </button>
+          <button id="close-widget" class="w-full bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700">
+            Close Widget
+          </button>
+          <button id="send-message" class="w-full bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
+            Send Message (via API)
+          </button>
+        </div>
+      </div>
+
+      <!-- Code Example -->
+      <div class="bg-gray-900 text-gray-100 rounded-lg p-6">
+        <h3 class="text-xl font-semibold mb-4">Installation Code</h3>
+        <pre id="code-example" class="text-sm overflow-x-auto"><code>&lt;script src="https://widget.yourdomain.com/latest/chat-widget.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  ChatWidget.init({
+    apiKey: 'your-api-key',
+    position: 'bottom-right',
+    primaryColor: '#3b82f6',
+    locale: 'en'
+  })
+&lt;/script&gt;</code></pre>
+        <button id="copy-code" class="mt-4 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">
+          Copy Code
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Widget -->
+  <script type="module" src="/src/embed.tsx"></script>
+  <script type="module">
+    let widgetInstance = null
+
+    function initWidget() {
+      if (widgetInstance) {
+        widgetInstance.destroy()
+      }
+
+      const config = {
+        apiKey: document.getElementById('apiKey').value,
+        position: document.getElementById('position').value,
+        primaryColor: document.getElementById('color').value,
+        locale: document.getElementById('locale').value,
+        onReady: () => console.log('Widget ready'),
+        onMessage: (msg) => console.log('New message:', msg)
+      }
+
+      widgetInstance = window.ChatWidget.init(config)
+      updateCodeExample(config)
+    }
+
+    function updateCodeExample(config) {
+      const code = `<script src="https://widget.yourdomain.com/latest/chat-widget.js"><\/script>
+<script>
+  ChatWidget.init(${JSON.stringify(config, null, 2)})
+<\/script>`
+      document.getElementById('code-example').textContent = code
+    }
+
+    // Event listeners
+    document.getElementById('apply-config').addEventListener('click', initWidget)
+
+    document.getElementById('copy-code').addEventListener('click', () => {
+      navigator.clipboard.writeText(document.getElementById('code-example').textContent)
+      alert('Code copied to clipboard!')
+    })
+
+    document.getElementById('open-widget').addEventListener('click', () => {
+      if (widgetInstance) widgetInstance.open()
+    })
+
+    document.getElementById('close-widget').addEventListener('click', () => {
+      if (widgetInstance) widgetInstance.close()
+    })
+
+    document.getElementById('send-message').addEventListener('click', () => {
+      if (widgetInstance) widgetInstance.sendMessage('Hello from API!')
+    })
+
+    // Initialize with defaults after a short delay to ensure ChatWidget is available
+    setTimeout(() => {
+      initWidget()
+    }, 100)
+  </script>
+</body>
+</html>

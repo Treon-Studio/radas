@@ -1,0 +1,76 @@
+# Infisical Configuration File
+# ================================
+#
+# This file configures the Infisical URL for API-based secret pulling.
+# Use this if you're running a self-hosted Infisical instance.
+#
+# IMPORTANT: This is just a template. DO NOT add real URLs if they contain sensitive info!
+#
+# Setup Methods:
+# --------------
+#
+# Option 1: Auto-generated (Recommended)
+#   Run: pnpm secrets:setup:token
+#   The wizard will create this file automatically if you select self-hosted
+#
+# Option 2: Manual Setup
+#   1. Copy this file:
+#      cp .infisical-config.example .infisical-config
+#
+#   2. Edit .infisical-config and set your Infisical URL:
+#      INFISICAL_API_URL="https://infisical.yourcompany.com"
+#
+#   3. Secure the file:
+#      chmod 600 .infisical-config
+#
+# Configuration:
+# --------------
+
+# Infisical API URL (without trailing slash)
+# For Cloud (default): https://app.infisical.com
+# For Self-hosted: https://infisical.yourcompany.com
+INFISICAL_API_URL="https://app.infisical.com"
+
+# Examples for self-hosted:
+# INFISICAL_API_URL="https://infisical.yourcompany.com"
+# INFISICAL_API_URL="https://secrets.example.com"
+# INFISICAL_API_URL="http://localhost:8080"  # For local development
+
+# Notes:
+# ------
+# - This file is auto-ignored by git (.gitignore configured)
+# - The URL should NOT include /api/v3/secrets
+# - Just the base URL is needed
+# - Scripts will automatically append the API paths
+# - Both http:// and https:// are supported
+# - Remove trailing slashes from the URL
+
+# Priority Order:
+# ---------------
+# The scripts look for Infisical URL in this order:
+# 1. Environment variable: INFISICAL_API_URL
+# 2. This config file: .infisical-config
+# 3. Default: https://app.infisical.com (Infisical Cloud)
+
+# Usage:
+# ------
+# Once configured, simply run:
+#   pnpm secrets:api              # Pull dev secrets
+#   pnpm secrets:api:staging      # Pull staging secrets
+#   pnpm secrets:api:prod         # Pull production secrets
+#
+# The scripts will automatically use the URL from this file.
+
+# Troubleshooting:
+# ----------------
+# If you get connection errors:
+# - Verify the URL is correct and accessible
+# - Check that your Infisical instance is running
+# - Ensure no firewall is blocking the connection
+# - Try accessing the URL in a browser
+# - Check if SSL certificate is valid (for https)
+
+# For more information, see:
+# - INFISICAL_SETUP.md
+# - TOKEN_BASED_SETUP.md
+# - scripts/README.md
