@@ -7,11 +7,12 @@ import (
 	"sort"
     "strings"
 	"github.com/spf13/cobra"
-	
-	"radas/cmd/frontend"
+
 	"radas/cmd/backend"
 	"radas/cmd/design"
 	"radas/cmd/devops"
+	"radas/cmd/frontend"
+	"radas/cmd/infra"
 	"radas/cmd/rootcmd"
 	"radas/constants"
 	"radas/internal/updater"
@@ -54,6 +55,7 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	rootCmd.AddCommand(backend.Cmd)
 	rootCmd.AddCommand(devops.Cmd)
 	rootCmd.AddCommand(design.Cmd)
+	rootCmd.AddCommand(infra.Cmd)
 	rootCmd.AddCommand(rootcmd.InstallCmd)
 
 	// Add sync-repo command

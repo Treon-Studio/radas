@@ -21,6 +21,8 @@ func init() {
 	Cmd.AddCommand(InitCmd)
 	Cmd.AddCommand(BuildCmd)
 	Cmd.AddCommand(BlackholeCmd)
+	Cmd.AddCommand(MockCmd)
+	Cmd.AddCommand(PublishCmd)
 	Cmd.AddCommand(genAPICmd)
 	Cmd.AddCommand(genStylesCmd)
 	Cmd.AddCommand(genAllCmd)

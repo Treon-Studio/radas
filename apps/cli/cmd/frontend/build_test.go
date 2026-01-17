@@ -38,8 +38,9 @@ func TestDetectBuildCommand(t *testing.T) {
 
 func TestBuildCmd(t *testing.T) {
 	c := buildCmd("echo", "hello", ".")
-	if c.Path != "echo" {
-		t.Errorf("buildCmd path = %s, want echo", c.Path)
+	// exec.Command resolves the full path, so check Args[0] instead of Path
+	if c.Args[0] != "echo" {
+		t.Errorf("buildCmd args[0] = %s, want echo", c.Args[0])
 	}
 	if c.Dir != "." {
 		t.Errorf("buildCmd dir = %s, want .", c.Dir)

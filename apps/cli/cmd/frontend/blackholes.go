@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +15,10 @@ var removeFlag bool
 var BlackholeCmd = &cobra.Command{
 	Use:   "blackhole",
 	Short: "Show size of all node_modules recursively from current folder",
+	Long: `Show size of all node_modules folders recursively from current folder.
+
+After displaying the list, you can choose to delete specific node_modules interactively.
+Use --remove flag to delete ALL node_modules without interactive selection.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Scanning for node_modules folders...")
 		nmFolders := findAllNodeModules(".")
@@ -20,8 +26,21 @@ var BlackholeCmd = &cobra.Command{
 			fmt.Println("No node_modules folders found.")
 			return
 		}
+
+		// Calculate sizes and display
+		folderSizes := make(map[string]int64)
+		total := int64(0)
+		for _, path := range nmFolders {
+			size := dirSize(path)
+			folderSizes[path] = size
+			fmt.Printf("%s: %s\n", path, formatSize(size))
+			total += size
+		}
+		fmt.Printf("\nTotal node_modules size: %s\n", formatSize(total))
+
+		// If --remove flag is set, remove all without interactive selection
 		if removeFlag {
-			fmt.Printf("WARNING: This will delete %d node_modules folders!\n", len(nmFolders))
+			fmt.Printf("\nWARNING: This will delete %d node_modules folders!\n", len(nmFolders))
 			fmt.Print("Are you sure you want to continue? (y/N): ")
 			var confirm string
 			fmt.Scanln(&confirm)
@@ -29,26 +48,103 @@ var BlackholeCmd = &cobra.Command{
 				fmt.Println("Aborted.")
 				return
 			}
-			for _, path := range nmFolders {
-				fmt.Printf("Removing %s... ", path)
-				err := os.RemoveAll(path)
-				if err != nil {
-					fmt.Printf("ERROR: %v\n", err)
-				} else {
-					fmt.Println("OK")
-				}
-			}
-			fmt.Println("All node_modules folders removed.")
+			removeNodeModules(nmFolders)
 			return
 		}
-		total := int64(0)
-		for _, path := range nmFolders {
-			size := dirSize(path)
-			fmt.Printf("%s: %s\n", path, formatSize(size))
-			total += size
-		}
-		fmt.Printf("\nTotal node_modules size: %s\n", formatSize(total))
+
+		// Interactive deletion prompt
+		promptDeleteNodeModules(nmFolders, folderSizes)
 	},
+}
+
+// promptDeleteNodeModules asks user if they want to delete any node_modules and lets them select which ones
+func promptDeleteNodeModules(nmFolders []string, folderSizes map[string]int64) {
+	fmt.Println()
+
+	// Ask if user wants to delete any
+	var wantDelete bool
+	confirmPrompt := &survey.Confirm{
+		Message: "Do you want to delete any node_modules?",
+		Default: false,
+	}
+	err := survey.AskOne(confirmPrompt, &wantDelete)
+	if err != nil || !wantDelete {
+		return
+	}
+
+	// Build options with size info
+	options := make([]string, len(nmFolders))
+	for i, path := range nmFolders {
+		options[i] = fmt.Sprintf("%s (%s)", path, formatSize(folderSizes[path]))
+	}
+
+	// Multi-select prompt
+	var selectedOptions []string
+	selectPrompt := &survey.MultiSelect{
+		Message: "Select node_modules to delete (space to select, enter to confirm):",
+		Options: options,
+	}
+	err = survey.AskOne(selectPrompt, &selectedOptions)
+	if err != nil {
+		fmt.Println("Selection cancelled.")
+		return
+	}
+
+	if len(selectedOptions) == 0 {
+		fmt.Println("No folders selected.")
+		return
+	}
+
+	// Extract paths from selected options (remove size info)
+	selectedPaths := make([]string, len(selectedOptions))
+	for i, opt := range selectedOptions {
+		// Find matching path
+		for _, path := range nmFolders {
+			expected := fmt.Sprintf("%s (%s)", path, formatSize(folderSizes[path]))
+			if opt == expected {
+				selectedPaths[i] = path
+				break
+			}
+		}
+	}
+
+	// Calculate total size to be freed
+	var totalToFree int64
+	for _, path := range selectedPaths {
+		totalToFree += folderSizes[path]
+	}
+
+	// Final confirmation
+	fmt.Printf("\nYou are about to delete %d folder(s), freeing %s\n", len(selectedPaths), formatSize(totalToFree))
+	var finalConfirm bool
+	finalPrompt := &survey.Confirm{
+		Message: "Proceed with deletion?",
+		Default: false,
+	}
+	err = survey.AskOne(finalPrompt, &finalConfirm)
+	if err != nil || !finalConfirm {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	removeNodeModules(selectedPaths)
+}
+
+// removeNodeModules deletes the specified node_modules folders
+func removeNodeModules(paths []string) {
+	var freedSpace int64
+	for _, path := range paths {
+		size := dirSize(path)
+		fmt.Printf("Removing %s... ", path)
+		err := os.RemoveAll(path)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("OK")
+			freedSpace += size
+		}
+	}
+	fmt.Printf("\nDone! Freed %s of disk space.\n", formatSize(freedSpace))
 }
 
 func init() {

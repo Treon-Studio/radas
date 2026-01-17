@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"testing"
-	"github.com/spf13/cobra"
 )
 
 func TestCmdDefinition(t *testing.T) {
@@ -25,12 +24,12 @@ func TestCmdHasSubcommands(t *testing.T) {
 }
 
 func TestCmdHelpOutput(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
 	Cmd.SetOut(nil)
 	Cmd.SetErr(nil)
 	Cmd.SetArgs([]string{"--help"})
 	err := Cmd.Execute()
-	if err != nil && err != cobra.ErrSubCommandRequired {
+	// Help flag exits with nil error in most cobra versions
+	if err != nil {
 		t.Errorf("Help command failed: %v", err)
 	}
 }

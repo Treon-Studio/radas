@@ -6,6 +6,7 @@ import (
 	"radas/cmd/design"
 	"radas/cmd/devops"
 	"radas/cmd/frontend"
+	"radas/cmd/infra"
 	"radas/cmd/rootcmd"
 )
 
@@ -23,15 +24,16 @@ func Execute() error {
 
 func init() {
 	// Register clone command
-	RootCmd.AddCommand(rootcmd.CloneCmd)
-	RootCmd.AddCommand(rootcmd.GotoCmd)
-	RootCmd.AddCommand(rootcmd.DoctorCmd)
+	rootCmd.AddCommand(rootcmd.CloneCmd)
+	rootCmd.AddCommand(rootcmd.GotoCmd)
+	rootCmd.AddCommand(rootcmd.DoctorCmd)
 
 	// Register all team commands
 	rootCmd.AddCommand(frontend.Cmd)
 	rootCmd.AddCommand(backend.Cmd)
 	rootCmd.AddCommand(devops.Cmd)
 	rootCmd.AddCommand(design.Cmd)
+	rootCmd.AddCommand(infra.Cmd)
 	rootCmd.AddCommand(rootcmd.InstallCmd)
 	rootCmd.AddCommand(rootcmd.ConfigCmd)
 	rootCmd.AddCommand(rootcmd.SyncRepoCmd)

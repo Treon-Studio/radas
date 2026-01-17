@@ -42,10 +42,13 @@ In a monorepo, you can specify an app name to run, or choose from a list if no a
 	},
 }
 
-// Package JSON structure for parsing
+// PackageJSON structure for parsing package.json
 type PackageJSON struct {
-	Name    string            `json:"name"`
-	Scripts map[string]string `json:"scripts"`
+	Name          string            `json:"name"`
+	Version       string            `json:"version"`
+	Private       bool              `json:"private"`
+	Scripts       map[string]string `json:"scripts"`
+	PublishConfig map[string]string `json:"publishConfig,omitempty"`
 }
 
 // Runs the development server for an app in the specified directory

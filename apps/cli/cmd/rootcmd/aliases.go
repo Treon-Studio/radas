@@ -44,7 +44,7 @@ func runAliases(cmd *cobra.Command, args []string) {
 		shellType = detectShell()
 	}
 	
-	fmt.Println(constants.RadasASCIIArt)
+	fmt.Print(constants.RadasASCIIArt)
 	fmt.Printf("Setting up Radas aliases for %s\n", shellType)
 	fmt.Println("==================================")
 	fmt.Println()

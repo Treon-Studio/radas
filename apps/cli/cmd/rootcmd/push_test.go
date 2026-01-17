@@ -1,10 +1,13 @@
 package rootcmd
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"testing"
 )
+
+var errEmptyBranch = errors.New("empty branch name")
 
 func getBranchName(cmdOutput string, err error) (string, error) {
 	if err != nil {
@@ -12,7 +15,7 @@ func getBranchName(cmdOutput string, err error) (string, error) {
 	}
 	branch := strings.TrimSpace(cmdOutput)
 	if branch == "" {
-		return "", err
+		return "", errEmptyBranch
 	}
 	return branch, nil
 }
