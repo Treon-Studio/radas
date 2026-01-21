@@ -84,7 +84,6 @@ const icons: Record<string, JSX.Element> = {
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
 
   return (
     <div className="sticky top-0 z-50 w-full">
