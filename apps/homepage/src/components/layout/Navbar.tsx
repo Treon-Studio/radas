@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { AnimatedButton } from '@/components/ui/AnimatedButton'
 
 const navLinks = [
   { href: '/pricing', label: 'Github', icon: 'git' },
@@ -140,54 +139,13 @@ export function Navbar() {
                         {index > 0 && (
                           <div className="hidden lg:block h-4 w-px border-r border-dashed border-border mx-2" />
                         )}
-                        {link.children ? (
-                          <div
-                            className="relative w-full lg:w-auto"
-                            onMouseEnter={() => setActiveDropdown(link.label)}
-                            onMouseLeave={() => setActiveDropdown(null)}
-                          >
-                            <button className="text-sm font-mono text-primary hover:text-secondary transition-colors flex items-center gap-1.5 w-full lg:w-auto">
-                              {icons[link.icon]}
-                              {link.label}
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width={12}
-                                height={12}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className={`transform transition-transform ${activeDropdown === link.label ? 'rotate-180' : ''}`}
-                              >
-                                <polyline points="6 9 12 15 18 9" />
-                              </svg>
-                            </button>
-                            {activeDropdown === link.label && (
-                              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-border py-2 z-50">
-                                {link.children.map((child) => (
-                                  <a
-                                    key={child.href}
-                                    className="flex items-center gap-2 text-sm font-mono text-primary hover:text-secondary px-4 py-2 hover:bg-surface"
-                                    href={child.href}
-                                  >
-                                    {icons[child.icon]}
-                                    {child.label}
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <a
-                            className="text-sm font-mono text-primary hover:text-secondary transition-colors flex items-center gap-1.5"
-                            href={link.href}
-                          >
-                            {icons[link.icon]}
-                            {link.label}
-                          </a>
-                        )}
+                        <a
+                          className="text-sm font-mono text-primary hover:text-secondary transition-colors flex items-center gap-1.5"
+                          href={link.href}
+                        >
+                          {icons[link.icon]}
+                          {link.label}
+                        </a>
                       </div>
                     ))}
                   </div>
