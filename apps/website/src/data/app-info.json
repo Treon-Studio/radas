@@ -1,0 +1,1619 @@
+{
+  "projects": [
+    {
+      "project_name": "Radas",
+      "apps": [
+        {
+          "app_name": "radas cli",
+          "platform": "cli",
+          "versions": {
+            "staging": "0.5.6",
+            "canary": "0.4.8",
+            "prod": "0.4.5"
+          },
+          "links": {
+            "staging": "https://staging.radas.cli.example.com",
+            "canary": "https://canary.radas.cli.example.com",
+            "prod": "https://radas.cli.example.com"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.5.6",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://staging.radas.cli.example.com/v0.5.6",
+              "commit_log": [
+                {
+                  "commit_hash": "a1b2c3d",
+                  "author": "John Doe",
+                  "date": "2025-01-20",
+                  "message": "Add new CLI command for batch processing"
+                },
+                {
+                  "commit_hash": "e4f5g6h",
+                  "author": "Jane Smith",
+                  "date": "2025-01-19",
+                  "message": "Fix bug in config parser"
+                }
+              ]
+            },
+            {
+              "version": "0.4.8",
+              "release_date": "2025-01-15",
+              "environment": "canary",
+              "access_link": "https://canary.radas.cli.example.com/v0.4.8",
+              "commit_log": [
+                {
+                  "commit_hash": "i7j8k9l",
+                  "author": "John Doe",
+                  "date": "2025-01-15",
+                  "message": "Improve error handling"
+                }
+              ]
+            },
+            {
+              "version": "0.4.5",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://radas.cli.example.com/v0.4.5",
+              "commit_log": [
+                {
+                  "commit_hash": "m0n1o2p",
+                  "author": "Jane Smith",
+                  "date": "2025-01-10",
+                  "message": "Stable release with performance improvements"
+                }
+              ]
+            },
+            {
+              "version": "0.4.4",
+              "release_date": "2025-01-05",
+              "environment": "prod",
+              "access_link": "https://radas.cli.example.com/v0.4.4",
+              "commit_log": [
+                {
+                  "commit_hash": "q3r4s5t",
+                  "author": "John Doe",
+                  "date": "2025-01-05",
+                  "message": "Minor bug fixes"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-15",
+              "environment": "prod",
+              "access_link": "https://radas.cli.example.com/v0.3.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "u6v7w8x",
+                  "author": "Jane Smith",
+                  "date": "2024-12-15",
+                  "message": "Legacy version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "radas web",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.7",
+            "prod": "0.3.8"
+          },
+          "links": {
+            "staging": "https://staging.radas.web.example.com",
+            "canary": "https://canary.radas.web.example.com",
+            "prod": "https://radas.web.example.com"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.8",
+              "release_date": "2025-01-18",
+              "environment": "prod",
+              "access_link": "https://radas.web.example.com/v0.3.8",
+              "commit_log": [
+                {
+                  "commit_hash": "q3r4s5t",
+                  "author": "Alice Brown",
+                  "date": "2025-01-18",
+                  "message": "Update UI components"
+                }
+              ]
+            },
+            {
+              "version": "0.3.7",
+              "release_date": "2025-01-12",
+              "environment": "canary",
+              "access_link": "https://canary.radas.web.example.com/v0.3.7",
+              "commit_log": [
+                {
+                  "commit_hash": "u6v7w8x",
+                  "author": "Bob Wilson",
+                  "date": "2025-01-12",
+                  "message": "Add dark mode support"
+                }
+              ]
+            },
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-08",
+              "environment": "staging",
+              "access_link": "https://staging.radas.web.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "y9z0a1b",
+                  "author": "Alice Brown",
+                  "date": "2025-01-08",
+                  "message": "Refactor authentication module"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-10",
+              "environment": "prod",
+              "access_link": "https://radas.web.example.com/v0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "c2d3e4f",
+                  "author": "Bob Wilson",
+                  "date": "2024-12-10",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Meja",
+      "apps": [
+        {
+          "app_name": "meja house rent",
+          "platform": "app-android",
+          "versions": {
+            "staging": "0.3.6",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://play.google.com/store/apps/details?id=com.meja.houserent.staging",
+            "canary": "https://play.google.com/store/apps/details?id=com.meja.houserent.canary",
+            "prod": "https://play.google.com/store/apps/details?id=com.meja.houserent"
+          },
+          "deprecated_version": "0.2.5",
+          "version_history": [
+            {
+              "version": "0.3.6",
+              "release_date": "2025-01-22",
+              "environment": "staging",
+              "access_link": "https://download.meja.example.com/android/houserent/staging/v0.3.6.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "c2d3e4f",
+                  "author": "Sarah Connor",
+                  "date": "2025-01-22",
+                  "message": "Add new property listing features"
+                },
+                {
+                  "commit_hash": "g5h6i7j",
+                  "author": "Kyle Reese",
+                  "date": "2025-01-21",
+                  "message": "Fix crash on property details page"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-16",
+              "environment": "canary",
+              "access_link": "https://download.meja.example.com/android/houserent/canary/v0.3.2.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "k8l9m0n",
+                  "author": "Sarah Connor",
+                  "date": "2025-01-16",
+                  "message": "Improve search functionality"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-12",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/android/houserent/v0.3.1.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "o1p2q3r",
+                  "author": "Kyle Reese",
+                  "date": "2025-01-12",
+                  "message": "Stable release with bug fixes"
+                }
+              ]
+            },
+            {
+              "version": "0.2.5",
+              "release_date": "2024-12-20",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/android/houserent/v0.2.5.apk",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "s4t5u6v",
+                  "author": "Sarah Connor",
+                  "date": "2024-12-20",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "meja car rent",
+          "platform": "app-android",
+          "versions": {
+            "staging": "0.4.2",
+            "canary": "0.4.1",
+            "prod": "0.4.0"
+          },
+          "links": {
+            "staging": "https://play.google.com/store/apps/details?id=com.meja.carrent.staging",
+            "canary": "https://play.google.com/store/apps/details?id=com.meja.carrent.canary",
+            "prod": "https://play.google.com/store/apps/details?id=com.meja.carrent"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.4.2",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://download.meja.example.com/android/carrent/staging/v0.4.2.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "s4t5u6v",
+                  "author": "Michael Knight",
+                  "date": "2025-01-20",
+                  "message": "Add vehicle comparison feature"
+                }
+              ]
+            },
+            {
+              "version": "0.4.1",
+              "release_date": "2025-01-14",
+              "environment": "canary",
+              "access_link": "https://download.meja.example.com/android/carrent/canary/v0.4.1.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "w7x8y9z",
+                  "author": "Devon Miles",
+                  "date": "2025-01-14",
+                  "message": "Update booking flow"
+                }
+              ]
+            },
+            {
+              "version": "0.4.0",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/android/carrent/v0.4.0.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "a0b1c2d",
+                  "author": "Michael Knight",
+                  "date": "2025-01-10",
+                  "message": "Major update with new UI"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-15",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/android/carrent/v0.3.0.apk",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "e3f4g5h",
+                  "author": "Devon Miles",
+                  "date": "2024-12-15",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "meja office",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.office.meja.example.com",
+            "canary": "https://canary.office.meja.example.com",
+            "prod": "https://office.meja.example.com"
+          },
+          "deprecated_version": "0.2.8",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://staging.office.meja.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "e3f4g5h",
+                  "author": "Jim Halpert",
+                  "date": "2025-01-19",
+                  "message": "Add workspace management tools"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://canary.office.meja.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "i6j7k8l",
+                  "author": "Pam Beesly",
+                  "date": "2025-01-13",
+                  "message": "Fix calendar integration"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://office.meja.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "m9n0o1p",
+                  "author": "Jim Halpert",
+                  "date": "2025-01-09",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.8",
+              "release_date": "2024-12-18",
+              "environment": "prod",
+              "access_link": "https://office.meja.example.com/v0.2.8",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "q2r3s4t",
+                  "author": "Pam Beesly",
+                  "date": "2024-12-18",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "meja landing page",
+          "platform": "web",
+          "versions": {
+            "staging": "0.6.5",
+            "canary": "0.6.2",
+            "prod": "0.6.1"
+          },
+          "links": {
+            "staging": "https://staging.meja.example.com",
+            "canary": "https://canary.meja.example.com",
+            "prod": "https://meja.example.com"
+          },
+          "deprecated_version": "0.5.0",
+          "version_history": [
+            {
+              "version": "0.6.5",
+              "release_date": "2025-01-23",
+              "environment": "staging",
+              "access_link": "https://staging.meja.example.com/v0.6.5",
+              "commit_log": [
+                {
+                  "commit_hash": "q2r3s4t",
+                  "author": "Marketing Team",
+                  "date": "2025-01-23",
+                  "message": "Update hero section with new design"
+                }
+              ]
+            },
+            {
+              "version": "0.6.2",
+              "release_date": "2025-01-17",
+              "environment": "canary",
+              "access_link": "https://canary.meja.example.com/v0.6.2",
+              "commit_log": [
+                {
+                  "commit_hash": "u5v6w7x",
+                  "author": "Design Team",
+                  "date": "2025-01-17",
+                  "message": "Add testimonials section"
+                }
+              ]
+            },
+            {
+              "version": "0.6.1",
+              "release_date": "2025-01-11",
+              "environment": "prod",
+              "access_link": "https://meja.example.com/v0.6.1",
+              "commit_log": [
+                {
+                  "commit_hash": "y8z9a0b",
+                  "author": "Marketing Team",
+                  "date": "2025-01-11",
+                  "message": "SEO improvements"
+                }
+              ]
+            },
+            {
+              "version": "0.5.0",
+              "release_date": "2024-12-25",
+              "environment": "prod",
+              "access_link": "https://meja.example.com/v0.5.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "c1d2e3f",
+                  "author": "Design Team",
+                  "date": "2024-12-25",
+                  "message": "Old design - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "meja crm",
+          "platform": "plugin-wp",
+          "versions": {
+            "staging": "0.3.3",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://wordpress.org/plugins/meja-crm-staging/",
+            "canary": "https://wordpress.org/plugins/meja-crm-canary/",
+            "prod": "https://wordpress.org/plugins/meja-crm/"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.3",
+              "release_date": "2025-01-21",
+              "environment": "staging",
+              "access_link": "https://downloads.wordpress.org/plugin/meja-crm.0.3.3-staging.zip",
+              "commit_log": [
+                {
+                  "commit_hash": "c1d2e3f",
+                  "author": "Plugin Dev",
+                  "date": "2025-01-21",
+                  "message": "Add customer segmentation feature"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-15",
+              "environment": "canary",
+              "access_link": "https://downloads.wordpress.org/plugin/meja-crm.0.3.2-canary.zip",
+              "commit_log": [
+                {
+                  "commit_hash": "g4h5i6j",
+                  "author": "Plugin Dev",
+                  "date": "2025-01-15",
+                  "message": "Fix compatibility with WP 6.4"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-11",
+              "environment": "prod",
+              "access_link": "https://downloads.wordpress.org/plugin/meja-crm.0.3.1.zip",
+              "commit_log": [
+                {
+                  "commit_hash": "k7l8m9n",
+                  "author": "Plugin Dev",
+                  "date": "2025-01-11",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-05",
+              "environment": "prod",
+              "access_link": "https://downloads.wordpress.org/plugin/meja-crm.0.2.0.zip",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "o0p1q2r",
+                  "author": "Plugin Dev",
+                  "date": "2024-12-05",
+                  "message": "Legacy version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "meja office",
+          "platform": "desktop-mac",
+          "versions": {
+            "staging": "0.4.5",
+            "canary": "0.4.2",
+            "prod": "0.4.1"
+          },
+          "links": {
+            "staging": "https://download.meja.example.com/mac/staging/meja-office.dmg",
+            "canary": "https://download.meja.example.com/mac/canary/meja-office.dmg",
+            "prod": "https://download.meja.example.com/mac/meja-office.dmg"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.4.5",
+              "release_date": "2025-01-22",
+              "environment": "staging",
+              "access_link": "https://download.meja.example.com/mac/staging/meja-office-v0.4.5.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "o0p1q2r",
+                  "author": "Mac Dev Team",
+                  "date": "2025-01-22",
+                  "message": "Add native Mac menu bar integration"
+                }
+              ]
+            },
+            {
+              "version": "0.4.2",
+              "release_date": "2025-01-16",
+              "environment": "canary",
+              "access_link": "https://download.meja.example.com/mac/canary/meja-office-v0.4.2.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "s3t4u5v",
+                  "author": "Mac Dev Team",
+                  "date": "2025-01-16",
+                  "message": "Optimize for Apple Silicon"
+                }
+              ]
+            },
+            {
+              "version": "0.4.1",
+              "release_date": "2025-01-12",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/mac/meja-office-v0.4.1.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "w6x7y8z",
+                  "author": "Mac Dev Team",
+                  "date": "2025-01-12",
+                  "message": "Bug fixes and performance improvements"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-10",
+              "environment": "prod",
+              "access_link": "https://download.meja.example.com/mac/meja-office-v0.3.0.dmg",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "a9b0c1d",
+                  "author": "Mac Dev Team",
+                  "date": "2024-12-10",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Skola",
+      "apps": [
+        {
+          "app_name": "skola app",
+          "platform": "app-android",
+          "versions": {
+            "staging": "0.3.6",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://play.google.com/store/apps/details?id=com.skola.staging",
+            "canary": "https://play.google.com/store/apps/details?id=com.skola.canary",
+            "prod": "https://play.google.com/store/apps/details?id=com.skola"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.6",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://download.skola.example.com/android/staging/skola-v0.3.6.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "a9b0c1d",
+                  "author": "Education Team",
+                  "date": "2025-01-20",
+                  "message": "Add assignment submission feature"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-14",
+              "environment": "canary",
+              "access_link": "https://download.skola.example.com/android/canary/skola-v0.3.2.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "e2f3g4h",
+                  "author": "Education Team",
+                  "date": "2025-01-14",
+                  "message": "Improve notification system"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://download.skola.example.com/android/skola-v0.3.1.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "i5j6k7l",
+                  "author": "Education Team",
+                  "date": "2025-01-10",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-05",
+              "environment": "prod",
+              "access_link": "https://download.skola.example.com/android/skola-v0.2.0.apk",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "m8n9o0p",
+                  "author": "Education Team",
+                  "date": "2024-12-05",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "skola web",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.skola.example.com",
+            "canary": "https://canary.skola.example.com",
+            "prod": "https://skola.example.com"
+          },
+          "deprecated_version": "0.2.5",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://staging.skola.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "m8n9o0p",
+                  "author": "Web Team",
+                  "date": "2025-01-19",
+                  "message": "Add grade book module"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://canary.skola.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "q1r2s3t",
+                  "author": "Web Team",
+                  "date": "2025-01-13",
+                  "message": "Update student dashboard"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://skola.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "u4v5w6x",
+                  "author": "Web Team",
+                  "date": "2025-01-09",
+                  "message": "Production release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.5",
+              "release_date": "2024-12-12",
+              "environment": "prod",
+              "access_link": "https://skola.example.com/v0.2.5",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "y7z8a9b",
+                  "author": "Web Team",
+                  "date": "2024-12-12",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "skola app",
+          "platform": "desktop-mac",
+          "versions": {
+            "staging": "0.4.5",
+            "canary": "0.4.2",
+            "prod": "0.4.1"
+          },
+          "links": {
+            "staging": "https://download.skola.example.com/mac/staging/skola.dmg",
+            "canary": "https://download.skola.example.com/mac/canary/skola.dmg",
+            "prod": "https://download.skola.example.com/mac/skola.dmg"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.4.5",
+              "release_date": "2025-01-21",
+              "environment": "staging",
+              "access_link": "https://download.skola.example.com/mac/staging/skola-v0.4.5.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "y7z8a9b",
+                  "author": "Desktop Team",
+                  "date": "2025-01-21",
+                  "message": "Add offline mode support"
+                }
+              ]
+            },
+            {
+              "version": "0.4.2",
+              "release_date": "2025-01-15",
+              "environment": "canary",
+              "access_link": "https://download.skola.example.com/mac/canary/skola-v0.4.2.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "c0d1e2f",
+                  "author": "Desktop Team",
+                  "date": "2025-01-15",
+                  "message": "Performance optimizations"
+                }
+              ]
+            },
+            {
+              "version": "0.4.1",
+              "release_date": "2025-01-11",
+              "environment": "prod",
+              "access_link": "https://download.skola.example.com/mac/skola-v0.4.1.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "g3h4i5j",
+                  "author": "Desktop Team",
+                  "date": "2025-01-11",
+                  "message": "Stable desktop release"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-08",
+              "environment": "prod",
+              "access_link": "https://download.skola.example.com/mac/skola-v0.3.0.dmg",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "k6l7m8n",
+                  "author": "Desktop Team",
+                  "date": "2024-12-08",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Sehobi",
+      "apps": [
+        {
+          "app_name": "meja office",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.sehobi.example.com",
+            "canary": "https://canary.sehobi.example.com",
+            "prod": "https://sehobi.example.com"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-18",
+              "environment": "staging",
+              "access_link": "https://staging.sehobi.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "k6l7m8n",
+                  "author": "Sehobi Dev",
+                  "date": "2025-01-18",
+                  "message": "Add new dashboard widgets"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-12",
+              "environment": "canary",
+              "access_link": "https://canary.sehobi.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "o9p0q1r",
+                  "author": "Sehobi Dev",
+                  "date": "2025-01-12",
+                  "message": "UI refinements"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-08",
+              "environment": "prod",
+              "access_link": "https://sehobi.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "s2t3u4v",
+                  "author": "Sehobi Dev",
+                  "date": "2025-01-08",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-01",
+              "environment": "prod",
+              "access_link": "https://sehobi.example.com/v0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "w5x6y7z",
+                  "author": "Sehobi Dev",
+                  "date": "2024-12-01",
+                  "message": "Legacy version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Sygma",
+      "apps": [
+        {
+          "app_name": "sygma app",
+          "platform": "app-android",
+          "versions": {
+            "staging": "0.3.6",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://play.google.com/store/apps/details?id=com.sygma.staging",
+            "canary": "https://play.google.com/store/apps/details?id=com.sygma.canary",
+            "prod": "https://play.google.com/store/apps/details?id=com.sygma"
+          },
+          "deprecated_version": "0.2.5",
+          "version_history": [
+            {
+              "version": "0.3.6",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://download.sygma.example.com/android/staging/sygma-v0.3.6.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "w5x6y7z",
+                  "author": "Sygma Android Team",
+                  "date": "2025-01-20",
+                  "message": "Add biometric authentication"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-14",
+              "environment": "canary",
+              "access_link": "https://download.sygma.example.com/android/canary/sygma-v0.3.2.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "a8b9c0d",
+                  "author": "Sygma Android Team",
+                  "date": "2025-01-14",
+                  "message": "Update material design components"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://download.sygma.example.com/android/sygma-v0.3.1.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "e1f2g3h",
+                  "author": "Sygma Android Team",
+                  "date": "2025-01-10",
+                  "message": "Production release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.5",
+              "release_date": "2024-12-18",
+              "environment": "prod",
+              "access_link": "https://download.sygma.example.com/android/sygma-v0.2.5.apk",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "i4j5k6l",
+                  "author": "Sygma Android Team",
+                  "date": "2024-12-18",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "sygma web",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.sygma.example.com",
+            "canary": "https://canary.sygma.example.com",
+            "prod": "https://sygma.example.com"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://staging.sygma.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "i4j5k6l",
+                  "author": "Sygma Web Team",
+                  "date": "2025-01-19",
+                  "message": "Add real-time analytics dashboard"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://canary.sygma.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "m7n8o9p",
+                  "author": "Sygma Web Team",
+                  "date": "2025-01-13",
+                  "message": "Improve data visualization"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://sygma.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "q0r1s2t",
+                  "author": "Sygma Web Team",
+                  "date": "2025-01-09",
+                  "message": "Stable web release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-10",
+              "environment": "prod",
+              "access_link": "https://sygma.example.com/v0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "u3v4w5x",
+                  "author": "Sygma Web Team",
+                  "date": "2024-12-10",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "sygma app",
+          "platform": "desktop-mac",
+          "versions": {
+            "staging": "0.4.5",
+            "canary": "0.4.2",
+            "prod": "0.4.1"
+          },
+          "links": {
+            "staging": "https://download.sygma.example.com/mac/staging/sygma.dmg",
+            "canary": "https://download.sygma.example.com/mac/canary/sygma.dmg",
+            "prod": "https://download.sygma.example.com/mac/sygma.dmg"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.4.5",
+              "release_date": "2025-01-21",
+              "environment": "staging",
+              "access_link": "https://download.sygma.example.com/mac/staging/sygma-v0.4.5.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "u3v4w5x",
+                  "author": "Sygma Desktop Team",
+                  "date": "2025-01-21",
+                  "message": "Add native notifications"
+                }
+              ]
+            },
+            {
+              "version": "0.4.2",
+              "release_date": "2025-01-15",
+              "environment": "canary",
+              "access_link": "https://download.sygma.example.com/mac/canary/sygma-v0.4.2.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "y6z7a8b",
+                  "author": "Sygma Desktop Team",
+                  "date": "2025-01-15",
+                  "message": "Mac OS compatibility updates"
+                }
+              ]
+            },
+            {
+              "version": "0.4.1",
+              "release_date": "2025-01-11",
+              "environment": "prod",
+              "access_link": "https://download.sygma.example.com/mac/sygma-v0.4.1.dmg",
+              "commit_log": [
+                {
+                  "commit_hash": "c9d0e1f",
+                  "author": "Sygma Desktop Team",
+                  "date": "2025-01-11",
+                  "message": "Stable desktop release"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-05",
+              "environment": "prod",
+              "access_link": "https://download.sygma.example.com/mac/sygma-v0.3.0.dmg",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "g2h3i4j",
+                  "author": "Sygma Desktop Team",
+                  "date": "2024-12-05",
+                  "message": "Legacy version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Muslimfy",
+      "apps": [
+        {
+          "app_name": "muslimfy web",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.muslimfy.example.com",
+            "canary": "https://canary.muslimfy.example.com",
+            "prod": "https://muslimfy.example.com"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://staging.muslimfy.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "g2h3i4j",
+                  "author": "Muslimfy Team",
+                  "date": "2025-01-19",
+                  "message": "Add prayer time notifications"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://canary.muslimfy.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "k5l6m7n",
+                  "author": "Muslimfy Team",
+                  "date": "2025-01-13",
+                  "message": "Update Quran translations"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://muslimfy.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "o8p9q0r",
+                  "author": "Muslimfy Team",
+                  "date": "2025-01-09",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-01",
+              "environment": "prod",
+              "access_link": "https://muslimfy.example.com/v0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "s1t2u3v",
+                  "author": "Muslimfy Team",
+                  "date": "2024-12-01",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "muslimfy app",
+          "platform": "app-android",
+          "versions": {
+            "staging": "0.3.6",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://play.google.com/store/apps/details?id=com.muslimfy.staging",
+            "canary": "https://play.google.com/store/apps/details?id=com.muslimfy.canary",
+            "prod": "https://play.google.com/store/apps/details?id=com.muslimfy"
+          },
+          "deprecated_version": "0.2.5",
+          "version_history": [
+            {
+              "version": "0.3.6",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://download.muslimfy.example.com/android/staging/muslimfy-v0.3.6.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "s1t2u3v",
+                  "author": "Mobile Team",
+                  "date": "2025-01-20",
+                  "message": "Add Qibla compass feature"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-14",
+              "environment": "canary",
+              "access_link": "https://download.muslimfy.example.com/android/canary/muslimfy-v0.3.2.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "w4x5y6z",
+                  "author": "Mobile Team",
+                  "date": "2025-01-14",
+                  "message": "Improve location accuracy"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://download.muslimfy.example.com/android/muslimfy-v0.3.1.apk",
+              "commit_log": [
+                {
+                  "commit_hash": "a7b8c9d",
+                  "author": "Mobile Team",
+                  "date": "2025-01-10",
+                  "message": "Production release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.5",
+              "release_date": "2024-12-15",
+              "environment": "prod",
+              "access_link": "https://download.muslimfy.example.com/android/muslimfy-v0.2.5.apk",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "e0f1g2h",
+                  "author": "Mobile Team",
+                  "date": "2024-12-15",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "muslimfy chrome",
+          "platform": "extension-chrome",
+          "versions": {
+            "staging": "0.4.5",
+            "canary": "0.4.2",
+            "prod": "0.4.1"
+          },
+          "links": {
+            "staging": "https://chrome.google.com/webstore/detail/muslimfy-staging/",
+            "canary": "https://chrome.google.com/webstore/detail/muslimfy-canary/",
+            "prod": "https://chrome.google.com/webstore/detail/muslimfy/"
+          },
+          "deprecated_version": "0.3.0",
+          "version_history": [
+            {
+              "version": "0.4.5",
+              "release_date": "2025-01-21",
+              "environment": "staging",
+              "access_link": "https://download.muslimfy.example.com/chrome/staging/muslimfy-v0.4.5.crx",
+              "commit_log": [
+                {
+                  "commit_hash": "e0f1g2h",
+                  "author": "Extension Team",
+                  "date": "2025-01-21",
+                  "message": "Add new tab Islamic quotes"
+                }
+              ]
+            },
+            {
+              "version": "0.4.2",
+              "release_date": "2025-01-15",
+              "environment": "canary",
+              "access_link": "https://download.muslimfy.example.com/chrome/canary/muslimfy-v0.4.2.crx",
+              "commit_log": [
+                {
+                  "commit_hash": "i3j4k5l",
+                  "author": "Extension Team",
+                  "date": "2025-01-15",
+                  "message": "Chrome Manifest V3 migration"
+                }
+              ]
+            },
+            {
+              "version": "0.4.1",
+              "release_date": "2025-01-11",
+              "environment": "prod",
+              "access_link": "https://download.muslimfy.example.com/chrome/muslimfy-v0.4.1.crx",
+              "commit_log": [
+                {
+                  "commit_hash": "m6n7o8p",
+                  "author": "Extension Team",
+                  "date": "2025-01-11",
+                  "message": "Stable extension release"
+                }
+              ]
+            },
+            {
+              "version": "0.3.0",
+              "release_date": "2024-12-08",
+              "environment": "prod",
+              "access_link": "https://download.muslimfy.example.com/chrome/muslimfy-v0.3.0.crx",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "q9r0s1t",
+                  "author": "Extension Team",
+                  "date": "2024-12-08",
+                  "message": "Legacy version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_name": "Bungas",
+      "apps": [
+        {
+          "app_name": "bungas react",
+          "platform": "code-react",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://npmjs.com/package/@bungas/react/v/0.3.5-staging",
+            "canary": "https://npmjs.com/package/@bungas/react/v/0.3.2-canary",
+            "prod": "https://npmjs.com/package/@bungas/react"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://npmjs.com/package/@bungas/react/v/0.3.5-staging",
+              "commit_log": [
+                {
+                  "commit_hash": "u2v3w4x",
+                  "author": "React Team",
+                  "date": "2025-01-19",
+                  "message": "Add new hooks for state management"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://npmjs.com/package/@bungas/react/v/0.3.2-canary",
+              "commit_log": [
+                {
+                  "commit_hash": "y5z6a7b",
+                  "author": "React Team",
+                  "date": "2025-01-13",
+                  "message": "Update React 18 compatibility"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://npmjs.com/package/@bungas/react/v/0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "c8d9e0f",
+                  "author": "React Team",
+                  "date": "2025-01-09",
+                  "message": "Stable release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-05",
+              "environment": "prod",
+              "access_link": "https://npmjs.com/package/@bungas/react/v/0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "g1h2i3j",
+                  "author": "React Team",
+                  "date": "2024-12-05",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "bungas flutter",
+          "platform": "code-flutter",
+          "versions": {
+            "staging": "0.3.6",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://pub.dev/packages/bungas_flutter/versions/0.3.6-staging",
+            "canary": "https://pub.dev/packages/bungas_flutter/versions/0.3.2-canary",
+            "prod": "https://pub.dev/packages/bungas_flutter"
+          },
+          "deprecated_version": "0.2.5",
+          "version_history": [
+            {
+              "version": "0.3.6",
+              "release_date": "2025-01-20",
+              "environment": "staging",
+              "access_link": "https://pub.dev/packages/bungas_flutter/versions/0.3.6-staging",
+              "commit_log": [
+                {
+                  "commit_hash": "k4l5m6n",
+                  "author": "Flutter Team",
+                  "date": "2025-01-20",
+                  "message": "Add material 3 widgets"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-14",
+              "environment": "canary",
+              "access_link": "https://pub.dev/packages/bungas_flutter/versions/0.3.2-canary",
+              "commit_log": [
+                {
+                  "commit_hash": "o7p8q9r",
+                  "author": "Flutter Team",
+                  "date": "2025-01-14",
+                  "message": "Flutter 3.16 compatibility"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-10",
+              "environment": "prod",
+              "access_link": "https://pub.dev/packages/bungas_flutter/versions/0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "s0t1u2v",
+                  "author": "Flutter Team",
+                  "date": "2025-01-10",
+                  "message": "Production release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.5",
+              "release_date": "2024-12-18",
+              "environment": "prod",
+              "access_link": "https://pub.dev/packages/bungas_flutter/versions/0.2.5",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "w3x4y5z",
+                  "author": "Flutter Team",
+                  "date": "2024-12-18",
+                  "message": "Deprecated version"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "app_name": "bungas web",
+          "platform": "web",
+          "versions": {
+            "staging": "0.3.5",
+            "canary": "0.3.2",
+            "prod": "0.3.1"
+          },
+          "links": {
+            "staging": "https://staging.bungas.example.com",
+            "canary": "https://canary.bungas.example.com",
+            "prod": "https://bungas.example.com"
+          },
+          "deprecated_version": "0.2.0",
+          "version_history": [
+            {
+              "version": "0.3.5",
+              "release_date": "2025-01-19",
+              "environment": "staging",
+              "access_link": "https://staging.bungas.example.com/v0.3.5",
+              "commit_log": [
+                {
+                  "commit_hash": "a6b7c8d",
+                  "author": "Web Team",
+                  "date": "2025-01-19",
+                  "message": "Add component library showcase"
+                }
+              ]
+            },
+            {
+              "version": "0.3.2",
+              "release_date": "2025-01-13",
+              "environment": "canary",
+              "access_link": "https://canary.bungas.example.com/v0.3.2",
+              "commit_log": [
+                {
+                  "commit_hash": "e9f0g1h",
+                  "author": "Web Team",
+                  "date": "2025-01-13",
+                  "message": "Update documentation"
+                }
+              ]
+            },
+            {
+              "version": "0.3.1",
+              "release_date": "2025-01-09",
+              "environment": "prod",
+              "access_link": "https://bungas.example.com/v0.3.1",
+              "commit_log": [
+                {
+                  "commit_hash": "i2j3k4l",
+                  "author": "Web Team",
+                  "date": "2025-01-09",
+                  "message": "Stable web release"
+                }
+              ]
+            },
+            {
+              "version": "0.2.0",
+              "release_date": "2024-12-01",
+              "environment": "prod",
+              "access_link": "https://bungas.example.com/v0.2.0",
+              "deprecated": true,
+              "commit_log": [
+                {
+                  "commit_hash": "g1h2i3j",
+                  "author": "Web Team",
+                  "date": "2024-12-01",
+                  "message": "Old version - deprecated"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

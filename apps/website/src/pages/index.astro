@@ -1,0 +1,131 @@
+---
+import { ModelsTableWithSearch } from '../components/ModelsTableWithSearch';
+import { AboutModal } from '../components/AboutModal';
+import '../styles/global.css';
+import rawAppInfo from '../data/app-info.json';
+import type { App, DisplayModel } from '../interfaces/AppInfo';
+
+const models: DisplayModel[] = [];
+
+rawAppInfo.projects.forEach(project => {
+  project.apps.forEach((app: App) => {
+    let status = 'Active';
+    const prodVersion = app.versions.prod;
+    const prodVersionHistory = app.version_history.find(v => v.version === prodVersion && v.environment === 'prod');
+
+    if (prodVersionHistory?.deprecated) {
+        status = `Deprecated (v${prodVersion})`;
+    } else if (!prodVersion) {
+        status = 'No Production Release';
+    }
+
+    models.push({
+      project: project.project_name,
+      application: app.app_name,
+      platform: app.platform,
+      staging: app.versions.staging,
+      canary: app.versions.canary,
+      production: app.versions.prod,
+      status: status,
+      links: app.links,
+      version_history: app.version_history,
+    });
+  });
+});
+
+const projectCount = new Set(models.map(m => m.project)).size;
+const modelCount = models.length;
+---
+
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Radas Shuttle - One client for all embedding APIs" />
+    <title>Radas Shuttle</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Radas Shuttle" />
+    <meta property="og:description" content="Radas Shuttle - One client for all embedding APIs" />
+    <meta property="og:image" content="https://catsu.dev/catsu_social.png" />
+    <meta property="og:url" content="https://catsu.dev" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Radas Shuttle" />
+    <meta name="twitter:description" content="Radas Shuttle - One client for all embedding APIs" />
+    <meta name="twitter:image" content="https://catsu.dev/catsu_social.png" />
+  </head>
+  <body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen overflow-x-hidden">
+    <!-- Navbar -->
+    <nav class="navbar-fixed border-b border-gray-200 dark:border-gray-800">
+      <div class="h-full px-4 flex items-center">
+        <div class="flex items-center justify-between gap-4 w-full">
+          <!-- Left: Icon + Title + Description -->
+          <div class="flex items-center gap-1">
+            <img src="/catsu-icon-256.png" alt="Radas Shuttle" class="w-8 h-8" />
+            <h1 class="text-xl font-bold tracking-tight whitespace-nowrap text-gray-900 dark:text-gray-100">
+              RADAS SHUTTLE
+            </h1>
+            <span class="navbar-tagline hidden lg:block text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              Supported embedding models, specs, and capabilities for Radas Shuttle
+            </span>
+          </div>
+
+          <!-- Right: Stats + Search + GitHub -->
+          <div class="flex items-center gap-2">
+            <!-- Stats -->
+            <div class="navbar-stats hidden md:flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
+              <span><span class="font-medium text-gray-900 dark:text-gray-100" id="navbar-project-count">{projectCount}</span> projects</span>
+              <span><span class="font-medium text-gray-900 dark:text-gray-100" id="navbar-model-count">{modelCount}</span> models</span>
+            </div>
+
+            <!-- Search -->
+            <div id="navbar-search">
+              <!-- Search will be injected here by React component -->
+            </div>
+
+            <!-- GitHub Icon -->
+            <a
+              href="https://github.com/chonkie-inc/catsu"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors"
+              aria-label="View on GitHub"
+            >
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
+              </svg>
+            </a>
+
+            <!-- Documentation Icon -->
+            <a
+              href="https://docs.catsu.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="p-1.5 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+              aria-label="View Documentation"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+            </a>
+
+            <!-- About Button -->
+            <AboutModal client:load />
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+      <ModelsTableWithSearch models={models} client:load />
+    </main>
+  </body>
+</html>

@@ -82,8 +82,10 @@ var CommandAliases = map[string]string{
 	"rsc": "sync-config",
 	"rsr": "sync-repo",
 	"rrb": "rebuild",
+	"rrl": "reload",
 	"ru":  "update",
 	"rv":  "version",
 	"rcf": "config",
 	"re":  "env",
+	"rs":  "setup",
 }

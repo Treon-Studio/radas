@@ -70,8 +70,12 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	// Add aliases command
 	rootCmd.AddCommand(rootcmd.AliasesCmd)
 
+	// Add setup command
+	rootCmd.AddCommand(rootcmd.SetupCmd)
+
 	rootCmd.AddCommand(rootcmd.EnvCmd)
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
+	rootCmd.AddCommand(rootcmd.ReloadCmd)
 	rootCmd.AddCommand(rootcmd.SyncConfigCmd)
 
 	// GIT commands
