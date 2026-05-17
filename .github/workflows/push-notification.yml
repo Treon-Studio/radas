@@ -111,7 +111,7 @@ jobs:
           \"embeds\": [
             {
               \"author\": {
-                \"name\": \"Muslimfy Development Update\",
+                \"name\": \"RADAS Development Update\",
                 \"icon_url\": \"https://cdn.jsdelivr.net/gh/primer/octicons/icons/code-24.svg\"
               },
               \"title\": \"$TITLE\",
