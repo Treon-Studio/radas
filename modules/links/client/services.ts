@@ -149,8 +149,23 @@ export const updateCategory = async (categoryId: string, data: UpdateCategoryDto
   });
 };
 
-export const deleteCategory = async (categoryId: string) => {
-  // TODO: Handle links in this category (move to uncategorized or delete)
+export const deleteCategory = async (categoryId: string, action: "delete" | "uncategorize" = "uncategorize") => {
+  const linksQuery = queryDocuments<Link>(LINKS_COLLECTION, {
+    field: "categoryId",
+    operator: "==",
+    value: categoryId,
+  });
+
+  if (action === "delete") {
+    for (const link of linksQuery) {
+      await deleteDocument(LINKS_COLLECTION, link.id);
+    }
+  } else {
+    for (const link of linksQuery) {
+      await updateDocument(LINKS_COLLECTION, link.id, { categoryId: null, updatedAt: serverTimestamp() });
+    }
+  }
+
   return await deleteDocument(CATEGORIES_COLLECTION, categoryId);
 };
 

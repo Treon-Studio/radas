@@ -44,11 +44,17 @@ var EnvGetCmd = &cobra.Command{
 		filePath := fmt.Sprintf(constants.EnvDir+"/"+constants.EnvFilePattern, env)
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			fmt.Printf("[MOCK] File %s not found. Showing mock data for '%s':\n", filePath, env)
+			fmt.Printf("[DEMO] Env file not found: %s\n", filePath)
+			fmt.Println("────────────────────────────────────────────────────")
+			fmt.Println("⚠️  WARNING: Displaying sample data only")
+			fmt.Println("   This is placeholder data for demonstration.")
+			fmt.Println("   Create a real .env file to see actual values.")
+			fmt.Println("────────────────────────────────────────────────────")
 			mockRows := [][]string{
-				{"API_URL", "https://api.mock.com"},
-				{"DB_HOST", "mock-db"},
-				{"SECRET_KEY", "mock-secret"},
+				{"API_URL", "https://jsonplaceholder.typicode.com"},
+				{"DB_HOST", "localhost"},
+				{"DB_PORT", "5432"},
+				{"SECRET_TOKEN", "your-secret-token-here"},
 			}
 			headers := constants.EnvHeaders
 			headerColors := []text.Colors{
@@ -105,9 +111,9 @@ var EnvSetCmd = &cobra.Command{
 		}
 		filePath := fmt.Sprintf("envs/.env.%s", env)
 		if _, err := os.Stat(filePath); err != nil {
-			fmt.Printf("[MOCK] File %s does not exist. Creating mock file for '%s'...\n", filePath, env)
+			fmt.Printf("[DEMO] Creating new env file: %s\n", filePath)
 			os.MkdirAll("envs", 0755)
-			mockContent := "API_URL=https://api.mock.com\nDB_HOST=mock-db\nSECRET_KEY=mock-secret\n"
+			mockContent := "# Demo environment file\n# Replace these values with your actual configuration\nAPI_URL=https://jsonplaceholder.typicode.com\nDB_HOST=localhost\nDB_PORT=5432\nSECRET_TOKEN=your-secret-token-here\n"
 			os.WriteFile(filePath, []byte(mockContent), 0644)
 		}
 		editor := os.Getenv("EDITOR")

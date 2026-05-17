@@ -113,11 +113,18 @@ func selectAndRunApp() {
 
 	// Find selected app
 	var selectedApp AppInfo
+	found := false
 	for _, app := range apps {
 		if app.Name == selected {
 			selectedApp = app
+			found = true
 			break
 		}
+	}
+
+	if !found {
+		fmt.Println("Error: Selected app not found.")
+		return
 	}
 
 	fmt.Printf("Starting app: %s\n", selectedApp.Name)

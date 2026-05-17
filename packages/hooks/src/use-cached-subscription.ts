@@ -87,7 +87,9 @@ export function useCachedSubscription<T>({
         const cachedData = await cacheService.get<T>(storeName, cacheKey, userId);
 
         if (cachedData && isMountedRef.current) {
-          console.log(`[Cache] Loaded ${storeName}:${cacheKey} from cache`);
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Cache] Loaded ${storeName}:${cacheKey} from cache`);
+          }
           setData(cachedData);
           setFromCache(true);
           setLoading(false);

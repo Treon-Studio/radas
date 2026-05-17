@@ -30,8 +30,9 @@ class SubscriptionPool {
     let entry = this.subscriptions.get(key) as SubscriptionEntry<T> | undefined;
 
     if (!entry) {
-      // Create new subscription
-      console.log(`[SubscriptionPool] Creating new listener for: ${key}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[SubscriptionPool] Creating new listener for: ${key}`);
+      }
 
       const callbacks = new Set<(data: T, error?: Error) => void>();
 

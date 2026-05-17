@@ -41,25 +41,8 @@ export const useJobPositions = (realtime = true) => {
     setPositions([]);
     setLoading(false);
 
-    // TODO: Implement non-workspace-based job positions subscription
-    // if (realtime) {
-    //   const unsubscribe = subscribeToJobPositions((data, err) => {
-    //     if (err) {
-    //       setError(err);
-    //       setPositions([]);
-    //     } else {
-    //       setPositions(data);
-    //       setError(null);
-    //     }
-    //     setLoading(false);
-    //   });
-    //   unsubscribeRef.current = unsubscribe;
-    //   return () => {
-    //     if (unsubscribeRef.current) {
-    //       unsubscribeRef.current();
-    //     }
-    //   };
-    // }
+    // Note: Non-workspace-based job positions subscription requires implementing
+    // subscribeToJobPositions in services.ts first (not currently available)
   }, [realtime]);
 
   return { positions, loading, error };

@@ -1,3 +1,5 @@
+import type { Timestamp } from "firebase/firestore";
+
 // Link entity
 export interface Link {
   id: string;
@@ -8,11 +10,11 @@ export interface Link {
   tags?: string[];
   favicon?: string;
   userId: string;
-  createdAt: any;
-  updatedAt: any;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
   isFavorite?: boolean;
   visitCount?: number;
-  lastVisited?: any;
+  lastVisited?: Timestamp;
 }
 
 // Category entity with nested support
@@ -25,8 +27,8 @@ export interface Category {
   color?: string;
   icon?: string;
   order?: number;
-  createdAt: any;
-  updatedAt: any;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 // Helper type for category with children

@@ -36,10 +36,14 @@ try {
   const existingApps = getApps();
   if (existingApps.length === 0) {
     app = initializeApp(firebaseConfig);
-    console.log("Firebase initialized successfully");
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Firebase initialized successfully");
+    }
   } else {
     app = existingApps[0];
-    console.log("Using existing Firebase instance");
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Using existing Firebase instance");
+    }
   }
 
   auth = getAuth(app);

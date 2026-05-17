@@ -16,7 +16,20 @@ import type {
   CreateInterviewDto,
   UpdateInterviewDto,
 } from "./entity";
-import { JobStatus } from "./entity";
+import { JobStatus, ApplicationStatus, ApplicationStage, InterviewStatus } from "./entity";
+
+interface JobPositionCreate extends JobPosition {
+  createdBy: string;
+}
+
+interface JobApplicationCreate extends JobApplication {
+  status: string;
+  stage: string;
+}
+
+interface InterviewCreate extends Interview {
+  status: string;
+}
 
 // Collections
 const JOB_POSITIONS_COLLECTION = "job_positions";
@@ -26,11 +39,11 @@ const INTERVIEWS_COLLECTION = "interviews";
 // ============ Job Positions CRUD ============
 
 export const createJobPosition = async (userId: string, data: CreateJobPositionDto) => {
-  return await createDocument<JobPosition>(JOB_POSITIONS_COLLECTION, {
+  return await createDocument<JobPositionCreate>(JOB_POSITIONS_COLLECTION, {
     ...data,
     status: JobStatus.DRAFT,
     createdBy: userId,
-  } as any);
+  });
 };
 
 export const updateJobPosition = async (positionId: string, data: UpdateJobPositionDto) => {
@@ -62,11 +75,11 @@ export const subscribeToWorkspaceJobPositions = (
 // ============ Job Applications CRUD ============
 
 export const createJobApplication = async (data: CreateJobApplicationDto) => {
-  return await createDocument<JobApplication>(JOB_APPLICATIONS_COLLECTION, {
+  return await createDocument<JobApplicationCreate>(JOB_APPLICATIONS_COLLECTION, {
     ...data,
-    status: "new" as any,
-    stage: "application" as any,
-  } as any);
+    status: ApplicationStatus.NEW,
+    stage: ApplicationStage.APPLICATION,
+  });
 };
 
 export const updateJobApplication = async (applicationId: string, data: UpdateJobApplicationDto) => {
@@ -116,10 +129,10 @@ export const subscribeToWorkspaceApplications = (
 // ============ Interviews CRUD ============
 
 export const createInterview = async (data: CreateInterviewDto) => {
-  return await createDocument<Interview>(INTERVIEWS_COLLECTION, {
+  return await createDocument<InterviewCreate>(INTERVIEWS_COLLECTION, {
     ...data,
-    status: "scheduled" as any,
-  } as any);
+    status: InterviewStatus.SCHEDULED,
+  });
 };
 
 export const updateInterview = async (interviewId: string, data: UpdateInterviewDto) => {
