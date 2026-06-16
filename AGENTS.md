@@ -2,50 +2,60 @@
 
 This file documents the specialized agents and their roles within the RADAS monorepo.
 
-## Project Agents
+<agent_definitions>
+  <agent name="CLI Specialist">
+    <role>Handles Go-based CLI development, maintenance, and testing.</role>
+    <focus>apps/cli/, internal Go packages, and CLI command implementations.</focus>
+    <conventions>TDD, Clean Architecture, Cobra/Viper patterns.</conventions>
+  </agent>
 
-### CLI Specialist
-- **Role:** Handles Go-based CLI development, maintenance, and testing.
-- **Focus:** `apps/cli/`, internal Go packages, and CLI command implementations.
-- **Conventions:** TDD, Clean Architecture, Cobra/Viper patterns.
+  <agent name="Backend Specialist">
+    <role>Manages business logic and shared backend modules.</role>
+    <focus>modules/, packages/validation/, and core services.</focus>
+    <conventions>TypeScript, Zod validation, Modular architecture.</conventions>
+  </agent>
 
-### Backend Specialist
-- **Role:** Manages business logic and shared backend modules.
-- **Focus:** `modules/`, `packages/validation/`, and core services.
-- **Conventions:** TypeScript, Zod validation, Modular architecture.
+  <agent name="Frontend Specialist">
+    <role>Designs and builds user interfaces across platforms.</role>
+    <focus>apps/web/, apps/dashboard/, apps/extension/, and packages/ui/.</focus>
+    <conventions>React, Next.js, Tailwind CSS, Design System adherence.</conventions>
+  </agent>
+</agent_definitions>
 
-### Frontend Specialist
-- **Role:** Designs and builds user interfaces across platforms.
-- **Focus:** `apps/web/`, `apps/dashboard/`, `apps/extension/`, and `packages/ui/`.
-- **Conventions:** React, Next.js, Tailwind CSS, Design System adherence.
+<automation_hooks>
+  <hook name="Knowledge Graph Sync" type="post-merge">
+    <location>.git/hooks/post-merge</location>
+    <action>Automatically triggers `graphify update .` after every `git pull` or `git merge`.</action>
+    <purpose>Ensures the local knowledge graph stays synchronized with code changes from other contributors.</purpose>
+  </hook>
+</automation_hooks>
 
-### Knowledge Graph Automation
-- **Hook:** `.git/hooks/post-merge`
-- **Action:** Automatically triggers `graphify update .` after every `git pull` or `git merge`.
-- **Purpose:** Ensures the local knowledge graph stays synchronized with code changes from other contributors.
+<security_policies>
+  <policy name="Vulnerability Scanning">
+    <tool>scripts/vulnerability-scan.sh</tool>
+    <purpose>Checks for security vulnerabilities in both Go (CLI) and JS/TS (Modules/Packages) dependencies.</purpose>
+    <usage>Run `./scripts/vulnerability-scan.sh` manually before pushing code.</usage>
+    <rules>
+      <rule lang="Go">Uses `govulncheck` to identify known vulnerabilities in standard library and third-party packages.</rule>
+      <rule lang="JS/TS">Uses `pnpm audit` with a focus on High and Critical severity issues.</rule>
+    </rules>
+  </policy>
+</security_policies>
 
-## Security & Validation
+<workflows>
+  <workflow name="Development Lifecycle">
+    <step stage="Research">Use `graphify` to understand dependencies and logic flow.</step>
+    <step stage="Implementation">Follow the Research -> Strategy -> Execution cycle.</step>
+    <step stage="Validation">Mandatory unit and integration tests before completion.</step>
+  </workflow>
+</workflows>
 
-### Vulnerability Scanning
-- **Tool:** `scripts/vulnerability-scan.sh`
-- **Purpose:** Checks for security vulnerabilities in both Go (CLI) and JS/TS (Modules/Packages) dependencies.
-- **Usage:** Run `./scripts/vulnerability-scan.sh` manually before pushing code to ensure security compliance.
-- **Policies:** 
-  - Go: Uses `govulncheck` to identify known vulnerabilities in the standard library and third-party packages.
-  - JS/TS: Uses `pnpm audit` with a focus on High and Critical severity issues.
-
-## Agent Workflows
-
-- **Research Phase:** Use `graphify` to understand dependencies and alur logic.
-- **Implementation:** Follow the **Research -> Strategy -> Execution** cycle.
-- **Validation:** Mandatory unit and integration tests before completion.
-
-## graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-Rules:
-- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
-- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+<graphify_instructions>
+  <context>This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.</context>
+  <rules>
+    <rule>ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.</rule>
+    <rule>IF `graphify-out/wiki/index.md` EXISTS, navigate it instead of reading raw files.</rule>
+    <rule>For cross-module "how does X relate to Y" questions, prefer `graphify query`, `graphify path`, or `graphify explain` over grep.</rule>
+    <rule>After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).</rule>
+  </rules>
+</graphify_instructions>
