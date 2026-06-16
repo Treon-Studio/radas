@@ -10,6 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
+	"radas/internal/config"
 )
 
 type SyncConfig struct {
@@ -38,7 +39,7 @@ var SyncRepoCmd = &cobra.Command{
 			for dst, src := range mapping {
 				playground := os.Getenv("RADAS_PLAYGROUND")
 				// Find radas.yml location to resolve dst relative to project root
-				configPath := findRadasConfig()
+				configPath, _ := config.FindConfig()
 				projectRoot := filepath.Dir(configPath)
 				resolveSrc := func(path string) string {
 					if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") {

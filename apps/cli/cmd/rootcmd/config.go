@@ -9,6 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"gopkg.in/yaml.v3"
 	"radas/constants"
+	"radas/internal/config"
 )
 
 var ConfigCmd = &cobra.Command{
@@ -25,7 +26,7 @@ var ConfigReadCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		configPath := findRadasConfig()
+		configPath, _ := config.FindConfig()
 		fmt.Printf("Found config: %s\n", configPath)
 
 		// Pretty print YAML
@@ -54,9 +55,9 @@ var ConfigReadCmd = &cobra.Command{
 
 // loadRadasConfig reads and parses radas.yml into the provided struct pointer
 func loadRadasConfig(out interface{}) error {
-	configPath := findRadasConfig()
-	if configPath == "" {
-		return fmt.Errorf("radas.yml not found in current directory or any parent (up to 10 levels)")
+	configPath, err := config.FindConfig()
+	if err != nil {
+		return err
 	}
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -151,26 +152,5 @@ func init() {
 	ConfigCmd.AddCommand(ConfigReadCmd)
 	ConfigCmd.AddCommand(ConfigSetCmd)
 	ConfigCmd.AddCommand(ConfigInitCmd)
-}
-
-
-
-
-
-func findRadasConfig() string {
-	maxDepth := 10
-	dir, _ := os.Getwd()
-	for i := 0; i < maxDepth; i++ {
-		configPath := filepath.Join(dir, "radas.yml")
-		if _, err := os.Stat(configPath); err == nil {
-			return configPath
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break // reached root
-		}
-		dir = parent
-	}
-	return ""
 }
 

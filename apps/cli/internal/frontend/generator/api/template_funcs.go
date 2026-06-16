@@ -290,43 +290,40 @@ func extractTSType(schema string) string {
 	// Handle schema references
 	if !strings.HasPrefix(schema, "z.") {
 		return schema
+	}
+
+	// Check for nullable types
+	isNullable := strings.Contains(schema, ".nullable()")
+	schema = strings.ReplaceAll(schema, ".nullable()", "")
+	
+	// Extract type from Zod schema
+	schemaStr := strings.TrimPrefix(schema, "z.")
+	schemaStr = strings.TrimSuffix(schemaStr, "()")
+	
+	// Handle basic Zod types
+	var baseType string
+	if schemaStr == "string" {
+		baseType = "string"
+	} else if schemaStr == "number" {
+		baseType = "number"
+	} else if schemaStr == "boolean" {
+		baseType = "boolean"
+	} else if strings.HasPrefix(schemaStr, "array") {
+		baseType = "any[]"
+	} else if strings.HasPrefix(schemaStr, "object") {
+		baseType = "Record<string, any>"
+	} else if schemaStr == "null" {
+		return "null" // Direct null type
 	} else {
-		// Check for nullable types
-		isNullable := strings.Contains(schema, ".nullable()")
-		schema = strings.ReplaceAll(schema, ".nullable()", "")
-		
-		// Extract type from Zod schema
-		schemaStr := strings.TrimPrefix(schema, "z.")
-		schemaStr = strings.TrimSuffix(schemaStr, "()")
-		
-		// Handle basic Zod types
-		var baseType string
-		if schemaStr == "string" {
-			baseType = "string"
-		} else if schemaStr == "number" {
-			baseType = "number"
-		} else if schemaStr == "boolean" {
-			baseType = "boolean"
-		} else if strings.HasPrefix(schemaStr, "array") {
-			baseType = "any[]"
-		} else if strings.HasPrefix(schemaStr, "object") {
-			baseType = "Record<string, any>"
-		} else if schemaStr == "null" {
-			return "null" // Direct null type
-		} else {
-			baseType = "any"
-		}
-		
-		// Add null union type if nullable
-		if isNullable {
-			return baseType + " | null"
-		}
-		
-		return baseType
+		baseType = "any"
 	}
 	
-	// Handle direct reference to a schema name
-	return schema
+	// Add null union type if nullable
+	if isNullable {
+		return baseType + " | null"
+	}
+	
+	return baseType
 }
 
 // extractDTOType extracts a DTO type name from a schema reference

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	"radas/internal/config"
 )
 
 type ConfigItem struct {
@@ -118,7 +119,7 @@ var SyncConfigCmd = &cobra.Command{
 				return
 			}
 		}
-		configPath := findRadasConfig()
+		configPath, _ := config.FindConfig()
 		projectRoot := filepath.Dir(configPath)
 		for _, opt := range selectedOpts {
 			ci := itemMap[opt]
