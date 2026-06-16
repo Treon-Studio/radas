@@ -19,6 +19,11 @@ This file documents the specialized agents and their roles within the RADAS mono
 - **Focus:** `apps/web/`, `apps/dashboard/`, `apps/extension/`, and `packages/ui/`.
 - **Conventions:** React, Next.js, Tailwind CSS, Design System adherence.
 
+### Knowledge Graph Automation
+- **Hook:** `.git/hooks/post-merge`
+- **Action:** Automatically triggers `graphify update .` after every `git pull` or `git merge`.
+- **Purpose:** Ensures the local knowledge graph stays synchronized with code changes from other contributors.
+
 ## Security & Validation
 
 ### Vulnerability Scanning
