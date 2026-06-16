@@ -19,6 +19,16 @@ This file documents the specialized agents and their roles within the RADAS mono
 - **Focus:** `apps/web/`, `apps/dashboard/`, `apps/extension/`, and `packages/ui/`.
 - **Conventions:** React, Next.js, Tailwind CSS, Design System adherence.
 
+## Security & Validation
+
+### Vulnerability Scanning
+- **Tool:** `scripts/vulnerability-scan.sh`
+- **Purpose:** Checks for security vulnerabilities in both Go (CLI) and JS/TS (Modules/Packages) dependencies.
+- **Usage:** Run `./scripts/vulnerability-scan.sh` manually before pushing code to ensure security compliance.
+- **Policies:** 
+  - Go: Uses `govulncheck` to identify known vulnerabilities in the standard library and third-party packages.
+  - JS/TS: Uses `pnpm audit` with a focus on High and Critical severity issues.
+
 ## Agent Workflows
 
 - **Research Phase:** Use `graphify` to understand dependencies and alur logic.
