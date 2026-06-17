@@ -7,7 +7,11 @@ import (
 	"path/filepath"
 )
 
-// PackageJSON represents a package.json file
+// PackageJSON is the scanner-domain subset of a package.json, used by
+// internal/checker to walk monorepos and identify apps. It tracks name,
+// version, scripts, and dependency lists. For a frontend-specific
+// subset (private flag, publishConfig) used by the `fe` command family,
+// see cmd/frontend.PackageJSON.
 type PackageJSON struct {
 	Name     string            `json:"name"`
 	Version  string            `json:"version"`
@@ -26,24 +30,24 @@ func DirExists(path string) bool {
 // ReadPackageJSON reads and parses a package.json file
 func ReadPackageJSON(path string) (PackageJSON, error) {
 	var pkg PackageJSON
-	
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return pkg, fmt.Errorf("error reading package.json: %v", err)
 	}
-	
+
 	err = json.Unmarshal(data, &pkg)
 	if err != nil {
 		return pkg, fmt.Errorf("error parsing package.json: %v", err)
 	}
-	
+
 	return pkg, nil
 }
 
 // GetAppsList finds all apps in a directory (checks for package.json)
 func GetAppsList(rootDir string) (map[string]string, error) {
 	apps := make(map[string]string)
-	
+
 	// First check if we're in a monorepo with an 'apps' directory
 	appsDir := filepath.Join(rootDir, "apps")
 	if DirExists(appsDir) {
@@ -52,12 +56,12 @@ func GetAppsList(rootDir string) (map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error reading apps directory: %v", err)
 		}
-		
+
 		for _, entry := range entries {
 			if entry.IsDir() {
 				appDir := filepath.Join(appsDir, entry.Name())
 				packagePath := filepath.Join(appDir, "package.json")
-				
+
 				if FileExists(packagePath) {
 					// Read package.json to get app name
 					pkg, err := ReadPackageJSON(packagePath)
@@ -82,6 +86,6 @@ func GetAppsList(rootDir string) (map[string]string, error) {
 			apps[dirName] = rootDir
 		}
 	}
-	
+
 	return apps, nil
-} 
+}
