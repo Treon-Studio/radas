@@ -12,29 +12,93 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// --- shared contract types ---------------------------------------------------
+
+// ContractSource is a single design-token or API spec input.
+type ContractSource struct {
+	Path string `yaml:"path"`
+	Type string `yaml:"type"`
+}
+
+// ContractConfig describes the design and API inputs the project consumes.
+type ContractConfig struct {
+	Design []ContractSource `yaml:"design,omitempty"`
+	API    []ContractSource `yaml:"api,omitempty"`
+}
+
+// --- BE-specific types -------------------------------------------------------
+
+// BuildConfig controls how the backend binary is built.
+type BuildConfig struct {
+	Main    string `yaml:"main,omitempty"`
+	Output  string `yaml:"output,omitempty"`
+	Ldflags string `yaml:"ldflags,omitempty"`
+}
+
+// DBConfig describes the database connection and migration paths.
+type DBConfig struct {
+	Driver     string `yaml:"driver,omitempty"`
+	Migrations string `yaml:"migrations,omitempty"`
+	Seeds      string `yaml:"seeds,omitempty"`
+	DefaultDSN string `yaml:"default_dsn,omitempty"`
+}
+
+// GenTemplate is a single code-generator template mapping.
+type GenTemplate struct {
+	Template string `yaml:"template,omitempty"`
+	Output   string `yaml:"output,omitempty"`
+}
+
+// GenConfig groups code-generation template paths.
+type GenConfig struct {
+	Handler *GenTemplate `yaml:"handler,omitempty"`
+	Service *GenTemplate `yaml:"service,omitempty"`
+	Model   *GenTemplate `yaml:"model,omitempty"`
+}
+
+// RunConfig controls how the dev server is started.
+type RunConfig struct {
+	// Command is the run command (e.g. "go run ./cmd/server").
+	Command string `yaml:"command,omitempty"`
+	// Watch enables hot-reload when true.
+	Watch bool `yaml:"watch,omitempty"`
+	// WatchTool is the hot-reload tool ("air", "gow", "reflex", "nodemon").
+	WatchTool string `yaml:"watch_tool,omitempty"`
+}
+
+// ServerConfig holds dev-server defaults.
+type ServerConfig struct {
+	Port int `yaml:"port,omitempty"`
+}
+
+// TestConfig controls test-runner behaviour.
+type TestConfig struct {
+	CoverThreshold int    `yaml:"cover_threshold,omitempty"`
+	Flags          string `yaml:"flags,omitempty"`
+}
+
 // RadasConfig represents the structure of radas.yml.
 type RadasConfig struct {
 	// Name is the human-readable project name.
 	Name string `yaml:"name"`
 	// Description is a one-line project summary.
 	Description string `yaml:"description"`
-	// Type is the project archetype (e.g. "be", "fe", "infra").
+	// Type is the project archetype (e.g. "backend-api", "frontend-web").
 	Type string `yaml:"type"`
 	// Stacks lists the technology stacks used (e.g. ["go", "gin"]).
 	Stacks []string `yaml:"stacks"`
+
 	// Contract describes the design and API inputs the project consumes.
-	Contract struct {
-		// Design lists design-token input files.
-		Design []struct {
-			Path string `yaml:"path"`
-			Type string `yaml:"type"`
-		} `yaml:"design"`
-		// API lists OpenAPI input specs.
-		API []struct {
-			Path string `yaml:"path"`
-			Type string `yaml:"type"`
-		} `yaml:"api"`
-	} `yaml:"contract"`
+	Contract ContractConfig `yaml:"contract"`
+
+	// --- BE-specific ---------------------------------------------------------
+
+	Build  BuildConfig  `yaml:"build,omitempty"`
+	DB     DBConfig     `yaml:"db,omitempty"`
+	Gen    GenConfig    `yaml:"gen,omitempty"`
+	Server ServerConfig `yaml:"server,omitempty"`
+	Test   TestConfig   `yaml:"test,omitempty"`
+	Run    RunConfig    `yaml:"run,omitempty"`
 }
 
 // ParseConfig reads and parses the radas.yml file at configPath. If

@@ -8,7 +8,7 @@ import (
 // DoctorCmd is the command to check Backend tools
 var DoctorCmd = &cobra.Command{
 	Use:   "doctor",
-	Short: "Check Backend tools installation",
+	Short: "Check Backend tools installation & project configuration",
 	Long:  `Check if Go, Elixir, and other backend tools are installed and ready to use.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runBackendDoctor()
@@ -21,4 +21,7 @@ func runBackendDoctor() {
 	checker.CheckElixir()
 	checker.CheckRust()
 	checker.CheckMaven()
+
+	// Detect project database
+	checker.PrintDatabaseResult(".")
 }

@@ -12,6 +12,24 @@ import (
 	"github.com/raizora/radas/v4/internal/config"
 )
 
+// dbDriver describes a selectable database driver in config init.
+type dbDriver struct {
+	Label string // display label (e.g. "Supabase (Postgres platform)")
+	Name  string // yaml value (e.g. "supabase")
+	DSN   string // default DSN hint
+	Stack string // extra stack name, if any
+}
+
+var dbDrivers = []dbDriver{
+	{Label: "PostgreSQL", Name: "postgres", DSN: "postgres://user:pass@localhost:5432/dbname?sslmode=disable"},
+	{Label: "Supabase (Postgres platform)", Name: "supabase", DSN: "postgres://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"},
+	{Label: "Turso (Edge SQLite)", Name: "turso", DSN: "libsql://[DB-NAME]-[ORG].turso.io?authToken=[TOKEN]", Stack: "libsql"},
+	{Label: "MySQL", Name: "mysql", DSN: "user:pass@tcp(localhost:3306)/dbname?parseTime=true"},
+	{Label: "SQLite", Name: "sqlite", DSN: "./data.db"},
+	{Label: "MongoDB", Name: "mongodb", DSN: "mongodb://localhost:27017/dbname"},
+	{Label: "None", Name: "none"},
+}
+
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Config file utilities (read/set radas.yml)",
@@ -123,22 +141,307 @@ var ConfigInitCmd = &cobra.Command{
 		}
 		_ = survey.AskOne(descPrompt, &description) // Allow empty, no exit on error
 
-		template := `# Last updated: 2025-05-02
-# Version: 1.0.0
+		// For backend types, ask which database driver to use
+		var selectedDriver dbDriver
+		isBackend := selectedType == "backend-api" || selectedType == "monorepo-backend"
+		if isBackend {
+			labels := make([]string, len(dbDrivers))
+			for i, d := range dbDrivers {
+				labels[i] = d.Label
+			}
+			var dbLabel string
+			dbPrompt := &survey.Select{
+				Message: "Select database driver:",
+				Options: labels,
+				Default: "PostgreSQL",
+			}
+			err = survey.AskOne(dbPrompt, &dbLabel)
+			if err != nil {
+				fmt.Println("Prompt cancelled.")
+				os.Exit(1)
+			}
+			for _, d := range dbDrivers {
+				if d.Label == dbLabel {
+					selectedDriver = d
+					break
+				}
+			}
+		}
 
----
-# Repository metadata
-metadata:
-  name: "%s"
-  description: "%s"
-  version: "0.1.2y"
-  maintained_by: "Engineering Team"
-  documentation: "https://tech.raizora.com"
+		if selectedType == "backend-api" {
+			var content string
+			if selectedDriver.Name == "none" {
+				content = fmt.Sprintf(`name: "%s"
+description: "%s"
+type: backend-api
+stacks: [go]
 
-# Repository type
+build:
+  main: ./cmd/server
+  output: ./bin/app
+
+gen:
+  handler:
+    template: templates/handler.gotpl
+    output: internal/handler
+  service:
+    template: templates/service.gotpl
+    output: internal/service
+  model:
+    template: templates/model.gotpl
+    output: internal/model
+
+server:
+  port: 8080
+
+run:
+  command: go run ./cmd/server
+  watch: true
+  watch_tool: air
+
+test:
+  cover_threshold: 80
+  flags: -race -count=1
+`, name, description)
+			} else {
+				stacks := "[go]"
+				if selectedDriver.Stack != "" {
+					stacks = fmt.Sprintf("[go, %s]", selectedDriver.Stack)
+				}
+				content = fmt.Sprintf(`name: "%s"
+description: "%s"
+type: backend-api
+stacks: %s
+
+build:
+  main: ./cmd/server
+  output: ./bin/app
+
+db:
+  driver: %s
+  default_dsn: %s
+  migrations: ./migrations
+  seeds: ./seeds
+
+gen:
+  handler:
+    template: templates/handler.gotpl
+    output: internal/handler
+  service:
+    template: templates/service.gotpl
+    output: internal/service
+  model:
+    template: templates/model.gotpl
+    output: internal/model
+
+server:
+  port: 8080
+
+run:
+  command: go run ./cmd/server
+  watch: true
+  watch_tool: air
+
+test:
+  cover_threshold: 80
+  flags: -race -count=1
+`, name, description, stacks, selectedDriver.Name, selectedDriver.DSN)
+			}
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "monorepo-backend" {
+			var content string
+			if selectedDriver.Name != "none" {
+				stacks := "[go, proto]"
+				if selectedDriver.Stack != "" {
+					stacks = fmt.Sprintf("[go, proto, %s]", selectedDriver.Stack)
+				}
+				content = fmt.Sprintf(`name: "%s"
+description: "%s"
+type: monorepo-backend
+stacks: %s
+
+build:
+  main: ./cmd/server
+  output: ./bin
+
+db:
+  driver: %s
+  default_dsn: %s
+  migrations: ./migrations
+  seeds: ./seeds
+
+gen:
+  handler:
+    template: templates/handler.gotpl
+    output: internal/handler
+  service:
+    template: templates/service.gotpl
+    output: internal/service
+
+server:
+  port: 8080
+
+run:
+  command: go run ./cmd/server
+  watch: true
+  watch_tool: air
+
+test:
+  cover_threshold: 80
+`, name, description, stacks, selectedDriver.Name, selectedDriver.DSN)
+			} else {
+				content = fmt.Sprintf(`name: "%s"
+description: "%s"
+type: monorepo-backend
+stacks: [go, proto]
+
+build:
+  main: ./cmd/server
+  output: ./bin
+
+gen:
+  handler:
+    template: templates/handler.gotpl
+    output: internal/handler
+  service:
+    template: templates/service.gotpl
+    output: internal/service
+
+server:
+  port: 8080
+
+run:
+  command: go run ./cmd/server
+  watch: true
+  watch_tool: air
+
+test:
+  cover_threshold: 80
+`, name, description)
+			}
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "frontend-web" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: frontend-web
+stacks: [react, typescript]
+
+contract:
+  design:
+    - path: tokens
+      type: figma
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "frontend-app" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: frontend-app
+stacks: [react-native, typescript]
+
+contract:
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "frontend-desktop" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: frontend-desktop
+stacks: [electron, typescript]
+
+contract:
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "monorepo-frontend" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: monorepo-frontend
+stacks: [react, typescript, nextjs]
+
+contract:
+  design:
+    - path: tokens
+      type: figma
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "docs" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: docs
+stacks: [markdown]
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		// Fallback for unknown types
+		content := fmt.Sprintf(`name: "%s"
+description: "%s"
 type: %s
-`
-		content := fmt.Sprintf(template, name, description, selectedType)
+`, name, description, selectedType)
 		err = os.WriteFile(filename, []byte(content), 0644)
 		if err != nil {
 			fmt.Printf("Failed to write %s: %v\n", filename, err)

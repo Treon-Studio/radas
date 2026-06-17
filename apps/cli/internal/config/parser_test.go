@@ -59,6 +59,116 @@ stacks: [go, gin]
 	})
 }
 
+func TestParseConfigBESections(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "radas-be-*")
+	defer os.RemoveAll(tmpDir)
+
+	t.Run("BuildConfig", func(t *testing.T) {
+		content := `
+name: api
+type: backend-api
+stacks: [go]
+build:
+  main: ./cmd/server
+  output: ./bin/app
+`
+		cfgPath := filepath.Join(tmpDir, "be-build.yml")
+		os.WriteFile(cfgPath, []byte(content), 0644)
+
+		cfg, err := ParseConfig(cfgPath)
+		if err != nil {
+			t.Fatalf("ParseConfig failed: %v", err)
+		}
+		if cfg.Build.Main != "./cmd/server" {
+			t.Errorf("Build.Main = %q, want ./cmd/server", cfg.Build.Main)
+		}
+		if cfg.Build.Output != "./bin/app" {
+			t.Errorf("Build.Output = %q, want ./bin/app", cfg.Build.Output)
+		}
+	})
+
+	t.Run("DBConfig", func(t *testing.T) {
+		content := `
+name: api
+type: backend-api
+stacks: [go]
+db:
+  driver: postgres
+  migrations: ./migrations
+  seeds: ./seeds
+`
+		cfgPath := filepath.Join(tmpDir, "be-db.yml")
+		os.WriteFile(cfgPath, []byte(content), 0644)
+
+		cfg, err := ParseConfig(cfgPath)
+		if err != nil {
+			t.Fatalf("ParseConfig failed: %v", err)
+		}
+		if cfg.DB.Driver != "postgres" {
+			t.Errorf("DB.Driver = %q, want postgres", cfg.DB.Driver)
+		}
+		if cfg.DB.Migrations != "./migrations" {
+			t.Errorf("DB.Migrations = %q, want ./migrations", cfg.DB.Migrations)
+		}
+	})
+
+	t.Run("RunConfig", func(t *testing.T) {
+		content := `
+name: api
+type: backend-api
+stacks: [go]
+run:
+  command: go run ./cmd/server
+  watch: true
+  watch_tool: air
+`
+		cfgPath := filepath.Join(tmpDir, "be-run.yml")
+		os.WriteFile(cfgPath, []byte(content), 0644)
+
+		cfg, err := ParseConfig(cfgPath)
+		if err != nil {
+			t.Fatalf("ParseConfig failed: %v", err)
+		}
+		if cfg.Run.Command != "go run ./cmd/server" {
+			t.Errorf("Run.Command = %q, want go run ./cmd/server", cfg.Run.Command)
+		}
+		if !cfg.Run.Watch {
+			t.Error("Run.Watch should be true")
+		}
+		if cfg.Run.WatchTool != "air" {
+			t.Errorf("Run.WatchTool = %q, want air", cfg.Run.WatchTool)
+		}
+	})
+
+	t.Run("GenConfig", func(t *testing.T) {
+		content := `
+name: api
+type: backend-api
+stacks: [go]
+gen:
+  handler:
+    template: templates/handler.gotpl
+    output: internal/handler
+  service:
+    template: templates/service.gotpl
+    output: internal/service
+`
+		cfgPath := filepath.Join(tmpDir, "be-gen.yml")
+		os.WriteFile(cfgPath, []byte(content), 0644)
+
+		cfg, err := ParseConfig(cfgPath)
+		if err != nil {
+			t.Fatalf("ParseConfig failed: %v", err)
+		}
+		if cfg.Gen.Handler == nil || cfg.Gen.Handler.Output != "internal/handler" {
+			t.Errorf("Gen.Handler.Output = %v, want internal/handler", cfg.Gen.Handler)
+		}
+		if cfg.Gen.Service == nil || cfg.Gen.Service.Template != "templates/service.gotpl" {
+			t.Errorf("Gen.Service.Template = %v, want templates/service.gotpl", cfg.Gen.Service)
+		}
+	})
+}
+
 func TestFindConfig(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "radas-find-*")
 	tmpDir, _ = filepath.EvalSymlinks(tmpDir) // Normalize for macOS
