@@ -1,61 +1,142 @@
-# RADAS Specialized Agents
+# RADAS Agent Notes
 
-This file documents the specialized agents and their roles within the RADAS monorepo.
+Concise instructions for agents working in this repo. Verified against current
+state on `main`. Re-check after pulling — the repo is in active transition.
 
-<agent_definitions>
-  <agent name="CLI Specialist">
-    <role>Handles Go-based CLI development, maintenance, and testing.</role>
-    <focus>apps/cli/, internal Go packages, and CLI command implementations.</focus>
-    <conventions>TDD, Clean Architecture, Cobra/Viper patterns.</conventions>
-  </agent>
+## Repo state (read first)
 
-  <agent name="Backend Specialist">
-    <role>Manages business logic and shared backend modules.</role>
-    <focus>modules/, packages/validation/, and core services.</focus>
-    <conventions>TypeScript, Zod validation, Modular architecture.</conventions>
-  </agent>
+- **Tracked on `main`:** the `radas` Go CLI at `apps/cli/`. Everything else is
+  in-progress work that may not be committed.
+- **Uncommitted on this checkout (per `git status`):** `apps/dashboard/`,
+  `apps/extension/`, `apps/site/`, `packages/dev-tools/`, `.opencode/`,
+  `graphify-out/`. Don't assume these match `main` on other clones.
+- **Renamed (stale references in CI/scripts/docs):** `apps/chrome-ext` was
+  renamed to `apps/extension`. The GitHub workflows
+  `.github/workflows/chrome-ext-build.yml`,
+  `chrome-ext-release.yml`, plus `scripts/migrate-imports.sh`,
+  `MIGRATION_GUIDE.md`, and `FIX_BUILD.md` still reference the old name. They
+  will not work as-is — fix paths before relying on them.
+- **Monorepo declared path vs actual workspace:** `pnpm-workspace.yaml` only
+  globs `apps/*` and `packages/*` (NOT `modules/*`). `modules/*` is reachable
+  only via TypeScript `paths` in `tsconfig.base.json` — there is no
+  `pnpm --filter @radas/module-*` resolution.
+- **Stale tsconfig path:** `tsconfig.base.json` aliases `@radas/module-projects`,
+  `@radas/module-users`, `@radas/module-wiki`, and `@radas/api-client`, but
+  those directories do not exist. Imports using them will fail.
+- **`ARCHITECTURE.md` and `MIGRATION_GUIDE.md` are aspirational and partially
+  out of date.** Trust executable config (`tsconfig.base.json`,
+  `pnpm-workspace.yaml`, each `package.json`) over those docs.
 
-  <agent name="Frontend Specialist">
-    <role>Designs and builds user interfaces across platforms.</role>
-    <focus>apps/web/, apps/dashboard/, apps/extension/, and packages/ui/.</focus>
-    <conventions>React, Next.js, Tailwind CSS, Design System adherence.</conventions>
-  </agent>
-</agent_definitions>
+## Knowledge graph (graphify)
 
-<automation_hooks>
-  <hook name="Knowledge Graph Sync" type="post-merge">
-    <location>.git/hooks/post-merge</location>
-    <action>Automatically triggers `graphify update .` after every `git pull` or `git merge`.</action>
-    <purpose>Ensures the local knowledge graph stays synchronized with code changes from other contributors.</purpose>
-  </hook>
-</automation_hooks>
+- Graph is at `graphify-out/` (committed in some branches, see `git status`).
+- `graphify-out/GRAPH_REPORT.md` is the map: god nodes, communities, edges.
+- Read it before grep/glob/searching the codebase or answering
+  "how does X relate to Y" questions. The `.opencode/plugins/graphify.js`
+  plugin already injects a one-time reminder before the first `bash` call.
+- After modifying code, refresh with `graphify update .` (AST-only, no API
+  cost). Verify freshness: graph header lists the source commit.
 
-<security_policies>
-  <policy name="Vulnerability Scanning">
-    <tool>scripts/vulnerability-scan.sh</tool>
-    <purpose>Checks for security vulnerabilities in both Go (CLI) and JS/TS (Modules/Packages) dependencies.</purpose>
-    <usage>Run `./scripts/vulnerability-scan.sh` manually before pushing code.</usage>
-    <rules>
-      <rule lang="Go">Uses `govulncheck` to identify known vulnerabilities in standard library and third-party packages.</rule>
-      <rule lang="JS/TS">Uses `pnpm audit` with a focus on High and Critical severity issues.</rule>
-    </rules>
-  </policy>
-</security_policies>
+## Layout
 
-<workflows>
-  <workflow name="Development Lifecycle">
-    <step stage="Research">Use `graphify` to understand dependencies and logic flow.</step>
-    <step stage="Implementation">Follow the Research -> Strategy -> Execution cycle.</step>
-    <step stage="Validation">Mandatory unit and integration tests before completion.</step>
-  </workflow>
-</workflows>
+```
+apps/
+  cli/         Radas CLI (Go, module radas, go 1.25). The tracked core.
+  dashboard/   Next.js template. Not wired to @radas/* packages.
+  extension/   Chrome extension (tsup). Depends on packages/dev-tools.
+  homepage/    Vite + React 18 landing page.
+  site/        Vite + React 19 site. Depends on packages/dev-tools.
+  website/     Astro site (@radas/shuttle). Independent.
+modules/       TypeScript-only via tsconfig paths. NOT a pnpm workspace.
+  attendance, auth, chat, company-info, drive, hiring, links,
+  notifications, okr, profile
+packages/      pnpm workspace members.
+  config, hooks, types, ui, utils, validation, dev-tools
+templates/     Only `docs/` and README.md are checked in; the rest are
+               external degit targets.
+```
 
-<graphify_instructions>
-  <context>This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.</context>
-  <rules>
-    <rule>ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.</rule>
-    <rule>IF `graphify-out/wiki/index.md` EXISTS, navigate it instead of reading raw files.</rule>
-    <rule>For cross-module "how does X relate to Y" questions, prefer `graphify query`, `graphify path`, or `graphify explain` over grep.</rule>
-    <rule>After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).</rule>
-  </rules>
-</graphify_instructions>
+## Build & test commands
+
+**Root has no `scripts` block** (root `package.json` has only
+`firebase-tools` as a devDep). Run commands inside the package you care
+about, or use `pnpm -r --filter <name> ...`.
+
+- **CLI (Go):**
+  - `cd apps/cli && go build -o bin/radas` — current platform.
+  - `cd apps/cli && make build` or `make build-all` — wraps `scripts/build.sh`
+    for cross-compile. Binaries land in `apps/cli/bin/`.
+  - `cd apps/cli && go test ./...` — unit tests (target ~96% coverage on core).
+  - `govulncheck ./...` from `apps/cli/` — Go vulnerability scan.
+  - `go run github.com/radas/radas/v3@latest create` — CLI's own quick start.
+- **Web apps (extension/site/dashboard/homepage/website):** each has its own
+  `dev` / `build` script. Run from inside the app dir.
+- **Workspace packages:** each has a `type-check` script (`tsc --noEmit`).
+- **Whole repo:** `./scripts/vulnerability-scan.sh` (Go + `pnpm audit --prod
+  --audit-level high`). Run before pushing; requires `govulncheck` and `pnpm`.
+
+## Toolchain quirks
+
+- **Node 20, pnpm 8** (per CI workflows). Don't bump pnpm without checking
+  the lockfile.
+- **`.npmrc`:** `shamefully-hoist=true`, `link-workspace-packages=false`,
+  `prefer-workspace-packages=false`. Some tools that expect hoisted deps
+  need explicit installs.
+- **`degit.json`:** when this repo is used as a scaffold template, it strips
+  `apps/`, `packages/`, `templates/`, `pnpm-lock.yaml`, `README.md`, etc.
+  Treat the tracked tree as a template, not a runtime app bundle.
+- **`.ncurc.json`:** `ncu` at root only scans `apps/**` and `packages/**`
+  (not `modules/**`). Run it from inside a module to update its deps.
+- **Biome** is the formatter/linter (see `biome.json`). Style: 4-space JSON,
+  2-space JS/TS, single quotes, no semis (`asNeeded`), 100-col, sorted
+  tailwind classes via `cn`/`clx`/`clsx`/`cva`/`tw`.
+- **Moonrepo** (`.moon/`) is configured but commented out — no live
+  toolchain. Ignore unless reactivating.
+- **OpenCode plugin** `.opencode/plugins/graphify.js` injects the graph
+  reminder. No further config required.
+
+## CI workflows (`.github/workflows/`)
+
+- `chrome-ext-build.yml` — Build & test on `apps/chrome-ext/**` changes.
+  **Stale path; never triggers** (the app is at `apps/extension`).
+- `chrome-ext-release.yml` — Tag-triggered (`chrome-ext-v*.*.*`) or manual
+  dispatch. Pulls secrets from Infisical (`INFISICAL_TOKEN_CHROME_EXT_*`).
+  Also references the stale `apps/chrome-ext` path.
+- `discord-pr-notification.yml` — Posts to a hardcoded Discord webhook on PR
+  open/reopen. Webhook URL is in-repo (visible).
+- `push-notification.yml` — Posts to Discord on push to **`develop` branch
+  only** (not `main`). The "RADAS Development Update" embed lists changed
+  apps under `apps/`.
+- No root-level lint, typecheck, or test CI exists. Only the chrome-ext
+  build runs `pnpm compile` + `pnpm build` per-package.
+
+## Conventions
+
+- **Dependency flow:** `apps → modules → packages`. `packages` must not
+  import from `modules`. `modules` should not import each other — push
+  shared code into `packages/`.
+- **Module/package naming:** `@radas/<name>` for packages,
+  `@radas/module-<name>` for modules. CLI Go module is just `radas`.
+- **Adding a new module:** `mkdir -p modules/<name>/{client,shared}`, create
+  `package.json` with `name: "@radas/module-<name>"`, `main: "./client/index.ts"`,
+  add a `tsconfig.json`, add a `paths` entry in `tsconfig.base.json`. There
+  is no generator.
+- **Import path examples (working):** `@radas/ui`, `@radas/utils`,
+  `@radas/module-auth`, `@radas/module-links`.
+- **Imports that currently break:** anything under `@radas/api-client`,
+  `@radas/module-projects`, `@radas/module-users`, `@radas/module-wiki`.
+
+## Things that will trip you up
+
+- Don't run `pnpm -r type-check` from root expecting it to cascade — only
+  some packages define a `type-check` script, and the root has none.
+- Don't trust `ARCHITECTURE.md` for current directory lists. The real
+  inventory: 6 apps, 7 packages, 10 modules (not the 13 listed there).
+- `apps/extension` builds with `tsup` (not Vite/WXT). The CI workflow
+  expects a WXT-style build at `apps/chrome-ext/.output/chrome-mv3` —
+  both are wrong for the current code.
+- The CLI's own `go.mod` is module `radas` (not `github.com/.../cli`), and
+  uses `go 1.25.0`. Local Go must be ≥ 1.25.
+- Secrets for the chrome-ext come from Infisical, not from `.env`. Locally
+  you can copy `.env.example` to `.env`; CI uses dummy values when the
+  token is absent.
