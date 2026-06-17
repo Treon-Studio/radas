@@ -126,13 +126,13 @@ Tools that bridge the gap between design and development. These commands help de
 **Using curl:**
 
 ```console
-curl -fsSL https://raw.githubusercontent.com/Treon-Studio/radas/main/apps/radas-cli/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/raizora/radas/main/apps/cli/install.sh | bash
 ```
 
 **Using wget:**
 
 ```console
-wget -qO- https://raw.githubusercontent.com/Treon-Studio/radas/main/apps/radas-cli/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/raizora/radas/main/apps/cli/install.sh | bash
 ```
 
 ### 🚀 Using Go
@@ -142,7 +142,7 @@ First, [download][go_download_url] and install **Go**. Version `1.24.0` (or high
 Now, you can use the **Radas** CLI without installation. Just run it with [`go run`][go_run_url] to create a new project:
 
 ```console
-go run github.com/Radas/Radas/v3@latest create
+go run github.com/raizora/radas/v4@latest create
 ```
 
 That's it! 🔥 A wonderful web application has been created in the current folder in seconds.
@@ -232,7 +232,7 @@ If you liked the **Radas** CLI and found it useful for your tasks, please click 
 
 It really **motivates** us to make this product **even** better and helps other developers discover this productivity-enhancing tool.
 
-<img width="100%" alt="Radas star and watch" src="https://github.com/Radas/Radas/assets/11155743/6f92ec26-1fe3-44c6-9a13-3abd3ffa58eb">
+<img width="100%" alt="Radas star and watch" src="https://github.com/raizora/radas/assets/11155743/6f92ec26-1fe3-44c6-9a13-3abd3ffa58eb">
 
 And now, we invite you to participate in this project! Let's work **together** to create and popularize the **most useful** tool for developers on the web today.
 
@@ -253,7 +253,7 @@ Your PRs, issues & any words are welcome! Thank you 😘
 
 ### 👩‍💻👨‍💻 Contribute to the project
 
-If you want to contribute to the project, please read the [contributing guide](https://github.com/Radas/Radas/blob/main/CONTRIBUTING.md) first. Your expertise can help thousands of developers build better applications faster.
+If you want to contribute to the project, please read the [contributing guide](https://github.com/raizora/radas/blob/main/CONTRIBUTING.md) first. Your expertise can help thousands of developers build better applications faster.
 
 <div align="right">
 
@@ -264,9 +264,9 @@ If you want to contribute to the project, please read the [contributing guide](h
 ### 🌟 Stargazers
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Radas/Radas&type=Date&theme=dark"/>
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Radas/Radas&type=Date"/>
-  <img width="100%" alt="The Radas CLI star history chart" src="https://api.star-history.com/svg?repos=Radas/Radas&type=Date"/>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=raizora/radas&type=Date&theme=dark"/>
+  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=raizora/radas&type=Date"/>
+  <img width="100%" alt="The Radas CLI star history chart" src="https://api.star-history.com/svg?repos=raizora/radas&type=Date"/>
 </picture>
 
 <div align="right">
@@ -286,20 +286,20 @@ If you want to contribute to the project, please read the [contributing guide](h
 [go_download_url]: https://golang.org/dl/
 [go_run_url]: https://pkg.go.dev/cmd/go#hdr-Compile_and_run_Go_program
 [go_install_url]: https://golang.org/cmd/go/#hdr-Compile_and_install_packages_and_dependencies
-[go_report_url]: https://goreportcard.com/report/github.com/Radas/Radas/v3
+[go_report_url]: https://goreportcard.com/report/github.com/raizora/radas/v4
 [go_report_img]: https://img.shields.io/badge/Go_report-A+-success?style=for-the-badge&logo=none
-[go_dev_url]: https://pkg.go.dev/github.com/Radas/Radas/v3
+[go_dev_url]: https://pkg.go.dev/github.com/raizora/radas/v4
 [go_version_img]: https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go
 
 <!-- Repository links -->
 
-[repo_url]: https://github.com/Radas/Radas
-[repo_branch_v1_url]: https://github.com/Radas/Radas/tree/v1
-[repo_branch_v2_url]: https://github.com/Radas/Radas/tree/v2
-[repo_issues_url]: https://github.com/Radas/Radas/issues
-[repo_pull_request_url]: https://github.com/Radas/Radas/pulls
-[repo_discussions_url]: https://github.com/Radas/Radas/discussions
-[repo_releases_url]: https://github.com/Radas/Radas/releases
-[repo_license_url]: https://github.com/Radas/Radas/blob/main/LICENSE
+[repo_url]: https://github.com/raizora/radas
+[repo_branch_v1_url]: https://github.com/raizora/radas/tree/v1
+[repo_branch_v2_url]: https://github.com/raizora/radas/tree/v2
+[repo_issues_url]: https://github.com/raizora/radas/issues
+[repo_pull_request_url]: https://github.com/raizora/radas/pulls
+[repo_discussions_url]: https://github.com/raizora/radas/discussions
+[repo_releases_url]: https://github.com/raizora/radas/releases
+[repo_license_url]: https://github.com/raizora/radas/blob/main/LICENSE
 [repo_license_img]: https://img.shields.io/badge/license-Apache_2.0-red?style=for-the-badge&logo=none
 [repo_cc_license_url]: https://creativecommons.org/licenses/by-sa/4.0/

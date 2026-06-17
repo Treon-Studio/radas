@@ -14,11 +14,11 @@ else
 fi
 
 # Get latest version from GitHub API
-VERSION=$(curl -s https://api.github.com/repos/Treon-Studio/radas/releases/latest | grep tag_name | cut -d '"' -f 4)
+VERSION=$(curl -s https://api.github.com/repos/raizora/radas/releases/latest | grep tag_name | cut -d '"' -f 4)
 
 # Build download URL for tar.gz
 FILENAME="radas-${OS}-${ARCH}.tar.gz"
-URL="https://github.com/Treon-Studio/radas/releases/download/${VERSION}/${FILENAME}"
+URL="https://github.com/raizora/radas/releases/download/${VERSION}/${FILENAME}"
 
 # Download and extract
 TMPDIR=$(mktemp -d)
