@@ -3,18 +3,18 @@ package frontend
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
-	"github.com/spf13/cobra"
-	"radas/internal/checker"
-	"github.com/AlecAivazis/survey/v2"
+	"github.com/raizora/radas/v4/internal/checker"
 )
 
 // DevCmd is the command to run frontend application
 var DevCmd = &cobra.Command{
 	Use:   "dev [app-name]",
 	Short: "Run frontend application",
-	Long:  `Start the frontend application in development mode. Automatically detects and uses npm, pnpm, bun, or yarn based on lock files.
+	Long: `Start the frontend application in development mode. Automatically detects and uses npm, pnpm, bun, or yarn based on lock files.
 In a monorepo, you can specify an app name to run, or choose from a list if no app name is provided.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
@@ -42,7 +42,11 @@ In a monorepo, you can specify an app name to run, or choose from a list if no a
 	},
 }
 
-// PackageJSON structure for parsing package.json
+// PackageJSON is the frontend-domain subset of a frontend app's
+// package.json. It tracks fields relevant to selecting, running, and
+// publishing apps via the `fe` command family. This is intentionally
+// narrower than internal/utils.PackageJSON, which carries dependency
+// lists for monorepo scanning.
 type PackageJSON struct {
 	Name          string            `json:"name"`
 	Version       string            `json:"version"`
@@ -155,24 +159,24 @@ func findAppsInMonorepo() []AppInfo {
 		if entry.IsDir() {
 			appPath := filepath.Join("apps", entry.Name())
 			packagePath := filepath.Join(appPath, "package.json")
-			
+
 			if fileExists(packagePath) {
 				// Read package.json to get app name
 				data, err := os.ReadFile(packagePath)
 				if err != nil {
 					continue
 				}
-				
+
 				var pkgInfo PackageJSON
 				if err := json.Unmarshal(data, &pkgInfo); err != nil {
 					continue
 				}
-				
+
 				name := pkgInfo.Name
 				if name == "" {
 					name = entry.Name() // Fallback to directory name
 				}
-				
+
 				apps = append(apps, AppInfo{
 					Name: name,
 					Path: appPath,
@@ -182,4 +186,4 @@ func findAppsInMonorepo() []AppInfo {
 	}
 
 	return apps
-} 
+}
