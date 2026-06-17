@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	"radas/internal/frontend/parser"
+	"github.com/raizora/radas/v4/internal/frontend/parser"
 )
 
 // templateFuncs contains helper functions for templates

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"radas/internal/checker"
-	"radas/internal/utils"
+	"github.com/raizora/radas/v4/internal/checker"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // FreshCmd is the command to perform a fresh install of frontend dependencies

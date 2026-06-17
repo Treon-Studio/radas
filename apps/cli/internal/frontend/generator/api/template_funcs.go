@@ -6,7 +6,7 @@ import (
 	"strings"
 	"regexp"
 
-	"radas/internal/frontend/parser"
+	"github.com/raizora/radas/v4/internal/frontend/parser"
 )
 
 // dict creates a new map for use in templates

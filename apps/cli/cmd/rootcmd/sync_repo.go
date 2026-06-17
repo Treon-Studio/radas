@@ -10,7 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
-	"radas/internal/config"
+	"github.com/raizora/radas/v4/internal/config"
 )
 
 type SyncConfig struct {

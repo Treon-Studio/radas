@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"radas/constants"
+	"github.com/raizora/radas/v4/constants"
 )
 
 // Release represents the GitHub release information

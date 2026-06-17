@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"radas/internal/utils"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // CheckNodeJS checks the Node.js installation

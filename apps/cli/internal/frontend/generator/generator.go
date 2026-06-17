@@ -2,8 +2,8 @@
 package generator
 
 import (
-	"radas/internal/frontend/generator/api"
-	"radas/internal/frontend/generator/styles"
+	"github.com/raizora/radas/v4/internal/frontend/generator/api"
+	"github.com/raizora/radas/v4/internal/frontend/generator/styles"
 )
 
 

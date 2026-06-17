@@ -2,7 +2,7 @@ package devops
 
 import (
 	"github.com/spf13/cobra"
-	"radas/internal/checker"
+	"github.com/raizora/radas/v4/internal/checker"
 )
 
 // DoctorCmd is the command to check DevOps tools

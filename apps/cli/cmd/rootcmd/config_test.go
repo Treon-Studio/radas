@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"radas/internal/config"
+	"github.com/raizora/radas/v4/internal/config"
 )
 
 func TestFindRadasConfigInProject(t *testing.T) {

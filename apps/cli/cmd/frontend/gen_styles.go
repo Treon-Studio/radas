@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"radas/internal/frontend/generator"
+	"github.com/raizora/radas/v4/internal/frontend/generator"
 )
 
 

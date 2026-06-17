@@ -2,7 +2,7 @@ package frontend
 
 import (
 	"github.com/spf13/cobra"
-	"radas/internal/checker"
+	"github.com/raizora/radas/v4/internal/checker"
 )
 
 // InstallCmd is the command to install Frontend dependencies

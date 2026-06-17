@@ -1,4 +1,4 @@
-module radas
+module github.com/raizora/radas/v4
 
 go 1.25.0
 

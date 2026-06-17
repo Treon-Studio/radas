@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"radas/internal/config"
+	"github.com/raizora/radas/v4/internal/config"
 )
 
 type ConfigItem struct {

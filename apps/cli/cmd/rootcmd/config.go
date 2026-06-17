@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/AlecAivazis/survey/v2"
 	"gopkg.in/yaml.v3"
-	"radas/constants"
-	"radas/internal/config"
+	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/config"
 )
 
 var ConfigCmd = &cobra.Command{

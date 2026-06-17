@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"radas/internal/utils"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // CheckDocker checks the Docker installation

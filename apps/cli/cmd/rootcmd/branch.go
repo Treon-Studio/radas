@@ -8,7 +8,7 @@ import (
 	"strings"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"radas/constants"
+	"github.com/raizora/radas/v4/constants"
 )
 
 var CreateBranchCmd = &cobra.Command{

@@ -8,14 +8,14 @@ import (
     "strings"
 	"github.com/spf13/cobra"
 
-	"radas/cmd/backend"
-	"radas/cmd/design"
-	"radas/cmd/devops"
-	"radas/cmd/frontend"
-	"radas/cmd/infra"
-	"radas/cmd/rootcmd"
-	"radas/constants"
-	"radas/internal/updater"
+	"github.com/raizora/radas/v4/cmd/backend"
+	"github.com/raizora/radas/v4/cmd/design"
+	"github.com/raizora/radas/v4/cmd/devops"
+	"github.com/raizora/radas/v4/cmd/frontend"
+	"github.com/raizora/radas/v4/cmd/infra"
+	"github.com/raizora/radas/v4/cmd/rootcmd"
+	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/updater"
 )
 
 var (

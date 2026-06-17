@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"radas/internal/utils"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // CheckFigma checks the Figma installation

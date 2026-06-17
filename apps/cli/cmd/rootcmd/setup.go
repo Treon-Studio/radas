@@ -12,7 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"radas/constants"
+	"github.com/raizora/radas/v4/constants"
 )
 
 // Shell types supported

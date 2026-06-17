@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"github.com/spf13/cobra"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
-	"radas/constants"
+	"github.com/raizora/radas/v4/constants"
 )
 
 var buildFromSource bool

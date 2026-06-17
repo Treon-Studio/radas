@@ -8,8 +8,8 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
-	"radas/internal/utils"
-	"radas/constants"
+	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/raizora/radas/v4/constants"
 ) // go-pretty for beautiful tables
 
 var EnvCmd = &cobra.Command{

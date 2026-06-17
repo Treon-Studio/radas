@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	
-	"radas/constants"
+	"github.com/raizora/radas/v4/constants"
 )
 
 // Shell flag for aliases command
