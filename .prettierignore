@@ -1,0 +1,45 @@
+# Recursive build outputs
+**/dist/**
+**/build/**
+**/out/**
+**/output/**
+**/.next/**
+**/.output/**
+**/.astro/**
+**/.wxt/**
+**/.tsbuildinfo
+
+# Generated files
+**/*.generated.*
+**/styles.generated.ts
+**/CHANGELOG.md
+**/LICENSE
+**/LICENSE.md
+
+# Dependencies
+**/node_modules/**
+
+# Go build artifacts
+**/bin/**
+
+# Test artifacts
+**/coverage/**
+**/playwright-report/**
+**/test-results/**
+
+# Local config / cache
+**/.cache/
+**/.temp/
+**/.tmp/
+**/.pnpm-store/
+
+# Graphify knowledge graph (generated analysis artifacts)
+graphify-out/
+
+# Vendored third-party packages (not authored here)
+packages/dev-tools/dist/
+
+# Lockfiles
+**/pnpm-lock.yaml
+**/package-lock.json
+**/yarn.lock
