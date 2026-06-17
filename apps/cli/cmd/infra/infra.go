@@ -14,4 +14,5 @@ var Cmd = &cobra.Command{
 func init() {
 	// Register all infra subcommands
 	Cmd.AddCommand(DockerCmd)
+	Cmd.AddCommand(InfraIgnoreCmd)
 }

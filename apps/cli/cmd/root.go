@@ -41,4 +41,5 @@ func init() {
 	rootCmd.AddCommand(rootcmd.UpdateCmd)
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
 	rootCmd.AddCommand(rootcmd.PullCmd)
+	rootCmd.AddCommand(rootcmd.ScanCmd)
 }

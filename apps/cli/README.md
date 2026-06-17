@@ -275,6 +275,39 @@ If you want to contribute to the project, please read the [contributing guide](h
 
 </div>
 
+## Security scanning
+
+Detect committed secrets in the repo or any subdirectory using gitleaks.
+
+```bash
+# Emit SARIF 2.1.0 (default; pipe into GitHub Code Scanning or any SARIF viewer)
+radas scan secrets > radas.sarif
+
+# Human-readable table
+radas scan secrets --format=table
+
+# Limit to staged files (pre-commit hook)
+radas scan secrets --staged
+
+# Use a custom .gitleaks.toml
+radas scan secrets --config=./.gitleaks.toml
+```
+
+Exit code 0 means no secrets found; exit code 1 means findings; exit code 2 means a scan error.
+
+### GitHub Actions
+
+```yaml
+- name: Scan for secrets
+  run: radas scan secrets --format=sarif > radas.sarif || true
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: radas.sarif
+```
+
+Requires the `gitleaks/v8` Go library (handled by `go build` automatically).
+
 ## ⚠️ License
 
 [`The Radas CLI`][repo_url] is free and open-source software licensed under the [Apache 2.0 License][repo_license_url], created and supported by [TreonStudio][author_url] with 🩵 for people and robots. Use it confidently in both personal and commercial projects. Official logo distributed under the [Creative Commons License][repo_cc_license_url] (CC BY-SA 4.0 International).

@@ -26,4 +26,5 @@ func init() {
 	Cmd.AddCommand(genAPICmd)
 	Cmd.AddCommand(genStylesCmd)
 	Cmd.AddCommand(genAllCmd)
+	Cmd.AddCommand(FeIgnoreCmd)
 }

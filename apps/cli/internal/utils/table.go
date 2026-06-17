@@ -2,16 +2,21 @@ package utils
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 )
 
-// PrintTable prints a 2D string slice as a pretty table
 type Table struct {
 	Header []string
 	Rows   [][]string
 }
 
 func PrintTable(header []string, rows [][]string) {
+	PrintTableTo(os.Stdout, header, rows)
+}
+
+func PrintTableTo(w io.Writer, header []string, rows [][]string) {
 	colWidths := make([]int, len(header))
 	for i, h := range header {
 		colWidths[i] = len(h)
@@ -27,19 +32,19 @@ func PrintTable(header []string, rows [][]string) {
 	for _, w := range colWidths {
 		border += strings.Repeat("-", w+2) + "+"
 	}
-	fmt.Println(border)
-	fmt.Print("|")
+	fmt.Fprintln(w, border)
+	fmt.Fprint(w, "|")
 	for i, h := range header {
-		fmt.Printf(" %-*s |", colWidths[i], h)
+		fmt.Fprintf(w, " %-*s |", colWidths[i], h)
 	}
-	fmt.Println()
-	fmt.Println(border)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, border)
 	for _, row := range rows {
-		fmt.Print("|")
+		fmt.Fprint(w, "|")
 		for i, cell := range row {
-			fmt.Printf(" %-*s |", colWidths[i], cell)
+			fmt.Fprintf(w, " %-*s |", colWidths[i], cell)
 		}
-		fmt.Println()
+		fmt.Fprintln(w)
 	}
-	fmt.Println(border)
+	fmt.Fprintln(w, border)
 }

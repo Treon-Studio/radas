@@ -91,6 +91,7 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 
 	
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
+	rootCmd.AddCommand(rootcmd.ScanCmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
