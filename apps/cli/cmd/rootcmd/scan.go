@@ -13,7 +13,7 @@ import (
 
 var ScanCmd = &cobra.Command{
 	Use:   "scan <subcommand>",
-	Short: "Security and quality scans (currently: secrets)",
+	Short: "Security and quality scans (secrets, vuln)",
 }
 
 var ScanSecretsCmd = &cobra.Command{
