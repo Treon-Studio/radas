@@ -77,6 +77,17 @@ type TestConfig struct {
 	Flags          string `yaml:"flags,omitempty"`
 }
 
+// CloudflareConfig holds Cloudflare API credentials.
+type CloudflareConfig struct {
+	APIToken  string `yaml:"api_token,omitempty"`
+	AccountID string `yaml:"account_id,omitempty"`
+}
+
+// GlobalConfig is the user-level config stored in ~/.config/radas/config.yml.
+type GlobalConfig struct {
+	Cloudflare CloudflareConfig `yaml:"cloudflare,omitempty"`
+}
+
 // RadasConfig represents the structure of radas.yml.
 type RadasConfig struct {
 	// Name is the human-readable project name.
@@ -93,12 +104,13 @@ type RadasConfig struct {
 
 	// --- BE-specific ---------------------------------------------------------
 
-	Build  BuildConfig  `yaml:"build,omitempty"`
-	DB     DBConfig     `yaml:"db,omitempty"`
-	Gen    GenConfig    `yaml:"gen,omitempty"`
-	Server ServerConfig `yaml:"server,omitempty"`
-	Test   TestConfig   `yaml:"test,omitempty"`
-	Run    RunConfig    `yaml:"run,omitempty"`
+	Build      BuildConfig      `yaml:"build,omitempty"`
+	DB         DBConfig         `yaml:"db,omitempty"`
+	Gen        GenConfig        `yaml:"gen,omitempty"`
+	Server     ServerConfig     `yaml:"server,omitempty"`
+	Test       TestConfig       `yaml:"test,omitempty"`
+	Run        RunConfig        `yaml:"run,omitempty"`
+	Cloudflare CloudflareConfig `yaml:"cloudflare,omitempty"`
 }
 
 // ParseConfig reads and parses the radas.yml file at configPath. If
@@ -123,6 +135,32 @@ func ParseConfig(configPath string) (*RadasConfig, error) {
 	}
 
 	return &config, nil
+}
+
+// LoadGlobalConfig loads the global radas config from ~/.config/radas/config.yml.
+// Returns nil if the file does not exist.
+func LoadGlobalConfig() (*GlobalConfig, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	globalPath := filepath.Join(homeDir, ".config", "radas", "config.yml")
+	if _, err := os.Stat(globalPath); os.IsNotExist(err) {
+		return nil, nil // no global config is fine
+	}
+
+	data, err := os.ReadFile(globalPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read global config: %w", err)
+	}
+
+	var cfg GlobalConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse global config: %w", err)
+	}
+
+	return &cfg, nil
 }
 
 // FindConfig searches the current working directory and walks up parent

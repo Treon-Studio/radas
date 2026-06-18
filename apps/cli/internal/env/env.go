@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/raizora/radas/v4/internal/config"
 )
 
 // Source indicates where an environment variable was found.
@@ -26,10 +28,11 @@ type EnvVar struct {
 // EnvResult aggregates all discovered environment variables and metadata.
 // Env is the deployment environment label, e.g. "production" or "staging".
 type EnvResult struct {
-	Env           string
-	Vars          []EnvVar
-	HasCloudflare bool
-	RemoteError   string
+	Env               string
+	Vars              []EnvVar
+	HasCloudflare     bool
+	RemoteError       string
+	DeploymentHistory []DeploymentRecord
 }
 
 // DetectCloudflare returns true if the directory contains a wrangler.toml
@@ -41,7 +44,7 @@ func DetectCloudflare(dir string) bool {
 
 // CollectEnv merges local and remote env vars into a single annotated list.
 // Local files take priority over remote values when a key exists in both.
-func CollectEnv(dir, env string, withOrigin bool) *EnvResult {
+func CollectEnv(dir, env string, withOrigin bool, cfg config.CloudflareConfig) *EnvResult {
 	result := &EnvResult{
 		Env: env,
 	}
@@ -56,7 +59,7 @@ func CollectEnv(dir, env string, withOrigin bool) *EnvResult {
 	var remoteVars map[string]string
 	if result.HasCloudflare {
 		var err error
-		remoteVars, err = FetchRemoteVars(dir)
+		remoteVars, err = FetchRemoteVars(dir, cfg)
 		if err != nil {
 			result.RemoteError = err.Error()
 		}

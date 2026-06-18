@@ -8,6 +8,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/env"
 	"github.com/raizora/radas/v4/internal/utils"
 )
@@ -38,7 +39,23 @@ var EnvGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		result := env.CollectEnv(dir, envName, withOrigin)
+		// Load credentials: global config > project radas.yml
+		var cfCfg config.CloudflareConfig
+		if globalCfg, _ := config.LoadGlobalConfig(); globalCfg != nil {
+			cfCfg = globalCfg.Cloudflare
+		}
+		if projCfg, _ := config.FindConfig(); projCfg != "" {
+			if cfg, _ := config.ParseConfig(projCfg); cfg != nil {
+				if cfg.Cloudflare.APIToken != "" {
+					cfCfg.APIToken = cfg.Cloudflare.APIToken
+				}
+				if cfg.Cloudflare.AccountID != "" {
+					cfCfg.AccountID = cfg.Cloudflare.AccountID
+				}
+			}
+		}
+
+		result := env.CollectEnv(dir, envName, withOrigin, cfCfg)
 
 		if len(result.Vars) == 0 {
 			fmt.Println("No environment variables found.")

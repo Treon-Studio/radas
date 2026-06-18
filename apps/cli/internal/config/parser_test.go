@@ -271,3 +271,125 @@ func TestResolvePath(t *testing.T) {
 		}
 	})
 }
+
+func TestParseConfig_WithCloudflare(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `name: test-app
+type: backend-api
+cloudflare:
+  api_token: sk-test-token
+  account_id: acc-test-id
+`
+	cfgPath := filepath.Join(tmpDir, "radas.yml")
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := ParseConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("ParseConfig error: %v", err)
+	}
+	if cfg.Cloudflare.APIToken != "sk-test-token" {
+		t.Errorf("APIToken = %q, want sk-test-token", cfg.Cloudflare.APIToken)
+	}
+	if cfg.Cloudflare.AccountID != "acc-test-id" {
+		t.Errorf("AccountID = %q, want acc-test-id", cfg.Cloudflare.AccountID)
+	}
+}
+
+func TestParseConfig_CloudflareEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `name: test-app
+type: backend-api
+`
+	cfgPath := filepath.Join(tmpDir, "radas.yml")
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := ParseConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("ParseConfig error: %v", err)
+	}
+	if cfg.Cloudflare.APIToken != "" || cfg.Cloudflare.AccountID != "" {
+		t.Error("expected empty Cloudflare config when not specified")
+	}
+}
+
+func TestLoadGlobalConfig_HappyPath(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	configDir := filepath.Join(homeDir, ".config", "radas")
+	os.MkdirAll(configDir, 0755)
+
+	content := `cloudflare:
+  api_token: global-token
+  account_id: global-account
+`
+	globalPath := filepath.Join(configDir, "config.yml")
+	os.WriteFile(globalPath, []byte(content), 0644)
+
+	cfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	if cfg.Cloudflare.APIToken != "global-token" {
+		t.Errorf("APIToken = %q, want global-token", cfg.Cloudflare.APIToken)
+	}
+	if cfg.Cloudflare.AccountID != "global-account" {
+		t.Errorf("AccountID = %q, want global-account", cfg.Cloudflare.AccountID)
+	}
+}
+
+func TestLoadGlobalConfig_NotFound(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	os.RemoveAll(filepath.Join(homeDir, ".config", "radas"))
+
+	cfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("expected nil error when config not found, got: %v", err)
+	}
+	if cfg != nil {
+		t.Error("expected nil config when file does not exist")
+	}
+}
+
+func TestLoadGlobalConfig_InvalidYAML(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	configDir := filepath.Join(homeDir, ".config", "radas")
+	os.MkdirAll(configDir, 0755)
+
+	globalPath := filepath.Join(configDir, "config.yml")
+	os.WriteFile(globalPath, []byte("not: valid: yaml: :"), 0644)
+
+	_, err := LoadGlobalConfig()
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestLoadGlobalConfig_EmptyFile(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	configDir := filepath.Join(homeDir, ".config", "radas")
+	os.MkdirAll(configDir, 0755)
+
+	globalPath := filepath.Join(configDir, "config.yml")
+	os.WriteFile(globalPath, []byte(""), 0644)
+
+	cfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config for empty file")
+	}
+	if cfg.Cloudflare.APIToken != "" {
+		t.Error("expected empty token for empty file")
+	}
+}

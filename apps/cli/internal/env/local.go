@@ -45,7 +45,7 @@ func readEnvFile(path string, dst map[string]string) {
 			continue
 		}
 		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
+		if len(parts) == 2 && strings.TrimSpace(parts[0]) != "" {
 			dst[parts[0]] = parts[1]
 		}
 	}
