@@ -30,14 +30,39 @@ func SeedRun(dir string, cfg *config.DBConfig, file string) (string, error) {
 		return "", fmt.Errorf("seed file not found: %s", path)
 	}
 
-	// Try psql first, then Supabase SQL
+	// Try psql first, then sqlite3, then turso
 	if checkCmd("psql") {
 		cmd := exec.Command("psql", dsn, "-f", path)
 		out, err := cmd.CombinedOutput()
 		return strings.TrimSpace(string(out)), err
 	}
 
-	return "", fmt.Errorf("no supported client found. Install psql")
+	if checkCmd("sqlite3") {
+		cmd := exec.Command("sqlite3", dsn)
+		f, err := os.Open(path)
+		if err == nil {
+			cmd.Stdin = f
+			out, runErr := cmd.CombinedOutput()
+			f.Close()
+			return strings.TrimSpace(string(out)), runErr
+		}
+	}
+
+	if checkCmd("turso") {
+		dbName := extractTursoDBName(dsn)
+		if dbName != "" {
+			cmd := exec.Command("turso", "db", "shell", dbName)
+			f, err := os.Open(path)
+			if err == nil {
+				cmd.Stdin = f
+				out, runErr := cmd.CombinedOutput()
+				f.Close()
+				return strings.TrimSpace(string(out)), runErr
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no supported client found. Install psql, sqlite3, or turso CLI")
 }
 
 func findSeedFile(dir string, cfg *config.DBConfig) string {

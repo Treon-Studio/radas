@@ -46,8 +46,14 @@ func MigrateUp(dir string, cfg *config.DBConfig, steps int) (string, error) {
 	case toolPSQL:
 		return applySQLFiles(workDir, dsn)
 
+	case toolSQLite:
+		return applySQLiteFiles(workDir, dsn)
+
+	case toolTurso:
+		return applyTursoFiles(workDir, dsn)
+
 	case toolUnknown:
-		return "", fmt.Errorf("no migration tool found. Install one: migrate CLI, supabase CLI, goose, or psql")
+		return "", fmt.Errorf("no migration tool found. Install one: migrate CLI, supabase CLI, goose, psql, sqlite3, or turso")
 	}
 	return "", nil
 }
@@ -69,6 +75,12 @@ func MigrateDown(dir string, cfg *config.DBConfig, steps int) (string, error) {
 
 	case toolSupabase:
 		return "", fmt.Errorf("use 'be db rollback' for Supabase rollback (requires SQL file)")
+
+	case toolSQLite:
+		return "", fmt.Errorf("no rollback for SQLite. Use golang-migrate or goose with sqlite3 driver")
+
+	case toolTurso:
+		return "", fmt.Errorf("no rollback for Turso. Use golang-migrate or goose with libsql driver")
 
 	case toolPSQL, toolUnknown:
 		return "", fmt.Errorf("no rollback support for this tool. Use golang-migrate or goose")
@@ -104,6 +116,9 @@ func MigrateCreate(dir string, cfg *config.DBConfig, name string) (string, error
 	case toolSupabase:
 		return createSupabaseMigration(workDir, name)
 
+	case toolSQLite, toolTurso:
+		return createSupabaseMigration(workDir, name)
+
 	case toolPSQL, toolUnknown:
 		return createPlainSQLMigration(workDir, name)
 	}
@@ -125,7 +140,7 @@ func MigrateList(dir string, cfg *config.DBConfig) (string, error) {
 	case toolSupabase:
 		return runSupabaseCmd(dir, dsn, "migration", "list")
 
-	case toolPSQL:
+	case toolPSQL, toolSQLite, toolTurso:
 		files, err := os.ReadDir(workDir)
 		if err != nil {
 			return "", fmt.Errorf("read migrations dir: %w", err)
@@ -267,6 +282,105 @@ func createPlainSQLMigration(dir, name string) (string, error) {
 		}
 	}
 	return fmt.Sprintf("Created %s, %s", upFile, downFile), nil
+}
+
+func applySQLiteFiles(migrationsDir, dsn string) (string, error) {
+	if dsn == "" {
+		return "", fmt.Errorf("DSN required. Set DB_URL, DATABASE_URL, or db.default_dsn in radas.yml")
+	}
+	if !utils.CheckIfCommandExists("sqlite3") {
+		return "", fmt.Errorf("sqlite3 not found. Install SQLite CLI")
+	}
+
+	if _, statErr := os.Stat(migrationsDir); os.IsNotExist(statErr) {
+		return "", fmt.Errorf("migrations directory %q does not exist. Create it or set db.migrations in radas.yml", migrationsDir)
+	}
+
+	files, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return "", fmt.Errorf("read migrations dir: %w", err)
+	}
+
+	var applied int
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".sql") {
+			continue
+		}
+		if strings.HasSuffix(f.Name(), ".down.sql") {
+			continue
+		}
+		path := filepath.Join(migrationsDir, f.Name())
+		// sqlite3 <db-file> < migration.sql
+		cmd := exec.Command("sqlite3", dsn)
+		stdin, openErr := os.Open(path)
+		if openErr != nil {
+			continue
+		}
+		cmd.Stdin = stdin
+		out, runErr := cmd.CombinedOutput()
+		stdin.Close()
+		output := strings.TrimSpace(string(out))
+		if runErr != nil {
+			if output != "" {
+				return output, fmt.Errorf("apply %s: %s", f.Name(), output)
+			}
+			return output, fmt.Errorf("apply %s: %w", f.Name(), runErr)
+		}
+		applied++
+	}
+	return fmt.Sprintf("Applied %d migration(s)", applied), nil
+}
+
+func applyTursoFiles(migrationsDir, dsn string) (string, error) {
+	if dsn == "" {
+		return "", fmt.Errorf("DSN required. Set DB_URL, DATABASE_URL, or db.default_dsn in radas.yml")
+	}
+	if !utils.CheckIfCommandExists("turso") {
+		return "", fmt.Errorf("turso not found. Install Turso CLI")
+	}
+
+	dbName := extractTursoDBName(dsn)
+	if dbName == "" {
+		return "", fmt.Errorf("Turso database name not found. Set TURSO_DATABASE_NAME env var")
+	}
+
+	if _, statErr := os.Stat(migrationsDir); os.IsNotExist(statErr) {
+		return "", fmt.Errorf("migrations directory %q does not exist. Create it or set db.migrations in radas.yml", migrationsDir)
+	}
+
+	files, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return "", fmt.Errorf("read migrations dir: %w", err)
+	}
+
+	var applied int
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".sql") {
+			continue
+		}
+		if strings.HasSuffix(f.Name(), ".down.sql") {
+			continue
+		}
+		path := filepath.Join(migrationsDir, f.Name())
+		// turso db shell <db-name> < migration.sql
+		cmd := exec.Command("turso", "db", "shell", dbName)
+		stdin, openErr := os.Open(path)
+		if openErr != nil {
+			continue
+		}
+		cmd.Stdin = stdin
+		out, runErr := cmd.CombinedOutput()
+		stdin.Close()
+		output := strings.TrimSpace(string(out))
+		if runErr != nil {
+			if output != "" {
+				return output, fmt.Errorf("apply %s: %s", f.Name(), output)
+			}
+			return output, fmt.Errorf("apply %s: %w", f.Name(), runErr)
+		}
+		applied++
+	}
+	return fmt.Sprintf("Applied %d migration(s)", applied), nil
 }
 
 func applySQLFiles(migrationsDir, dsn string) (string, error) {

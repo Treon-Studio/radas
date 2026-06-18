@@ -17,6 +17,8 @@ const (
 	toolSupabase  tool = "supabase"
 	toolGoose     tool = "goose"
 	toolPSQL      tool = "psql"
+	toolSQLite    tool = "sqlite3"
+	toolTurso     tool = "turso"
 	toolUnknown   tool = ""
 )
 
@@ -51,7 +53,21 @@ func DetectTool(dir string, cfg *config.DBConfig) tool {
 		}
 	}
 
-	// 4. Fall back to psql for Postgres or any SQL DB
+	// 4. SQLite via sqlite3 CLI when driver is sqlite
+	if cfg != nil && (cfg.Driver == "sqlite" || cfg.Driver == "sqlite3") {
+		if utils.CheckIfCommandExists("sqlite3") {
+			return toolSQLite
+		}
+	}
+
+	// 5. Turso via turso CLI when driver is turso
+	if cfg != nil && cfg.Driver == "turso" {
+		if utils.CheckIfCommandExists("turso") {
+			return toolTurso
+		}
+	}
+
+	// 6. Fall back to psql for Postgres or any SQL DB
 	if utils.CheckIfCommandExists("psql") {
 		return toolPSQL
 	}
@@ -98,4 +114,27 @@ func SeedsDir(dir string, cfg *config.DBConfig) string {
 		return filepath.Join(dir, cfg.Seeds)
 	}
 	return filepath.Join(dir, "seeds")
+}
+
+// extractTursoDBName extracts the database name from a Turso libsql:// DSN.
+// DSN format: libsql://<db-name>-<org>.turso.io?authToken=<token>
+// Falls back to TURSO_DATABASE_NAME env var if parsing fails.
+func extractTursoDBName(dsn string) string {
+	if !strings.HasPrefix(dsn, "libsql://") {
+		return os.Getenv("TURSO_DATABASE_NAME")
+	}
+	host := strings.TrimPrefix(dsn, "libsql://")
+	if idx := strings.Index(host, ".turso.io"); idx > 0 {
+		nameAndOrg := host[:idx]
+		// convention: last hyphen separates db-name from org-slug
+		if dash := strings.LastIndex(nameAndOrg, "-"); dash > 0 {
+			return nameAndOrg[:dash]
+		}
+		return nameAndOrg
+	}
+	// also handle libsql://<db-name>?authToken=<token> style
+	if idx := strings.IndexAny(host, "?&"); idx > 0 {
+		return host[:idx]
+	}
+	return os.Getenv("TURSO_DATABASE_NAME")
 }
