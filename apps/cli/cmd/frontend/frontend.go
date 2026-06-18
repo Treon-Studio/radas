@@ -27,4 +27,5 @@ func init() {
 	Cmd.AddCommand(genStylesCmd)
 	Cmd.AddCommand(genAllCmd)
 	Cmd.AddCommand(FeIgnoreCmd)
+	Cmd.AddCommand(VulnCmd)
 }

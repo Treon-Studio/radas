@@ -62,6 +62,7 @@ var CommandAliases = map[string]string{
 	"rfc": "fe clean",
 	"rff": "fe fresh",
 	"rfde": "fe dev",
+	"rfv":  "fe vuln",
 	
 	// Backend commands
 	"rbd": "be doctor",
@@ -69,6 +70,7 @@ var CommandAliases = map[string]string{
 	"rbin": "be install",
 	"rbc": "be clean",
 	"rbf": "be fresh",
+	"rbv": "be vuln",
 	
 	// DevOps commands
 	"rdd": "devops doctor",

@@ -20,4 +20,5 @@ func init() {
 	Cmd.AddCommand(FreshCmd)
 	Cmd.AddCommand(BeIgnoreCmd)
 	Cmd.AddCommand(DevCmd)
+	Cmd.AddCommand(VulnCmd)
 }
