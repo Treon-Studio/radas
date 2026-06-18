@@ -85,7 +85,7 @@ var EnvGetCmd = &cobra.Command{
 			rows = append(rows, row)
 		}
 
-		utils.PrettyPrintTable(headers, headerColors, rows, utils.EnvRole)
+		utils.PrettyPrintEnvTable(headers, headerColors, rows)
 
 		if result.RemoteError != "" {
 			fmt.Printf("\n⚠️  Remote fetch failed: %s\n", result.RemoteError)
