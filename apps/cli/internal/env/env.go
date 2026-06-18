@@ -1,6 +1,9 @@
 package env
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 // EnvVar represents a single environment variable with its provenance.
 type EnvVar struct {
@@ -21,7 +24,7 @@ type EnvResult struct {
 // DetectCloudflare returns true if the directory contains a wrangler.toml
 // file, indicating a Cloudflare Workers project.
 func DetectCloudflare(dir string) bool {
-	if _, err := os.Stat(dir + "/wrangler.toml"); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "wrangler.toml")); err == nil {
 		return true
 	}
 	return false
