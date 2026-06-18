@@ -11,6 +11,8 @@ var ProjectTypes = []string{
 	"frontend-desktop",
 	"monorepo-backend",
 	"backend-api",
+	"fullstack-web",
+	"fullstack-app",
 	"docs",
 }
 

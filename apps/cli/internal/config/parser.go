@@ -77,6 +77,34 @@ type TestConfig struct {
 	Flags          string `yaml:"flags,omitempty"`
 }
 
+// FrontendConfig describes frontend-specific settings.
+type FrontendConfig struct {
+	Framework     string `yaml:"framework,omitempty"`
+	Bundler       string `yaml:"bundler,omitempty"`
+	Port          int    `yaml:"port,omitempty"`
+	PackageManager string `yaml:"package_manager,omitempty"`
+}
+
+// BackendConfig describes backend-specific settings.
+type BackendConfig struct {
+	Framework string `yaml:"framework,omitempty"`
+	Runtime   string `yaml:"runtime,omitempty"`
+	Entry     string `yaml:"entry,omitempty"`
+}
+
+// DatabaseConfig describes ORM and database provider settings.
+type DatabaseConfig struct {
+	ORM      string `yaml:"orm,omitempty"`
+	Config   string `yaml:"config,omitempty"`
+	Provider string `yaml:"provider,omitempty"`
+}
+
+// DeployConfig describes deployment target settings.
+type DeployConfig struct {
+	Target   string `yaml:"target,omitempty"`
+	Wrangler string `yaml:"wrangler,omitempty"`
+}
+
 // CloudflareConfig holds Cloudflare API credentials.
 type CloudflareConfig struct {
 	APIToken  string `yaml:"api_token,omitempty"`
@@ -111,6 +139,10 @@ type RadasConfig struct {
 	Test       TestConfig       `yaml:"test,omitempty"`
 	Run        RunConfig        `yaml:"run,omitempty"`
 	Cloudflare CloudflareConfig `yaml:"cloudflare,omitempty"`
+	Frontend   FrontendConfig   `yaml:"frontend,omitempty"`
+	Backend    BackendConfig    `yaml:"backend,omitempty"`
+	Database   DatabaseConfig   `yaml:"database,omitempty"`
+	Deploy     DeployConfig     `yaml:"deploy,omitempty"`
 }
 
 // ParseConfig reads and parses the radas.yml file at configPath. If

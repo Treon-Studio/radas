@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/AlecAivazis/survey/v2"
@@ -143,7 +144,7 @@ var ConfigInitCmd = &cobra.Command{
 
 		// For backend types, ask which database driver to use
 		var selectedDriver dbDriver
-		isBackend := selectedType == "backend-api" || selectedType == "monorepo-backend"
+		isBackend := selectedType == "backend-api" || selectedType == "monorepo-backend" || strings.HasPrefix(selectedType, "fullstack-")
 		if isBackend {
 			labels := make([]string, len(dbDrivers))
 			for i, d := range dbDrivers {
@@ -412,6 +413,97 @@ contract:
   api:
     - path: spec/openapi.yaml
       type: openapi3
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "fullstack-web" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: fullstack-web
+stacks: [react, hono, drizzle, supabase, cloudflare]
+
+frontend:
+  framework: react
+  bundler: vite
+  port: 5173
+  package_manager: pnpm
+
+backend:
+  framework: hono
+  runtime: cloudflare-workers
+  entry: src/server.ts
+
+database:
+  orm: drizzle
+  config: drizzle.config.ts
+  provider: supabase
+
+deploy:
+  target: cloudflare
+  wrangler: wrangler.jsonc
+
+contract:
+  design:
+    - path: tokens
+      type: figma
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+
+cloudflare:
+  api_token: ${CF_API_TOKEN}
+  account_id: ${CF_ACCOUNT_ID}
+`, name, description)
+			err = os.WriteFile(filename, []byte(content), 0644)
+			if err != nil {
+				fmt.Printf("Failed to write %s: %v\n", filename, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s created successfully!\n", filename)
+			return
+		}
+
+		if selectedType == "fullstack-app" {
+			content := fmt.Sprintf(`name: "%s"
+description: "%s"
+type: fullstack-app
+stacks: [react-native, expo, hono, drizzle, supabase]
+
+frontend:
+  framework: react-native
+  bundler: expo
+  port: 8081
+  package_manager: pnpm
+
+backend:
+  framework: hono
+  runtime: cloudflare-workers
+  entry: src/server.ts
+
+database:
+  orm: drizzle
+  config: drizzle.config.ts
+  provider: supabase
+
+deploy:
+  target: cloudflare
+  wrangler: wrangler.jsonc
+
+contract:
+  api:
+    - path: spec/openapi.yaml
+      type: openapi3
+
+cloudflare:
+  api_token: ${CF_API_TOKEN}
+  account_id: ${CF_ACCOUNT_ID}
 `, name, description)
 			err = os.WriteFile(filename, []byte(content), 0644)
 			if err != nil {
