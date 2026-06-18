@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
-	"github.com/raizora/radas/v4/internal/utils"
 	"github.com/raizora/radas/v4/constants"
-) // go-pretty for beautiful tables
+	"github.com/raizora/radas/v4/internal/env"
+	"github.com/raizora/radas/v4/internal/utils"
+)
 
 var EnvCmd = &cobra.Command{
 	Use:   "env",
@@ -21,68 +21,58 @@ var EnvGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Print environment variables for a given environment as a table",
 	Run: func(cmd *cobra.Command, args []string) {
-		env, _ := cmd.Flags().GetString("environment")
-		if env == "" {
-			env, _ = cmd.Flags().GetString("e")
+		envName, _ := cmd.Flags().GetString("environment")
+		if envName == "" {
+			envName, _ = cmd.Flags().GetString("e")
 		}
-		if env == "" {
-			fmt.Println("Please specify an environment with -e or --environment (staging, canary, production)")
+		if envName == "" {
+			fmt.Println("Please specify an environment with -e or --environment (e.g. staging, production)")
 			os.Exit(1)
 		}
-		found := false
-		for _, v := range constants.EnvList {
-			if v == env {
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("Environment '%s' not found. Available: %s\n", env, strings.Join(constants.EnvList, ", "))
-			os.Exit(1)
-		}
-		// Example: load env file (envs/.env.{env})
-		filePath := fmt.Sprintf(constants.EnvDir+"/"+constants.EnvFilePattern, env)
-		data, err := os.ReadFile(filePath)
+
+		withOrigin, _ := cmd.Flags().GetBool("origin")
+
+		dir, err := os.Getwd()
 		if err != nil {
-			fmt.Printf("[DEMO] Env file not found: %s\n", filePath)
-			fmt.Println("────────────────────────────────────────────────────")
-			fmt.Println("⚠️  WARNING: Displaying sample data only")
-			fmt.Println("   This is placeholder data for demonstration.")
-			fmt.Println("   Create a real .env file to see actual values.")
-			fmt.Println("────────────────────────────────────────────────────")
-			mockRows := [][]string{
-				{"API_URL", "https://jsonplaceholder.typicode.com"},
-				{"DB_HOST", "localhost"},
-				{"DB_PORT", "5432"},
-				{"SECRET_TOKEN", "your-secret-token-here"},
+			fmt.Println("Failed to get current directory:", err)
+			os.Exit(1)
+		}
+
+		result := env.CollectEnv(dir, envName, withOrigin)
+
+		if len(result.Vars) == 0 {
+			fmt.Println("No environment variables found.")
+			if !result.HasCloudflare {
+				fmt.Println("Tip: Create a .env file or wrangler.toml in your project root.")
 			}
-			headers := constants.EnvHeaders
-			headerColors := []text.Colors{
-				{text.FgHiCyan, text.Bold},
-				{text.FgHiYellow, text.Bold},
-				{text.FgHiMagenta, text.Bold},
-			}
-			utils.PrettyPrintTable(headers, headerColors, mockRows, utils.EnvRole)
 			return
 		}
-		lines := strings.Split(string(data), "\n")
-		var rows [][]string
-		for _, line := range lines {
-			if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 {
-				rows = append(rows, []string{parts[0], parts[1]})
-			}
-		}
-		headers := constants.EnvHeaders
+
+		// Build table rows
+		headers := []string{"VARIABLE", "VALUE", "SOURCE"}
 		headerColors := []text.Colors{
 			{text.FgHiCyan, text.Bold},
 			{text.FgHiYellow, text.Bold},
 			{text.FgHiMagenta, text.Bold},
 		}
+		if withOrigin {
+			headers = append(headers, "ORIGIN")
+		}
+
+		var rows [][]string
+		for _, v := range result.Vars {
+			row := []string{v.Key, v.Value, string(v.Source)}
+			if withOrigin {
+				row = append(row, v.Origin)
+			}
+			rows = append(rows, row)
+		}
+
 		utils.PrettyPrintTable(headers, headerColors, rows, utils.EnvRole)
+
+		if result.RemoteError != "" {
+			fmt.Printf("\n⚠️  Remote fetch failed: %s\n", result.RemoteError)
+		}
 	},
 }
 
@@ -90,30 +80,19 @@ var EnvSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Open the .env file for a given environment in the default code editor",
 	Run: func(cmd *cobra.Command, args []string) {
-		env, _ := cmd.Flags().GetString("environment")
-		if env == "" {
-			env, _ = cmd.Flags().GetString("e")
+		envName, _ := cmd.Flags().GetString("environment")
+		if envName == "" {
+			envName, _ = cmd.Flags().GetString("e")
 		}
-		if env == "" {
-			fmt.Println("Please specify an environment with -e or --environment (staging, canary, production)")
+		if envName == "" {
+			fmt.Println("Please specify an environment with -e or --environment (e.g. staging, production)")
 			os.Exit(1)
 		}
-		found := false
-		for _, v := range constants.EnvList {
-			if v == env {
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("Environment '%s' not found. Available: staging, canary, production\n", env)
-			os.Exit(1)
-		}
-		filePath := fmt.Sprintf("envs/.env.%s", env)
+		filePath := fmt.Sprintf("envs/.env.%s", envName)
 		if _, err := os.Stat(filePath); err != nil {
-			fmt.Printf("[DEMO] Creating new env file: %s\n", filePath)
+			fmt.Printf("Creating new env file: %s\n", filePath)
 			os.MkdirAll("envs", 0755)
-			mockContent := "# Demo environment file\n# Replace these values with your actual configuration\nAPI_URL=https://jsonplaceholder.typicode.com\nDB_HOST=localhost\nDB_PORT=5432\nSECRET_TOKEN=your-secret-token-here\n"
+			mockContent := "# Environment file\n# Replace these values with your actual configuration\nAPI_URL=https://example.com\nDB_HOST=localhost\nDB_PORT=5432\n"
 			os.WriteFile(filePath, []byte(mockContent), 0644)
 		}
 		editor := os.Getenv("EDITOR")
@@ -132,8 +111,9 @@ var EnvSetCmd = &cobra.Command{
 }
 
 func init() {
-	EnvGetCmd.Flags().StringP("environment", "e", "", "Environment name (staging, canary, production)")
-	EnvSetCmd.Flags().StringP("environment", "e", "", "Environment name (staging, canary, production)")
+	EnvGetCmd.Flags().StringP("environment", "e", "", "Environment name (staging, production, etc.)")
+	EnvGetCmd.Flags().Bool("origin", false, "Show detailed origin for each variable")
+	EnvSetCmd.Flags().StringP("environment", "e", "", "Environment name (staging, production, etc.)")
 	EnvCmd.AddCommand(EnvGetCmd)
 	EnvCmd.AddCommand(EnvSetCmd)
 }
