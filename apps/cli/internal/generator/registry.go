@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -9,19 +10,26 @@ import (
 	"strings"
 )
 
+// Registry holds template directories and provides scanning and remote-fetching.
 type Registry struct {
 	TemplateDirs []string
 }
 
+// Template is a discovered code-generation template with its parsed definition and directory.
 type Template struct {
 	Definition
 	Dir string
 }
 
-// Add fetches a remote template repository and adds it to the registry.
+// Add fetches a remote template repository via git clone and returns the first
+// discovered template. The cloned directory (minus .git) is stored at targetDir/<repo>.
 func (r *Registry) Add(remoteURL string, targetDir string) (Template, error) {
 	if remoteURL == "" {
 		return Template{}, fmt.Errorf("remote URL is required")
+	}
+
+	if targetDir == "" {
+		return Template{}, fmt.Errorf("target directory is required")
 	}
 
 	repoURL := normalizeURL(remoteURL)
@@ -38,7 +46,9 @@ func (r *Registry) Add(remoteURL string, targetDir string) (Template, error) {
 		return Template{}, fmt.Errorf("clone %s: %s: %w", remoteURL, string(output), err)
 	}
 
-	os.RemoveAll(filepath.Join(localDir, ".git"))
+	if err := os.RemoveAll(filepath.Join(localDir, ".git")); err != nil {
+		return Template{}, fmt.Errorf("remove .git: %w", err)
+	}
 
 	templates, err := r.scanDir(localDir)
 	if err != nil {
@@ -108,36 +118,21 @@ func (r *Registry) scanDir(dir string) ([]Template, error) {
 	return templates, nil
 }
 
+// Scan walks all configured TemplateDirs and returns discovered templates.
+// Non-existent directories are silently skipped; directories without valid
+// template.yml files are also skipped.
 func (r *Registry) Scan() ([]Template, error) {
 	var templates []Template
 
 	for _, dir := range r.TemplateDirs {
-		entries, err := os.ReadDir(dir)
+		scanned, err := r.scanDir(dir)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
 			return nil, fmt.Errorf("scan %s: %w", dir, err)
 		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-
-			tplDir := filepath.Join(dir, entry.Name())
-			defPath := filepath.Join(tplDir, "template.yml")
-
-			def, err := Parse(defPath)
-			if err != nil {
-				continue
-			}
-
-			templates = append(templates, Template{
-				Definition: *def,
-				Dir:        tplDir,
-			})
-		}
+		templates = append(templates, scanned...)
 	}
 
 	return templates, nil

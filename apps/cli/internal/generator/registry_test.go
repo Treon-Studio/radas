@@ -11,8 +11,10 @@ func TestRegistry_Scan(t *testing.T) {
 
 	// Create template 1
 	t1Dir := filepath.Join(dir, "templates", "react-component")
-	os.MkdirAll(t1Dir, 0755)
-	os.WriteFile(filepath.Join(t1Dir, "template.yml"), []byte(`name: react-component
+	if err := os.MkdirAll(t1Dir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(t1Dir, "template.yml"), []byte(`name: react-component
 description: Generate a React component
 version: 1
 variables:
@@ -21,13 +23,19 @@ variables:
 outputs:
   - template: Component.tsx.gotpl
     target: "{{.component_name}}/index.tsx"
-`), 0644)
-	os.WriteFile(filepath.Join(t1Dir, "Component.tsx.gotpl"), []byte("// {{.component_name}}"), 0644)
+`), 0644); err != nil {
+		t.Fatalf("write template.yml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(t1Dir, "Component.tsx.gotpl"), []byte("// {{.component_name}}"), 0644); err != nil {
+		t.Fatalf("write Component.tsx.gotpl: %v", err)
+	}
 
 	// Create template 2
 	t2Dir := filepath.Join(dir, "templates", "go-api")
-	os.MkdirAll(t2Dir, 0755)
-	os.WriteFile(filepath.Join(t2Dir, "template.yml"), []byte(`name: go-api
+	if err := os.MkdirAll(t2Dir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(t2Dir, "template.yml"), []byte(`name: go-api
 description: Go API handler
 version: 1
 variables:
@@ -35,12 +43,20 @@ variables:
 outputs:
   - template: handler.go.gotpl
     target: "{{.handler_name}}.go"
-`), 0644)
-	os.WriteFile(filepath.Join(t2Dir, "handler.go.gotpl"), []byte("package {{.handler_name}}"), 0644)
+`), 0644); err != nil {
+		t.Fatalf("write template.yml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(t2Dir, "handler.go.gotpl"), []byte("package {{.handler_name}}"), 0644); err != nil {
+		t.Fatalf("write handler.go.gotpl: %v", err)
+	}
 
 	// Create non-template directory (no template.yml) — should be skipped
-	os.MkdirAll(filepath.Join(dir, "templates", "not-a-template"), 0755)
-	os.WriteFile(filepath.Join(dir, "templates", "not-a-template", "readme.md"), []byte("hi"), 0644)
+	if err := os.MkdirAll(filepath.Join(dir, "templates", "not-a-template"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "templates", "not-a-template", "readme.md"), []byte("hi"), 0644); err != nil {
+		t.Fatalf("write readme.md: %v", err)
+	}
 
 	reg := &Registry{TemplateDirs: []string{filepath.Join(dir, "templates")}}
 	templates, err := reg.Scan()
@@ -73,7 +89,7 @@ outputs:
 	}
 }
 
-func TestRegistry_ScanEmptyDir(t *testing.T) {
+func TestRegistry_Scan_MissingDir(t *testing.T) {
 	dir := t.TempDir()
 	reg := &Registry{TemplateDirs: []string{filepath.Join(dir, "nonexistent")}}
 	templates, err := reg.Scan()
