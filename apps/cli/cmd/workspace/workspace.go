@@ -25,7 +25,7 @@ Available only when the current directory (or a parent) has a radas.yml with a
 }
 
 func init() {
-	Cmd.AddCommand(initCmd, listCmd, showCmd, graphCmd, validateCmd)
+	Cmd.AddCommand(initCmd, listCmd, showCmd, graphCmd, validateCmd, runCmd, affectedCmd, cacheCmd)
 }
 
 func requireWorkspaceMode() (*config.RadasConfig, error) {

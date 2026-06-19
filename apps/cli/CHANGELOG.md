@@ -4,6 +4,12 @@
 
 ### Added
 
+- `workspace run <task> [--project|--all|--affected]` — topological task execution with cache (Phase B)
+- `workspace affected [--base|--json]` — list projects affected by git changes
+- `workspace cache status|clear` — local cache management
+- `internal/cache/` — content-addressable cache (SHA256, FS-backed at `~/.radas/cache/`)
+- `internal/runner/` — pipeline resolution, layered Kahn's scheduler, parallel batch executor, summary table
+- `internal/graph/affected.go` — git diff → affected project set with transitive expansion
 - `workspace` command group (Phase A: Monorepo Manager)
   - `workspace init` — generate radas.yml with workspace section
   - `workspace list` — table of all projects
