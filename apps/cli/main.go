@@ -12,6 +12,7 @@ import (
 	"github.com/raizora/radas/v4/cmd/frontend"
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
+	"github.com/raizora/radas/v4/cmd/workspace"
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/updater"
 )
@@ -90,6 +91,9 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
 	rootCmd.AddCommand(rootcmd.ScanCmd)
+
+	// Workspace command group (Phase A: Monorepo Manager)
+	rootCmd.AddCommand(workspace.Cmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
