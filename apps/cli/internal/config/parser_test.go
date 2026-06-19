@@ -393,3 +393,51 @@ func TestLoadGlobalConfig_EmptyFile(t *testing.T) {
 		t.Error("expected empty token for empty file")
 	}
 }
+
+func TestParseConfigWithWorkspace(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "radas-ws-*")
+	defer os.RemoveAll(tmpDir)
+	content := `
+name: myorg
+workspace:
+  projects: [apps/*, libs/*]
+  task_types:
+    backend-api: be
+  tasks:
+    build: { depends_on: ["^build"], cache: true }
+`
+	cfgPath := filepath.Join(tmpDir, "radas.yml")
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := ParseConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+	if cfg.Workspace == nil {
+		t.Fatal("Workspace is nil")
+	}
+	if len(cfg.Workspace.Projects) != 2 {
+		t.Errorf("Projects = %v, want 2", cfg.Workspace.Projects)
+	}
+	if cfg.Workspace.TaskTypes["backend-api"] != "be" {
+		t.Errorf("TaskTypes[backend-api] = %q, want be", cfg.Workspace.TaskTypes["backend-api"])
+	}
+	if !cfg.Workspace.Tasks["build"].Cache {
+		t.Error("Tasks[build].Cache = false, want true")
+	}
+}
+
+func TestParseConfigWithoutWorkspace(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "radas-nows-*")
+	defer os.RemoveAll(tmpDir)
+	cfgPath := filepath.Join(tmpDir, "radas.yml")
+	os.WriteFile(cfgPath, []byte("name: x\n"), 0644)
+
+	cfg, err := ParseConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+	if cfg.Workspace != nil {
+		t.Errorf("Workspace = %+v, want nil for single-project config", cfg.Workspace)
+	}
+}

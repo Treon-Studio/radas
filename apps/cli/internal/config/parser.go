@@ -143,6 +143,59 @@ type RadasConfig struct {
 	Backend    BackendConfig    `yaml:"backend,omitempty"`
 	Database   DatabaseConfig   `yaml:"database,omitempty"`
 	Deploy     DeployConfig     `yaml:"deploy,omitempty"`
+
+	// Workspace is the optional monorepo orchestrator config.
+	// nil means single-project mode; non-nil means workspace mode.
+	Workspace *WorkspaceConfig `yaml:"workspace,omitempty"`
+}
+
+// WorkspaceConfig describes a monorepo's workspace-level settings.
+// Only present when radas.yml is at the workspace root. nil = single-project mode.
+type WorkspaceConfig struct {
+	Projects  []string                  `yaml:"projects"`
+	Exclude   []string                  `yaml:"exclude,omitempty"`
+	TaskTypes map[string]string         `yaml:"task_types,omitempty"`
+	Tasks     map[string]TaskDefinition `yaml:"tasks,omitempty"`
+	Cache     *CacheConfig              `yaml:"cache,omitempty"`
+	Generator *GeneratorConfig          `yaml:"generator,omitempty"`
+	AI        *AIConfig                 `yaml:"ai,omitempty"`
+}
+
+type TaskDefinition struct {
+	Command     string   `yaml:"command,omitempty"`
+	DependsOn   []string `yaml:"depends_on,omitempty"`
+	Outputs     []string `yaml:"outputs,omitempty"`
+	Cache       bool     `yaml:"cache,omitempty"`
+	Confirm     bool     `yaml:"confirm,omitempty"`
+	MaxParallel int      `yaml:"max_parallel,omitempty"`
+}
+
+type CacheConfig struct {
+	Local *LocalCacheConfig `yaml:"local,omitempty"`
+}
+
+type LocalCacheConfig struct {
+	Dir       string `yaml:"dir,omitempty"`
+	MaxSizeGB int    `yaml:"max_size_gb,omitempty"`
+	TTLDays   int    `yaml:"ttl_days,omitempty"`
+}
+
+type GeneratorConfig struct {
+	TemplatesDir    string            `yaml:"templates_dir,omitempty"`
+	DefaultTemplate map[string]string `yaml:"default_template,omitempty"`
+	Registry        []string          `yaml:"registry,omitempty"`
+}
+
+type AIConfig struct {
+	Provider            string   `yaml:"provider,omitempty"`
+	Model               string   `yaml:"model,omitempty"`
+	APIKeyEnv           string   `yaml:"api_key_env,omitempty"`
+	HTTPReferer         string   `yaml:"http_referer,omitempty"`
+	AppTitle            string   `yaml:"app_title,omitempty"`
+	MaxToolIterations   int      `yaml:"max_tool_iterations,omitempty"`
+	MaxCostUSD          float64  `yaml:"max_cost_usd,omitempty"`
+	FallbackModel       string   `yaml:"fallback_model,omitempty"`
+	RequireConfirmation []string `yaml:"require_confirmation,omitempty"`
 }
 
 // ParseConfig reads and parses the radas.yml file at configPath. If
