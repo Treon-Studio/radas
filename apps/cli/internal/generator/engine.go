@@ -1,3 +1,6 @@
+// Package generator provides template-based code generation.
+// It reads YAML definitions, renders .gotpl templates with text/template,
+// and writes output files with skip-on-existing and force-overwrite semantics.
 package generator
 
 import (
@@ -20,17 +23,18 @@ func (e *Engine) Render(tplPath string, vars map[string]string) (string, error) 
 		return "", fmt.Errorf("read template: %w", err)
 	}
 
-	tpl, err := template.New("").
+	tplName := filepath.Base(tplPath)
+	tpl, err := template.New(tplName).
 		Option("missingkey=error").
 		Funcs(e.Funcs).
 		Parse(string(data))
 	if err != nil {
-		return "", fmt.Errorf("parse gotpl: %w", err)
+		return "", fmt.Errorf("parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, vars); err != nil {
-		return "", fmt.Errorf("render gotpl: %w", err)
+		return "", fmt.Errorf("render template: %w", err)
 	}
 	return buf.String(), nil
 }

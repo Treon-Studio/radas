@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestEngineRender(t *testing.T) {
+func TestEngine_Render_Basic(t *testing.T) {
 	dir := t.TempDir()
 	tpl := `package {{.name}}
 
@@ -17,7 +17,9 @@ type {{.type}} struct {
 }
 `
 	tplPath := filepath.Join(dir, "model.go.gotpl")
-	os.WriteFile(tplPath, []byte(tpl), 0644)
+	if err := os.WriteFile(tplPath, []byte(tpl), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	eng := &Engine{
 		Funcs: nil,
@@ -41,11 +43,13 @@ type User struct {
 	}
 }
 
-func TestEngineRenderMissingKey(t *testing.T) {
+func TestEngine_Render_MissingKey(t *testing.T) {
 	dir := t.TempDir()
 	tpl := `hello {{.name}}`
 	tplPath := filepath.Join(dir, "hello.gotpl")
-	os.WriteFile(tplPath, []byte(tpl), 0644)
+	if err := os.WriteFile(tplPath, []byte(tpl), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	eng := &Engine{}
 	_, err := eng.Render(tplPath, map[string]string{})
@@ -54,12 +58,16 @@ func TestEngineRenderMissingKey(t *testing.T) {
 	}
 }
 
-func TestEngineRenderTemplateDir(t *testing.T) {
+func TestEngine_Render_NestedPath(t *testing.T) {
 	dir := t.TempDir()
 	tpl := `{{.message}}`
 	tplPath := filepath.Join(dir, "templates", "greeting.gotpl")
-	os.MkdirAll(filepath.Join(dir, "templates"), 0755)
-	os.WriteFile(tplPath, []byte(tpl), 0644)
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(tplPath, []byte(tpl), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	eng := &Engine{
 		Funcs: nil,
@@ -74,7 +82,7 @@ func TestEngineRenderTemplateDir(t *testing.T) {
 	}
 }
 
-func TestGenerate(t *testing.T) {
+func TestEngine_Generate_Basic(t *testing.T) {
 	dir := t.TempDir()
 
 	tplContent := `package {{.name}}
@@ -84,9 +92,13 @@ type {{.type}} struct {
 }
 `
 	tplDir := filepath.Join(dir, "templates")
-	os.MkdirAll(tplDir, 0755)
+	if err := os.MkdirAll(tplDir, 0755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
 	tplPath := filepath.Join(tplDir, "model.go.gotpl")
-	os.WriteFile(tplPath, []byte(tplContent), 0644)
+	if err := os.WriteFile(tplPath, []byte(tplContent), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	def := &Definition{
 		Name: "model",
@@ -137,10 +149,12 @@ type User struct {
 	}
 }
 
-func TestGenerateExistingFile(t *testing.T) {
+func TestEngine_Generate_SkipExisting(t *testing.T) {
 	dir := t.TempDir()
 
-	os.WriteFile(filepath.Join(dir, "t.gotpl"), []byte("content"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "t.gotpl"), []byte("content"), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	def := &Definition{
 		Name: "test",
@@ -154,8 +168,12 @@ func TestGenerateExistingFile(t *testing.T) {
 
 	outDir := filepath.Join(dir, "output")
 	outPath := filepath.Join(outDir, "out.txt")
-	os.MkdirAll(outDir, 0755)
-	os.WriteFile(outPath, []byte("existing"), 0644)
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(outPath, []byte("existing"), 0644); err != nil {
+		t.Fatalf("write existing file: %v", err)
+	}
 
 	eng := &Engine{TemplateDir: dir}
 	err := eng.Generate(def, outDir, map[string]string{})
@@ -169,10 +187,12 @@ func TestGenerateExistingFile(t *testing.T) {
 	}
 }
 
-func TestGenerateWithForce(t *testing.T) {
+func TestEngine_Generate_ForceOverwrite(t *testing.T) {
 	dir := t.TempDir()
 
-	os.WriteFile(filepath.Join(dir, "t.gotpl"), []byte("new-content"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "t.gotpl"), []byte("new-content"), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
 
 	def := &Definition{
 		Name: "test",
@@ -183,8 +203,12 @@ func TestGenerateWithForce(t *testing.T) {
 
 	outDir := filepath.Join(dir, "output")
 	outPath := filepath.Join(outDir, "out.txt")
-	os.MkdirAll(outDir, 0755)
-	os.WriteFile(outPath, []byte("old"), 0644)
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(outPath, []byte("old"), 0644); err != nil {
+		t.Fatalf("write existing file: %v", err)
+	}
 
 	eng := &Engine{
 		TemplateDir: dir,

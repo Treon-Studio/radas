@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestParseValid(t *testing.T) {
+func TestParse_Valid(t *testing.T) {
 	dir := t.TempDir()
 	yml := `name: react-component
 description: Generate a React component
@@ -26,7 +26,9 @@ outputs:
   - template: Component.tsx.gotpl
     target: "{{.component_name}}/index.tsx"
 `
-	os.WriteFile(filepath.Join(dir, "template.yml"), []byte(yml), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "template.yml"), []byte(yml), 0644); err != nil {
+		t.Fatalf("write definition: %v", err)
+	}
 	def, err := Parse(filepath.Join(dir, "template.yml"))
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +59,7 @@ outputs:
 	}
 }
 
-func TestParseMissingFile(t *testing.T) {
+func TestParse_MissingFile(t *testing.T) {
 	_, err := Parse("/nonexistent/path.yml")
 	if err == nil {
 		t.Fatal("expected error for missing file")
@@ -67,9 +69,11 @@ func TestParseMissingFile(t *testing.T) {
 	}
 }
 
-func TestParseInvalidYAML(t *testing.T) {
+func TestParse_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "template.yml"), []byte("not: yaml: [broken"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "template.yml"), []byte("not: yaml: [broken"), 0644); err != nil {
+		t.Fatalf("write definition: %v", err)
+	}
 	_, err := Parse(filepath.Join(dir, "template.yml"))
 	if err == nil {
 		t.Fatal("expected error for invalid yaml")
@@ -79,13 +83,15 @@ func TestParseInvalidYAML(t *testing.T) {
 	}
 }
 
-func TestParseDefaults(t *testing.T) {
+func TestParse_Defaults(t *testing.T) {
 	dir := t.TempDir()
 	yml := `name: defaults-test
 variables:
   - name: foo
 `
-	os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0644); err != nil {
+		t.Fatalf("write definition: %v", err)
+	}
 	def, err := Parse(filepath.Join(dir, "t.yml"))
 	if err != nil {
 		t.Fatal(err)
@@ -98,12 +104,14 @@ variables:
 	}
 }
 
-func TestParseMissingName(t *testing.T) {
+func TestParse_MissingName(t *testing.T) {
 	dir := t.TempDir()
 	yml := `variables:
   - name: foo
 `
-	os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0644); err != nil {
+		t.Fatalf("write definition: %v", err)
+	}
 	_, err := Parse(filepath.Join(dir, "t.yml"))
 	if err == nil {
 		t.Fatal("expected error for missing name")
