@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Definition describes a code generation template definition read from YAML.
 type Definition struct {
 	Name        string     `yaml:"name"`
 	Description string     `yaml:"description"`
@@ -15,6 +16,7 @@ type Definition struct {
 	Outputs     []Output   `yaml:"outputs"`
 }
 
+// Variable describes a single user-input variable for a template.
 type Variable struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description,omitempty"`
@@ -24,22 +26,26 @@ type Variable struct {
 	Validate    string `yaml:"validate,omitempty"`
 }
 
+// Output describes a single generated file output from a template.
 type Output struct {
 	Template string `yaml:"template"`
 	Target   string `yaml:"target"`
 }
 
+// Parse reads a YAML definition file, validates required fields, and applies
+// defaults for optional fields (Version defaults to 1, Variable.Type defaults
+// to "string").
 func Parse(path string) (*Definition, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("generator: read %s: %w", path, err)
+		return nil, fmt.Errorf("read template: %w", err)
 	}
 	var def Definition
 	if err := yaml.Unmarshal(data, &def); err != nil {
-		return nil, fmt.Errorf("generator: parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse template: %w", err)
 	}
 	if def.Name == "" {
-		return nil, fmt.Errorf("generator: template %s has no name", path)
+		return nil, fmt.Errorf("template %s has no name", path)
 	}
 	if def.Version == 0 {
 		def.Version = 1

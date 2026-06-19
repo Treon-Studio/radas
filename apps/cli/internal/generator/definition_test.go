@@ -3,6 +3,7 @@ package generator
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,7 +60,10 @@ outputs:
 func TestParseMissingFile(t *testing.T) {
 	_, err := Parse("/nonexistent/path.yml")
 	if err == nil {
-		t.Error("expected error for missing file")
+		t.Fatal("expected error for missing file")
+	}
+	if !strings.Contains(err.Error(), "read") {
+		t.Errorf("error = %q, want 'read' in message", err)
 	}
 }
 
@@ -68,7 +72,10 @@ func TestParseInvalidYAML(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "template.yml"), []byte("not: yaml: [broken"), 0644)
 	_, err := Parse(filepath.Join(dir, "template.yml"))
 	if err == nil {
-		t.Error("expected error for invalid yaml")
+		t.Fatal("expected error for invalid yaml")
+	}
+	if !strings.Contains(err.Error(), "parse") {
+		t.Errorf("error = %q, want 'parse' in message", err)
 	}
 }
 
@@ -88,5 +95,20 @@ variables:
 	}
 	if def.Variables[0].Type != "string" {
 		t.Errorf("Variables[0].Type = %q, want %q", def.Variables[0].Type, "string")
+	}
+}
+
+func TestParseMissingName(t *testing.T) {
+	dir := t.TempDir()
+	yml := `variables:
+  - name: foo
+`
+	os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0644)
+	_, err := Parse(filepath.Join(dir, "t.yml"))
+	if err == nil {
+		t.Fatal("expected error for missing name")
+	}
+	if !strings.Contains(err.Error(), "has no name") {
+		t.Errorf("error = %q, want message containing 'has no name'", err)
 	}
 }
