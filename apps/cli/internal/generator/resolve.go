@@ -1,3 +1,5 @@
+// resolve.go — variable resolution: overrides take priority over defaults;
+// validation patterns are checked on the final resolved value.
 package generator
 
 import (
@@ -6,51 +8,39 @@ import (
 )
 
 func ResolveVariables(def *Definition, overrides map[string]string, nonInteractive bool) (map[string]string, error) {
-	if overrides == nil {
-		overrides = make(map[string]string)
-	}
-
 	result := make(map[string]string, len(def.Variables))
 
 	for _, v := range def.Variables {
-		if val, ok := overrides[v.Name]; ok {
-			result[v.Name] = val
-			continue
+		var val string
+
+		if overrides != nil {
+			if ov, ok := overrides[v.Name]; ok {
+				val = ov
+			}
 		}
 
-		if nonInteractive {
-			result[v.Name] = v.Default
-			continue
+		if val == "" && !nonInteractive {
+			// Interactive prompting deferred to CLI layer (Task C7)
+			// For now, fall through to default or empty
 		}
 
-		val, err := promptVariable(v)
-		if err != nil {
-			return nil, fmt.Errorf("prompt %s: %w", v.Name, err)
+		if val == "" {
+			val = v.Default
 		}
+
+		// Validate the final value against the pattern when present
+		if v.Validate != "" && val != "" {
+			re, err := regexp.Compile(v.Validate)
+			if err != nil {
+				return nil, fmt.Errorf("invalid regex %q for %s: %w", v.Validate, v.Name, err)
+			}
+			if !re.MatchString(val) {
+				return nil, fmt.Errorf("%s: value %q does not match pattern %q", v.Name, val, v.Validate)
+			}
+		}
+
 		result[v.Name] = val
 	}
 
 	return result, nil
-}
-
-func promptVariable(v Variable) (string, error) {
-	msg := v.Prompt
-	if msg == "" {
-		msg = "Enter " + v.Name
-	}
-	if v.Default != "" {
-		msg += " [" + v.Default + "]"
-	}
-
-	if v.Validate != "" {
-		re, err := regexp.Compile(v.Validate)
-		if err != nil {
-			return "", fmt.Errorf("invalid regex %q: %w", v.Validate, err)
-		}
-		if !re.MatchString(v.Default) {
-			return "", fmt.Errorf("%s: default %q does not match validation %q", v.Name, v.Default, v.Validate)
-		}
-	}
-
-	return v.Default, nil
 }
