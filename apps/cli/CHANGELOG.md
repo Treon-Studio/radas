@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [v4.5.0-workspace-phase-c] - 2026-06-20
+
+### Added
+
+- Code generator engine with .gotpl template rendering (text/template, missingkey=error)
+- Template definition parser (YAML-based template.yml with variables and outputs)
+- Variable resolution with --var overrides, defaults, and validation patterns
+- Local template registry with Scan() for discovering templates
+- Remote template fetching via git clone (Add method)
+- `workspace generate <name>` command with --output-dir, --var, --force, --non-interactive flags
+- `workspace template list` command to show available templates
+- `workspace template add <url>` command to install remote templates
+- `workspace template create <name>` command to scaffold new templates
+- Integration test exercising the full generate pipeline
+
 ### Added
 
 - `workspace run <task> [--project|--all|--affected]` — topological task execution with cache (Phase B)
