@@ -1,3 +1,6 @@
+// Package ai defines the AI provider interface and shared types for
+// LLM-based interactions, including streaming chat, tool calls, and
+// structured events.
 package ai
 
 import "context"
@@ -12,6 +15,12 @@ const (
 	EventDone
 )
 
+// Event is a tagged union for streaming AI responses.
+//   - EventText:      Text is populated
+//   - EventToolCall:  Call is populated
+//   - EventToolResult: Result is populated
+//   - EventError:     Err is populated
+//   - EventDone:      stream is complete (no fields)
 type Event struct {
 	Type   EventType
 	Text   string
@@ -35,9 +44,9 @@ type Message struct {
 }
 
 type ToolCall struct {
-	ID     string
-	Name   string
-	Params map[string]any
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Params map[string]any `json:"params"`
 }
 
 type ToolDef struct {

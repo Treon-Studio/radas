@@ -20,31 +20,29 @@ func (m *mockProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 	return ch, nil
 }
 
+var allTypes = []EventType{EventText, EventToolCall, EventToolResult, EventError, EventDone}
+
 func TestEventTypes(t *testing.T) {
-	tests := []struct {
-		typ  EventType
-		name string
-	}{
-		{EventText, "text"},
-		{EventToolCall, "tool_call"},
-		{EventToolResult, "tool_result"},
-		{EventError, "error"},
-		{EventDone, "done"},
-	}
-	for _, tt := range tests {
-		if tt.typ < 0 || tt.typ > 4 {
-			t.Errorf("unexpected event type value: %d", tt.typ)
+	for i, typ := range allTypes {
+		if int(typ) != i {
+			t.Errorf("[%d] EventType = %d, want %d", i, typ, i)
 		}
 	}
 }
 
 func TestMessageRoles(t *testing.T) {
-	msg := Message{Role: RoleUser, Content: "hi"}
-	if msg.Role != "user" {
-		t.Errorf("Role = %q, want %q", msg.Role, "user")
+	tests := []struct {
+		role string
+		want string
+	}{
+		{RoleUser, "user"},
+		{RoleAssistant, "assistant"},
+		{RoleTool, "tool"},
+		{RoleSystem, "system"},
 	}
-	msg2 := Message{Role: RoleAssistant, Content: "hello"}
-	if msg2.Role != "assistant" {
-		t.Errorf("Role = %q, want %q", msg2.Role, "assistant")
+	for _, tt := range tests {
+		if tt.role != tt.want {
+			t.Errorf("Role = %q, want %q", tt.role, tt.want)
+		}
 	}
 }
