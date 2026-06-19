@@ -95,3 +95,19 @@ func TestRegistry_ScanNoTemplateDirs(t *testing.T) {
 		t.Errorf("got %d templates, want 0", len(templates))
 	}
 }
+
+func TestRegistry_Add_InvalidURL(t *testing.T) {
+	reg := &Registry{}
+	_, err := reg.Add("not-a-valid-url", t.TempDir())
+	if err == nil {
+		t.Error("expected error for invalid URL")
+	}
+}
+
+func TestRegistry_Add_EmptyURL(t *testing.T) {
+	reg := &Registry{}
+	_, err := reg.Add("", t.TempDir())
+	if err == nil {
+		t.Error("expected error for empty URL")
+	}
+}
