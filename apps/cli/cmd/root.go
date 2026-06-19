@@ -8,6 +8,7 @@ import (
 	"github.com/raizora/radas/v4/cmd/frontend"
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
+	"github.com/raizora/radas/v4/cmd/workspace"
 )
 
 var rootCmd = &cobra.Command{
@@ -42,4 +43,5 @@ func init() {
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
 	rootCmd.AddCommand(rootcmd.PullCmd)
 	rootCmd.AddCommand(rootcmd.ScanCmd)
+	rootCmd.AddCommand(workspace.Cmd)
 }
