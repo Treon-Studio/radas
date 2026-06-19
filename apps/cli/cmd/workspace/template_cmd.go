@@ -14,12 +14,14 @@ var templateCmd = &cobra.Command{
 	Short: "Manage workspace templates",
 }
 
+var templateDir string
+
 var templateListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available templates",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg := &generator.Registry{
-			TemplateDirs: []string{"./templates"},
+			TemplateDirs: []string{templateDir},
 		}
 		templates, err := reg.Scan()
 		if err != nil {
@@ -48,7 +50,7 @@ var templateAddCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		remoteURL := args[0]
-		targetDir := "./templates"
+		targetDir := templateDir
 
 		reg := &generator.Registry{}
 		tmpl, err := reg.Add(remoteURL, targetDir)
@@ -115,4 +117,7 @@ func init() {
 	templateCmd.AddCommand(templateListCmd)
 	templateCmd.AddCommand(templateAddCmd)
 	templateCmd.AddCommand(templateCreateCmd)
+
+	templateListCmd.Flags().StringVarP(&templateDir, "template-dir", "T", "./templates", "Template directory")
+	templateAddCmd.Flags().StringVarP(&templateDir, "template-dir", "T", "./templates", "Template directory")
 }

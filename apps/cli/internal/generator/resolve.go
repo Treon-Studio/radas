@@ -20,8 +20,9 @@ func ResolveVariables(def *Definition, overrides map[string]string, nonInteracti
 		}
 
 		if val == "" && !nonInteractive {
-			// Interactive prompting deferred to CLI layer (Task C7)
-			// For now, fall through to default or empty
+			// Interactive prompting is a future feature.
+			// The survey library integration belongs in the CLI command layer.
+			// For now, fall through to default or empty.
 		}
 
 		if val == "" {

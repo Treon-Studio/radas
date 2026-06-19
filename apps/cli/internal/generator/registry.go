@@ -34,6 +34,9 @@ func (r *Registry) Add(remoteURL string, targetDir string) (Template, error) {
 
 	repoURL := normalizeURL(remoteURL)
 	repoName := extractRepoName(repoURL)
+	if repoName == "" {
+		return Template{}, fmt.Errorf("could not extract repository name from %q", remoteURL)
+	}
 	localDir := filepath.Join(targetDir, repoName)
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {

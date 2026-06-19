@@ -12,6 +12,7 @@ type GenerateSettings struct {
 	Force          bool
 	NonInteractive bool
 	TemplateDirs   []string
+	TemplateDir    string // convenience: single directory (defaults to "./templates")
 }
 
 // GenerateTemplate generates files from a named template using the provided settings.
@@ -28,6 +29,13 @@ func GenerateTemplate(name string, overrides map[string]string, outDir string, f
 
 // GenerateTemplateWith generates files from a template with full settings control.
 func GenerateTemplateWith(settings GenerateSettings) error {
+	if settings.TemplateDir != "" {
+		settings.TemplateDirs = []string{settings.TemplateDir}
+	}
+	if len(settings.TemplateDirs) == 0 {
+		settings.TemplateDirs = []string{"./templates"}
+	}
+
 	reg := &Registry{TemplateDirs: settings.TemplateDirs}
 	templates, err := reg.Scan()
 	if err != nil {
