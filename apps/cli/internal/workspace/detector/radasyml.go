@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/raizora/radas/v4/internal/config"
-	"github.com/raizora/radas/v4/internal/workspace"
+	"github.com/raizora/radas/v4/internal/project"
 )
 
 type RadasYMLDetector struct{}
@@ -18,7 +18,7 @@ func (RadasYMLDetector) Detect(dir string) bool {
 	return err == nil
 }
 
-func (RadasYMLDetector) Extract(dir, rootPath string) (*workspace.Project, error) {
+func (RadasYMLDetector) Extract(dir, rootPath string) (*project.Project, error) {
 	cfg, err := config.ParseConfig(dir)
 	if err != nil {
 		return nil, fmt.Errorf("parse radas.yml: %w", err)
@@ -30,7 +30,7 @@ func (RadasYMLDetector) Extract(dir, rootPath string) (*workspace.Project, error
 	if err != nil {
 		return nil, err
 	}
-	return &workspace.Project{
+	return &project.Project{
 		Name: cfg.Name,
 		Type: cfg.Type,
 		Path: filepath.ToSlash(rel),

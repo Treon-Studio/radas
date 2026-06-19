@@ -3,25 +3,25 @@ package detector
 import (
 	"testing"
 
-	"github.com/raizora/radas/v4/internal/workspace"
+	"github.com/raizora/radas/v4/internal/project"
 )
 
 type stubDetector struct {
 	name    string
 	detect  bool
-	project *workspace.Project
+	project *project.Project
 }
 
 func (s *stubDetector) Name() string { return s.name }
 func (s *stubDetector) Detect(string) bool { return s.detect }
-func (s *stubDetector) Extract(string, string) (*workspace.Project, error) {
+func (s *stubDetector) Extract(string, string) (*project.Project, error) {
 	return s.project, nil
 }
 
 func TestRegistryFirstMatchWins(t *testing.T) {
 	r := NewRegistry()
-	a := &stubDetector{name: "a", detect: true, project: &workspace.Project{Name: "from-a"}}
-	b := &stubDetector{name: "b", detect: true, project: &workspace.Project{Name: "from-b"}}
+	a := &stubDetector{name: "a", detect: true, project: &project.Project{Name: "from-a"}}
+	b := &stubDetector{name: "b", detect: true, project: &project.Project{Name: "from-b"}}
 	r.Register(a, b)
 	p, err := r.Detect("/x", "/")
 	if err != nil {

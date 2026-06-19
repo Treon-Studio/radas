@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/raizora/radas/v4/internal/workspace"
+	"github.com/raizora/radas/v4/internal/project"
 )
 
 type NodeDetector struct{}
@@ -22,7 +22,7 @@ type packageJSON struct {
 	Name string `json:"name"`
 }
 
-func (NodeDetector) Extract(dir, rootPath string) (*workspace.Project, error) {
+func (NodeDetector) Extract(dir, rootPath string) (*project.Project, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
 	if err != nil {
 		return nil, fmt.Errorf("read package.json: %w", err)
@@ -38,7 +38,7 @@ func (NodeDetector) Extract(dir, rootPath string) (*workspace.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &workspace.Project{
+	return &project.Project{
 		Name: pkg.Name,
 		Type: "node",
 		Path: filepath.ToSlash(rel),

@@ -1,4 +1,8 @@
-package workspace
+// Package project defines the Project type, the unit of work that the
+// workspace command group operates on. It is its own package (not under
+// internal/workspace) to avoid an import cycle: the detector package creates
+// Projects, and the workspace package consumes them.
+package project
 
 // Project represents a single project within a workspace. It is the unit of
 // work that the radas workspace command group operates on: build, test, lint,

@@ -4,7 +4,7 @@
 // returns a Project populated with name, type, and path.
 package detector
 
-import "github.com/raizora/radas/v4/internal/workspace"
+import "github.com/raizora/radas/v4/internal/project"
 
 // ProjectDetector identifies and describes a project in a directory.
 type ProjectDetector interface {
@@ -15,5 +15,5 @@ type ProjectDetector interface {
 	Detect(dir string) bool
 	// Extract reads the project manifest and returns a Project populated
 	// with name, type, and path. Dependencies are NOT extracted here.
-	Extract(dir, rootPath string) (*workspace.Project, error)
+	Extract(dir, rootPath string) (*project.Project, error)
 }

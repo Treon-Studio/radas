@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"github.com/raizora/radas/v4/internal/workspace"
+	"github.com/raizora/radas/v4/internal/project"
 )
 
 // Go detects Go projects by go.mod. The module path from go.mod becomes the
@@ -22,7 +22,7 @@ func (GoDetector) Detect(dir string) bool {
 	return err == nil
 }
 
-func (GoDetector) Extract(dir, rootPath string) (*workspace.Project, error) {
+func (GoDetector) Extract(dir, rootPath string) (*project.Project, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil {
 		return nil, fmt.Errorf("read go.mod: %w", err)
@@ -38,7 +38,7 @@ func (GoDetector) Extract(dir, rootPath string) (*workspace.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &workspace.Project{
+	return &project.Project{
 		Name: mf.Module.Mod.Path,
 		Type: "go",
 		Path: filepath.ToSlash(rel),

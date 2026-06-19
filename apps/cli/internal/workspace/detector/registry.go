@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/raizora/radas/v4/internal/workspace"
+	"github.com/raizora/radas/v4/internal/project"
 )
 
 // Registry holds an ordered list of ProjectDetectors. The first detector to
@@ -19,7 +19,7 @@ func (r *Registry) Register(d ...ProjectDetector) {
 	r.detectors = append(r.detectors, d...)
 }
 
-func (r *Registry) Detect(dir, rootPath string) (*workspace.Project, error) {
+func (r *Registry) Detect(dir, rootPath string) (*project.Project, error) {
 	for _, d := range r.detectors {
 		if !d.Detect(dir) {
 			continue
