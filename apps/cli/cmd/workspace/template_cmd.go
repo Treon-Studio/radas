@@ -114,4 +114,5 @@ Generated from the %s template.
 func init() {
 	templateCmd.AddCommand(templateListCmd)
 	templateCmd.AddCommand(templateAddCmd)
+	templateCmd.AddCommand(templateCreateCmd)
 }
