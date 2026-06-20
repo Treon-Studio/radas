@@ -53,7 +53,7 @@ func (c *ChatView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *ChatView) AddUserMessage(content string) {
-	c.messages = append(c.messages, chatMsg{role: "user", content: content})
+	c.messages = append(c.messages, chatMsg{role: ai.RoleUser, content: content})
 	c.streaming = ""
 	if c.ready {
 		c.viewport.SetContent(c.renderMessages())
@@ -62,7 +62,7 @@ func (c *ChatView) AddUserMessage(content string) {
 }
 
 func (c *ChatView) AddAIMessage(content string) {
-	c.messages = append(c.messages, chatMsg{role: "assistant", content: content})
+	c.messages = append(c.messages, chatMsg{role: ai.RoleAssistant, content: content})
 	c.streaming = ""
 	if c.ready {
 		c.viewport.SetContent(c.renderMessages())
@@ -94,13 +94,13 @@ func (c *ChatView) renderMessages() string {
 	var b strings.Builder
 	for _, m := range c.messages {
 		switch m.role {
-		case "user":
+		case ai.RoleUser:
 			b.WriteString(userStyle.Render("You:") + "\n")
 			b.WriteString(m.content + "\n\n")
-		case "assistant":
+		case ai.RoleAssistant:
 			b.WriteString(aiStyle.Render("Radas AI:") + "\n")
 			b.WriteString(m.content + "\n\n")
-		case "tool":
+		case ai.RoleTool:
 			b.WriteString(fmt.Sprintf("🔧 %s\n\n", m.content))
 		}
 	}

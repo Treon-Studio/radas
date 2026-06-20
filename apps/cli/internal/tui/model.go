@@ -42,7 +42,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
+		var cmds []tea.Cmd
+		if m.dashboard != nil {
+			sub, cmd := m.dashboard.Update(msg)
+			if d, ok := sub.(*Dashboard); ok {
+				m.dashboard = d
+				cmds = append(cmds, cmd)
+			}
+		}
+		if m.chatView != nil {
+			sub, cmd := m.chatView.Update(msg)
+			if c, ok := sub.(*ChatView); ok {
+				m.chatView = c
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		switch {

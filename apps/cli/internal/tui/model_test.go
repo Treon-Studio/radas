@@ -50,3 +50,18 @@ func TestModel_ViewNotEmpty(t *testing.T) {
 		t.Error("expected non-empty view")
 	}
 }
+
+func TestModel_WindowSizeMsg_ForwardsToChatView(t *testing.T) {
+	m := NewModel(nil, nil, nil)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m2 := updated.(Model)
+	if m2.chatView == nil {
+		t.Fatal("chatView should not be nil")
+	}
+	if !m2.chatView.ready {
+		t.Error("chatView should be ready after WindowSizeMsg")
+	}
+	if m2.chatView.viewport.Width != 96 {
+		t.Errorf("chatView.viewport.Width = %d, want 96", m2.chatView.viewport.Width)
+	}
+}
