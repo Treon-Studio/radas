@@ -41,13 +41,25 @@ func NewOpenAIProvider(config OpenAIConfig) Provider {
 type chatMessage struct {
 	Role       string `json:"role"`
 	Content    string `json:"content"`
+	Name       string `json:"name,omitempty"`
 	ToolCallID string `json:"tool_call_id,omitempty"`
+}
+
+type toolFn struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  any    `json:"parameters"`
+}
+
+type chatTool struct {
+	Type     string `json:"type"`
+	Function toolFn `json:"function"`
 }
 
 type chatRequest struct {
 	Model    string        `json:"model"`
 	Messages []chatMessage `json:"messages"`
-	Tools    []ToolDef     `json:"tools,omitempty"`
+	Tools    []chatTool    `json:"tools,omitempty"`
 	Stream   bool          `json:"stream"`
 }
 
@@ -64,8 +76,19 @@ type choiceDelta struct {
 }
 
 type deltaContent struct {
-	Role    string `json:"role,omitempty"`
-	Content string `json:"content,omitempty"`
+	Role      string     `json:"role,omitempty"`
+	Content   string     `json:"content,omitempty"`
+	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type toolCall struct {
+	Index    int    `json:"index"`
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Function struct {
+		Name      string `json:"name,omitempty"`
+		Arguments string `json:"arguments,omitempty"`
+	} `json:"function"`
 }
 
 func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Event, error) {
@@ -74,14 +97,23 @@ func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Even
 		msgs[i] = chatMessage{
 			Role:       m.Role,
 			Content:    m.Content,
+			Name:       m.Name,
 			ToolCallID: m.ToolCallID,
+		}
+	}
+
+	tools := make([]chatTool, len(req.Tools))
+	for i, t := range req.Tools {
+		tools[i] = chatTool{
+			Type:     "function",
+			Function: toolFn(t),
 		}
 	}
 
 	body := chatRequest{
 		Model:    req.Model,
 		Messages: msgs,
-		Tools:    req.Tools,
+		Tools:    tools,
 		Stream:   true,
 	}
 
@@ -131,6 +163,18 @@ func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Even
 			for _, c := range chunk.Choices {
 				if c.Delta.Content != "" {
 					ch <- Event{Type: EventText, Text: c.Delta.Content}
+				}
+				for _, tc := range c.Delta.ToolCalls {
+					if tc.Function.Name != "" {
+						ch <- Event{
+							Type: EventToolCall,
+							Call: &ToolCall{
+								ID:     tc.ID,
+								Name:   tc.Function.Name,
+								Params: map[string]any{"__raw_args__": tc.Function.Arguments},
+							},
+						}
+					}
 				}
 			}
 			for _, c := range chunk.Choices {
