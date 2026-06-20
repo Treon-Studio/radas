@@ -1,10 +1,14 @@
 package ai
 
 import (
+	"os"
 	"testing"
 )
 
 func TestParseConfig(t *testing.T) {
+	t.Setenv("OPENROUTER_KEY", "or-key")
+	t.Setenv("OPENAI_KEY", "oai-key")
+
 	yaml := `
 default_provider: openrouter
 providers:
@@ -71,5 +75,19 @@ providers:
 	p := cfg.Providers["test"]
 	if p.APIKey != "secret-value-123" {
 		t.Errorf("APIKey = %q, want %q", p.APIKey, "secret-value-123")
+	}
+}
+
+func TestParseConfig_EnvVarMissing(t *testing.T) {
+	t.Setenv("DEFINITELY_NOT_SET_XYZ", "")
+	os.Unsetenv("DEFINITELY_NOT_SET_XYZ")
+
+	_, err := ParseConfig([]byte(`default_provider: test
+providers:
+  test:
+    api_key: $DEFINITELY_NOT_SET_XYZ
+`))
+	if err == nil {
+		t.Error("expected error for missing env var")
 	}
 }

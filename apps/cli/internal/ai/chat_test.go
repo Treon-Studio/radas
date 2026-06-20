@@ -78,10 +78,7 @@ func TestChatLoop_Basic(t *testing.T) {
 		MaxIterations:    10,
 	})
 
-	events, err := chat.Send(context.Background(), "do something")
-	if err != nil {
-		t.Fatal(err)
-	}
+	events := chat.Send(context.Background(), "do something")
 
 	var texts []string
 	for e := range events {
@@ -111,10 +108,7 @@ func TestChatLoop_MaxIterations(t *testing.T) {
 		MaxIterations:    2,
 	})
 
-	events, err := chat.Send(context.Background(), "loop")
-	if err != nil {
-		t.Fatal(err)
-	}
+	events := chat.Send(context.Background(), "loop")
 
 	hasLimitMsg := false
 	for e := range events {

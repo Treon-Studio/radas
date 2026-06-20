@@ -34,11 +34,19 @@ func ParseConfig(data []byte) (*AIConfig, error) {
 	}
 
 	for name, p := range cfg.Providers {
-		if strings.HasPrefix(p.APIKey, "$") {
-			envVar := strings.TrimPrefix(p.APIKey, "$")
-			p.APIKey = os.Getenv(envVar)
-			cfg.Providers[name] = p
+		if !strings.HasPrefix(p.APIKey, "$") {
+			continue
 		}
+		envVar := strings.TrimPrefix(p.APIKey, "$")
+		if envVar == "" {
+			return nil, fmt.Errorf("provider %q: empty env var name in api_key", name)
+		}
+		if v, ok := os.LookupEnv(envVar); ok {
+			p.APIKey = v
+		} else {
+			return nil, fmt.Errorf("provider %q: env var %q not set", name, envVar)
+		}
+		cfg.Providers[name] = p
 	}
 
 	return &cfg, nil
