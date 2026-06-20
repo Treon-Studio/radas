@@ -7,3 +7,6 @@
 # Build artifacts
 bin/
 release/
+
+# Go module cache (downloaded deps)
+pkg/
