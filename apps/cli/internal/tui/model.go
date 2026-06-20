@@ -78,25 +78,35 @@ func (m Model) View() string {
 
 	switch m.state {
 	case stateDashboard:
-		tabs = renderTabs("Dashboard", "Chat")
+		tabs = renderTabs(m.state)
 		content = m.dashboard.View()
 	case stateChat:
-		tabs = renderTabs("Dashboard", "Chat")
+		tabs = renderTabs(m.state)
 		content = m.chatView.View()
 	case stateHelp:
-		tabs = renderTabs("Help", "Help")
+		tabs = ""
 		content = renderHelp()
 	}
 
-	return appStyle.Render(tabs + "\n" + content + "\n\n" + renderFooter(m.state))
+	return appStyle.Render(tabs + "\n" + content + "\n\n" + renderFooter())
 }
 
-func renderTabs(active, inactive string) string {
-	return activeTabStyle.Render(active) + " " + inactiveTabStyle.Render(inactive)
+func renderTabs(active state) string {
+	dashboardStyle := inactiveTabStyle
+	chatStyle := inactiveTabStyle
+	switch active {
+	case stateDashboard:
+		dashboardStyle = activeTabStyle
+	case stateChat:
+		chatStyle = activeTabStyle
+	case stateHelp:
+		return ""
+	}
+	return dashboardStyle.Render("Dashboard") + " " + chatStyle.Render("Chat")
 }
 
-func renderFooter(s state) string {
-	return helpStyle.Render("[Tab] Switch  [?] Help  [q] Quit")
+func renderFooter() string {
+	return helpStyle.Render("[Tab] Switch  [?] Help  [q/Ctrl+C] Quit")
 }
 
 func renderHelp() string {
