@@ -15,7 +15,9 @@ var rootCmd = &cobra.Command{
 	Use:   "radas",
 	Short: "RADAS CLI - tool to simplify daily developer activities",
 	Long: `RADAS CLI is a command line interface that helps developers from various teams
-(Frontend, Backend, DevOps, Design) to handle their daily activities with ease.`,
+(Frontend, Backend, DevOps, Design) to handle their daily activities with ease.
+When run with no arguments in a terminal, it launches the TUI dashboard.`,
+	RunE: runTUI,
 }
 
 // Execute runs the root command
