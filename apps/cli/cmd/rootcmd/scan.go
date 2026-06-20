@@ -9,6 +9,7 @@ import (
 
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/scan"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var ScanCmd = &cobra.Command{
@@ -52,11 +53,17 @@ func runScanSecrets(cmd *cobra.Command, args []string) {
 	}
 
 	s := scan.NewGitleaksScanner()
+	
+	spin := utils.NewSpinner("Scanning for secrets (gitleaks)...")
+	spin.Start()
+	
 	findings, scanErr := s.Scan(absDir, scan.ScanOptions{
 		Staged: scanStaged,
 		All:    scanAll,
 		Config: scanConfig,
 	})
+	
+	spin.Stop()
 
 	switch scanFormat {
 	case "sarif":

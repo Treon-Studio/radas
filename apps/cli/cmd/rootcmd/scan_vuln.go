@@ -47,6 +47,9 @@ func runScanVuln(cmd *cobra.Command, args []string) {
 
 	var results []*scan.VulnResult
 
+	s := utils.NewSpinner("Scanning for vulnerabilities (govulncheck, audit)...")
+	s.Start()
+
 	// Go vulnerabilities
 	r := scan.RunGovulncheck(absDir)
 	results = append(results, r)
@@ -62,6 +65,8 @@ func runScanVuln(cmd *cobra.Command, args []string) {
 			results = append(results, r3)
 		}
 	}
+
+	s.Stop()
 
 	switch scanVulnFormat {
 	case "json":

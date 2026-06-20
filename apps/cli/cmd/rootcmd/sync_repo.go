@@ -2,15 +2,14 @@ package rootcmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"io"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/config"
+	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 type SyncConfig struct {
@@ -56,8 +55,7 @@ var SyncRepoCmd = &cobra.Command{
 				srcAbs, _ := filepath.Abs(resolveSrc(src))
 				dstAbs, _ := filepath.Abs(resolveDst(dst))
 				fmt.Printf("Checking: %s -> %s\n", srcAbs, dstAbs)
-				s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-				s.Suffix = " Comparing..."
+				s := utils.NewSpinner("🔎 Bip bop! Menajamkan mata elang buat nyari file yang beda...")
 				s.Start()
 				diff, err := diffDirs(srcAbs, dstAbs)
 				s.Stop()
@@ -66,26 +64,25 @@ var SyncRepoCmd = &cobra.Command{
 					continue
 				}
 				if len(diff) == 0 {
-					fmt.Println("No differences found. Skipping.")
+					fmt.Println("🤷 Bip bop! Sama aja ah, ga ada yang beda. Mager nyalin jadinya.")
 					continue
 				}
-				fmt.Printf("%d file(s)/folder(s) will be updated:\n", len(diff))
+				fmt.Printf("Bip bop! Ada %d file/folder yang minta di-update nih:\n", len(diff))
 				for _, f := range diff {
 					fmt.Println("  ", f)
 				}
 				if dryRun {
-					fmt.Println("[Dry Run] No files will be copied.")
+					fmt.Println("[Dry Run] Tenang, ini cuma simulasi. Belum dicopy kok.")
 					continue
 				}
-				fmt.Print("Proceed to overwrite these files? [y/N]: ")
+				fmt.Print("Bip bop! Mau ditabrak (overwrite) file-file ini? [y/N]: ")
 				var resp string
 				fmt.Scanln(&resp)
 				if !strings.HasPrefix(strings.ToLower(resp), "y") {
-					fmt.Println("Skipped.")
+					fmt.Println("Sip, di-skip ya ngab.")
 					continue
 				}
-				syncSpin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-				syncSpin.Suffix = " Syncing..."
+				syncSpin := utils.NewSpinner("🚚 Bip bop! Angkut-angkut file ke tempat tujuan, awas nyangkut...")
 				syncSpin.Start()
 				err = copyDir(srcAbs, dstAbs)
 				syncSpin.Stop()

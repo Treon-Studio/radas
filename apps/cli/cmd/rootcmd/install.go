@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // InstallCmd represents the install command
@@ -28,14 +29,20 @@ func runSystemInstall() {
 	}
 
 	// Run the install script
-	fmt.Println("Installing CLI to system PATH...")
+	fmt.Println("🔨 Bip bop! Menyiapkan peralatan pertukangan...")
 	installCmd := exec.Command("/bin/bash", scriptPath)
-	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
 	
+	spin := utils.NewSpinner("🔨 Bip bop! Sedang menancapkan paku ajaib ke sistem PATH kamu...")
+	spin.Start()
+	
 	err := installCmd.Run()
+	
+	spin.Stop()
+	
 	if err != nil {
-		fmt.Printf("Installation failed: %v\n", err)
+		fmt.Printf("🔧 Bip bop! Waduh, obengnya meleset! Installation failed: %v\n", err)
 		return
 	}
+	fmt.Println("🎉 Voila! Radas udah terpasang kuat di sistem kamu! Tinggal panggil aja dari mana pun!")
 } 

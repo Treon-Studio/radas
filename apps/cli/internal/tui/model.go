@@ -34,7 +34,14 @@ func NewModel(projects, templates []string, chatSession *ai.ChatSession) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	var cmds []tea.Cmd
+	if m.chatView != nil {
+		cmds = append(cmds, m.chatView.Init())
+	}
+	if m.dashboard != nil {
+		cmds = append(cmds, m.dashboard.Init())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -79,6 +86,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+	default:
+		var cmds []tea.Cmd
+		if m.chatView != nil {
+			sub, cmd := m.chatView.Update(msg)
+			if c, ok := sub.(*ChatView); ok {
+				m.chatView = c
+				cmds = append(cmds, cmd)
+			}
+		}
+		if m.dashboard != nil {
+			sub, cmd := m.dashboard.Update(msg)
+			if d, ok := sub.(*Dashboard); ok {
+				m.dashboard = d
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, nil

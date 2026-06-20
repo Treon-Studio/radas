@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var CloneCmd = &cobra.Command{
@@ -15,9 +16,13 @@ var CloneCmd = &cobra.Command{
 	Short: "Clone a git repository and enter the project directory",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		repoURL := args[0]
-		fmt.Printf("Cloning %s...\n", repoURL)
+		if err := utils.CheckNetwork(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
+		repoURL := args[0]
+		
 		// Determine the directory name (same as git clone behavior)
 		baseName := repoURL
 		if strings.HasSuffix(baseName, ".git") {
@@ -26,16 +31,23 @@ var CloneCmd = &cobra.Command{
 		baseName = filepath.Base(baseName)
 
 		cloneCmd := exec.Command("git", "clone", repoURL)
-		cloneCmd.Stdout = os.Stdout
 		cloneCmd.Stderr = os.Stderr
-		if err := cloneCmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to clone repository: %v\n", err)
+		
+		spin := utils.NewSpinner("🛸 Bip bop! Lagi nyedot kode-kode sakti dari " + repoURL + "...")
+		spin.Start()
+		
+		err := cloneCmd.Run()
+		
+		spin.Stop()
+		
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "😵 Bip bop! Waduh nyedotnya gagal ngab: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("\nSuccessfully cloned. Entering directory: %s\n", baseName)
+		fmt.Printf("\n✨ Bip bop! Sukses mendarat! Langsung teleport ke direktori: %s\n", baseName)
 		// Change working directory to the cloned project
-		err := os.Chdir(baseName)
+		err = os.Chdir(baseName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to enter directory %s: %v\n", baseName, err)
 			os.Exit(1)

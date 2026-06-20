@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var (
@@ -20,14 +21,25 @@ var DelBranchCmd = &cobra.Command{
 	Use:   "del-branch [branch-name]",
 	Short: "Delete local and/or origin branches.",
 	Run: func(cmd *cobra.Command, args []string) {
+		if flagAllType || flagAllOrigin || flagOriginOnly {
+			if err := utils.CheckNetwork(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+		
 		if flagAllType {
 			// Delete all local and all origin branches except current
+			fmt.Println("🌪️ Bip bop! Mengaktifkan mode sapu jagat...")
 			deleteAllLocalBranches()
 			deleteAllOriginBranches()
+			fmt.Println("✨ Bip bop! Semua branch udah rata sama tanah!")
 			return
 		}
 		if flagAllOrigin {
+			fmt.Println("🌪️ Bip bop! Mengaktifkan mode sapu jagat (origin only)...")
 			deleteAllOriginBranches()
+			fmt.Println("✨ Bip bop! Semua origin branch udah rata sama tanah!")
 			return
 		}
 		protected := constants.ProtectedBranches
@@ -67,15 +79,23 @@ func deleteLocalBranch(branch string) {
 }
 
 func deleteOriginBranch(branch string) {
+	spin := utils.NewSpinner("🔥 Bip bop! Lagi bakar hangus branch origin/" + branch + "...")
+	spin.Start()
+	
 	cmd := exec.Command("git", "push", "origin", "--delete", branch)
 	output, err := cmd.CombinedOutput()
+	
+	spin.Stop()
+	
 	if err != nil {
 		outStr := string(output)
 		if strings.Contains(outStr, "remote ref does not exist") {
-			fmt.Fprintf(os.Stderr, "[warn] Origin branch '%s' does not exist on remote.\n", branch)
+			fmt.Fprintf(os.Stderr, "[warn] Origin branch '%s' emang udah ga ada di remote ngab.\n", branch)
 		} else {
-			fmt.Fprintf(os.Stderr, "Failed to delete origin branch %s: %v\n%s\n", branch, err, outStr)
+			fmt.Fprintf(os.Stderr, "Gagal bakar origin branch %s: %v\n%s\n", branch, err, outStr)
 		}
+	} else {
+		fmt.Printf("🔥 Bip bop! Origin branch '%s' resmi jadi abu!\n", branch)
 	}
 }
 

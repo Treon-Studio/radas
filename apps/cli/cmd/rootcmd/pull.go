@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var PullCmd = &cobra.Command{
@@ -28,13 +29,26 @@ var PullCmd = &cobra.Command{
 			}
 			branch = strings.TrimSpace(out.String())
 		}
-		pullCmd := exec.Command("git", "pull", "origin", branch)
-		pullCmd.Stdout = os.Stdout
-		pullCmd.Stderr = os.Stderr
-		if err := pullCmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "git pull failed: %v\n", err)
+		if err := utils.CheckNetwork(); err != nil {
+			fmt.Println(err)
 			os.Exit(1)
 		}
+		
+		pullCmd := exec.Command("git", "pull", "origin", branch)
+		pullCmd.Stderr = os.Stderr
+		
+		spin := utils.NewSpinner("🎣 Bip bop! Lagi narik kode-kode seger dari origin/" + branch + "...")
+		spin.Start()
+		
+		err := pullCmd.Run()
+		
+		spin.Stop()
+		
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "😵 Bip bop! Waduh tarikannya putus ngab: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✨ Bip bop! Kode lokal kamu udah up-to-date dan siap diajak gaul!")
 	},
 }
 

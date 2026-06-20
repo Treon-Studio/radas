@@ -9,6 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/config"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 type ConfigItem struct {
@@ -131,9 +132,16 @@ var SyncConfigCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			cmd := exec.Command("npx", "degit", templatePath, targetPath, "--force")
-			cmd.Stdout = os.Stdout
+			// We remove Stdout to avoid mixing with spinner, but keep Stderr
 			cmd.Stderr = os.Stderr
+			
+			spin := utils.NewSpinner("Downloading " + ci.Name + " template...")
+			spin.Start()
+			
 			err := cmd.Run()
+			
+			spin.Stop()
+			
 			if err != nil {
 				fmt.Printf("Failed to sync %s: %v\n", ci.Name, err)
 			} else {

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var nFlag int
@@ -36,12 +37,18 @@ var ListBranchCmd = &cobra.Command{
 			if line == "" {
 				continue
 			}
+			isCurrent := false
 			if strings.HasPrefix(line, "*") {
-				current = strings.TrimSpace(line[1:])
-				branches = append(branches, current)
-			} else {
-				branches = append(branches, line)
+				isCurrent = true
 			}
+			// Strip prefix characters like '*' (current branch) or '+' (checked out in worktree)
+			cleanBranch := strings.TrimLeft(line, "*+ ")
+			cleanBranch = strings.TrimSpace(cleanBranch)
+			
+			if isCurrent {
+				current = cleanBranch
+			}
+			branches = append(branches, cleanBranch)
 		}
 
 		type branchInfo struct {
@@ -52,6 +59,10 @@ var ListBranchCmd = &cobra.Command{
 			SizeMB    string // Size in MB, string for display
 		}
 		var infos []branchInfo
+		
+		spin := utils.NewSpinner("🌳 Bip bop! Menyelami ranting-ranting branch dan ngitung berat dosanya...")
+		spin.Start()
+		
 		for _, branch := range branches {
 			var logOut bytes.Buffer
 			logCmd := exec.Command("git", "log", "-1", "--format=%ci", branch)
@@ -102,6 +113,8 @@ var ListBranchCmd = &cobra.Command{
 			}
 			infos = append(infos, branchInfo{Name: branch, LastUsed: lastUsed, Current: branch == current, Origin: originName, SizeMB: sizeMB})
 		}
+		
+		spin.Stop()
 
 		// Sort by lastUsed desc (most recent first)
 		// Parse time, fallback to zero time for errors

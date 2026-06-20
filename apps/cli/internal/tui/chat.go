@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,6 +21,8 @@ type ChatView struct {
 	input     string
 	streaming string
 	viewport  viewport.Model
+	spinner   spinner.Model
+	isWaiting bool
 	chat      *ai.ChatSession
 	ready     bool
 	width     int
@@ -27,16 +30,21 @@ type ChatView struct {
 }
 
 func NewChatView(chat *ai.ChatSession) *ChatView {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return &ChatView{
-		chat: chat,
+		chat:    chat,
+		spinner: s,
 	}
 }
 
 func (c *ChatView) Init() tea.Cmd {
-	return nil
+	return c.spinner.Tick
 }
 
 func (c *ChatView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		c.width = msg.Width
@@ -48,13 +56,18 @@ func (c *ChatView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.viewport.Width = msg.Width - 4
 			c.viewport.Height = msg.Height - 8
 		}
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		c.spinner, cmd = c.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-	return c, nil
+	return c, tea.Batch(cmds...)
 }
 
 func (c *ChatView) AddUserMessage(content string) {
 	c.messages = append(c.messages, chatMsg{role: ai.RoleUser, content: content})
 	c.streaming = ""
+	c.isWaiting = true
 	if c.ready {
 		c.viewport.SetContent(c.renderMessages())
 		c.viewport.GotoBottom()
@@ -64,6 +77,7 @@ func (c *ChatView) AddUserMessage(content string) {
 func (c *ChatView) AddAIMessage(content string) {
 	c.messages = append(c.messages, chatMsg{role: ai.RoleAssistant, content: content})
 	c.streaming = ""
+	c.isWaiting = false
 	if c.ready {
 		c.viewport.SetContent(c.renderMessages())
 		c.viewport.GotoBottom()
@@ -72,6 +86,7 @@ func (c *ChatView) AddAIMessage(content string) {
 
 func (c *ChatView) UpdateStreaming(chunk string) {
 	c.streaming += chunk
+	c.isWaiting = false
 	if c.ready {
 		c.viewport.SetContent(c.renderMessages() + "\n" + streamingStyle.Render(c.streaming))
 		c.viewport.GotoBottom()
@@ -114,6 +129,10 @@ func (c *ChatView) View() string {
 
 	var b strings.Builder
 	b.WriteString(c.viewport.View() + "\n")
+
+	if c.isWaiting {
+		b.WriteString(c.spinner.View() + " Generating...\n")
+	}
 
 	b.WriteString(strings.Repeat("─", c.viewport.Width) + "\n")
 	if strings.HasPrefix(c.input, ":") {

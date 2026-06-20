@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var JustPushCmd = &cobra.Command{
@@ -50,13 +51,26 @@ var JustPushCmd = &cobra.Command{
 		}
 		branch := strings.TrimSpace(out.String())
 
-		pushCmd := exec.Command("git", "push", "origin", branch)
-		pushCmd.Stdout = os.Stdout
-		pushCmd.Stderr = os.Stderr
-		if err := pushCmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "git push failed: %v\n", err)
+		if err := utils.CheckNetwork(); err != nil {
+			fmt.Println(err)
 			os.Exit(1)
 		}
+
+		pushCmd := exec.Command("git", "push", "origin", branch)
+		pushCmd.Stderr = os.Stderr
+		
+		spin := utils.NewSpinner("🚀 Bip bop! Menembakkan kodemu ke orbit origin/" + branch + "...")
+		spin.Start()
+		
+		err := pushCmd.Run()
+		
+		spin.Stop()
+		
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "😵 Bip bop! Waduh roketnya meledak pas push ngab: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("🌟 Bip bop! Kodemu sukses nangkring di angkasa GitHub!")
 	},
 }
 
