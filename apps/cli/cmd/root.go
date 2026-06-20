@@ -8,13 +8,16 @@ import (
 	"github.com/raizora/radas/v4/cmd/frontend"
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
+	"github.com/raizora/radas/v4/cmd/workspace"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "radas",
 	Short: "RADAS CLI - tool to simplify daily developer activities",
 	Long: `RADAS CLI is a command line interface that helps developers from various teams
-(Frontend, Backend, DevOps, Design) to handle their daily activities with ease.`,
+(Frontend, Backend, DevOps, Design) to handle their daily activities with ease.
+When run with no arguments in a terminal, it launches the TUI dashboard.`,
+	RunE: runTUI,
 }
 
 // Execute runs the root command
@@ -42,4 +45,5 @@ func init() {
 	rootCmd.AddCommand(rootcmd.RebuildCmd)
 	rootCmd.AddCommand(rootcmd.PullCmd)
 	rootCmd.AddCommand(rootcmd.ScanCmd)
+	rootCmd.AddCommand(workspace.Cmd)
 }

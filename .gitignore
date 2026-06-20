@@ -122,4 +122,7 @@ terraform.tfvars*
 .moon/cache
 .moon/docker
 
+# Worktrees
+.worktrees/
+
 # Specific directories for individual projects
