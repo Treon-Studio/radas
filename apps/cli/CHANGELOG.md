@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [v4.6.0-workspace-phase-d] - 2026-06-20
+
+### Added
+
+- Terminal UI (TUI) with bubbletea — dashboard and AI chat views
+- AI assistant with tool-calling capability (OpenAI/OpenRouter)
+- Multi-provider AI support (configurable via radas.yml)
+- Tool registry with workspace operations (run, generate, scan, read)
+- `:command` mode for direct CLI execution within TUI
+- Cost tracking per session with configurable ceiling
+- System prompt builder with workspace context injection
+- Help overlay and keybinding reference
+- Streaming chat with iterative tool execution
+- env-var resolution for API keys ($OPENROUTER_KEY, etc.)
+
 ## [v4.5.0-workspace-phase-c] - 2026-06-20
 
 ### Added
