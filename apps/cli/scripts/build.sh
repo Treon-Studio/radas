@@ -1,32 +1,45 @@
 #!/bin/bash
 
+# Derive version from git tag, or fallback to commit SHA
+# Priority: most recent tag → tag-with-distance → commit SHA → "dev"
+if VERSION=$(git describe --tags --always --dirty 2>/dev/null); then
+    # Strip leading 'v' if present for consistent format
+    VERSION="${VERSION#v}"
+else
+    VERSION="dev"
+fi
+
+# ldflags to inject version into the binary
+# The path must match the package import path
+VERSION_PKG="github.com/raizora/radas/v4/constants"
+LDFLAGS="-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+
+echo "Building radas CLI v${VERSION} for all platforms..."
+
 # Ensure the bin directory exists
 mkdir -p bin
 
 # Create a temporary build directory
 mkdir -p .build_temp
 
-# Manual cross-compilation since we're having issues with the gf CLI config
-echo "Building radas CLI for all platforms..."
-
 # Build for Windows
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/radas-windows-amd64.exe
+GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/radas-windows-amd64.exe
 echo "✓ Windows (amd64) build complete"
 
 # Build for Linux (amd64)
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/radas-linux-amd64
+GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/radas-linux-amd64
 echo "✓ Linux (amd64) build complete"
 
 # Build for Linux (arm64)
-GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/radas-linux-arm64
+GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o bin/radas-linux-arm64
 echo "✓ Linux (arm64) build complete"
 
 # Build for macOS (Intel)
-GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o bin/radas-darwin-amd64
+GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/radas-darwin-amd64
 echo "✓ macOS (Intel) build complete"
 
 # Build for macOS (Apple Silicon)
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o bin/radas-darwin-arm64
+GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o bin/radas-darwin-arm64
 echo "✓ macOS (Apple Silicon) build complete"
 
 # Copy current platform binary to default name
@@ -50,18 +63,4 @@ chmod +x bin/radas-linux-arm64
 chmod +x bin/radas-darwin-amd64
 chmod +x bin/radas-darwin-arm64
 
-# # Make install script executable
-# chmod +x scripts/install.sh
-
-# echo "Build complete! Binaries are available in the bin directory:"
-# ls -la bin/
-
-# echo ""
-# echo "Installation instructions:"
-# echo "* Run: ./radas install"
-# echo "* Or manually:"
-# echo "  - Windows: Copy bin/radas-windows-amd64.exe to a directory in your PATH"
-# echo "  - Linux (amd64): Copy bin/radas-linux-amd64 to /usr/local/bin/radas"
-# echo "  - Linux (arm64): Copy bin/radas-linux-arm64 to /usr/local/bin/radas"
-# echo "  - macOS (Intel): Copy bin/radas-darwin-amd64 to /usr/local/bin/radas"
-# echo "  - macOS (Apple Silicon): Copy bin/radas-darwin-arm64 to /usr/local/bin/radas"
+echo "Build complete! Binaries are available in the bin directory (version: ${VERSION})"
