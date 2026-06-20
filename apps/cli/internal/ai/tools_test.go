@@ -2,6 +2,8 @@ package ai
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -70,21 +72,40 @@ func TestToolRegistry_ConcurrentSafe(t *testing.T) {
 	reg := NewToolRegistry()
 	reg.Register(Tool{
 		ToolDef: ToolDef{Name: "a", Description: "a"},
-		Execute: func(ctx context.Context, params map[string]any) (string, error) { return "a", nil },
+		Execute: func(ctx context.Context, _ map[string]any) (string, error) {
+			return "a", nil
+		},
 	})
 
-	done := make(chan bool)
-	go func() {
-		reg.Definitions()
-		done <- true
-	}()
-	go func() {
-		reg.Register(Tool{
-			ToolDef: ToolDef{Name: "b", Description: "b"},
-			Execute: func(ctx context.Context, params map[string]any) (string, error) { return "b", nil },
-		})
-		done <- true
-	}()
-	<-done
-	<-done
+	const goroutines = 32
+	const opsPerG = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < opsPerG; i++ {
+				switch i % 3 {
+				case 0:
+					reg.Register(Tool{
+						ToolDef: ToolDef{Name: fmt.Sprintf("t-%d", id), Description: "x"},
+						Execute: func(_ context.Context, _ map[string]any) (string, error) { return "", nil },
+					})
+				case 1:
+					_ = reg.Definitions()
+				case 2:
+					if _, err := reg.Execute(context.Background(), "a", nil); err != nil {
+						t.Errorf("execute: %v", err)
+					}
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	// Deterministic post-condition: "a" must always be reachable
+	if _, err := reg.Execute(context.Background(), "a", nil); err != nil {
+		t.Errorf("a not found after concurrent ops: %v", err)
+	}
 }

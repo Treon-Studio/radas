@@ -40,8 +40,8 @@ func (r *ToolRegistry) Definitions() []ToolDef {
 
 func (r *ToolRegistry) Execute(ctx context.Context, name string, params map[string]any) (string, error) {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	t, ok := r.tools[name]
-	r.mu.RUnlock()
 	if !ok {
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
