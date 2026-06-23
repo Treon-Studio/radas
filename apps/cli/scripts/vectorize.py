@@ -66,6 +66,20 @@ if __name__ == "__main__":
         sentences = generate_sentences(intent, components)
         dataset.extend(sentences)
         print(f"Generated {len(sentences):,} variations for '{intent}'")
+
+    EXTRA_DATA = [
+        ("buatkan endpoint REST API untuk login menggunakan Go", "generate_code"),
+        ("buat file ui komponen react baru", "generate_code"),
+        ("tolong tuliskan script migrasi database", "generate_code"),
+        ("generate code untuk fitur baru", "generate_code"),
+        ("tuliskan unit test untuk fungsi login", "generate_test"),
+        ("buat integration test untuk API user", "generate_test"),
+        ("tolong test file ini", "generate_test"),
+        ("generate test cases", "generate_test"),
+    ]
+    for text, intent in EXTRA_DATA:
+        dataset.append({"text": text, "intent": intent})
+    print(f"Added {len(EXTRA_DATA)} extra custom sentences.")
     
     # Shuffle the dataset
     random.seed(42)
