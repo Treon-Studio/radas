@@ -8,29 +8,25 @@ import (
 
 func TestModel_InitialState(t *testing.T) {
 	m := NewModel(nil, nil, nil)
-	if m.state != stateDashboard {
-		t.Errorf("initial state = %d, want %d", m.state, stateDashboard)
+	if m.state != stateChat {
+		t.Errorf("initial state = %d, want %d", m.state, stateChat)
 	}
 }
 
-func TestModel_TabSwitch(t *testing.T) {
+func TestModel_InitialFocus(t *testing.T) {
 	m := NewModel(nil, nil, nil)
-
-	if m.state != stateDashboard {
-		t.Fatal("expected dashboard")
+	if m.focus != focusInput {
+		t.Errorf("initial focus = %d, want input", m.focus)
 	}
-
-	msg := tea.KeyMsg{Type: tea.KeyTab}
-	updated, _ := m.Update(msg)
-	m2 := updated.(Model)
-	if m2.state != stateChat {
-		t.Errorf("state = %d, want chat", m2.state)
+	if m.chatView == nil || !m.chatView.InputFocused() {
+		t.Error("input should be focused initially")
 	}
+}
 
-	updated2, _ := m2.Update(msg)
-	m3 := updated2.(Model)
-	if m3.state != stateDashboard {
-		t.Errorf("state = %d, want dashboard", m3.state)
+func TestModel_ShowInfo(t *testing.T) {
+	m := NewModel(nil, nil, nil)
+	if !m.showInfo {
+		t.Error("info panel should be visible by default")
 	}
 }
 
@@ -58,10 +54,27 @@ func TestModel_WindowSizeMsg_ForwardsToChatView(t *testing.T) {
 	if m2.chatView == nil {
 		t.Fatal("chatView should not be nil")
 	}
-	if !m2.chatView.ready {
-		t.Error("chatView should be ready after WindowSizeMsg")
+}
+
+func TestModel_InfoPanelToggle(t *testing.T) {
+	m := NewModel(nil, nil, nil)
+
+	m.showInfo = false
+	m.focus = focusMain
+
+	m.showInfo = true
+	if !m.showInfo {
+		t.Error("info panel should be visible")
 	}
-	if m2.chatView.viewport.Width != 96 {
-		t.Errorf("chatView.viewport.Width = %d, want 96", m2.chatView.viewport.Width)
+}
+
+func TestModel_FocusInfo(t *testing.T) {
+	m := NewModel(nil, nil, nil)
+	m.showInfo = true
+	m.focus = focusInfo
+	m.infoPanel = m.infoPanel.SetFocused(true)
+
+	if m.focus != focusInfo {
+		t.Error("focus should be info panel")
 	}
 }

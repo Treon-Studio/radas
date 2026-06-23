@@ -3,17 +3,25 @@ package main
 import (
 	"fmt"
 	"os"
-    "strings"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/raizora/radas/v4/cmd/backend"
+	"github.com/raizora/radas/v4/cmd/config"
 	"github.com/raizora/radas/v4/cmd/design"
 	"github.com/raizora/radas/v4/cmd/devops"
 	"github.com/raizora/radas/v4/cmd/frontend"
+	"github.com/raizora/radas/v4/cmd/git"
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
+	"github.com/raizora/radas/v4/cmd/scan"
+	"github.com/raizora/radas/v4/cmd/setup"
+	"github.com/raizora/radas/v4/cmd/sync"
 	"github.com/raizora/radas/v4/cmd/workspace"
 	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/ai"
+	"github.com/raizora/radas/v4/internal/tui"
 	"github.com/raizora/radas/v4/internal/updater"
 )
 
@@ -32,8 +40,10 @@ func main() {
 		Short: "Radas CLI - Developer Tools",
 		Long: constants.RadasASCIIArt + `
 Radas CLI provides tools for various development teams.
-It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`,
+It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.
+When run with no arguments in a terminal, it launches the TUI dashboard.`,
 		Version: constants.Version,
+		RunE:    runTUI,
 	}
 
 	// Auto-check for updates but only print a message
@@ -47,7 +57,7 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 
 
 
-	rootCmd.AddCommand(rootcmd.ConfigCmd)
+	rootCmd.AddCommand(config.ConfigCmd)
 
 	// Add team commands to root
 	rootCmd.AddCommand(frontend.Cmd)
@@ -55,42 +65,42 @@ It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.`
 	rootCmd.AddCommand(devops.Cmd)
 	rootCmd.AddCommand(design.Cmd)
 	rootCmd.AddCommand(infra.Cmd)
-	rootCmd.AddCommand(rootcmd.InstallCmd)
+	rootCmd.AddCommand(setup.InstallCmd)
 
 	// Add sync-repo command
-	rootCmd.AddCommand(rootcmd.SyncRepoCmd)
+	rootCmd.AddCommand(sync.SyncRepoCmd)
 
 	// Add update command
-	rootCmd.AddCommand(rootcmd.UpdateCmd)
+	rootCmd.AddCommand(setup.UpdateCmd)
 
 	// Add version command
-	rootCmd.AddCommand(rootcmd.VersionCmd)
-	
+	rootCmd.AddCommand(setup.VersionCmd)
+
 	// Add aliases command
 	rootCmd.AddCommand(rootcmd.AliasesCmd)
 
 	// Add setup command
-	rootCmd.AddCommand(rootcmd.SetupCmd)
+	rootCmd.AddCommand(setup.SetupCmd)
 
-	rootCmd.AddCommand(rootcmd.EnvCmd)
-	rootCmd.AddCommand(rootcmd.RebuildCmd)
-	rootCmd.AddCommand(rootcmd.ReloadCmd)
-	rootCmd.AddCommand(rootcmd.SyncConfigCmd)
+	rootCmd.AddCommand(config.EnvCmd)
+	rootCmd.AddCommand(setup.RebuildCmd)
+	rootCmd.AddCommand(setup.ReloadCmd)
+	rootCmd.AddCommand(sync.SyncConfigCmd)
 
 	// GIT commands
-	rootCmd.AddCommand(rootcmd.CommitCmd)
-	rootCmd.AddCommand(rootcmd.PushCmd)
-	rootCmd.AddCommand(rootcmd.CreateBranchCmd)
-	rootCmd.AddCommand(rootcmd.PullCmd)
-	rootCmd.AddCommand(rootcmd.JustPushCmd)
-	rootCmd.AddCommand(rootcmd.ListBranchCmd)
-	rootCmd.AddCommand(rootcmd.DelBranchCmd)
-	rootCmd.AddCommand(rootcmd.CloneCmd)
+	rootCmd.AddCommand(git.CommitCmd)
+	rootCmd.AddCommand(git.PushCmd)
+	rootCmd.AddCommand(git.CreateBranchCmd)
+	rootCmd.AddCommand(git.PullCmd)
+	rootCmd.AddCommand(git.JustPushCmd)
+	rootCmd.AddCommand(git.ListBranchCmd)
+	rootCmd.AddCommand(git.DelBranchCmd)
+	rootCmd.AddCommand(git.CloneCmd)
 	rootCmd.AddCommand(rootcmd.GotoCmd)
 
-	
+
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
-	rootCmd.AddCommand(rootcmd.ScanCmd)
+	rootCmd.AddCommand(scan.ScanCmd)
 
 	// Workspace command group (Phase A: Monorepo Manager)
 	rootCmd.AddCommand(workspace.Cmd)
@@ -133,4 +143,26 @@ func handleAliases() {
 		// Print a message to show the alias expansion (optional)
 		fmt.Printf("Using alias: %s → radas %s\n\n", alias, fullCommand)
 	}
+}
+
+func isTerminal(fd uintptr) bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) != 0
+}
+
+func runTUI(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return nil
+	}
+	if !isTerminal(os.Stdout.Fd()) {
+		return cmd.Help()
+	}
+
+	aiConfig, err := ai.LoadAIConfigFromRadasYML()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to load AI config: %v\n", err)
+		aiConfig = nil
+	}
+
+	return tui.Start(nil, nil, aiConfig)
 }

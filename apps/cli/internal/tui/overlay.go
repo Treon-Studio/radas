@@ -1,23 +1,40 @@
 package tui
 
-import "strings"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/raizora/radas/v4/internal/tui/theme"
+)
 
 func renderHelpOverlay() string {
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("Help") + "\n\n")
-	b.WriteString("Keybindings:\n")
-	b.WriteString("  Tab        Switch Dashboard / Chat\n")
-	b.WriteString("  :          Command mode (type :command)\n")
-	b.WriteString("  Enter      Send message or execute command\n")
-	b.WriteString("  ?          Toggle help\n")
-	b.WriteString("  q / Ctrl+C Quit\n\n")
-	b.WriteString("Commands:\n")
-	b.WriteString("  :run <project> <task>        Run a task\n")
-	b.WriteString("  :generate <template> <name>  Generate code\n")
-	b.WriteString("  :template list               List templates\n")
-	b.WriteString("  :template add <url>          Install template\n")
-	b.WriteString("  :graph                       Show dependency graph\n")
-	b.WriteString("  :refresh                     Reload workspace context\n")
-	b.WriteString("  :help                        Show this help\n")
-	return b.String()
+	t := theme.OpenCode
+	title := lipgloss.NewStyle().Bold(true).Foreground(t.Accent).Render("Help")
+	return lipgloss.NewStyle().
+		Foreground(t.TextPrimary).
+		Background(t.BGPrimary).
+		Padding(2, 4).
+		Render(title + "\n\n" + helpBody())
+}
+
+func helpBody() string {
+	return `Keybindings:
+  Ctrl+Q          Quit
+  Ctrl+M          Focus main content
+  Ctrl+Shift+I    Toggle info panel
+  Enter           Send message
+  Shift+Enter     New line in input
+  :               Focus input bar
+  Esc             Cancel / blur input
+  Ctrl+K          Clear chat
+  Ctrl+N          New session
+  ?               Toggle this help
+  r               Refresh info panel
+
+Commands (type : then command):
+  :run <project> <task>        Run a task
+  :generate <template> <name>  Generate code
+  :template list               List templates
+  :template add <url>          Install template
+  :graph                       Show dependency graph
+  :refresh                     Reload workspace context
+  :help                        Show this help`
 }
