@@ -148,6 +148,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					toolText = "Write(todo)"
 				case "selesai_todo":
 					toolText = "Edit(todo)"
+				case "generate_code":
+					toolText = "LLM(generate_code)"
+				case "generate_test":
+					toolText = "LLM(generate_test)"
 				default:
 					toolText = "Execute(" + intent + ")"
 				}
