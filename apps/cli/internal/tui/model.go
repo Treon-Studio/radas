@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -65,6 +67,8 @@ type Model struct {
 
 	streamCh  <-chan ai.Event
 	streamBuf string
+
+	classifier *ai.Classifier
 }
 
 func NewModel(projects, templates []string, chatSession *ai.ChatSession) Model {
@@ -79,6 +83,11 @@ func NewModel(projects, templates []string, chatSession *ai.ChatSession) Model {
 		showInfo:    true,
 		showSidebar: false,
 	}
+	
+	if classifier, err := ai.LoadClassifier(); err == nil {
+		m.classifier = classifier
+	}
+
 	// Auto-focus input so user can type immediately
 	if m.chatView != nil {
 		m.chatView.FocusInput()
@@ -103,10 +112,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 	case SendChatMsg:
+		v := strings.TrimSpace(msg.Content)
+		if v == "/exit" {
+			return m, tea.Quit
+		}
+		if v == "/rebuild" {
+			c := exec.Command("sh", "-c", "make build && ./bin/radas")
+			return m, tea.ExecProcess(c, func(err error) tea.Msg {
+				return tea.Quit()
+			})
+		}
+		if m.classifier != nil {
+			intent, score := m.classifier.Predict(msg.Content)
+			// Threshold of 0.20 for positive intent match
+			if score > 0.20 && intent != "" {
+				var toolText string
+				switch intent {
+				case "activity_monitor":
+					toolText = "Bash(top)"
+				case "cek_memory":
+					toolText = "Bash(vm_stat)"
+				case "cek_cuaca":
+					toolText = "Fetch(wttr.in/" + extractCity(msg.Content) + ")"
+				case "baca_berita":
+					toolText = "Fetch(cnn/terbaru)"
+				case "kirim_whatsapp":
+					toolText = "WhatsApp(send)"
+				case "kirim_email":
+					toolText = "Gmail(send)"
+				case "setup_calendar":
+					toolText = "Calendar(setup)"
+				case "baca_hn":
+					toolText = "Fetch(hn/top)"
+				case "tambah_todo":
+					toolText = "Write(todo)"
+				case "selesai_todo":
+					toolText = "Edit(todo)"
+				default:
+					toolText = "Execute(" + intent + ")"
+				}
+				m.chatView.AddToolMessage(toolText)
+				return m, executeLocalIntent(intent, msg.Content)
+			}
+		}
 		if m.chatSession != nil {
 			return m, m.sendToAI(msg.Content)
 		}
 		m.chatView.AddAIMessage(fmt.Sprintf("(echo) %s", msg.Content))
+		return m, nil
+	case LocalIntentResultMsg:
+		m.chatView.AddAIMessage(msg.Content)
 		return m, nil
 	case AIMessageMsg:
 		if msg.Done {
@@ -261,6 +316,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (Model, tea.Cmd) {
 		// Already focused: fall through so ':' is typed into textarea
 
 	case key.Matches(msg, keys.SendMessage):
+		if m.chatView != nil && m.chatView.showSlashMenu {
+			return m.forwardToChildren(msg)
+		}
+
 		if m.focus == focusInput && m.chatView != nil {
 			input := m.chatView.Input()
 			if input != "" {

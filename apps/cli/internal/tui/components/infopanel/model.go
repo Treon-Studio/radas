@@ -247,10 +247,58 @@ func (m Model) View() string {
 		"",
 		m.renderMCPSection(t),
 		"",
+		m.renderSupermemorySection(t),
+		"",
+		m.renderConnectorSection(t),
+		"",
+		m.renderTreonServicesSection(t),
+		"",
 		m.renderFooter(t),
 	)
 
 	return panelStyle.Render(content)
+}
+
+func (m Model) renderSupermemorySection(t theme.Theme) string {
+	header := lipgloss.NewStyle().Bold(true).Foreground(t.TextPrimary).Render("SUPERMEMORY")
+	
+	icon := lipgloss.NewStyle().Foreground(t.Success).Render("●")
+	status := fmt.Sprintf("%s Connected\nMemories: 1,247\nLast sync: 2m ago", icon)
+
+	return lipgloss.NewStyle().
+		Width(m.width - 6).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Border).
+		Padding(0, 1).
+		Render(header + "\n" + status)
+}
+
+func (m Model) renderConnectorSection(t theme.Theme) string {
+	header := lipgloss.NewStyle().Bold(true).Foreground(t.TextPrimary).Render("CONNECTOR")
+	
+	icon := lipgloss.NewStyle().Foreground(t.Success).Render("●")
+	status := fmt.Sprintf("%s Active (3)\n├─ Slack\n├─ Notion\n└─ Jira", icon)
+
+	return lipgloss.NewStyle().
+		Width(m.width - 6).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Border).
+		Padding(0, 1).
+		Render(header + "\n" + status)
+}
+
+func (m Model) renderTreonServicesSection(t theme.Theme) string {
+	header := lipgloss.NewStyle().Bold(true).Foreground(t.TextPrimary).Render("TREON SERVICES")
+	
+	icon := lipgloss.NewStyle().Foreground(t.Success).Render("●")
+	status := fmt.Sprintf("%s Anis AI\n%s Hunivo\n%s PetStore\n%s Ember\n%s Kirimin", icon, icon, icon, icon, icon)
+
+	return lipgloss.NewStyle().
+		Width(m.width - 6).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Border).
+		Padding(0, 1).
+		Render(header + "\n" + status)
 }
 
 func (m Model) renderFooter(t theme.Theme) string {

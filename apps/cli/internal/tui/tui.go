@@ -19,7 +19,7 @@ func Start(projects, templates []string, aiConfig *ai.AIConfig) error {
 // NewProgram creates a tea.Program configured for the TUI. Exposed for testing.
 func NewProgram(projects, templates []string, chatSession *ai.ChatSession) *tea.Program {
 	m := NewModel(projects, templates, chatSession)
-	return tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithAltScreen())
+	return tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithAltScreen(), tea.WithMouseCellMotion())
 }
 
 func setupChatSession(aiConfig *ai.AIConfig, projects, templates []string) *ai.ChatSession {

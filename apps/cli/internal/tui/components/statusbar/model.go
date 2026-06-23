@@ -3,10 +3,12 @@ package statusbar
 import (
 	"fmt"
 	"strings"
+	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/tui/theme"
 )
 
@@ -94,7 +96,7 @@ func (m Model) View() string {
 		Background(rightBg).
 		Foreground(rightTextFg).
 		Padding(0, 1).
-		Render(fmt.Sprintf("%s radas", connIcon))
+		Render(fmt.Sprintf("%s Radas - %s (%s)", connIcon, constants.Version, getCommitHash()))
 
 	bar := lipgloss.JoinHorizontal(lipgloss.Top, left, middle)
 	fill := m.width - lipgloss.Width(bar) - lipgloss.Width(right)
@@ -104,4 +106,18 @@ func (m Model) View() string {
 	bar = lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", fill), right)
 
 	return bg.Render(bar)
+}
+
+func getCommitHash() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				if len(setting.Value) > 7 {
+					return setting.Value[:7]
+				}
+				return setting.Value
+			}
+		}
+	}
+	return "dev"
 }
