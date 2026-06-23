@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/raizora/radas/v4/internal/ai"
 )
 
 type LocalIntentResultMsg struct {
@@ -45,6 +46,13 @@ func executeLocalIntent(intent, input string) tea.Cmd {
 	return func() tea.Msg {
 		var result string
 		switch intent {
+		case "generate_code", "generate_test":
+			// Memanggil Generator Service
+			res, err := ai.GenerateCode(input, intent)
+			if err != nil {
+				return LocalIntentResultMsg{Content: fmt.Sprintf("Gagal memproses kode: %v", err)}
+			}
+			return LocalIntentResultMsg{Content: fmt.Sprintf("Berikut draft kodenya:\n\n%s\n\nApakah Anda ingin saya menyimpannya ke file?", res)}
 		case "activity_monitor":
 			if runtime.GOOS == "darwin" {
 				out, _ := exec.Command("top", "-l", "1", "-n", "10").Output()
