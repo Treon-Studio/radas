@@ -132,7 +132,7 @@
 | 66 | Isolasi antar project | ✅ | P0 | 0 |
 | 67 | Role per environment (dev/sit/prod) | ⬜ | P1 | 2 |
 | 68 | Approval workflow untuk perubahan prod | ⬜ | P0 | 2 |
-| 69 | Kuota & limit resource per project | ⬜ | P1 | 2 |
+| 69 | Kuota & limit resource per project | ✅ | P1 | 2 |
 | 70 | Tagging wajib pada semua resource | ⬜ | P1 | 2 |
 | 71 | Policy gate sebelum apply | 🔶 | P0 | 2 |
 | 72 | Change management + audit trail | ⬜ | P1 | 2 |

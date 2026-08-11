@@ -15,6 +15,7 @@ import { EditRepoSourceDialog } from "@/components/infrastructure/EditRepoSource
 import { HostStatusCacheCard } from "@/components/infrastructure/HostStatusCacheCard";
 import { GitAutosyncCard } from "@/components/project/GitAutosyncCard";
 import { WebhooksCard } from "@/components/integrations/WebhooksCard";
+import { QuotaCard } from "@/components/integrations/QuotaCard";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/settings")({ component: InfraSettingsPage });
@@ -135,6 +136,8 @@ function InfraSettingsPage() {
       <HostStatusCacheCard projectId={currentId} />
 
       <WebhooksCard />
+
+      <QuotaCard />
 
       <EditRepoSourceDialog open={editOpen} onOpenChange={setEditOpen} projectId={currentId} />
     </div>

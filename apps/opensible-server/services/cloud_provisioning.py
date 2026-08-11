@@ -728,6 +728,15 @@ def stacks_create():
         if err:
             return jsonify({"error": err}), 400
 
+    # Project quota gate (Fase 2 — UC 69).
+    try:
+        from services.quota_service import check_quota as _check_quota
+        q = _check_quota(pid, "stacks")
+        if not q["allowed"]:
+            return jsonify({"error": q["reason"]}), 409
+    except Exception:
+        pass
+
     # Separate secrets from plain values (secret keys are provider-scoped).
     all_secrets = _all_secret_keys()
     secrets_map = {k: values.pop(k) for k in list(values.keys()) if k in all_secrets}
