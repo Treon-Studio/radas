@@ -137,8 +137,8 @@
 | 71 | Policy gate sebelum apply | 🔶 | P0 | 2 |
 | 72 | Change management + audit trail | 🔶 | P1 | 2 |
 | 73 | Compliance scorecard per project | ⬜ | P2 | 2 |
-| 74 | User read-only / guest | ⬜ | P1 | 2 |
-| 75 | Service account untuk integrasi CI | ⬜ | P1 | 2 |
+| 74 | User read-only / guest | ✅ | P1 | 2 |
+| 75 | Service account untuk integrasi CI | ✅ | P1 | 2 |
 
 ## H. Otomasi & Scheduler (76–85)
 

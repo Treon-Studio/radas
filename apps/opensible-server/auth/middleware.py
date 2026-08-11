@@ -166,6 +166,9 @@ def require_auth(f: Callable) -> Callable:
                 'roles': payload.get('roles', []),
             }
             request.token = token
+            if 'readonly' in (payload.get('roles') or []) and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                return jsonify({'error': 'Read-only access',
+                                'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
 
         # API token (long-lived, programmatic)
@@ -176,19 +179,23 @@ def require_auth(f: Callable) -> Callable:
         api_result = verify_api_token(token)
         if api_result:
             api_user_id, token_entry = api_result
-            roles = []
-            try:
-                acs = get_access_control_service()
-                if hasattr(acs, 'get_user_roles'):
-                    roles = acs.get_user_roles(api_user_id) or []
-            except Exception:
-                pass
+            roles = list(token_entry.get('roles') or [])
+            if not roles:
+                try:
+                    acs = get_access_control_service()
+                    if hasattr(acs, 'get_user_roles'):
+                        roles = acs.get_user_roles(api_user_id) or []
+                except Exception:
+                    pass
             request.current_user = {
                 'user_id': api_user_id,
                 'username': token_entry.get('username', f'api:{api_user_id[:8]}'),
                 'roles': roles,
             }
             request.token = token
+            if 'readonly' in roles and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                return jsonify({'error': 'Read-only access',
+                                'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
 
         return jsonify({

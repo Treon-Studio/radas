@@ -90,6 +90,7 @@ def create_token(
     scope: str = 'global',
     project_id: Optional[str] = None,
     expires_days: Optional[int] = None,
+    roles: Optional[List[str]] = None,
 ) -> Tuple[str, str]:
     """
     Create API token. Returns (token_id, plaintext_token).
@@ -117,6 +118,7 @@ def create_token(
         'createdAt': now,
         'lastUsedAt': None,
         'expiresAt': expires_at,
+        'roles': roles or [],
         'revoked': False,
     }
 
