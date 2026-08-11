@@ -5,10 +5,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer,
   XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend,
 } from "recharts";
-import {
-  Plus, Trash2, Save, FileUp, Download, RefreshCw, AlertTriangle,
-  TrendingUp, DollarSign, Calendar, Layers, Lightbulb,
-} from "lucide-react";
+import { RiAddLine as Plus, RiDeleteBinLine as Trash2, RiSaveLine as Save, RiFileUploadLine as FileUp, RiDownload2Line as Download, RiRefreshLine as RefreshCw, RiErrorWarningLine as AlertTriangle, RiLineChartLine as TrendingUp, RiMoneyDollarCircleLine as DollarSign, RiCalendarLine as Calendar, RiStackLine as Layers, RiLightbulbLine as Lightbulb } from "@remixicon/react";
 
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

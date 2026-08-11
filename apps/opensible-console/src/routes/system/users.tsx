@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
-import { Users as UsersIcon, Shield, Plus, Pencil, Trash2, KeyRound, Search, X, Check } from "lucide-react";
+import { RiGroupLine as UsersIcon, RiShieldLine as Shield, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiSearchLine as Search, RiCloseLine as X, RiCheckLine as Check } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

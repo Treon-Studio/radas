@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Server, RefreshCw, Plus, Search, Trash2, Edit3, CheckCircle2, XCircle,
-  CircleDashed, Activity, FileText, Download, Layers, FolderTree, Variable, KeyRound,
-  AlertTriangle,
-} from "lucide-react";
+import { RiServerLine as Server, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiSearchLine as Search, RiDeleteBinLine as Trash2, RiPenNibLine as Edit3, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiDiscLine as CircleDashed, RiPulseLine as Activity, RiFileTextLine as FileText, RiDownload2Line as Download, RiStackLine as Layers, RiNodeTree as FolderTree, RiCodeLine as Variable, RiKey2Line as KeyRound, RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
@@ -16,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/api";
 import { YamlEditor } from "@/components/ui/yaml-editor";
 import { ImportFromCloudDialog } from "@/components/infrastructure/ImportFromCloudDialog";
-import { Boxes } from "lucide-react";
+import { RiArchiveStackLine as Boxes } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 
 // Names that almost certainly hold secret material — used to warn when a

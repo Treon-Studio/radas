@@ -1,10 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Play, Pencil, Copy as CopyIcon, Trash2, PackageOpen, ArrowUpDown, Layers,
-  ChevronLeft, ChevronRight,
-} from "lucide-react";
+import { RiPlayLine as Play, RiPencilLine as Pencil, RiFileCopyLine as CopyIcon, RiDeleteBinLine as Trash2, RiArchiveLine as PackageOpen, RiArrowUpDownLine as ArrowUpDown, RiStackLine as Layers, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 import {
   createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel,
   getPaginationRowModel, getSortedRowModel, useReactTable, type SortingState,

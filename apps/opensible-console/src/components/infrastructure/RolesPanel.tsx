@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Shield, RefreshCw, ChevronRight, ChevronDown, FileCode, Folder, Save, X, Plus, Trash2, FolderPlus, FilePlus } from "lucide-react";
+import { RiShieldLine as Shield, RiRefreshLine as RefreshCw, RiArrowRightSLine as ChevronRight, RiArrowDownSLine as ChevronDown, RiFileCodeLine as FileCode, RiFolderLine as Folder, RiSaveLine as Save, RiCloseLine as X, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiFolderAddLine as FolderPlus, RiFileAddLine as FilePlus } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

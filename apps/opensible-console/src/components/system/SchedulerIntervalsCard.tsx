@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Timer } from "lucide-react";
+import { RiTimerLine as Timer } from "@remixicon/react";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

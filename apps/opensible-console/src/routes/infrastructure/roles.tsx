@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Shield } from "lucide-react";
+import { RiShieldLine as Shield } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { RolesPanel } from "@/components/infrastructure/RolesPanel";
 import { useT } from "@/lib/i18n";

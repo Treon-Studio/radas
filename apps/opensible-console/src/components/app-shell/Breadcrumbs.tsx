@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Globe, ChevronRight } from "lucide-react";
+import { RiHomeLine as Home, RiGlobalLine as Globe, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 import type { ReactNode } from "react";
 import { useT } from "@/lib/i18n";
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Download, Loader2 } from "lucide-react";
+import { RiArchiveStackLine as Boxes, RiDownload2Line as Download, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

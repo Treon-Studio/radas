@@ -5,7 +5,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { GitBranch } from "lucide-react";
+import { RiGitBranchLine as GitBranch } from "@remixicon/react";
 
 export const Route = createFileRoute("/cloud/stacks/new/import")({ component: ImportPage });
 

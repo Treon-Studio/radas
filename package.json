@@ -1,5 +1,6 @@
 {
 	"devDependencies": {
+		"@types/react": "19.0.12",
 		"firebase-tools": "^14.23.0"
 	}
 }

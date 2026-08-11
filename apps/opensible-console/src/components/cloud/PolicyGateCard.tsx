@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ShieldCheck, ShieldAlert, ShieldX, Save, Info } from "lucide-react";
+import { RiShieldCheckLine as ShieldCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiSaveLine as Save, RiInformationLine as Info } from "@remixicon/react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

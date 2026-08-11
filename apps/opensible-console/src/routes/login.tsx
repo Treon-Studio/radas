@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { BookOpen, Globe, Github, Linkedin, Youtube } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiGlobalLine as Globe, RiGithubLine as Github, RiLinkedinBoxLine as Linkedin, RiYoutubeLine as Youtube } from "@remixicon/react";
 import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

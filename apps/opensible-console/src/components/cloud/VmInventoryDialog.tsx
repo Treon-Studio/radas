@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Boxes, X, Network, Download, AlertTriangle } from "lucide-react";
+import { RiRefreshLine as RefreshCw, RiArchiveStackLine as Boxes, RiCloseLine as X, RiNodeTree as Network, RiDownload2Line as Download, RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";

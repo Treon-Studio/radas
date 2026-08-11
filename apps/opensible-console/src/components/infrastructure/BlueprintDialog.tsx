@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Star, ExternalLink, Save, Play, FileCode, Info } from "lucide-react";
+import { RiCloseLine as X, RiStarLine as Star, RiExternalLinkLine as ExternalLink, RiSaveLine as Save, RiPlayLine as Play, RiFileCodeLine as FileCode, RiInformationLine as Info } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Blueprint, BlueprintGroup } from "@/lib/blueprints";

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, ArrowDown, ArrowUp, Pencil, Globe } from "lucide-react";
+import { RiGitBranchLine as GitBranch, RiArrowDownLine as ArrowDown, RiArrowUpLine as ArrowUp, RiPencilLine as Pencil, RiGlobalLine as Globe } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, X, Download, StopCircle, Loader2 } from "lucide-react";
+import { RiRefreshLine as RefreshCw, RiCloseLine as X, RiDownload2Line as Download, RiStopCircleLine as StopCircle, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogViewer } from "@/components/cloud/LogViewer";

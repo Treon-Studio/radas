@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as yaml from "js-yaml";
-import { CheckCircle2, Circle, Loader2, XCircle, ChevronRight, Workflow } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiCircleLine as Circle, RiLoader4Line as Loader2, RiCloseCircleLine as XCircle, RiArrowRightSLine as ChevronRight, RiGitMergeLine as Workflow } from "@remixicon/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp } from "@remixicon/react";
 import { api } from "@/lib/api";
 
 type StepState = "pending" | "running" | "success" | "failed" | "skipped";

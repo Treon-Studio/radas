@@ -1,10 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import {
-  ArrowLeft, Play, Pencil, Copy as CopyIcon, Trash2, RefreshCw, Clock, FileCode,
-  ChevronDown, ChevronUp, Maximize2, Minimize2,
-} from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiPlayLine as Play, RiPencilLine as Pencil, RiFileCopyLine as CopyIcon, RiDeleteBinLine as Trash2, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiFileCodeLine as FileCode, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp, RiFullscreenLine as Maximize2, RiFullscreenExitLine as Minimize2 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";

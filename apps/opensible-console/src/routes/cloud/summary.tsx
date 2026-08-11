@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Terminal, X, Download } from "lucide-react";
+import { RiRefreshLine as RefreshCw, RiTerminalBoxLine as Terminal, RiCloseLine as X, RiDownload2Line as Download } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

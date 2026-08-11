@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { FolderKanban, Cloud, BookOpen, Plus, ArrowRight, Activity, Layers } from "lucide-react";
+import { RiFolder2Line as FolderKanban, RiCloudLine as Cloud, RiBookOpenLine as BookOpen, RiAddLine as Plus, RiArrowRightLine as ArrowRight, RiPulseLine as Activity, RiStackLine as Layers } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

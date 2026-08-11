@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, FilePlus2, FileMinus2, FileDiff, RefreshCcwDot, Eye, CheckCircle2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { RiArrowRightSLine as ChevronRight, RiFileAddLine as FilePlus2, RiFileReduceLine as FileMinus2, RiFileCopyLine as FileDiff, RiRefreshLine as RefreshCcwDot, RiEyeLine as Eye, RiCheckboxCircleLine as CheckCircle2, RiShieldCheckLine as ShieldCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX } from "@remixicon/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { parseTofuPlan, ACTION_META, type PlanChangeAction, type PlanResource, type PolicyReport } from "@/lib/tofu-plan";

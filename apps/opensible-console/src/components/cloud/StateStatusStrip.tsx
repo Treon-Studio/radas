@@ -3,7 +3,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Lock, LockOpen, RotateCcw, AlertTriangle, Settings } from "lucide-react";
+import { RiDatabase2Line as Database, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiArrowGoBackLine as RotateCcw, RiErrorWarningLine as AlertTriangle, RiSettingsLine as Settings } from "@remixicon/react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

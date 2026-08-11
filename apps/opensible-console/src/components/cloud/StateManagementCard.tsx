@@ -3,9 +3,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Database, Lock, LockOpen, History, RotateCcw, Download, Save, Camera, AlertTriangle, Server,
-} from "lucide-react";
+import { RiDatabase2Line as Database, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiHistoryLine as History, RiArrowGoBackLine as RotateCcw, RiDownload2Line as Download, RiSaveLine as Save, RiCameraLine as Camera, RiErrorWarningLine as AlertTriangle, RiServerLine as Server } from "@remixicon/react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

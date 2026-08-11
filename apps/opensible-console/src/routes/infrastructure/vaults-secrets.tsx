@@ -2,9 +2,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import * as yaml from "js-yaml";
-import {
-  FileCode, RefreshCw, Plus, Search, Lock, KeyRound, Trash2, Pencil, ShieldCheck, Wand2,
-} from "lucide-react";
+import { RiFileCodeLine as FileCode, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiSearchLine as Search, RiLockLine as Lock, RiKey2Line as KeyRound, RiDeleteBinLine as Trash2, RiPencilLine as Pencil, RiShieldCheckLine as ShieldCheck, RiMagicLine as Wand2 } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, GitBranch, Loader2, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { RiCloseLine as X, RiGitBranchLine as GitBranch, RiLoader4Line as Loader2, RiAddLine as Plus, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

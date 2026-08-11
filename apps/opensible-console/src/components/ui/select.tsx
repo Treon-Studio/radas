@@ -6,7 +6,7 @@
  * - Keyboard friendly: Enter/Space to open, Esc/click-outside to close
  */
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { RiCheckLine as Check, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 export type SelectOption = {

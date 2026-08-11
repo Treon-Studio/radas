@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { User as UserIcon, KeyRound, Save, Shield } from "lucide-react";
+import { RiUserLine as UserIcon, RiKey2Line as KeyRound, RiSaveLine as Save, RiShieldLine as Shield } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";

@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { BookOpen, Shield } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiShieldLine as Shield } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { PlaybooksPanel } from "@/components/infrastructure/PlaybooksPanel";
 import { RolesPanel } from "@/components/infrastructure/RolesPanel";

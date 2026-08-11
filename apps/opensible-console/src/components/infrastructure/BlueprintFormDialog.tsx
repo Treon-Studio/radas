@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { X, Save, Play, Plus, Trash2 } from "lucide-react";
+import { RiCloseLine as X, RiSaveLine as Save, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

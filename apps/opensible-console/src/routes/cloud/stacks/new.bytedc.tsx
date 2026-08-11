@@ -3,11 +3,8 @@ import { WizardStepper, type WizardStep } from "@/components/cloud/WizardStepper
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft, ArrowRight, Loader2, Plus, Trash2,
-  Folder, KeyRound, Network, Cpu, Layers, Globe, PlusSquare, ClipboardCheck,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiArrowRightLine as ArrowRight, RiLoader4Line as Loader2, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiFolderLine as Folder, RiKey2Line as KeyRound, RiNodeTree as Network, RiCpuLine as Cpu, RiStackLine as Layers, RiGlobalLine as Globe, RiAddBoxLine as PlusSquare, RiClipboardLine as ClipboardCheck } from "@remixicon/react";
+import type { RemixiconComponentType } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
@@ -17,7 +14,7 @@ import { api } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-function iconForGroup(g: { title: string; icon?: string }): LucideIcon {
+function iconForGroup(g: { title: string; icon?: string }): RemixiconComponentType {
   const key = (g.icon || g.title || "").toLowerCase();
   if (/cred|key|secret|auth/.test(key)) return KeyRound;
   if (/net|vpc|subnet/.test(key)) return Network;
@@ -295,7 +292,7 @@ function ByteDCWizard() {
 function StepPanel({
   group, Icon, values, setField, showStackName, isEdit, stackName, setStackName,
 }: {
-  group: Group; Icon: LucideIcon; values: Values; setField: (k: string, v: any) => void;
+  group: Group; Icon: RemixiconComponentType; values: Values; setField: (k: string, v: any) => void;
   showStackName: boolean; isEdit: boolean; stackName: string; setStackName: (s: string) => void;
 }) {
   return (

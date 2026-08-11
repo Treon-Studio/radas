@@ -2,11 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft, CheckCircle2, Download, Search, Rocket, Bomb, RefreshCcw, RefreshCw, Clock,
-  GitBranch, GitPullRequestArrow, Edit, Trash2, KeyRound, AlertTriangle, Boxes, Github, Radar, Settings, X,
-  MoreHorizontal,
-} from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiCheckboxCircleLine as CheckCircle2, RiDownload2Line as Download, RiSearchLine as Search, RiRocketLine as Rocket, RiFlashlightLine as Bomb, RiArrowGoBackLine as RefreshCcw, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiGitBranchLine as GitBranch, RiGitPullRequestLine as GitPullRequestArrow, RiEditLine as Edit, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiErrorWarningLine as AlertTriangle, RiArchiveStackLine as Boxes, RiGithubLine as Github, RiRadarLine as Radar, RiSettingsLine as Settings, RiCloseLine as X, RiMore2Line as MoreHorizontal } from "@remixicon/react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";

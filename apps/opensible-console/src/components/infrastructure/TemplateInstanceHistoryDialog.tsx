@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { X, History, RotateCcw } from "lucide-react";
+import { RiCloseLine as X, RiHistoryLine as History, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

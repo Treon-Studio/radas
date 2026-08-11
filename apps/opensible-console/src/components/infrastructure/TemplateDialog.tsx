@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  LayoutTemplate, RefreshCw, X, FileCode, Save, Copy, Play, Plus, Trash2, History, Workflow,
-  Maximize2, Minimize2,
-} from "lucide-react";
+import { RiLayoutGridLine as LayoutTemplate, RiRefreshLine as RefreshCw, RiCloseLine as X, RiFileCodeLine as FileCode, RiSaveLine as Save, RiFileCopyLine as Copy, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiGitMergeLine as Workflow, RiFullscreenLine as Maximize2, RiFullscreenExitLine as Minimize2 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

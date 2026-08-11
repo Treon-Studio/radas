@@ -5,7 +5,7 @@ import {
   getPaginationRowModel, getSortedRowModel, useReactTable, type SortingState,
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-import { Plus, Cloud, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { RiAddLine as Plus, RiCloudLine as Cloud, RiArrowUpDownLine as ArrowUpDown, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

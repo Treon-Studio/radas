@@ -1,4 +1,4 @@
-import { Moon, Sun, Languages, FolderKanban, LogOut, Plus, UserCog, ChevronDown } from "lucide-react";
+import { RiMoonLine as Moon, RiSunLine as Sun, RiTranslate as Languages, RiFolder2Line as FolderKanban, RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";

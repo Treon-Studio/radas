@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2, ArrowUp, ArrowDown, Save, Download, Play, FileCode } from "lucide-react";
+import { RiAddLine as Plus, RiDeleteBinLine as Trash2, RiArrowUpLine as ArrowUp, RiArrowDownLine as ArrowDown, RiSaveLine as Save, RiDownload2Line as Download, RiPlayLine as Play, RiFileCodeLine as FileCode } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

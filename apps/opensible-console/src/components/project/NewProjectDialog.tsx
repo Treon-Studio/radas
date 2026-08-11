@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { X, FolderPlus, Loader2 } from "lucide-react";
+import { RiCloseLine as X, RiFolderAddLine as FolderPlus, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/lib/project";

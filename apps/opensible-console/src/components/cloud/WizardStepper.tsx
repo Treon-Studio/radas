@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
-import { CheckCircle2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2 } from "@remixicon/react";
+import type { RemixiconComponentType } from "@remixicon/react";
 
 export type WizardStep = {
   title: string;
-  Icon: LucideIcon;
+  Icon: RemixiconComponentType;
   active: boolean;
   done: boolean;
 };
@@ -40,7 +40,7 @@ function StepRow({ index, active, done, title, Icon, onClick }: {
   active: boolean;
   done: boolean;
   title: string;
-  Icon: LucideIcon;
+  Icon: RemixiconComponentType;
   onClick: () => void;
 }) {
   return (

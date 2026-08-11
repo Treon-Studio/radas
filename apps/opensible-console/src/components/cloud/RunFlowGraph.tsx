@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Loader2, XCircle, ChevronRight } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiCircleLine as Circle, RiLoader4Line as Loader2, RiCloseCircleLine as XCircle, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 
 type StepState = "pending" | "running" | "success" | "failed" | "skipped";
 

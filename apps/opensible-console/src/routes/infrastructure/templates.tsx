@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  RefreshCw, Search, Container, Globe, Boxes, Package, RefreshCcw,
-  Plus, X,
-} from "lucide-react";
+import { RiRefreshLine as RefreshCw, RiSearchLine as Search, RiStackshareLine as Container, RiGlobalLine as Globe, RiArchiveStackLine as Boxes, RiBox1Line as Package, RiArrowGoBackLine as RefreshCcw, RiAddLine as Plus, RiCloseLine as X } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

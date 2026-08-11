@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import {
-  SlidersHorizontal, Info,
-  KeyRound, Bug, Upload, History, CheckCircle2, XCircle, Plus, RefreshCw,
-  Globe,
-} from "lucide-react";
+import { RiEqualizerLine as SlidersHorizontal, RiInformationLine as Info, RiKey2Line as KeyRound, RiBugLine as Bug, RiUpload2Line as Upload, RiHistoryLine as History, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiAddLine as Plus, RiRefreshLine as RefreshCw, RiGlobalLine as Globe } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";

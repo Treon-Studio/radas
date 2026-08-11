@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plug, Plus, RefreshCw, Trash2, RotateCcw, Ban, BookOpen, Copy, Check } from "lucide-react";
+import { RiPlugLine as Plug, RiAddLine as Plus, RiRefreshLine as RefreshCw, RiDeleteBinLine as Trash2, RiArrowGoBackLine as RotateCcw, RiForbidLine as Ban, RiBookOpenLine as BookOpen, RiFileCopyLine as Copy, RiCheckLine as Check } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

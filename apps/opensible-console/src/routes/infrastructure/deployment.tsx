@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Play, RefreshCw, Folder, Server, Lock, ClipboardList, LayoutTemplate, X, Terminal } from "lucide-react";
+import { RiPlayLine as Play, RiRefreshLine as RefreshCw, RiFolderLine as Folder, RiServerLine as Server, RiLockLine as Lock, RiClipboardLine as ClipboardList, RiLayoutGridLine as LayoutTemplate, RiCloseLine as X, RiTerminalBoxLine as Terminal } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";

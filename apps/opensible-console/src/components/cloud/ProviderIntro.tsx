@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { ProviderLogo, PROVIDER_LABELS } from "@/lib/providers";
-import { BookOpen, Github } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiGithubLine as Github } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 
 const GITHUB_ISSUES_URL = "https://github.com/opensible/opensible/issues/new";

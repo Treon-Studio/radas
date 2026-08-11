@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Cpu } from "lucide-react";
+import { RiCpuLine as Cpu } from "@remixicon/react";
 import { api } from "@/lib/api";
 import { Select } from "@/components/ui/select";
 

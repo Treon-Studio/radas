@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, Cloud, Loader2 } from "lucide-react";
+import { RiCloseLine as X, RiCloudLine as Cloud, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

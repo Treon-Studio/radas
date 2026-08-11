@@ -1,9 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  BookOpen, RefreshCw, Plus, Play, Search, Upload, Download, Copy,
-  Edit3, Trash2, CheckCircle2, AlertCircle, FileCode, Eye,
-} from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiPlayLine as Play, RiSearchLine as Search, RiUpload2Line as Upload, RiDownload2Line as Download, RiFileCopyLine as Copy, RiPenNibLine as Edit3, RiDeleteBinLine as Trash2, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertCircle, RiFileCodeLine as FileCode, RiEyeLine as Eye } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

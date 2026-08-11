@@ -3,7 +3,7 @@
  */
 import { useMemo, useState } from "react";
 import * as yaml from "js-yaml";
-import { Plus, Trash2, Code2, ListChecks, FileWarning } from "lucide-react";
+import { RiAddLine as Plus, RiDeleteBinLine as Trash2, RiCodeSLine as Code2, RiCheckboxMultipleLine as ListChecks, RiFileWarningLine as FileWarning } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

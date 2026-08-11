@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ShieldCheck, Plus, Pencil, Trash2, KeyRound, Search, RefreshCw, Key, Fingerprint, Users, Package } from "lucide-react";
+import { RiShieldCheckLine as ShieldCheck, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiSearchLine as Search, RiRefreshLine as RefreshCw, RiKeyLine as Key, RiFingerprintLine as Fingerprint, RiGroupLine as Users, RiBox1Line as Package } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, ReactNode } from "react";
-import {
-  Server, RefreshCw, Plus, Pencil, KeyRound, Ban, Check, Trash2,
-  Info, Copy, AlertTriangle, X, Circle, PlugZap,
-} from "lucide-react";
+import { RiServerLine as Server, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiPencilLine as Pencil, RiKey2Line as KeyRound, RiForbidLine as Ban, RiCheckLine as Check, RiDeleteBinLine as Trash2, RiInformationLine as Info, RiFileCopyLine as Copy, RiErrorWarningLine as AlertTriangle, RiCloseLine as X, RiCircleLine as Circle, RiPlug2Line as PlugZap } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

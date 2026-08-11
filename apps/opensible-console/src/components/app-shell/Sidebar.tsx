@@ -1,7 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import {
-  Cloud, PieChart, Layers, Plus, Settings2, Server, Shield, KeyRound, BookOpen, ScrollText, FileCode, ChevronsLeft, ChevronsRight, Home, ShieldCheck, Plug, Cpu, Users, Calculator, Rocket, LayoutTemplate, Library, Network, GitBranch, History,
-} from "lucide-react";
+import { RiCloudLine as Cloud, RiPieChartLine as PieChart, RiStackLine as Layers, RiAddLine as Plus, RiSettings2Line as Settings2, RiServerLine as Server, RiShieldLine as Shield, RiKey2Line as KeyRound, RiBookOpenLine as BookOpen, RiFileList3Line as ScrollText, RiFileCodeLine as FileCode, RiArrowLeftDoubleLine as ChevronsLeft, RiArrowRightDoubleLine as ChevronsRight, RiHomeLine as Home, RiShieldCheckLine as ShieldCheck, RiPlugLine as Plug, RiCpuLine as Cpu, RiGroupLine as Users, RiCalculatorLine as Calculator, RiRocketLine as Rocket, RiLayoutGridLine as LayoutTemplate, RiBookShelfLine as Library, RiNodeTree as Network, RiGitBranchLine as GitBranch, RiHistoryLine as History } from "@remixicon/react";
 import logoSvg from "@/assets/opensible-logo.png";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";

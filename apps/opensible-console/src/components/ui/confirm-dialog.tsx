@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
