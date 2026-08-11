@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel,
   getPaginationRowModel, getSortedRowModel, useReactTable, type SortingState,
@@ -16,6 +16,7 @@ import { qk } from "@/lib/query";
 import { useT } from "@/lib/i18n";
 import { ProviderCell } from "@/lib/providers";
 import { ExportButtons, ImportStackButton } from "@/components/cloud/DataTools";
+import { StateView } from "@/components/ui/StateView";
 
 export const Route = createFileRoute("/cloud/stacks/")({ component: StacksList });
 
@@ -35,6 +36,7 @@ const col = createColumnHelper<StackRow>();
 
 function StacksList() {
   const t = useT();
+  const queryClient = useQueryClient();
   const { data, isLoading: loading, error: queryError } = useQuery({
     queryKey: qk.stacks,
     queryFn: () => api<{ stacks: StackRow[] }>("GET", "/api/cloud/stacks"),
@@ -148,14 +150,11 @@ function StacksList() {
           />
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          {error && <div className="px-6 py-8 text-center text-[var(--color-destructive)] text-sm">{error}</div>}
+          {error && <StateView state="error" title="Failed to load stacks" message={error} onRetry={() => queryClient.invalidateQueries({ queryKey: ["cloud", "stacks"] })} />}
           {!error && rows.length === 0 && !loading && (
-            <div className="px-6 py-12 text-center">
-              <Cloud className="h-10 w-10 mx-auto text-[var(--color-muted-foreground)] opacity-40 mb-3" />
-              <div className="text-sm font-medium mb-1">No cloud stacks yet</div>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Create one to start provisioning infrastructure.</p>
-              <Button asChild size="sm"><Link to="/cloud/stacks/new">Create Stack</Link></Button>
-            </div>
+            <StateView state="empty" title="No cloud stacks yet"
+              message="Create one to start provisioning infrastructure."
+              action={<Button asChild size="sm"><Link to="/cloud/stacks/new">Create Stack</Link></Button>} />
           )}
           {!error && rows.length > 0 && (
             <>

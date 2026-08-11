@@ -27,6 +27,7 @@ import idcloudhostLogo from "@/assets/idcloudhost-logo.png";
 import kubernetesLogo from "@/assets/kubernetes-logo.svg";
 import { useT } from "@/lib/i18n";
 import { BudgetCard } from "@/components/cloud/BudgetCard";
+import { StateView } from "@/components/ui/StateView";
 import { CostInsights } from "@/components/cloud/CostInsights";
 
 export const Route = createFileRoute("/cloud/cost")({ component: CostAnalysisPage });
@@ -211,7 +212,7 @@ function PricingTab() {
         </Card>
 
         {q.isLoading || !data ? (
-          <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Loading pricing…</CardContent></Card>
+          <StateView state="loading" title="Loading pricing…" />
         ) : (
           <>
             <CategoryCard title={t("page.cost.compute")}>
@@ -627,7 +628,7 @@ function CalculatorTab() {
               <CardContent className="pt-0 h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={summary.months}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis dataKey="m" fontSize={11} />
                     <YAxis fontSize={11} />
                     <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />
@@ -642,7 +643,7 @@ function CalculatorTab() {
               <CardContent className="pt-0 h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[...result.line_items].sort((a, b) => b.monthly - a.monthly).slice(0, 12)}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis dataKey="name" fontSize={11} />
                     <YAxis fontSize={11} />
                     <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />

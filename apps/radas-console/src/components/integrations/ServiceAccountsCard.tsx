@@ -89,7 +89,7 @@ export function ServiceAccountsCard() {
                   {sa.revoked && <Badge variant="destructive" className="text-[10px]">revoked</Badge>}
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => remove(sa.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              <Button variant="outline" size="sm" onClick={() => remove(sa.id)} aria-label="Revoke service account"><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
           ))}
         </div>

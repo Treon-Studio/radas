@@ -211,9 +211,9 @@ fitur terpisah:
 
 | # | Use case (baru) | Status | Prio | Fase |
 |---|---|---|---|---|
-| 101 | Audit design system & token (hapus warna hardcoded) | ⬜ | P1 | 1 |
-| 102 | Pass aksesibilitas (a11y) seluruh view utama | ⬜ | P1 | 1 |
-| 103 | Standarisasi empty/loading/error states semua halaman | ⬜ | P1 | 1 |
+| 101 | Audit design system & token (hapus warna hardcoded) | ✅ | P1 | 1 |
+| 102 | Pass aksesibilitas (a11y) seluruh view utama | 🔶 | P1 | 1 |
+| 103 | Standarisasi empty/loading/error states semua halaman | ✅ | P1 | 1 |
 | 104 | OpenAPI lengkap & auto-generated untuk semua endpoint | ✅ | P0 | 1 |
 | 105 | Webhook payload schema + sample docs | ✅ | P1 | 1 |
 | 106 | Idempotency key + rate-limit terstandar di API | ✅ | P1 | 2 |

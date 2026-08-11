@@ -51,8 +51,8 @@ export function ApprovalPanel({ stackId }: { stackId: string }) {
               {a.note && <span className="text-xs text-[var(--color-muted-foreground)] ml-2">— {a.note}</span>}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => decide(a.id, "approved")}><Check className="h-3.5 w-3.5" /></Button>
-              <Button size="sm" variant="outline" onClick={() => decide(a.id, "rejected")}><X className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="outline" onClick={() => decide(a.id, "approved")} aria-label="Approve"><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="outline" onClick={() => decide(a.id, "rejected")} aria-label="Reject"><X className="h-3.5 w-3.5" /></Button>
             </div>
           </div>
         ))}

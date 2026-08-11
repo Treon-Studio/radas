@@ -91,8 +91,8 @@ export function WebhooksCard() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <Button variant="outline" size="sm" onClick={() => test(w.id)}><Send className="h-3.5 w-3.5" /></Button>
-                <Button variant="outline" size="sm" onClick={() => remove(w.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                <Button variant="outline" size="sm" onClick={() => test(w.id)} aria-label="Test webhook"><Send className="h-3.5 w-3.5" /></Button>
+                <Button variant="outline" size="sm" onClick={() => remove(w.id)} aria-label="Delete webhook"><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </div>
           ))}

@@ -129,7 +129,7 @@ function WorkersPage() {
                   const dotColor = !w.enabled
                     ? "text-[var(--color-muted-foreground)]"
                     : online
-                    ? "text-[var(--color-success,#10B981)]"
+                    ? "text-[var(--color-success)]"
                     : "text-[var(--color-destructive)]";
                   return (
                     <tr key={w.id} className="border-b hover:bg-[var(--color-muted)]/30">
@@ -239,8 +239,8 @@ function IconBtn({
 }) {
   const toneCls = {
     default: "text-[var(--color-foreground)] hover:bg-[var(--color-muted)]",
-    success: "text-[var(--color-success,#10B981)] hover:bg-[var(--color-success,#10B981)]/10",
-    warning: "text-[var(--color-warning,#F59E0B)] hover:bg-[var(--color-warning,#F59E0B)]/10",
+    success: "text-[var(--color-success)] hover:bg-[var(--color-success)]/10",
+    warning: "text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10",
     destructive: "text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10",
   }[tone];
   return (
@@ -376,8 +376,8 @@ function TokenDialog({ token, title, onClose }: { token: string; title: string; 
   return (
     <ModalShell title={title} icon={<KeyRound className="h-4 w-4" />} onClose={onClose}>
       <div className="space-y-3">
-        <div className="flex items-start gap-2 text-sm bg-[var(--color-warning,#F59E0B)]/10 border border-[var(--color-warning,#F59E0B)]/30 rounded-md p-3">
-          <AlertTriangle className="h-4 w-4 text-[var(--color-warning,#F59E0B)] shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 text-sm bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-md p-3">
+          <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] shrink-0 mt-0.5" />
           <span>Save this token now — it will not be shown again.</span>
         </div>
         <div className="flex gap-2">
