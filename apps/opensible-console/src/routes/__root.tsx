@@ -1,6 +1,5 @@
 import { createRootRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AppSidebar } from "@/components/app-shell/Sidebar";
 import { AppHeader } from "@/components/app-shell/Header";
 import { getToken } from "@/lib/api";
 
@@ -37,14 +36,13 @@ function RootLayout() {
   if (!ready) return null;
 
   return (
-    <div className="flex h-screen w-full">
-      <AppSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <AppHeader />
-        <main className="flex-1 overflow-auto p-6 bg-[var(--color-background)]">
+    <div className="flex h-screen w-full flex-col">
+      <AppHeader />
+      <main className="flex-1 overflow-auto bg-[var(--color-background)]">
+        <div className="mx-auto w-full max-w-[1280px] px-6 py-6">
           <Outlet />
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

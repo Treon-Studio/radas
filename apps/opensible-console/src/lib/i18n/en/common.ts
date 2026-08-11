@@ -126,4 +126,6 @@ export const common: Record<string, string> = {
   "hosts.saving": "Saving…",
   "hosts.saved": "Saved",
   "hosts.adding": "Adding…",
+  "common.showPassword": "Show password",
+  "common.hidePassword": "Hide password",
 };

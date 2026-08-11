@@ -126,4 +126,6 @@ export const common: Record<string, string> = {
   "hosts.saving": "저장 중…",
   "hosts.saved": "저장됨",
   "hosts.adding": "추가 중…",
+  "common.showPassword": "비밀번호 표시",
+  "common.hidePassword": "비밀번호 숨기기",
 };

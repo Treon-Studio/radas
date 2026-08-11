@@ -126,4 +126,6 @@ export const common: Record<string, string> = {
   "hosts.saving": "កំពុងរក្សាទុក…",
   "hosts.saved": "បានរក្សាទុក",
   "hosts.adding": "កំពុងបន្ថែម…",
+  "common.showPassword": "មើលពាក្យសម្ងាត់",
+  "common.hidePassword": "លាក់ពាក្យសម្ងាត់",
 };

@@ -1,12 +1,14 @@
-import { RiMoonLine as Moon, RiSunLine as Sun, RiTranslate as Languages, RiFolder2Line as FolderKanban, RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
+import { RiMoonLine as Moon, RiSunLine as Sun, RiTranslate as Languages, RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { NavSections } from "@/components/app-shell/NavSections";
 import { useTheme } from "@/lib/theme";
 import { useLocale, useT, LOCALES, type Locale } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
-import { useNavigate } from "@tanstack/react-router";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { getStoredUser } from "@/lib/api";
 
@@ -56,34 +58,33 @@ export function AppHeader() {
   }
 
   return (
-    <header className="h-14 border-b border-[var(--color-border)] bg-[var(--color-card)] flex items-center justify-between px-6 gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        {/* Project switcher */}
-        <div className="hidden lg:block w-[240px]">
+    <header className="h-16 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-background)] flex items-center justify-between px-6 gap-4">
+      <div className="flex items-center gap-6 min-w-0">
+        <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
+          <img src={logoSvg} className="h-8 w-8" alt="OpenSible" />
+          <span className="hidden md:inline text-sm font-medium tracking-tight">{t("app.name")}</span>
+        </Link>
+        <NavSections />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="hidden xl:block w-[200px]">
           <Select
             value={currentId ?? ""}
             onChange={(v) => setCurrent(v || null)}
             disabled={loading}
             placeholder={loading ? t("common.loading") : t("common.noProjects")}
-            prefix={<FolderKanban className="h-3.5 w-3.5 text-[var(--color-foreground)] shrink-0" />}
+            prefix={<StackLine className="h-3.5 w-3.5 text-[var(--color-foreground)] shrink-0" />}
             options={projects.map(p => ({ value: p.id, label: p.name, description: p.description }))}
-            triggerClassName="h-9 rounded-full"
-            panelClassName="rounded-xl"
+            triggerClassName="h-8 rounded-full"
             align="start"
           />
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-
-        <button
-          onClick={() => setNewProjectOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 h-9 rounded-full text-sm font-medium text-[var(--color-foreground)] border border-[var(--color-foreground)]/30 hover:bg-[var(--color-foreground)]/10 transition-colors"
-          title={t("common.createNewProject")}
-        >
+        <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")}>
           <Plus className="h-4 w-4" />
           <span className="hidden md:inline">{t("common.newProject")}</span>
-        </button>
+        </Button>
 
         <div className="w-[150px]">
           <Select
@@ -95,8 +96,6 @@ export function AppHeader() {
               description: l.label !== l.nativeLabel ? l.label : undefined,
             }))}
             prefix={<Languages className="h-3.5 w-3.5 text-[var(--color-foreground)] shrink-0" />}
-            triggerClassName="h-9 rounded-full"
-            panelClassName="rounded-xl"
             align="end"
           />
         </div>
@@ -108,28 +107,28 @@ export function AppHeader() {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(v => !v)}
-            className="flex items-center gap-2 pl-1 pr-2 h-10 rounded-full hover:bg-[var(--color-muted)] transition-colors"
+            className="flex items-center gap-2 pl-1 pr-2 h-8 rounded-full hover:bg-[var(--color-muted)] transition-colors"
             title={displayName}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            <div className="h-8 w-8 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-sm font-semibold">{initial}</div>
+            <div className="h-8 w-8 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-sm font-medium">{initial}</div>
             <div className="hidden sm:flex flex-col items-start leading-tight max-w-[140px]">
               <span className="text-sm font-medium truncate max-w-[140px]">{displayName}</span>
-              <span className="text-[10px] text-[var(--color-foreground)]/70 truncate max-w-[140px]">{primaryRole}</span>
+              <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-muted-foreground)] truncate max-w-[140px]">{primaryRole}</span>
             </div>
-            <ChevronDown className="h-3.5 w-3.5 text-[var(--color-foreground)]/70 ml-0.5" />
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--color-muted-foreground)] ml-0.5" />
           </button>
 
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 mt-2 w-64 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-lg z-50 overflow-hidden"
+              className="absolute right-0 mt-2 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] shadow-[var(--shadow-popover)] z-50 overflow-hidden"
             >
               <div className="px-4 py-3 border-b border-[var(--color-border)]">
                 <div className="text-sm font-semibold truncate">{displayName}</div>
-                {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-1">{primaryRole}</div>
+                {user.email && <div className="text-xs text-[var(--color-muted-foreground)] truncate">{user.email}</div>}
+                <div className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-muted-foreground)] mt-1">{primaryRole}</div>
               </div>
               <button
                 role="menuitem"
@@ -153,4 +152,3 @@ export function AppHeader() {
     </header>
   );
 }
-

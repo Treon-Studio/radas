@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { RiBookOpenLine as BookOpen, RiGlobalLine as Globe, RiGithubLine as Github, RiLinkedinBoxLine as Linkedin, RiYoutubeLine as Youtube } from "@remixicon/react";
+import { useState } from "react";
+import { RiEyeLine as Eye, RiEyeOffLine as EyeOff } from "@remixicon/react";
 import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 function LoginPage() {
   const t = useT();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
 
   const mutation = useMutation({
     mutationFn: ({ u, p }: { u: string; p: string }) => login(u, p),
@@ -30,31 +32,7 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
-      {/* Left — Branding */}
-      <div className="relative hidden lg:flex flex-col justify-between bg-[var(--color-sidebar)] text-[var(--color-sidebar-foreground)] p-12">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg">
-            <img src={logoSvg} className="h-10 w-10" alt="OpenSible" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
-        </div>
-
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold leading-tight">
-            {t("auth.login.tagline")}
-          </h1>
-          <p className="text-lg text-[var(--color-sidebar-muted)]">
-            {t("auth.login.subtitle")}
-          </p>
-
-        </div>
-
-        <div className="text-xs text-[var(--color-sidebar-muted)]">
-          <span>© {new Date().getFullYear()} {t("app.name")}. {t("auth.login.rightsReserved")}</span>
-        </div>
-      </div>
-
-      {/* Right — Login Form */}
+      {/* Left — Login Form */}
       <div className="flex flex-col items-center justify-center p-6 bg-[var(--color-background)]">
         <div className="w-full max-w-sm space-y-6 flex-1 flex flex-col justify-center">
           {/* Mobile brand */}
@@ -88,7 +66,23 @@ function LoginPage() {
               {(field) => (
                 <div className="space-y-1">
                   <label className="text-sm font-medium">{t("auth.login.password")}</label>
-                  <Input type="password" value={field.state.value} onChange={e => field.handleChange(e.target.value)} required />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={field.state.value}
+                      onChange={e => field.handleChange(e.target.value)}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((s) => !s)}
+                      aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
             </form.Field>
@@ -100,13 +94,29 @@ function LoginPage() {
               )}
             </form.Subscribe>
           </form>
+        </div>
+      </div>
 
-          <div className="flex items-center justify-end gap-3 text-[var(--color-muted-foreground)]">
-            <a href="https://www.linkedin.com/showcase/opensible" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--color-foreground)] transition-colors" aria-label="LinkedIn"><Linkedin className="h-4 w-4" /></a>
-            <a href="https://github.com/opensible" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--color-foreground)] transition-colors" aria-label="GitHub"><Github className="h-4 w-4" /></a>
-            <a href="https://www.youtube.com/@opensible" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--color-foreground)] transition-colors" aria-label="YouTube"><Youtube className="h-4 w-4" /></a>
-            <a href="https://docs.opensible.com" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--color-foreground)] transition-colors" aria-label="Documentation"><BookOpen className="h-4 w-4" /></a>
+      {/* Right — Branding */}
+      <div className="relative hidden lg:flex flex-col justify-between bg-[var(--color-card)] text-[var(--color-foreground)] border-l border-[var(--color-border)] p-12">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg">
+            <img src={logoSvg} className="h-10 w-10" alt="OpenSible" />
           </div>
+          <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
+        </div>
+
+        <div className="space-y-6">
+          <h1 className="text-3xl font-medium tracking-tight leading-tight">
+            {t("auth.login.tagline")}
+          </h1>
+          <p className="text-lg text-[var(--color-charcoal)]">
+            {t("auth.login.subtitle")}
+          </p>
+        </div>
+
+        <div className="text-xs font-mono text-[var(--color-stone)]">
+          <span>© {new Date().getFullYear()} {t("app.name")}. {t("auth.login.rightsReserved")}</span>
         </div>
       </div>
     </div>
