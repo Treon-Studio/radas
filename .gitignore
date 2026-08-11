@@ -126,3 +126,19 @@ terraform.tfvars*
 .worktrees/
 
 # Specific directories for individual projects
+
+# OpenSible (apps/opensible-*)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+data/
+ssh-keys/
+**/worker.token
+**/.encryption_key
+.tanstack/
+apps/opensible-worker/bin/

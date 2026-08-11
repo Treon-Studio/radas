@@ -45,6 +45,10 @@ apps/
   dashboard/   Next.js template. Not wired to @radas/* packages.
   extension/   Chrome extension (tsup). Depends on packages/dev-tools.
   homepage/    Vite + React 18 landing page.
+  opensible-console/  @radas/opensible-console (Vite + React 19 console, from OpenSible).
+                        Run: pnpm --filter @radas/opensible-console dev (port 8080).
+  opensible-server/   Flask API (Python 3.14). Run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py (port 5000). Depends on IaC via symlink IaC -> ../../templates/opensible-iac.
+  opensible-worker/   Go worker (module github.com/opensible/worker-go, go >= 1.22). Run: go build -o bin/worker ./cmd/worker.
   site/        Vite + React 19 site. Depends on packages/dev-tools.
   website/     Astro site (@radas/shuttle). Independent.
 modules/       TypeScript-only via tsconfig paths. NOT a pnpm workspace.
@@ -52,8 +56,9 @@ modules/       TypeScript-only via tsconfig paths. NOT a pnpm workspace.
   notifications, okr, profile
 packages/      pnpm workspace members.
   config, hooks, types, ui, utils, validation, dev-tools
-templates/     Only `docs/` and README.md are checked in; the rest are
-               external degit targets.
+templates/     Only `docs/` and README.md are checked in; rest are external
+               degit targets. `opensible-iac/` is the imported OpenSible
+               OpenTofu/Ansible tree (see apps/opensible-server IaC symlink).
 ```
 
 ## Build & test commands
