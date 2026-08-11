@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/api";
@@ -344,7 +345,7 @@ function EditWorkerDialog({ worker, onClose, onSaved }: { worker: Worker; onClos
         </div>
         <div>
           <label className="text-sm font-medium block mb-1.5">Description</label>
-          <textarea
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}

@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
@@ -308,7 +309,7 @@ function SecretDialog({ secret, onClose, onSaved }: { secret: Secret | null; onC
           {type === "git_ssh_key" && (
             <>
               <Field label={isEdit ? "Private key (leave blank to keep)" : "Private key"}>
-                <textarea
+                <Textarea
                   value={privateKey}
                   onChange={e => setPrivateKey(e.target.value)}
                   rows={6}

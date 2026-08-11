@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -575,7 +576,7 @@ function CreateSecretDialog({ onClose, onSaved }: { onClose: () => void; onSaved
         {type === "ssh_key" ? (
           <>
             <Field label="Private Key *">
-              <textarea
+              <Textarea
                 value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} rows={8}
                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----…"
                 className="w-full font-mono text-xs rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1.5"
@@ -636,7 +637,7 @@ function EditSecretDialog({ secret, onClose, onSaved }: { secret: Secret; onClos
         {secret.type === "ssh_key" && (
           <>
             <Field label="Rotate Private Key (leave empty to keep)">
-              <textarea value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} rows={6}
+              <Textarea value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} rows={6}
                 className="w-full font-mono text-xs rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1.5" />
             </Field>
             <Field label="Passphrase (optional)"><Input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} /></Field>
@@ -848,7 +849,7 @@ function EncryptVariableDialog({
         </div>
 
         <Field label="Value *">
-          <textarea
+          <Textarea
             value={varValue}
             onChange={(e) => setVarValue(e.target.value)}
             rows={5}

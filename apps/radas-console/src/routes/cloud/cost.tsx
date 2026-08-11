@@ -11,6 +11,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
@@ -504,7 +505,7 @@ function CalculatorTab() {
         {source === "plan" && (
           <CardContent className="pt-0">
             <div className="text-xs text-muted-foreground mb-1">Paste OpenTofu/Terraform plan JSON</div>
-            <textarea
+            <Textarea
               className="w-full h-32 font-mono text-xs p-2 border rounded-md bg-background"
               value={planText}
               onChange={(e) => setPlanText(e.target.value)}

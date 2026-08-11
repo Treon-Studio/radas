@@ -10,6 +10,8 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -340,7 +342,7 @@ function FieldRenderer({ field, value, setValue }: {
       return (
         <FieldWrap label={f.label} required={f.required} help={f.help}>
           {f.multiline ? (
-            <textarea
+            <Textarea
               rows={10}
               value={value ?? ""}
               onChange={(e) => setValue(e.target.value)}
@@ -357,13 +359,11 @@ function FieldRenderer({ field, value, setValue }: {
     case "select":
       return (
         <FieldWrap label={f.label} required={f.required} help={f.help}>
-          <select
-            className="w-full h-9 rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm"
+          <Select
             value={value ?? f.default ?? ""}
-            onChange={(e) => setValue(e.target.value)}
-          >
-            {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+            onChange={setValue}
+            options={(f.options || []).map(o => ({ value: o, label: o }))}
+          />
         </FieldWrap>
       );
     case "json":
@@ -387,7 +387,7 @@ function JsonField({ value, setValue }: { value: any; setValue: (v: any) => void
   const [text, setText] = useState(initial);
   const [bad, setBad] = useState(false);
   return (
-    <textarea
+    <Textarea
       rows={10}
       value={text}
       onChange={(e) => {

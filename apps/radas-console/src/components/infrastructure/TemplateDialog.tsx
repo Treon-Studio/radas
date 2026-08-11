@@ -5,6 +5,7 @@ import { RiLayoutGridLine as LayoutTemplate, RiRefreshLine as RefreshCw, RiClose
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { YamlEditor } from "@/components/ui/yaml-editor";
 import { api } from "@/lib/api";
@@ -472,7 +473,7 @@ export function TemplateDialog({
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                          <textarea
+                          <Textarea
                             className="w-full text-xs font-mono border border-[var(--color-border)] rounded bg-[var(--color-background)] p-1.5 min-h-[44px]"
                             value={s.command}
                             placeholder={s.type === "ansible" ? "playbooks/other.yml --limit web" : "e.g. docker build -t app:$SHA ."}

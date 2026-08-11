@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { RiCloseLine as X, RiSaveLine as Save, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { YamlEditor } from "@/components/ui/yaml-editor";
 import type { Blueprint, BlueprintGroup, FormSchemaField } from "@/lib/blueprints";
@@ -212,7 +213,7 @@ function FieldRow({
           />
         )}
         {field.type === "textarea" && (
-          <textarea
+          <Textarea
             className="w-full text-sm px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] font-mono"
             rows={field.rows || 4}
             value={(value as string) ?? ""}

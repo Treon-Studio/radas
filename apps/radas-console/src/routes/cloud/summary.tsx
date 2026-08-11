@@ -5,6 +5,7 @@ import { RiRefreshLine as RefreshCw, RiTerminalBoxLine as Terminal, RiCloseLine 
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge, statusToVariant } from "@/components/ui/badge";
 import { LogViewer } from "@/components/cloud/LogViewer";
 import { PlanDiff } from "@/components/cloud/PlanDiff";
@@ -160,32 +161,12 @@ function SummaryPage() {
             onChange={(e) => setQ(e.target.value)}
             className="max-w-xs"
           />
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">{t("summary.allStatuses")}</option>
-            <option>running</option><option>queued</option>
-            <option>succeeded</option><option>failed</option><option>canceled</option>
-          </select>
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={action} onChange={(e) => setAction(e.target.value)}>
-            <option value="">{t("summary.allActions")}</option>
-            <option>init</option><option>plan</option><option>apply</option>
-            <option>destroy</option><option>validate</option><option>fmt</option><option>refresh</option>
-          </select>
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
-            <option value="">{t("summary.allProviders")}</option>
-            {providerOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={cloudProjectFilter} onChange={(e) => setCloudProjectFilter(e.target.value)}>
-            <option value="">{t("summary.allCloudProjects")}</option>
-            {cloudProjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
-            <option value="">{t("summary.allEnvironments")}</option>
-            {envOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={stackFilter} onChange={(e) => setStackFilter(e.target.value)}>
-            <option value="">{t("summary.allStacks")}</option>
-            {stackOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select value={status} onChange={setStatus} options={[{ value: "", label: t("summary.allStatuses") }, { value: "running", label: "running" }, { value: "queued", label: "queued" }, { value: "succeeded", label: "succeeded" }, { value: "failed", label: "failed" }, { value: "canceled", label: "canceled" }]} />
+          <Select value={action} onChange={setAction} options={[{ value: "", label: t("summary.allActions") }, { value: "init", label: "init" }, { value: "plan", label: "plan" }, { value: "apply", label: "apply" }, { value: "destroy", label: "destroy" }, { value: "validate", label: "validate" }, { value: "fmt", label: "fmt" }, { value: "refresh", label: "refresh" }]} />
+          <Select value={providerFilter} onChange={setProviderFilter} options={[{ value: "", label: t("summary.allProviders") }, ...providerOptions.map(s => ({ value: s, label: s }))]} />
+          <Select value={cloudProjectFilter} onChange={setCloudProjectFilter} options={[{ value: "", label: t("summary.allCloudProjects") }, ...cloudProjectOptions.map(s => ({ value: s, label: s }))]} />
+          <Select value={envFilter} onChange={setEnvFilter} options={[{ value: "", label: t("summary.allEnvironments") }, ...envOptions.map(s => ({ value: s, label: s }))]} />
+          <Select value={stackFilter} onChange={setStackFilter} options={[{ value: "", label: t("summary.allStacks") }, ...stackOptions.map(s => ({ value: s, label: s }))]} />
           <span className="ml-auto text-xs text-[var(--color-muted-foreground)]">{t("summary.runsCount", { shown: filtered.length, total: runs.length })}</span>
         </div>
       </div>

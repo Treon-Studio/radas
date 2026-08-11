@@ -10,6 +10,8 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -451,13 +453,12 @@ function FieldRenderer({ field, value, setValue, allValues, setOther }: {
                   onChange={(e) => commit(names, { ...map, [n]: Number(e.target.value) || 0 }, subnetMap as any, flavorMap as any)}
                 />
                 {subnetField && (
-                  <select
-                    className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm"
+                  <Select
+                    className="min-w-[8rem]"
                     value={subnetMap[n] || subnetOpts[0] || ""}
-                    onChange={(e) => commit(names, map, { ...subnetMap, [n]: e.target.value } as any, flavorMap as any)}
-                  >
-                    {subnetOpts.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                    onChange={(v) => commit(names, map, { ...subnetMap, [n]: v } as any, flavorMap as any)}
+                    options={subnetOpts.map(o => ({ value: o, label: o }))}
+                  />
                 )}
                 {flavorField && (
                   <Input
@@ -505,7 +506,7 @@ function JsonField({ value, setValue }: { value: any; setValue: (v: any) => void
   const [text, setText] = useState(initial);
   const [bad, setBad] = useState(false);
   return (
-    <textarea
+    <Textarea
       rows={6}
       value={text}
       onChange={(e) => {
