@@ -176,7 +176,7 @@
 | 95 | Outbound webhooks (events) | ✅ | P0 | 1 |
 | 96 | Custom blueprint / plugin provider baru | 🔶 | P1 | 5 |
 | 97 | Import stack eksisting ke Radas | ✅ | P0 | 1 |
-| 98 | SSO/IdP (OIDC/SAML) | ⬜ | P1 | 2 |
+| 98 | SSO/IdP (OIDC/SAML) | 🔶 | P1 | 2 |
 | 99 | Mirror provider/module OpenTofu internal | ⬜ | P2 | 5 |
 | 100 | Export data (CSV/JSON) & interop CLI | ✅ | P0 | 1 |
 

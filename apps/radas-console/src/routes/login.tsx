@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { RiEyeLine as Eye, RiEyeOffLine as EyeOff } from "@remixicon/react";
 import logoSvg from "@/assets/opensible-logo.png";
@@ -16,6 +16,10 @@ function LoginPage() {
   const t = useT();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const { data: sso } = useQuery({
+    queryKey: ["sso-status"],
+    queryFn: () => api<{ configured: boolean }>("GET", "/api/oidc/config"),
+  });
 
   const mutation = useMutation({
     mutationFn: ({ u, p }: { u: string; p: string }) => login(u, p),
@@ -94,6 +98,15 @@ function LoginPage() {
               )}
             </form.Subscribe>
           </form>
+
+          {sso?.configured && (
+            <a
+              href="/api/auth/sso"
+              className="flex items-center justify-center gap-2 rounded-md border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-muted)] transition-colors"
+            >
+              Continue with SSO
+            </a>
+          )}
         </div>
       </div>
 
