@@ -150,7 +150,7 @@
 | 79 | Auto-scale berdasarkan beban | ⬜ | P2 | 5 |
 | 80 | Maintenance window | ⬜ | P2 | 5 |
 | 81 | Event-driven provisioning via webhook | ⬜ | P1 | 5 |
-| 82 | Retry policy & exponential backoff | ⬜ | P1 | 5 |
+| 82 | Retry policy & exponential backoff | 🔶 | P1 | 5 |
 | 83 | Cron playbook berkala | ✅ | P0 | 0 |
 | 84 | Preferensi notifikasi per user | 🔶 | P1 | 5 |
 | 85 | Roadmap otomasi terencana (AI planner) | ⬜ | P2 | 4 |

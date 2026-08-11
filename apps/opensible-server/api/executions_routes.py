@@ -717,3 +717,15 @@ def api_execution_stream():
     resp.headers['Cache-Control'] = 'no-cache'
     resp.headers['X-Accel-Buffering'] = 'no'
     return resp
+
+
+@bp.route('/api/executions/<execution_id>/retry', methods=['POST'])
+@require_auth
+def api_retry_execution(execution_id):
+    """Re-queue a finished execution as a new run (Fase 5 — UC 82)."""
+    project_id = get_project_id_from_request() or request.args.get('project_id')
+    from services.execution_retry import retry_execution
+    new_id = retry_execution(execution_id, project_id=project_id)
+    if not new_id:
+        return jsonify({'error': 'not found', 'message': 'execution not found'}), 404
+    return jsonify({'success': True, 'new_execution_id': new_id, 'retry_of': execution_id}), 201
