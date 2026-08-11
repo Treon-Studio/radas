@@ -62,7 +62,7 @@
 | 21 | Konfigurasi post-provision via platform roles | ✅ | P0 | 0 |
 | 22 | Jadwalkan playbook berkala (cron) | ✅ | P0 | 0 |
 | 23 | Remediasi konfigurasi saat drift | ✅ | P1 | 5 |
-| 24 | Proxy via bastion/jump host | ⬜ | P2 | 5 |
+| 24 | Proxy via bastion/jump host | ✅ | P2 | 5 |
 | 25 | Inject vault secrets ke playbook | ✅ | P0 | 0 |
 
 ## C. Cost & FinOps (26–33)

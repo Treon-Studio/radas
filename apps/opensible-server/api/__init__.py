@@ -63,6 +63,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.custom_template_routes",
         "api.retry_policy_routes",
         "api.oidc_routes",
+        "api.bastion_routes",
         "api.env_roles_routes",
         "api.export_routes",
         "api.stack_import_routes",
