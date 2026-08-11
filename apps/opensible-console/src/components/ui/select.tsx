@@ -78,10 +78,10 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
-          "w-full inline-flex items-center justify-between gap-2 h-10 px-3 rounded-xl",
+          "w-full inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md",
           "bg-[var(--color-card)] border border-[var(--color-border)] text-sm text-[var(--color-foreground)]",
-          "shadow-sm hover:bg-[var(--color-muted)]/40 transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]",
+          "transition-colors hover:bg-[var(--color-muted)]/40",
+          "focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/30 focus:border-[var(--color-ring)]",
           disabled && "opacity-60 cursor-not-allowed",
           triggerClassName,
         )}
@@ -99,8 +99,8 @@ export function Select({
         <div
           role="listbox"
           className={cn(
-            "absolute z-50 min-w-full max-h-72 overflow-auto rounded-xl",
-            "bg-[var(--color-card)] border border-[var(--color-border)] shadow-lg p-1.5",
+            "absolute z-50 min-w-full max-h-72 overflow-auto rounded-md",
+            "bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)] p-1.5",
             side === "top" ? "bottom-full mb-2" : "top-full mt-2",
             align === "end" ? "right-0" : "left-0",
             panelClassName,
@@ -123,7 +123,7 @@ export function Select({
                   "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-left",
                   "transition-colors",
                   selected
-                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
+                    ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
                     : "hover:bg-[var(--color-muted)] text-[var(--color-foreground)]",
                   opt.disabled && "opacity-50 cursor-not-allowed",
                 )}

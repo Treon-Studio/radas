@@ -2,7 +2,7 @@ import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...p }, ref) => (
-  <div ref={ref} className={cn("rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-card-foreground)] shadow-sm", className)} {...p} />
+  <div ref={ref} className={cn("rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-card-foreground)] shadow-[var(--shadow-card)]", className)} {...p} />
 ));
 Card.displayName = "Card";
 
@@ -12,12 +12,12 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
 CardHeader.displayName = "CardHeader";
 
 export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(({ className, ...p }, ref) => (
-  <h3 ref={ref} className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...p} />
+  <h3 ref={ref} className={cn("text-base font-medium leading-none tracking-tight", className)} {...p} />
 ));
 CardTitle.displayName = "CardTitle";
 
 export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(({ className, ...p }, ref) => (
-  <p ref={ref} className={cn("text-sm text-[var(--color-muted-foreground)]", className)} {...p} />
+  <p ref={ref} className={cn("text-[13px] text-[var(--color-stone)]", className)} {...p} />
 ));
 CardDescription.displayName = "CardDescription";
 
