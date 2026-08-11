@@ -51,7 +51,6 @@ jobs:
             "web") echo "🌐" ;;
             "cli") echo "⌨️" ;;
             "app") echo "📱" ;;
-            "website") echo "🖥️" ;;
             "browser-extension") echo "🧩" ;;
             *) echo "📦" ;;
           esac
@@ -63,7 +62,6 @@ jobs:
             "web") echo "Web Application" ;;
             "cli") echo "CLI Tool" ;;
             "app") echo "Mobile App" ;;
-            "website") echo "Website" ;;
             "browser-extension") echo "Browser Extension" ;;
             *) echo "Application" ;;
           esac

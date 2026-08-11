@@ -50,7 +50,6 @@ apps/
   opensible-server/   Flask API (Python 3.14). Run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py (port 5000). Depends on IaC via symlink IaC -> ../../templates/opensible-iac.
   opensible-worker/   Go worker (module github.com/opensible/worker-go, go >= 1.22). Run: go build -o bin/worker ./cmd/worker.
   site/        Vite + React 19 site. Depends on packages/dev-tools.
-  website/     Astro site (@radas/shuttle). Independent.
 modules/       TypeScript-only via tsconfig paths. NOT a pnpm workspace.
   attendance, auth, chat, company-info, drive, hiring, links,
   notifications, okr, profile
@@ -74,7 +73,7 @@ about, or use `pnpm -r --filter <name> ...`.
   - `cd apps/cli && go test ./...` — unit tests (target ~96% coverage on core).
   - `govulncheck ./...` from `apps/cli/` — Go vulnerability scan.
   - `go run github.com/radas/radas/v3@latest create` — CLI's own quick start.
-- **Web apps (extension/site/dashboard/homepage/website):** each has its own
+- **Web apps (extension/site/dashboard/homepage):** each has its own
   `dev` / `build` script. Run from inside the app dir.
 - **Workspace packages:** each has a `type-check` script (`tsc --noEmit`).
 - **Whole repo:** `./scripts/vulnerability-scan.sh` (Go + `pnpm audit --prod
