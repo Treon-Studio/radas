@@ -260,18 +260,18 @@ function SecretDialog({ secret, onClose, onSaved }: { secret: Secret | null; onC
                     className={[
                       "relative flex items-center gap-3 rounded-md border-2 p-4 text-left transition-all",
                       isSelected
-                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
-                        : "border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-primary)]/30",
+                        ? "border-[var(--color-foreground)] bg-[var(--color-foreground)]/5"
+                        : "border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-foreground)]/30",
                       isDisabled && "opacity-50 cursor-not-allowed hover:border-[var(--color-border)]",
                     ].join(" ")}
                   >
                     <div
                       className={[
                         "h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center",
-                        isSelected ? "border-[var(--color-primary)]" : "border-[var(--color-muted-foreground)]/30",
+                        isSelected ? "border-[var(--color-foreground)]" : "border-[var(--color-muted-foreground)]/30",
                       ].join(" ")}
                     >
-                      {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-[var(--color-primary)]" />}
+                      {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-[var(--color-foreground)]" />}
                     </div>
                     <Icon className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
                     <span className="text-sm font-medium">{opt.label}</span>

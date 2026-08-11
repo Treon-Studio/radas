@@ -397,7 +397,7 @@ function HostsPage() {
             onClick={() => setTab(t.k as typeof tab)}
             className={`px-3 py-2 text-sm border-b-2 -mb-px flex items-center gap-1.5 transition ${
               tab === t.k
-                ? "border-[var(--color-primary)] text-[var(--color-primary)]"
+                ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)]"
                 : "border-transparent text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
             }`}
           >

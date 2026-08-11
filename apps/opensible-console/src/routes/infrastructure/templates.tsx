@@ -220,7 +220,7 @@ function TemplatesPage() {
             onClick={() => setTab(id as Tab)}
             className={`px-3 py-1.5 text-sm border-b-2 -mb-px transition-colors ${
               tab === id
-                ? "border-[var(--color-primary)] text-[var(--color-foreground)] font-medium"
+                ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)] font-medium"
                 : "border-transparent text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
             }`}
           >

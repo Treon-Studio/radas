@@ -474,7 +474,7 @@ function DeploymentPage() {
               <div className="flex flex-wrap gap-2 mt-1">
                 {(["playbook", "role", "template"] as const).map((k) => (
                   <button key={k} onClick={() => setKind(k)}
-                    className={`px-3 py-1.5 rounded-md text-sm border ${kind === k ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                    className={`px-3 py-1.5 rounded-md text-sm border ${kind === k ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                     {k === "playbook" ? "Playbook" : k === "role" ? "Roles" : (<span className="inline-flex items-center gap-1"><LayoutTemplate className="h-3.5 w-3.5" />Template</span>)}
                   </button>
                 ))}
@@ -489,7 +489,7 @@ function DeploymentPage() {
                   {playbooks.map((p) => {
                     const on = selectedPlaybooks.includes(p.id);
                     return (
-                      <label key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                      <label key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                         <input type="checkbox" checked={on} onChange={() => toggle(selectedPlaybooks, setSelectedPlaybooks, p.id)} />
                         <span className="font-mono text-xs">{p.name}</span>
                       </label>
@@ -507,7 +507,7 @@ function DeploymentPage() {
                   {roles.map((r) => {
                     const on = selectedRoles.includes(r.id);
                     return (
-                      <label key={r.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                      <label key={r.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                         <input type="checkbox" checked={on} onChange={() => toggle(selectedRoles, setSelectedRoles, r.id)} />
                         <span className="font-mono text-xs">{r.label}</span>
                       </label>
@@ -530,7 +530,7 @@ function DeploymentPage() {
                   {templates.map((t) => {
                     const on = selectedTemplates.includes(t.id);
                     return (
-                      <label key={t.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                      <label key={t.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                         <input type="checkbox" checked={on} onChange={() => toggle(selectedTemplates, setSelectedTemplates, t.id)} />
                         <span className="text-xs">{t.category ? `[${t.category}] ` : ""}{t.name}</span>
                       </label>
@@ -556,7 +556,7 @@ function DeploymentPage() {
                 {groupNames.map((g) => {
                   const on = selectedGroups.includes(g);
                   return (
-                    <label key={g} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                    <label key={g} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                       <input type="checkbox" checked={on} onChange={() => toggle(selectedGroups, setSelectedGroups, g)} />
                       {g}
                     </label>
@@ -572,7 +572,7 @@ function DeploymentPage() {
                 {allHosts.map((h) => {
                   const on = selectedHosts.includes(h);
                   return (
-                    <label key={h} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                    <label key={h} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                       <input type="checkbox" checked={on} onChange={() => toggle(selectedHosts, setSelectedHosts, h)} />
                       <span className="font-mono text-xs">{h}</span>
                     </label>
@@ -635,7 +635,7 @@ function DeploymentPage() {
                     const on = inventoryFiles.includes(path);
                     return (
                       <button key={path} onClick={() => toggle(inventoryFiles, setInventoryFiles, path)}
-                        className={`px-2 py-1 rounded text-xs border font-mono ${on ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
+                        className={`px-2 py-1 rounded text-xs border font-mono ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                         {f.name}
                       </button>
                     );

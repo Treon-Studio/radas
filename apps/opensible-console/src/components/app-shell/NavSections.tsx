@@ -71,7 +71,7 @@ export function SubNavLinks() {
             className={cn(
               "h-10 flex items-center text-xs font-mono uppercase tracking-[0.071em] border-b-2 transition-colors shrink-0",
               active
-                ? "border-[var(--color-primary)] text-[var(--color-foreground)] font-semibold"
+                ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)] font-semibold"
                 : "border-transparent text-[var(--color-stone)] hover:text-[var(--color-foreground)]"
             )}
           >

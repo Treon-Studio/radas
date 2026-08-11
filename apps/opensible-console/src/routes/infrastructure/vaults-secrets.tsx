@@ -117,7 +117,7 @@ function TabButton({
       className={cn(
         "px-4 py-2 -mb-px border-b-2 inline-flex items-center gap-1.5 transition-colors",
         active
-          ? "border-[var(--color-primary)] text-[var(--color-primary)] font-medium"
+          ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)] font-medium"
           : "border-transparent text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]",
       )}
     >
