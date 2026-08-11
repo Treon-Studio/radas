@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApprovalPanel } from "@/components/cloud/ApprovalPanel";
 import { Badge, statusToVariant } from "@/components/ui/badge";
 import { VmInventoryDialog } from "@/components/cloud/VmInventoryDialog";
 import { RunFlowGraph } from "@/components/cloud/RunFlowGraph";
@@ -390,6 +391,8 @@ function StackDetail() {
           </DropdownMenu>
         </div>
       </div>
+
+      <ApprovalPanel stackId={stackId} />
 
       {gitStatus.msg && (
         <div

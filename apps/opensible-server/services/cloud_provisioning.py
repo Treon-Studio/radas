@@ -952,6 +952,27 @@ def stacks_action(name):
 
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
+
+    # Approval gate (Fase 2 — UC 50/68): mutating actions on stacks with
+    # approval_required must have an approved approval record.
+    if _mutating:
+        try:
+            from services.approval_service import has_approved, latest_pending
+            _req = False
+            try:
+                _req = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("approval_required") is True
+            except Exception:
+                _req = False
+            if _req and not has_approved(name, pid, action):
+                pend = latest_pending(name, pid, action)
+                return jsonify({
+                    "error": "Approval required for this action. Request it from the stack's Approval panel.",
+                    "approval_required": True,
+                    "approval_id": (pend or {}).get("id"),
+                }), 409
+        except Exception:
+            pass
+
     if _mutating:
         _existing = _cloud_state.read_lock(_dd, _get_execution_record, pid)
         if _existing:

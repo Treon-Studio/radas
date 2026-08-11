@@ -103,7 +103,7 @@
 | 47 | Git sync stack (push/pull) | ✅ | P0 | 0 |
 | 48 | Push-to-deploy: commit → auto apply | ✅ | P0 | 0 |
 | 49 | Preview environment per PR | ⬜ | P2 | 5 |
-| 50 | Manual approval gate sebelum apply prod | ⬜ | P0 | 2 |
+| 50 | Manual approval gate sebelum apply prod | ✅ | P0 | 2 |
 | 51 | Auto-apply setelah review | ⬜ | P1 | 5 |
 | 52 | Promosi environment via branch | ⬜ | P1 | 5 |
 | 53 | Trigger pipeline via webhook (GitHub/GitLab) | ⬜ | P1 | 5 |
@@ -131,11 +131,11 @@
 |---|---|---|---|---|
 | 66 | Isolasi antar project | ✅ | P0 | 0 |
 | 67 | Role per environment (dev/sit/prod) | ⬜ | P1 | 2 |
-| 68 | Approval workflow untuk perubahan prod | ⬜ | P0 | 2 |
+| 68 | Approval workflow untuk perubahan prod | ✅ | P0 | 2 |
 | 69 | Kuota & limit resource per project | ✅ | P1 | 2 |
 | 70 | Tagging wajib pada semua resource | ⬜ | P1 | 2 |
 | 71 | Policy gate sebelum apply | 🔶 | P0 | 2 |
-| 72 | Change management + audit trail | ⬜ | P1 | 2 |
+| 72 | Change management + audit trail | 🔶 | P1 | 2 |
 | 73 | Compliance scorecard per project | ⬜ | P2 | 2 |
 | 74 | User read-only / guest | ⬜ | P1 | 2 |
 | 75 | Service account untuk integrasi CI | ⬜ | P1 | 2 |
