@@ -27,6 +27,7 @@ import idcloudhostLogo from "@/assets/idcloudhost-logo.png";
 import kubernetesLogo from "@/assets/kubernetes-logo.svg";
 import { useT } from "@/lib/i18n";
 import { BudgetCard } from "@/components/cloud/BudgetCard";
+import { CostInsights } from "@/components/cloud/CostInsights";
 
 export const Route = createFileRoute("/cloud/cost")({ component: CostAnalysisPage });
 
@@ -153,6 +154,7 @@ function PricingTab() {
 
   return (
     <div className="grid grid-cols-12 gap-4">
+      <div className="col-span-12"><CostInsights /></div>
       {/* Budget */}
       <div className="col-span-12 lg:col-span-3">
         <BudgetCard />

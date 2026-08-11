@@ -72,11 +72,11 @@
 | 26 | Estimasi biaya stack sebelum apply | ✅ | P0 | 0 |
 | 27 | Ekstrak biaya dari terraform plan | ✅ | P0 | 0 |
 | 28 | Report biaya per provider | ✅ | P0 | 0 |
-| 29 | Trending & forecast biaya | 🔶 | P1 | 3 |
+| 29 | Trending & forecast biaya | ✅ | P1 | 3 |
 | 30 | Budget & alert threshold per project | ✅ | P0 | 1 |
-| 31 | Breakdown biaya per tag/role | ⬜ | P1 | 3 |
-| 32 | Rekomendasi rightsizing VM idle | ⬜ | P2 | 3 |
-| 33 | Rollup biaya multi-project/org | ⬜ | P1 | 3 |
+| 31 | Breakdown biaya per tag/role | ✅ | P1 | 3 |
+| 32 | Rekomendasi rightsizing VM idle | ✅ | P2 | 3 |
+| 33 | Rollup biaya multi-project/org | ✅ | P1 | 3 |
 
 ## D. Secrets & Keamanan (34–45)
 
