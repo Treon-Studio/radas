@@ -106,7 +106,7 @@
 | 50 | Manual approval gate sebelum apply prod | ✅ | P0 | 2 |
 | 51 | Auto-apply setelah review | ⬜ | P1 | 5 |
 | 52 | Promosi environment via branch | ⬜ | P1 | 5 |
-| 53 | Trigger pipeline via webhook (GitHub/GitLab) | ⬜ | P1 | 5 |
+| 53 | Trigger pipeline via webhook (GitHub/GitLab) | ✅ | P1 | 5 |
 | 54 | Rollback release ke tag | ⬜ | P1 | 5 |
 | 55 | Notifikasi pipeline ke Slack/Discord | 🔶 | P1 | 5 |
 
@@ -149,7 +149,7 @@
 | 78 | Auto-stop VM idle di luar jam kerja | ⬜ | P2 | 5 |
 | 79 | Auto-scale berdasarkan beban | ⬜ | P2 | 5 |
 | 80 | Maintenance window | ⬜ | P2 | 5 |
-| 81 | Event-driven provisioning via webhook | ⬜ | P1 | 5 |
+| 81 | Event-driven provisioning via webhook | ✅ | P1 | 5 |
 | 82 | Retry policy & exponential backoff | 🔶 | P1 | 5 |
 | 83 | Cron playbook berkala | ✅ | P0 | 0 |
 | 84 | Preferensi notifikasi per user | 🔶 | P1 | 5 |
