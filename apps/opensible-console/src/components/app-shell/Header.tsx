@@ -1,12 +1,11 @@
-import { RiMoonLine as Moon, RiSunLine as Sun, RiTranslate as Languages, RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine } from "@remixicon/react";
+import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { getActiveSection, SubNavLinks } from "@/components/app-shell/NavSections";
-import { useTheme } from "@/lib/theme";
-import { useLocale, useT, LOCALES, type Locale } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
@@ -16,8 +15,6 @@ import { cn } from "@/lib/utils";
 type StoredUser = { username?: string; email?: string; roles?: string[]; role_details?: { name: string }[] };
 
 export function AppHeader() {
-  const { theme, toggle } = useTheme();
-  const { locale, setLocale } = useLocale();
   const t = useT();
   const { pathname } = useLocation();
   const activeSection = getActiveSection(pathname);
@@ -116,24 +113,6 @@ export function AppHeader() {
           <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")} className="h-7 px-3 text-xs">
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">{t("common.newProject")}</span>
-          </Button>
-
-          <div className="w-[120px] hidden sm:block">
-            <Select
-              value={locale}
-              onChange={(v) => setLocale(v as Locale)}
-              options={LOCALES.map((l) => ({
-                value: l.code,
-                label: `${l.flag}  ${l.nativeLabel}`,
-              }))}
-              prefix={<Languages className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
-              triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
-              align="end"
-            />
-          </div>
-
-          <Button variant="ghost" size="icon" onClick={toggle} title={t("common.theme")} className="rounded-full h-7 w-7">
-            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </Button>
 
           <div className="relative" ref={menuRef}>
