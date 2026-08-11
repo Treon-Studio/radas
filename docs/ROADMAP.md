@@ -48,7 +48,7 @@
 | 12 | Remote state management (S3/OBS) | ✅ | P1 | 5 |
 | 13 | Rollback & strip stack | ✅ | P1 | 5 |
 | 14 | Multi-region deploy dalam satu stack | ⬜ | P2 | 5 |
-| 15 | Template stack custom dari repo sendiri | ⬜ | P1 | 5 |
+| 15 | Template stack custom dari repo sendiri | 🔶 | P1 | 5 |
 
 ## B. Configuration Management / Ansible (16–25)
 
@@ -174,7 +174,7 @@
 |---|---|---|---|---|
 | 94 | API tokens untuk integrasi eksternal | ✅ | P0 | 0 |
 | 95 | Outbound webhooks (events) | ✅ | P0 | 1 |
-| 96 | Custom blueprint / plugin provider baru | ⬜ | P1 | 5 |
+| 96 | Custom blueprint / plugin provider baru | 🔶 | P1 | 5 |
 | 97 | Import stack eksisting ke Radas | ✅ | P0 | 1 |
 | 98 | SSO/IdP (OIDC/SAML) | ⬜ | P1 | 2 |
 | 99 | Mirror provider/module OpenTofu internal | ⬜ | P2 | 5 |
