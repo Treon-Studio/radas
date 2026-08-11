@@ -193,6 +193,22 @@ def update_execution_record(execution_id, updates, project_id=None):
             # Comment removed.
             with open(execution_file, 'w', encoding='utf-8') as f:
                 json.dump(execution, f, indent=2, ensure_ascii=False)
+
+            # Outbound webhook (Fase 1 — UC 95): fire-and-forget on terminal status.
+            if new_status in ('SUCCESS', 'FAILED'):
+                try:
+                    from services.webhook_dispatcher import dispatch_event
+                    dispatch_event('run.finished', {
+                        'execution_id': execution_id,
+                        'project_id': project_id,
+                        'status': new_status,
+                        'type': execution.get('type') or execution.get('executionType'),
+                        'finished_at': execution.get('finishedAt'),
+                        'duration': execution.get('duration'),
+                        'playbook_id': (execution.get('selectionSnapshot') or {}).get('playbookId'),
+                    })
+                except Exception:
+                    pass
             
             # Keep the SQLite index in sync so /api/worker/claim stays O(1).
             try:

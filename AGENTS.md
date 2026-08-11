@@ -64,6 +64,15 @@ templates/     Only `docs/` and README.md are checked in; rest are external
                server run are expected; `git checkout -- <path>` before commit.
 ```
 
+## Roadmap
+
+- Product backlog & prioritas: `docs/ROADMAP.md` (100 use case, P0–P2,
+  status ✅/🔶/⬜, pemetaan fase).
+- Implementation plans per fase: `docs/superpowers/plans/2026-08-11-phase{1..5}-*.md`.
+- Fase 1 (ops quick wins) adalah yang paling detail & siap dieksekusi.
+- Saat mulai fase baru: expand plan fase menjadi task executable (konvensi
+  `docs/superpowers/plans/`) dan tandai status di ROADMAP saat selesai.
+
 ## Build & test commands
 
 **Root has no `scripts` block** (root `package.json` has only

@@ -642,3 +642,78 @@ def api_save_execution_settings():
         return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# SSE live log streaming (Fase 1 — UC 57/65)
+# ---------------------------------------------------------------------------
+_TERMINAL_STATUSES = ("SUCCESS", "FAILED", "ERROR", "CANCELED", "CANCELLED", "COMPLETED")
+
+
+@bp.route('/api/executions/stream', methods=['GET'])
+@require_auth
+def api_execution_stream():
+    """Server-Sent Events stream for one execution's log lines.
+
+    Events: ``{"type":"log","line":"..."}`` then ``{"type":"end","status":"..."}``.
+    Auth: the middleware accepts ``?access_token=`` for paths containing
+    ``/stream`` (EventSource cannot set Authorization headers).
+    """
+    execution_id = request.args.get('execution_id') or request.args.get('id')
+    if not execution_id:
+        return jsonify({'error': 'execution_id required',
+                        'message': 'Missing execution_id query param'}), 400
+
+    project_id = get_project_id_from_request() or request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'Project required',
+                        'message': 'X-Project-Id header or project_id query param required'}), 400
+
+    from utils.project_paths import get_project_logs_dir, get_project_executions_dir
+
+    logs_dir = get_project_logs_dir(project_id)
+    log_file = logs_dir / f'{execution_id}.log'
+    exec_file = get_project_executions_dir(project_id) / f'{execution_id}.json'
+
+    def _read_status():
+        try:
+            with open(exec_file, 'r', encoding='utf-8') as f:
+                return str((json.load(f) or {}).get('status', 'RUNNING')).upper()
+        except Exception:
+            return 'RUNNING'
+
+    def generate():
+        pos = 0
+        try:
+            if log_file.exists():
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    seed = f.read()
+                if seed:
+                    pos = len(seed)
+                    yield f"data: {json.dumps({'type': 'log', 'line': seed})}\n\n"
+        except Exception:
+            pass
+
+        while True:
+            chunk = ''
+            try:
+                if log_file.exists():
+                    with open(log_file, 'r', encoding='utf-8') as f:
+                        f.seek(pos)
+                        chunk = f.read()
+                        pos = f.tell()
+            except Exception:
+                chunk = ''
+            if chunk:
+                yield f"data: {json.dumps({'type': 'log', 'line': chunk})}\n\n"
+
+            status = _read_status()
+            if status in _TERMINAL_STATUSES:
+                yield f"data: {json.dumps({'type': 'end', 'status': status})}\n\n"
+                break
+            time.sleep(0.5)
+
+    resp = Response(stream_with_context(generate()), mimetype='text/event-stream')
+    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['X-Accel-Buffering'] = 'no'
+    return resp

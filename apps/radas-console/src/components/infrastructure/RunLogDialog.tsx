@@ -4,7 +4,7 @@ import { RiRefreshLine as RefreshCw, RiCloseLine as X, RiDownload2Line as Downlo
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogViewer } from "@/components/cloud/LogViewer";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { toast } from "sonner";
 
 type ExecutionRecord = {
@@ -85,6 +85,47 @@ export function RunLogDialog({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [executionId, polling]);
+
+  // SSE live stream (UC 57/65) — falls back to the polling loop above.
+  const sseRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    if (!live) return;
+    const token = getToken();
+    const pid = window.localStorage.getItem("current_project_id") || "_current";
+    const url = `/api/executions/stream?execution_id=${encodeURIComponent(executionId)}&access_token=${encodeURIComponent(token || "")}&project_id=${encodeURIComponent(pid)}`;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(url);
+      es.onmessage = (ev) => {
+        try {
+          const d = JSON.parse(ev.data);
+          if (d.type === "log" && typeof d.line === "string") {
+            setText((t) => t + d.line);
+          } else if (d.type === "end") {
+            if (d.status) setStatus(String(d.status));
+            setIsComplete(true);
+            setPolling(false);
+            es?.close();
+          }
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+      es.onerror = () => {
+        // SSE unavailable (proxy/backend) → keep the polling fallback.
+        es?.close();
+        sseRef.current = null;
+      };
+      sseRef.current = es;
+    } catch {
+      /* EventSource unsupported → keep polling */
+    }
+    return () => {
+      sseRef.current?.close();
+      sseRef.current = null;
+    };
+  }, [executionId, live]);
 
   const cancel = async () => {
     try {

@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { useT } from "@/lib/i18n";
 import { ProviderCell } from "@/lib/providers";
+import { ExportButtons, ImportStackButton } from "@/components/cloud/DataTools";
 
 export const Route = createFileRoute("/cloud/stacks/")({ component: StacksList });
 
@@ -125,9 +126,13 @@ function StacksList() {
             OpenTofu/Terraform stacks managed by this control plane.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/cloud/stacks/new"><Plus className="h-4 w-4" /> {t("cloud.stacks.new")}</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportButtons />
+          <ImportStackButton />
+          <Button asChild>
+            <Link to="/cloud/stacks/new"><Plus className="h-4 w-4" /> {t("cloud.stacks.new")}</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

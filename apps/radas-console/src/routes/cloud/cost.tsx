@@ -26,6 +26,7 @@ import biznetLogo from "@/assets/biznet-gio-logo.png";
 import idcloudhostLogo from "@/assets/idcloudhost-logo.png";
 import kubernetesLogo from "@/assets/kubernetes-logo.svg";
 import { useT } from "@/lib/i18n";
+import { BudgetCard } from "@/components/cloud/BudgetCard";
 
 export const Route = createFileRoute("/cloud/cost")({ component: CostAnalysisPage });
 
@@ -152,6 +153,10 @@ function PricingTab() {
 
   return (
     <div className="grid grid-cols-12 gap-4">
+      {/* Budget */}
+      <div className="col-span-12 lg:col-span-3">
+        <BudgetCard />
+      </div>
       {/* Provider selector */}
       <Card className="col-span-12 lg:col-span-3 h-fit">
         <CardHeader className="py-3">
