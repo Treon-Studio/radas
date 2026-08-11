@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { getActiveSection, SubNavLinks } from "@/components/app-shell/NavSections";
+import { getActiveSection } from "@/components/app-shell/NavSections";
 import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
@@ -65,7 +65,7 @@ export function AppHeader() {
   ];
 
   return (
-    <div className="flex flex-col shrink-0 border-b border-[var(--color-border)] bg-[var(--color-background)]">
+    <div className="flex flex-col shrink-0 bg-[var(--color-background)]">
       {/* Layer 1 (Height 48px, h-12) */}
       <header className="h-12 flex items-center justify-between px-6 gap-4 border-b border-[var(--color-border)]/60">
         <div className="flex items-center gap-3 min-w-0 h-full">
@@ -85,27 +85,6 @@ export function AppHeader() {
               align="start"
             />
           </div>
-
-          {/* Primary horizontal tabs */}
-          <nav className="hidden md:flex items-center gap-1 h-full ml-2">
-            {primaryTabs.map((tab) => {
-              const active = activeSection === tab.key;
-              return (
-                <Link
-                  key={tab.key}
-                  to={tab.to}
-                  className={cn(
-                    "px-3 h-8 flex items-center text-xs font-mono uppercase tracking-[0.071em] rounded-md transition-colors",
-                    active
-                      ? "text-[var(--color-foreground)] font-semibold bg-[var(--color-muted)]/60"
-                      : "text-[var(--color-stone)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]/30"
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
         {/* Right controls */}
@@ -157,9 +136,27 @@ export function AppHeader() {
         </div>
       </header>
 
-      {/* Layer 2 (Height 40px, h-10) */}
-      <div className="h-10 flex items-center px-6 bg-[var(--color-card)] overflow-x-auto scrollbar-none">
-        <SubNavLinks />
+      {/* Layer 2 (Height 40px, h-10) — Main Navigation tabs */}
+      <div className="h-10 flex items-center px-6 bg-[var(--color-card)] overflow-x-auto scrollbar-none border-b border-[var(--color-border)]/60">
+        <nav className="flex items-center gap-6 h-full min-w-0">
+          {primaryTabs.map((tab) => {
+            const active = activeSection === tab.key;
+            return (
+              <Link
+                key={tab.key}
+                to={tab.to}
+                className={cn(
+                  "h-10 flex items-center text-xs font-mono uppercase tracking-[0.071em] border-b-2 transition-colors shrink-0 -mb-px",
+                  active
+                    ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)] font-semibold"
+                    : "border-transparent text-[var(--color-stone)] hover:text-[var(--color-foreground)]"
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
       <NewProjectDialog open={newProjectOpen} onOpenChange={setNewProjectOpen} />
     </div>

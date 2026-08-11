@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-shell/Header";
+import { getActiveSection, SubNavLinks } from "@/components/app-shell/NavSections";
 import { getToken } from "@/lib/api";
 
 export const Route = createRootRoute({
@@ -35,10 +36,19 @@ function RootLayout() {
 
   if (!ready) return null;
 
+  const activeSec = getActiveSection(location.pathname);
+
   return (
     <div className="flex h-screen w-full flex-col">
       <AppHeader />
       <main className="flex-1 overflow-auto bg-[var(--color-background)]">
+        {activeSec !== "overview" && (
+          <div className="border-b border-[var(--color-border)]/60 bg-[var(--color-card)] px-6">
+            <div className="mx-auto w-full max-w-[1280px]">
+              <SubNavLinks />
+            </div>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-[1280px] px-6 py-6">
           <Outlet />
         </div>
