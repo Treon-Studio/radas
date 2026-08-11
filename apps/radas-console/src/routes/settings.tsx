@@ -17,6 +17,7 @@ import { GitAutosyncCard } from "@/components/project/GitAutosyncCard";
 import { WebhooksCard } from "@/components/integrations/WebhooksCard";
 import { QuotaCard } from "@/components/integrations/QuotaCard";
 import { ServiceAccountsCard } from "@/components/integrations/ServiceAccountsCard";
+import { ComplianceCard } from "@/components/integrations/ComplianceCard";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/settings")({ component: InfraSettingsPage });
@@ -141,6 +142,8 @@ function InfraSettingsPage() {
       <QuotaCard />
 
       <ServiceAccountsCard />
+
+      <ComplianceCard />
 
       <EditRepoSourceDialog open={editOpen} onOpenChange={setEditOpen} projectId={currentId} />
     </div>

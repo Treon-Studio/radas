@@ -92,8 +92,8 @@
 | 41 | Password policy + rate-limit login | ✅ | P0 | 0 |
 | 42 | Kelola SSH key per stack | ✅ | P0 | 0 |
 | 43 | Sync secrets ke pipeline CI | ⬜ | P1 | 2 |
-| 44 | Compliance report (siapa akses apa, kapan) | ⬜ | P1 | 2 |
-| 45 | Isolasi kredensial antar environment | ⬜ | P1 | 2 |
+| 44 | Compliance report (siapa akses apa, kapan) | ✅ | P1 | 2 |
+| 45 | Isolasi kredensial antar environment | 🔶 | P1 | 2 |
 
 ## E. CI/CD & GitOps (46–55)
 
@@ -136,7 +136,7 @@
 | 70 | Tagging wajib pada semua resource | ⬜ | P1 | 2 |
 | 71 | Policy gate sebelum apply | 🔶 | P0 | 2 |
 | 72 | Change management + audit trail | 🔶 | P1 | 2 |
-| 73 | Compliance scorecard per project | ⬜ | P2 | 2 |
+| 73 | Compliance scorecard per project | ✅ | P2 | 2 |
 | 74 | User read-only / guest | ✅ | P1 | 2 |
 | 75 | Service account untuk integrasi CI | ✅ | P1 | 2 |
 
