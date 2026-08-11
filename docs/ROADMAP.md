@@ -105,7 +105,7 @@
 | 49 | Preview environment per PR | ⬜ | P2 | 5 |
 | 50 | Manual approval gate sebelum apply prod | ✅ | P0 | 2 |
 | 51 | Auto-apply setelah review | ⬜ | P1 | 5 |
-| 52 | Promosi environment via branch | ⬜ | P1 | 5 |
+| 52 | Promosi environment via branch | ✅ | P1 | 5 |
 | 53 | Trigger pipeline via webhook (GitHub/GitLab) | ✅ | P1 | 5 |
 | 54 | Rollback release ke tag | ⬜ | P1 | 5 |
 | 55 | Notifikasi pipeline ke Slack/Discord | ✅ | P1 | 5 |
@@ -214,9 +214,9 @@ fitur terpisah:
 | 101 | Audit design system & token (hapus warna hardcoded) | ⬜ | P1 | 1 |
 | 102 | Pass aksesibilitas (a11y) seluruh view utama | ⬜ | P1 | 1 |
 | 103 | Standarisasi empty/loading/error states semua halaman | ⬜ | P1 | 1 |
-| 104 | OpenAPI lengkap & auto-generated untuk semua endpoint | ⬜ | P0 | 1 |
-| 105 | Webhook payload schema + sample docs | ⬜ | P1 | 1 |
-| 106 | Idempotency key + rate-limit terstandar di API | ⬜ | P1 | 2 |
+| 104 | OpenAPI lengkap & auto-generated untuk semua endpoint | ✅ | P0 | 1 |
+| 105 | Webhook payload schema + sample docs | ✅ | P1 | 1 |
+| 106 | Idempotency key + rate-limit terstandar di API | ✅ | P1 | 2 |
 
 **P3. Error Handling & Reliability**
 - **Error envelope konsisten** di semua API: `{ error, message, code, details?, request_id? }`
@@ -235,12 +235,12 @@ fitur terpisah:
 
 | # | Use case (baru) | Status | Prio | Fase |
 |---|---|---|---|---|
-| 107 | Error envelope & kode error konsisten seluruh API | ⬜ | P0 | 1 |
+| 107 | Error envelope & kode error konsisten seluruh API | ✅ | P0 | 1 |
 | 108 | Global ErrorBoundary + error UI per halaman | ⬜ | P0 | 1 |
-| 109 | `/healthz` & `/readyz` + graceful shutdown | ⬜ | P1 | 2 |
-| 110 | Lock per-stack (cegah race apply) | ⬜ | P0 | 2 |
-| 111 | Redaksi secret di semua log | ⬜ | P0 | 2 |
-| 112 | Verifikasi restore backup (test pemulihan) | ⬜ | P2 | 5 |
+| 109 | `/healthz` & `/readyz` + graceful shutdown | ✅ | P1 | 2 |
+| 110 | Lock per-stack (cegah race apply) | ✅ | P0 | 2 |
+| 111 | Redaksi secret di semua log | ✅ | P0 | 2 |
+| 112 | Verifikasi restore backup (test pemulihan) | ✅ | P2 | 5 |
 
 ---
 

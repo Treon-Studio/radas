@@ -2877,6 +2877,16 @@ def start_recovery_task():
         start_automation_scheduler()
     except Exception:
         pass
+    try:
+        from services.health import install_redaction
+        install_redaction()
+    except Exception:
+        pass
+    try:
+        from api.platform_routes import register_error_handlers
+        register_error_handlers(app)
+    except Exception:
+        pass
     recovery_thread.start()
     app.logger.info("Recovery task started")
 
