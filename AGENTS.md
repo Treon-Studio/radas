@@ -90,6 +90,10 @@ about, or use `pnpm -r --filter <name> ...`.
   General → AirDrop & Handoff → disable AirPlay Receiver, then
   `OPEN_SERVER_PORT=5000 pm2 start ecosystem.config.cjs`.
 - **Workspace packages:** each has a `type-check` script (`tsc --noEmit`).
+- **Security overrides:** root `package.json` → `pnpm.overrides` pins patched
+  versions of vulnerable transitive deps (mostly via firebase-tools and
+  @tanstack/react-start). `pnpm audit` should stay at 0 critical / 0 high.
+  When bumping deps, don't silently drop these entries; extend them instead.
 - **Whole repo:** `./scripts/vulnerability-scan.sh` (Go + `pnpm audit --prod
   --audit-level high`). Run before pushing; requires `govulncheck` and `pnpm`.
 
