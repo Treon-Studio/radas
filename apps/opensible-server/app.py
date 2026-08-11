@@ -2867,6 +2867,11 @@ def start_recovery_task():
                 app.logger.error(f"Error in recovery task: {e}", exc_info=True)
     
     recovery_thread = threading.Thread(target=recovery_worker, daemon=True)
+    try:
+        from services.secret_rotation import start_rotation_scheduler
+        start_rotation_scheduler()
+    except Exception:
+        pass
     recovery_thread.start()
     app.logger.info("Recovery task started")
 

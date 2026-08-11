@@ -84,7 +84,7 @@
 |---|---|---|---|---|
 | 34 | Enkripsi secret global at rest | ✅ | P0 | 0 |
 | 35 | Vault & vault-keys per project | ✅ | P0 | 0 |
-| 36 | Rotasi secret terjadwal | ⬜ | P1 | 2 |
+| 36 | Rotasi secret terjadwal | ✅ | P1 | 2 |
 | 37 | API token management | ✅ | P0 | 0 |
 | 38 | Audit trail semua aksi admin | ✅ | P0 | 0 |
 | 39 | RBAC roles & permissions granular | ✅ | P0 | 0 |
@@ -133,8 +133,8 @@
 | 67 | Role per environment (dev/sit/prod) | ⬜ | P1 | 2 |
 | 68 | Approval workflow untuk perubahan prod | ✅ | P0 | 2 |
 | 69 | Kuota & limit resource per project | ✅ | P1 | 2 |
-| 70 | Tagging wajib pada semua resource | ⬜ | P1 | 2 |
-| 71 | Policy gate sebelum apply | 🔶 | P0 | 2 |
+| 70 | Tagging wajib pada semua resource | ✅ | P1 | 2 |
+| 71 | Policy gate sebelum apply | ✅ | P0 | 2 |
 | 72 | Change management + audit trail | 🔶 | P1 | 2 |
 | 73 | Compliance scorecard per project | ✅ | P2 | 2 |
 | 74 | User read-only / guest | ✅ | P1 | 2 |
