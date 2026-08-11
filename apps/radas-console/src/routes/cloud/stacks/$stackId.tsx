@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApprovalPanel } from "@/components/cloud/ApprovalPanel";
 import { AiTools } from "@/components/cloud/AiTools";
+import { PreviewEnvsCard } from "@/components/cloud/PreviewEnvsCard";
 import { Badge, statusToVariant } from "@/components/ui/badge";
 import { VmInventoryDialog } from "@/components/cloud/VmInventoryDialog";
 import { RunFlowGraph } from "@/components/cloud/RunFlowGraph";
@@ -394,6 +395,8 @@ function StackDetail() {
       </div>
 
       <ApprovalPanel stackId={stackId} />
+
+      <PreviewEnvsCard baseStack={stackId} />
 
       <AiTools stackId={stackId} />
 

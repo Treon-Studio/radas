@@ -102,7 +102,7 @@
 | 46 | Pipeline multi-stage (provision→configure→deploy) | ✅ | P0 | 0 |
 | 47 | Git sync stack (push/pull) | ✅ | P0 | 0 |
 | 48 | Push-to-deploy: commit → auto apply | ✅ | P0 | 0 |
-| 49 | Preview environment per PR | ⬜ | P2 | 5 |
+| 49 | Preview environment per PR | ✅ | P2 | 5 |
 | 50 | Manual approval gate sebelum apply prod | ✅ | P0 | 2 |
 | 51 | Auto-apply setelah review | ✅ | P1 | 5 |
 | 52 | Promosi environment via branch | ✅ | P1 | 5 |
@@ -164,7 +164,7 @@
 | 88 | TUI offline command interpreter | ✅ | P0 | 0 |
 | 89 | Saran biaya/keamanan dari AI per plan | ✅ | P1 | 4 |
 | 90 | Draft playbook dari prompt AI | ✅ | P1 | 4 |
-| 91 | AI chat assistant di console | 🔶 | P1 | 4 |
+| 91 | AI chat assistant di console | ✅ | P1 | 4 |
 | 92 | Generate kode CLI dari intent | ✅ | P0 | 0 |
 | 93 | Auto-dokumentasi infrastruktur dari state | ✅ | P2 | 4 |
 

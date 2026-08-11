@@ -33,17 +33,74 @@ def _llm_chat(system: str, user: str) -> str:
     return (r.json()["choices"][0]["message"]["content"] or "").strip()
 
 
+def _rule_chat(message: str, stack_context: str = "") -> str:
+    """Deterministic assistant (UC 91) — answers common ops questions without
+    an external LLM so the chat feature always works."""
+    msg = message.strip().lower()
+    if any(w in msg for w in ("halo", "hai", "hello", "hi ", "selamat")):
+        return ("Halo! Saya asisten Radas. Saya bisa bantu soal: status stack, "
+                "rencana biaya/keamanan, draft playbook, dan dokumentasi. "
+                "Ketikan 'bantuan' untuk daftar perintah.")
+    if any(w in msg for w in ("bantuan", "help", "perintah")):
+        return ("Perintah yang tersedia:\n"
+                "- status stack / state stack → ringkasan stack\n"
+                "- biaya / cost → saran penghematan biaya\n"
+                "- keamanan / security → cek risiko umum\n"
+                "- review plan → jalankan review plan di tab AI Tools\n"
+                "- draft playbook → buat draft playbook dari prompt\n"
+                "- dokumentasi / docs → generate README stack\n"
+                "- setup / konfigurasi → panduan AI_API_KEY untuk LLM penuh")
+    if any(w in msg for w in ("biaya", "cost", "hemat", "harga")):
+        return ("Saran penghematan biaya:\n"
+                "1. Matikan resource non-prod di luar jam kerja (auto_stop).\n"
+                "2. Gunakan instance/plan yang lebih kecil untuk dev/staging.\n"
+                "3. Aktifkan rightsizing & cost aggregator di dashboard Cost.\n"
+                "4. Pakai snapshot + destroy untuk environment preview.\n"
+                "(Untuk analisis per-plan, jalankan 'Review' di AI Tools.)")
+    if any(w in msg for w in ("keamanan", "security", "aman", "ssh", "firewall")):
+        return ("Cek keamanan umum:\n"
+                "1. Hindari CIDR 0.0.0.0/0 di security group.\n"
+                "2. Simpan kredensial sebagai secrets (terenkripsi), bukan tfvars.\n"
+                "3. Aktifkan policy gate sebelum apply (plan review).\n"
+                "4. Rotasi secret berkala (secret rotation) & aktifkan MFA.\n"
+                "5. Gunakan service account ber-scope kecil untuk otomasi.")
+    if any(w in msg for w in ("status", "state", "stack", "execution", "run")):
+        if stack_context:
+            head = stack_context.splitlines()[:14]
+            ctx = "\n".join(line for line in head if not line.startswith("```"))
+            return (f"Ringkasan stack:\n{ctx}\n\n"
+                    "Lihat halaman Cloud Stacks untuk detail executions, drift, dan history.")
+        return ("Stack belum dipilih. Buka halaman stack lalu kirim ulang pertanyaan, "
+                "atau pakai AI Tools di halaman stack untuk review/dokumentasi.")
+    if any(w in msg for w in ("review", "plan", "tfvars")):
+        return ("Gunakan tab AI Tools → 'Plan review' untuk analisis biaya/keamanan "
+                "per plan. Tempel cuplikan `tofu plan` dan tekan Review.")
+    if any(w in msg for w in ("playbook", "ansible", "draft")):
+        return ("Gunakan AI Tools → 'Playbook draft': tulis deskripsi singkat, "
+                "contoh 'install nginx on web hosts', lalu tekan Draft.")
+    if any(w in msg for w in ("dokumentasi", "docs", "readme")):
+        return ("Gunakan AI Tools → 'Generate README' untuk membuat dokumentasi "
+                "infrastruktur dari state stack secara otomatis (UC 93).")
+    if any(w in msg for w in ("setup", "api_key", "konfigurasi", "llm")):
+        return ("Mode rule-based aktif (tanpa API key). Untuk percakapan LLM penuh, "
+                "set AI_API_KEY (dan AI_BASE_URL/AI_MODEL) di env server, lalu restart "
+                "radas-server.")
+    return ("Saya berjalan dalam mode rule-based (AI_API_KEY belum diset). "
+            "Saya bisa bantu: status stack, biaya, keamanan, review plan, draft "
+            "playbook, dan dokumentasi. Ketik 'bantuan' untuk daftar perintah.")
+
+
 def chat(message: str, stack_context: str = "") -> Dict[str, Any]:
     if not is_configured():
-        return {"configured": False,
-                "message": "AI not configured. Set AI_API_KEY (and AI_BASE_URL/AI_MODEL) in the server env."}
+        return {"configured": False, "reply": _rule_chat(message, stack_context)}
     system = ("You are Radas, a GitOps control-plane assistant for OpenTofu & Ansible. "
               "Answer concisely. Use the stack context if provided.")
     user = f"Stack context:\n{stack_context or '(none)'}\n\nQuestion: {message}"
     try:
         return {"configured": True, "reply": _llm_chat(system, user)}
     except Exception as e:
-        return {"configured": True, "error": str(e)}
+        return {"configured": True, "reply": _rule_chat(message, stack_context),
+                "error": str(e)}
 
 
 def review_plan(plan_text: str, context: str = "") -> Dict[str, Any]:

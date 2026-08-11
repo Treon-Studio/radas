@@ -1,0 +1,223 @@
+"""Preview environment per PR (Fase 5 — UC 49).
+
+Clones a base stack into an ephemeral `pr-<number>` stack, queues an apply so
+the PR's infra can be reviewed, and tears it down when the PR closes. Also
+exposes a GitHub `pull_request` webhook handler.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import time
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+PREVIEW_PREFIX = "pr-"
+
+
+def _store_path() -> Path:
+    try:
+        import app as _app
+        return Path(getattr(_app, "DATA_DIR", "data")) / "preview_envs.json"
+    except Exception:
+        return Path("data") / "preview_envs.json"
+
+
+def _load() -> List[Dict[str, Any]]:
+    try:
+        p = _store_path()
+        if p.exists():
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d, list):
+                return d
+    except Exception:
+        pass
+    return []
+
+
+def _save(items: List[Dict[str, Any]]) -> None:
+    p = _store_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(items, indent=2), encoding="utf-8")
+
+
+def list_previews(project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    _cleanup_finished(project_id)
+    items = _load()
+    out = []
+    for r in items:
+        if project_id and r.get("project_id") != project_id:
+            continue
+        r2 = dict(r)
+        r2.pop("id", None)
+        out.append(r2)
+    return sorted(out, key=lambda x: (x.get("pr_number") or 0))
+
+
+def _latest_stack_status(project_id: Optional[str], name: str) -> str:
+    try:
+        from services.cloud_provisioning import _latest_run_by_stack
+        run = _latest_run_by_stack(project_id).get(name) or {}
+        return run.get("status") or ""
+    except Exception:
+        return ""
+
+
+def _cleanup_finished(project_id: Optional[str]) -> None:
+    """Remove preview stack dirs once their destroy run finished."""
+    items = _load()
+    changed = False
+    for r in items:
+        if r.get("status") != "tearing_down":
+            continue
+        if project_id and r.get("project_id") != project_id:
+            continue
+        name = r.get("name") or ""
+        st = _latest_stack_status(project_id, name)
+        if st in ("SUCCEEDED", "FAILED", "ERROR", ""):
+            try:
+                from services.cloud_provisioning import _stack_dir, _stack_data_dir, _data_base
+                for p in (_stack_dir(project_id, name), _stack_data_dir(project_id, name)):
+                    if p.exists():
+                        shutil.rmtree(p, ignore_errors=True)
+            except Exception:
+                pass
+            r["status"] = "destroyed"
+            changed = True
+    if changed:
+        _save(items)
+
+
+def create(project_id: Optional[str], base_stack: str, pr_number: int,
+           repo: str = "", refresh: bool = False) -> Dict[str, Any]:
+    """Clone a base stack into a preview stack and queue `apply`."""
+    from services.cloud_provisioning import (
+        _create_execution, _data_base, _save_meta, _stack_data_dir, _stack_dir,
+    )
+    name = f"{PREVIEW_PREFIX}{int(pr_number)}"
+    src = _stack_dir(project_id, base_stack)
+    dst = _stack_dir(project_id, name)
+    existing = next((r for r in _load()
+                     if r.get("name") == name and r.get("project_id") == project_id), None)
+
+    if existing and existing.get("status") == "active":
+        if not refresh:
+            raise ValueError(f"Preview {name} already exists. Use refresh=true or tear down first.")
+    # Clear any leftover clone (fresh or refresh) before copying.
+    if dst.exists():
+        shutil.rmtree(dst, ignore_errors=True)
+    sdd = _stack_data_dir(project_id, name)
+    if sdd.exists():
+        shutil.rmtree(sdd, ignore_errors=True)
+
+    if not src.exists():
+        raise ValueError(f"Base stack '{base_stack}' not found")
+
+    # Clone workspace dir (envs/<name>) into envs/pr-<n>.
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    # Clone control-plane data dir (meta/secrets/snapshots) too.
+    sdd = _stack_data_dir(project_id, base_stack)
+    if sdd.exists():
+        shutil.copytree(sdd, _stack_data_dir(project_id, name), dirs_exist_ok=True)
+    # Isolate remote state: rewrite backend.hcl key so the preview never
+    # shares the base stack's tfstate file.
+    from services.cloud_provisioning import _render_backend_hcl
+    backend_path = dst / "backend.hcl"
+    if backend_path.exists():
+        backend_path.write_text(_render_backend_hcl(name), encoding="utf-8")
+    _save_meta(project_id, name, preview=True, base_stack=base_stack,
+               pr_number=int(pr_number), repo=repo or "", env="preview",
+               preview_status="active")
+    eid = _create_execution(project_id, name, "apply", triggered_by=f"preview:pr-{int(pr_number)}")
+
+    _save([r for r in _load() if r.get("name") != name] + [{
+        "project_id": project_id, "name": name, "base_stack": base_stack,
+        "pr_number": int(pr_number), "repo": repo or "", "status": "active",
+        "execution_id": eid, "created_at": int(time.time()),
+    }])
+    return {"name": name, "base_stack": base_stack, "pr_number": int(pr_number),
+            "repo": repo or "", "status": "active", "execution_id": eid}
+
+
+def teardown(project_id: Optional[str], name: str, force: bool = False) -> Dict[str, Any]:
+    """Queue a destroy for a preview env; dirs are removed once it finishes."""
+    from services.cloud_provisioning import _create_execution, _save_meta, _stack_dir
+    sd = _stack_dir(project_id, name)
+    if not sd.exists():
+        raise ValueError(f"Preview '{name}' not found")
+    state_file = sd / "terraform.tfstate"
+    items = _load()
+    rec = next((r for r in items
+                if r.get("name") == name and r.get("project_id") == project_id), None)
+    if force or not state_file.exists():
+        # Nothing to destroy (no local state) — remove immediately.
+        from services.cloud_provisioning import _stack_data_dir, _data_base
+        for p in (sd, _stack_data_dir(project_id, name)):
+            if p.exists():
+                shutil.rmtree(p, ignore_errors=True)
+        if rec:
+            rec["status"] = "destroyed"
+            _save(items)
+        return {"name": name, "status": "destroyed"}
+    eid = _create_execution(project_id, name, "destroy", triggered_by="preview:teardown")
+    _save_meta(project_id, name, preview_status="tearing_down")
+    if rec:
+        rec["status"] = "tearing_down"
+        _save(items)
+    return {"name": name, "status": "tearing_down", "execution_id": eid}
+
+
+def handle_github_event(payload: Dict[str, Any], stack: Optional[str] = None) -> Dict[str, Any]:
+    """Handle a GitHub `pull_request` webhook (opened/reopened/sync → create/refresh;
+    closed/merged → teardown). `stack` comes from the webhook query param, or is
+    looked up from the base repo in the payload."""
+    action = (payload.get("action") or "").lower()
+    pr = payload.get("pull_request") or {}
+    number = pr.get("number") or payload.get("number") or 0
+    repo_full = (((payload.get("repository") or {}).get("full_name")) or "").strip()
+    if not number or not action:
+        return {"ok": False, "error": "missing pull_request number/action"}
+    project_id = None
+
+    if not stack:
+        # Match a base stack whose meta contains the repo (set on stack create).
+        try:
+            from services.cloud_provisioning import _list_stacks
+            for s in _list_stacks(None):
+                if (s.get("repo") or "") == repo_full or (s.get("cloud_project") or "") == repo_full:
+                    stack = s["name"]
+                    break
+        except Exception:
+            pass
+    if not stack:
+        return {"ok": False, "error": "no stack mapped to this repo (pass ?stack=<name> or set repo on the stack)"}
+
+    if action in ("opened", "reopened", "synchronize"):
+        try:
+            rec = create(project_id, stack, number, repo=repo_full, refresh=True)
+            return {"ok": True, **rec}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    if action in ("closed",):
+        name = f"{PREVIEW_PREFIX}{number}"
+        try:
+            rec = teardown(project_id, name)
+            return {"ok": True, **rec}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    return {"ok": True, "action": action, "ignored": True}
+
+
+def verify_github_signature(secret: str, body: bytes, signature: Optional[str]) -> bool:
+    import hashlib
+    import hmac as _hmac
+    if not signature:
+        return False
+    expected = "sha256=" + _hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return _hmac.compare_digest(expected, signature)
+
+
+def webhook_secret() -> str:
+    return os.environ.get("PREVIEW_WEBHOOK_SECRET") or "radas-preview-dev-secret"
