@@ -62,6 +62,14 @@ def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict
             r["decided_at"] = time.time()
             r["decided_by"] = decided_by
             _save(records)
+            if status == "approved" and r.get("action") == "apply":
+                # Auto-apply after review (UC 51).
+                try:
+                    from services.cloud_provisioning import _create_execution
+                    _create_execution(r.get("project_id"), r.get("stack"), "apply",
+                                      triggered_by=f"approval:{approval_id}")
+                except Exception:
+                    pass
             return r
     return None
 

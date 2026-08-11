@@ -91,7 +91,7 @@
 | 40 | MFA untuk user admin | 🔶 | P1 | 2 |
 | 41 | Password policy + rate-limit login | ✅ | P0 | 0 |
 | 42 | Kelola SSH key per stack | ✅ | P0 | 0 |
-| 43 | Sync secrets ke pipeline CI | ⬜ | P1 | 2 |
+| 43 | Sync secrets ke pipeline CI | ✅ | P1 | 2 |
 | 44 | Compliance report (siapa akses apa, kapan) | ✅ | P1 | 2 |
 | 45 | Isolasi kredensial antar environment | 🔶 | P1 | 2 |
 
@@ -104,7 +104,7 @@
 | 48 | Push-to-deploy: commit → auto apply | ✅ | P0 | 0 |
 | 49 | Preview environment per PR | ⬜ | P2 | 5 |
 | 50 | Manual approval gate sebelum apply prod | ✅ | P0 | 2 |
-| 51 | Auto-apply setelah review | ⬜ | P1 | 5 |
+| 51 | Auto-apply setelah review | ✅ | P1 | 5 |
 | 52 | Promosi environment via branch | ✅ | P1 | 5 |
 | 53 | Trigger pipeline via webhook (GitHub/GitLab) | ✅ | P1 | 5 |
 | 54 | Rollback release ke tag | ⬜ | P1 | 5 |
@@ -236,7 +236,7 @@ fitur terpisah:
 | # | Use case (baru) | Status | Prio | Fase |
 |---|---|---|---|---|
 | 107 | Error envelope & kode error konsisten seluruh API | ✅ | P0 | 1 |
-| 108 | Global ErrorBoundary + error UI per halaman | ⬜ | P0 | 1 |
+| 108 | Global ErrorBoundary + error UI per halaman | ✅ | P0 | 1 |
 | 109 | `/healthz` & `/readyz` + graceful shutdown | ✅ | P1 | 2 |
 | 110 | Lock per-stack (cegah race apply) | ✅ | P0 | 2 |
 | 111 | Redaksi secret di semua log | ✅ | P0 | 2 |

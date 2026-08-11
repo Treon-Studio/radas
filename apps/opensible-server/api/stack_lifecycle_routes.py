@@ -1,7 +1,7 @@
 """Stack lifecycle routes — snapshot, rollback, strip, remote state (Fase 5 — UC 12/13)."""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 try:
     from auth.middleware import require_auth
@@ -89,3 +89,23 @@ def api_put_state_config(name):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify({"success": True, "remote_state": cfg})
+
+
+@bp.route('/api/ci/secrets', methods=['GET'])
+@require_auth
+def api_ci_secrets():
+    """Export stack secrets as KEY=value for CI pipelines (UC 43).
+    Readable by service accounts (readonly can GET)."""
+    pid = _get_pid_raw(lambda: None)
+    stack = (request.args.get("stack") or "").strip()
+    if not pid or not stack:
+        return jsonify({"error": "stack and project required"}), 400
+    try:
+        from services.cloud_provisioning import _load_secrets
+        secrets = _load_secrets(pid, stack)
+    except Exception:
+        secrets = {}
+    lines = "".join(f"{k.upper()}={v}\n" for k, v in sorted(secrets.items()))
+    return Response(lines, mimetype="text/plain",
+                    headers={"Content-Disposition": f"attachment; filename={stack}.secrets.env"})
+
