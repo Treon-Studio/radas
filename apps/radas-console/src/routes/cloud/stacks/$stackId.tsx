@@ -11,6 +11,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApprovalPanel } from "@/components/cloud/ApprovalPanel";
+import { AiTools } from "@/components/cloud/AiTools";
 import { Badge, statusToVariant } from "@/components/ui/badge";
 import { VmInventoryDialog } from "@/components/cloud/VmInventoryDialog";
 import { RunFlowGraph } from "@/components/cloud/RunFlowGraph";
@@ -393,6 +394,8 @@ function StackDetail() {
       </div>
 
       <ApprovalPanel stackId={stackId} />
+
+      <AiTools stackId={stackId} />
 
       {gitStatus.msg && (
         <div

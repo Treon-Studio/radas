@@ -162,11 +162,11 @@
 | 86 | Generate stack dari bahasa natural (CLI) | ✅ | P0 | 0 |
 | 87 | Generate test otomatis (CLI) | ✅ | P0 | 0 |
 | 88 | TUI offline command interpreter | ✅ | P0 | 0 |
-| 89 | Saran biaya/keamanan dari AI per plan | ⬜ | P1 | 4 |
-| 90 | Draft playbook dari prompt AI | ⬜ | P1 | 4 |
-| 91 | AI chat assistant di console | ⬜ | P1 | 4 |
+| 89 | Saran biaya/keamanan dari AI per plan | ✅ | P1 | 4 |
+| 90 | Draft playbook dari prompt AI | ✅ | P1 | 4 |
+| 91 | AI chat assistant di console | 🔶 | P1 | 4 |
 | 92 | Generate kode CLI dari intent | ✅ | P0 | 0 |
-| 93 | Auto-dokumentasi infrastruktur dari state | ⬜ | P2 | 4 |
+| 93 | Auto-dokumentasi infrastruktur dari state | ✅ | P2 | 4 |
 
 ## J. Integrasi & Ekstensibilitas (94–100)
 
