@@ -283,7 +283,7 @@ function JobDetail() {
           <Button variant="outline" size="sm" onClick={() => setOpenEdit("edit")} disabled={!inst}>
             <Pencil className="h-4 w-4" /> Edit
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setOpenEdit("duplicate")} disabled={!inst}>
+          <Button variant="outline" size="sm" onClick={() => setOpenEdit("duplicate")} aria-label="Duplicate job" disabled={!inst}>
             <CopyIcon className="h-4 w-4" /> Duplicate
           </Button>
           <Button size="sm" onClick={() => runStage("apply")} disabled={!inst || pendingStage !== null}>

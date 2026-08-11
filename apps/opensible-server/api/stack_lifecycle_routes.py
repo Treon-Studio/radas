@@ -141,3 +141,35 @@ def api_stack_history(name):
                       key=lambda x: x.get("at") or 0, reverse=True)
     return jsonify({"history": timeline[:50]})
 
+
+@bp.route('/api/cloud/stacks/from-template', methods=['POST'])
+@require_auth
+def api_stack_from_template():
+    """Create a stack from an imported custom template (Fase 5 — UC 15/96)."""
+    pid = _get_pid_raw(lambda: None)
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip().lower()
+    template = (data.get("template") or "").strip()
+    if not pid or not name or not template:
+        return jsonify({"error": "name, template and project required"}), 400
+    import re as _re
+    if not _re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,48}[a-z0-9]", name):
+        return jsonify({"error": "Invalid stack name"}), 400
+    from services.custom_templates import _custom_dir
+    tdir = _custom_dir() / template
+    if not tdir.is_dir():
+        return jsonify({"error": f"template '{template}' not found"}), 404
+    from services.cloud_provisioning import _stack_dir, _save_meta
+    ws = _stack_dir(pid, name)
+    if ws.exists():
+        return jsonify({"error": f"Stack '{name}' already exists."}), 409
+    import shutil
+    ws.mkdir(parents=True, exist_ok=True)
+    for item in tdir.iterdir():
+        if item.name == ".git":
+            continue
+        dst = ws / item.name
+        (shutil.copytree(item, dst) if item.is_dir() else shutil.copy2(item, dst))
+    _save_meta(pid, name, provider="bytedc", status="template", template=template, env="dev")
+    return jsonify({"success": True, "stack": {"name": name, "template": template}}), 201
+

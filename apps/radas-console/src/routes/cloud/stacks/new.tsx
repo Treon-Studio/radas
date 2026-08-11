@@ -1,9 +1,11 @@
 import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { RiCloudLine as Cloud, RiGithubLine as Github } from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/query";
@@ -85,6 +87,9 @@ function NewStackPicker() {
       {renderSection(t("cloud.new.sectionCloud"), cloudProviders, pickProvider, t, 4)}
       {renderSection(t("cloud.new.sectionOnprem"), onpremProviders, pickProvider, t, 3)}
 
+      <CustomTemplatesSection />
+
+
       <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
         <div className="text-xs text-[var(--color-muted-foreground)]">
           Missing something or want to improve a provider? OpenSible is open source — your feedback shapes the roadmap.
@@ -146,5 +151,60 @@ function ProviderCardLogo({ id, label }: { id: string; label: string }) {
   const largeIds = ["aws", "gcp", "cloudflare", "gke"];
   const sizeClass = largeIds.includes(id) ? "h-12 w-auto" : "h-10 w-auto";
   return <img src={url} alt={label} className={`${sizeClass} object-contain`} />;
+}
+
+
+type CustomTpl = { name: string; path: string };
+
+function CustomTemplatesSection() {
+  const navigate = useNavigate();
+  const { data } = useQuery({
+    queryKey: ["custom-templates"],
+    queryFn: () => api<{ templates: CustomTpl[] }>("GET", "/api/templates/custom"),
+  });
+  const templates = data?.templates ?? [];
+  const [name, setName] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const useTpl = async (tpl: string) => {
+    const stackName = (name[tpl] || "").trim();
+    if (!stackName) return toast.error("Enter a stack name first");
+    setBusy(tpl);
+    try {
+      await api("POST", "/api/cloud/stacks/from-template", { name: stackName, template: tpl });
+      toast.success("Stack created from template");
+      navigate({ to: "/cloud/stacks" });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (templates.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] mb-3">
+        Custom templates
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {templates.map((t) => (
+          <div key={t.name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-4 flex flex-col gap-2">
+            <div className="font-medium text-sm truncate">{t.name}</div>
+            <Input
+              aria-label={"Stack name for " + t.name}
+              placeholder="Stack name"
+              value={name[t.name] || ""}
+              onChange={(e) => setName((p) => ({ ...p, [t.name]: e.target.value }))}
+            />
+            <Button size="sm" onClick={() => useTpl(t.name)} disabled={busy === t.name}>
+              {busy === t.name ? "Creating…" : "Use template"}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 

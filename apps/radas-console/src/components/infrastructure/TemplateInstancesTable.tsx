@@ -419,7 +419,7 @@ export function TemplateInstancesTable({
           <div className="inline-flex gap-1" onClick={stop}>
             <Button size="sm" variant="outline" onClick={() => openEdit(inst)} title="Edit values & re-save"><Pencil className="h-3.5 w-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={() => runNow(inst)} title="Run this instance"><Play className="h-3.5 w-3.5" /></Button>
-            <Button size="sm" variant="outline" onClick={() => openDuplicate(inst)} title="Duplicate"><CopyIcon className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="outline" onClick={() => openDuplicate(inst)} title="Duplicate" aria-label="Duplicate template instance"><CopyIcon className="h-3.5 w-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={() => setConfirmDel(inst)} title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
           </div>
         );
