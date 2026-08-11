@@ -1,7 +1,8 @@
 @import "tailwindcss";
+@import "@fontsource/geist-pixel";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Pixel", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   /* Light theme — Kampondewa-inspired */

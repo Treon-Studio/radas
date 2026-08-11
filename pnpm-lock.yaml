@@ -66,6 +66,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.4
         version: 6.43.8
+      '@fontsource/geist-pixel':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.2
         version: 1.1.15(@types/react-dom@19.0.3(@types/react@19.0.12))(@types/react@19.0.12)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -738,6 +741,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource/geist-pixel@5.3.0':
+    resolution: {integrity: sha512-lno6MaxiPlE8ex9T8GMXvU9ZzGBdt1GSQ7ub00RMrhd7SUs9Qy/L6f3sLwzs1F7YcwAZiIa8pxW5dIqZz3zgCg==}
 
   '@google-cloud/cloud-sql-connector@1.8.4':
     resolution: {integrity: sha512-dX36ksbh4xrIsALCHxNYXwvRUtlZ/msQ/PL0LpSYWHnfMenRM+watAzM/XIVr8tQOtzhT7mrmrAb/W/bgayQAQ==}
@@ -5566,6 +5572,8 @@ snapshots:
       react-dom: 19.2.6(react@19.2.6)
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@fontsource/geist-pixel@5.3.0': {}
 
   '@google-cloud/cloud-sql-connector@1.8.4':
     dependencies:
