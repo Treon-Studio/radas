@@ -53,7 +53,6 @@ function isActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(to + "/");
 }
 
-export function NavSections() { return null; }
 
 export function SubNavLinks() {
   const t = useT();
