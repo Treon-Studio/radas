@@ -863,7 +863,7 @@ def _project_executions_dir(project_id: Optional[str]) -> Path:
     return PROJECTS_DIR / pid / "history" / "executions"
 
 
-def _create_execution(project_id: Optional[str], stack: str, action: str, worker_id: Optional[str] = None, triggered_by: Optional[str] = None, triggered_by_user_id: Optional[str] = None) -> str:
+def _create_execution(project_id: Optional[str], stack: str, action: str, worker_id: Optional[str] = None, triggered_by: Optional[str] = None, triggered_by_user_id: Optional[str] = None, priority: int = 0) -> str:
     """Enqueue a TOFU_RUN execution that any online worker can claim."""
     import sys as _sys
     _app_mod = _sys.modules.get("app") or _sys.modules.get("__main__")
@@ -921,6 +921,7 @@ def _create_execution(project_id: Optional[str], stack: str, action: str, worker
         "mode": "TOFU",
         "runName": f"{stack}/{action}",
         "tag": "tofu",
+        "priority": int(priority or 0),
         "runParams": run_params,
     }
     if triggered_by:
@@ -952,6 +953,10 @@ def stacks_action(name):
     if action == "drift" and not _drift_enabled(pid, name):
         return jsonify({"error": "Drift detection is disabled for this stack. Enable it in the stack's Drift detection panel first."}), 409
     worker_id = (body.get("worker_id") or body.get("target_worker_id") or "").strip() or None
+    try:
+        _priority = int(body.get("priority") or 0)
+    except (TypeError, ValueError):
+        _priority = 0
     _cu = getattr(request, "current_user", {}) or {}
     _tb = _cu.get("username") or _cu.get("email") or _cu.get("user_id") or ""
     _tbid = _cu.get("user_id") or ""
@@ -1014,7 +1019,7 @@ def stacks_action(name):
         pass
 
     try:
-        eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid)
+        eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid, priority=_priority)
     except Exception as e:
         current_app.logger.error(f"[cloud] enqueue {action} for {name} failed: {e}")
         return jsonify({"error": f"Failed to queue run: {e}"}), 500

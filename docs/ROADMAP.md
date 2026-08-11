@@ -117,7 +117,7 @@
 | 56 | Riwayat run & log lengkap | ✅ | P0 | 0 |
 | 57 | Live stream log eksekusi (SSE/WebSocket) | ✅ | P0 | 1 |
 | 58 | Status worker & concurrency | ✅ | P0 | 0 |
-| 59 | Antrian job dengan prioritas | ⬜ | P2 | 5 |
+| 59 | Antrian job dengan prioritas | ✅ | P2 | 5 |
 | 60 | Health check infrastruktur | ✅ | P0 | 0 |
 | 61 | Alert saat run gagal / drift | ✅ | P1 | 5 |
 | 62 | Export metrics ke Prometheus | ✅ | P2 | 5 |

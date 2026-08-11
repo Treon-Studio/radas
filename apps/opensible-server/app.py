@@ -2584,7 +2584,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
         app.logger.debug(f"[Server Claim] Found {len(queued_runs)} QUEUED run(s) (checked {total_checked} files), attempting to claim...")
         
         # queuedAt ( - FIFO)
-        queued_runs.sort(key=lambda x: x[0])
+        queued_runs.sort(key=lambda x: (-int((x[2] or {}).get('priority') or 0), x[0]))
         
         # claim run
         for queued_at, exec_file, execution, proj_id in queued_runs:

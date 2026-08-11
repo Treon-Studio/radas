@@ -110,7 +110,8 @@ def create_execution_record(data, project_id=None, execution_id=None):
         'inventorySnapshot': data.get('inventorySnapshot', {}),
         'selectionSnapshot': data.get('selectionSnapshot', {}),
         'stats': data.get('stats', {}),
-        'warnings': data.get('warnings', [])
+        'warnings': data.get('warnings', []),
+        'priority': int(data.get('priority') or 0)
     }
     
     # queuedAt QUEUED 
