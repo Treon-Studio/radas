@@ -53,18 +53,16 @@ export function ServiceAccountsCard() {
           <Input placeholder="Name (e.g. ci-deploy)" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="flex flex-wrap gap-2 items-center">
             {["admin", "readonly", "operator"].map((r) => (
-              <button
+              <Button
                 key={r}
                 type="button"
+                size="sm"
+                variant={roles.includes(r) ? "default" : "outline"}
                 onClick={() => toggleRole(r)}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  roles.includes(r)
-                    ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-transparent"
-                    : "border-[var(--color-border)] text-[var(--color-muted-foreground)]"
-                }`}
+                aria-pressed={roles.includes(r)}
               >
                 {r}
-              </button>
+              </Button>
             ))}
             <Input type="number" className="w-24" value={expires} onChange={(e) => setExpires(e.target.value)} placeholder="days" title="Expiry days (0 = never)" />
             <Button size="sm" onClick={create}><Plus className="h-4 w-4" /> Create</Button>

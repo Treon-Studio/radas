@@ -4,6 +4,8 @@ import { RiDownload2Line as Download, RiFileUploadLine as FileUp, RiCloseLine as
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { api, getToken } from "@/lib/api";
 import { STATIC_PROVIDERS, PROVIDER_LABELS } from "@/lib/providers";
 
@@ -63,7 +65,7 @@ export function ImportStackButton() {
       <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] rounded-lg shadow-2xl w-full max-w-lg border border-[var(--color-border)] flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
           <h2 className="text-base font-semibold">Import existing stack</h2>
-          <button type="button" onClick={() => setOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Close"><X className="h-4 w-4" /></Button>
         </div>
         <div className="p-5 space-y-4 overflow-y-auto">
           <div className="space-y-1">
@@ -72,20 +74,18 @@ export function ImportStackButton() {
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Provider</label>
-            <select
-              className="h-9 w-full rounded-md border border-[var(--color-input)] bg-transparent px-2 text-sm"
+            <Select
               value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-            >
-              {STATIC_PROVIDERS.filter((p) => p.enabled).map((p) => (
-                <option key={p.id} value={p.id}>{p.label || PROVIDER_LABELS[p.id]}</option>
-              ))}
-            </select>
+              onChange={setProvider}
+              options={STATIC_PROVIDERS.filter((p) => p.enabled).map((p) => ({
+                value: p.id, label: p.label || PROVIDER_LABELS[p.id] || p.id,
+              }))}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">terraform.tfvars</label>
-            <textarea
-              className="h-28 w-full rounded-md border border-[var(--color-input)] bg-transparent px-3 py-2 font-mono text-xs"
+            <Textarea
+              className="h-28 font-mono text-xs"
               value={tfvars}
               onChange={(e) => setTfvars(e.target.value)}
               placeholder={'env = "dev"\nproject_name = "demo"'}
@@ -93,8 +93,8 @@ export function ImportStackButton() {
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">State JSON (optional)</label>
-            <textarea
-              className="h-24 w-full rounded-md border border-[var(--color-input)] bg-transparent px-3 py-2 font-mono text-xs"
+            <Textarea
+              className="h-24 font-mono text-xs"
               value={state}
               onChange={(e) => setState(e.target.value)}
               placeholder='{"version":4,"resources":[]}'

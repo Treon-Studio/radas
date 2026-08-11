@@ -2,6 +2,8 @@ import { useState } from "react";
 import { RiSparkling2Line as Sparkles, RiFileTextLine as FileText, RiCodeLine as Code } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 
@@ -37,7 +39,7 @@ export function AiTools({ stackId }: { stackId: string }) {
       <CardContent className="pt-0 space-y-3">
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-muted-foreground)]">Plan review (cost/security)</div>
-          <textarea className="h-20 w-full rounded-md border border-[var(--color-input)] bg-transparent px-3 py-2 font-mono text-xs"
+          <Textarea className="h-20 font-mono text-xs"
             value={review} onChange={(e) => setReview(e.target.value)}
             placeholder={'resource ... { ingress { cidr_blocks = ["0.0.0.0/0"] } }'} />
           <Button size="sm" variant="outline" onClick={runReview}><Sparkles className="h-3.5 w-3.5" /> Review</Button>
@@ -60,8 +62,7 @@ export function AiTools({ stackId }: { stackId: string }) {
 
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-muted-foreground)]">Playbook draft</div>
-          <input className="h-9 w-full rounded-md border border-[var(--color-input)] bg-transparent px-3 text-sm"
-            value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="install nginx on web hosts" />
+          <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="install nginx on web hosts" />
           <Button size="sm" variant="outline" onClick={runDraft}><Code className="h-3.5 w-3.5" /> Draft</Button>
           {draftOut && <pre className="rounded-md border border-[var(--color-border)] p-3 text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">{draftOut}</pre>}
         </div>

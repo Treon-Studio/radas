@@ -56,18 +56,16 @@ export function WebhooksCard() {
           <Input placeholder="https://example.com/hook" value={url} onChange={(e) => setUrl(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             {EVENTS.map((e) => (
-              <button
+              <Button
                 key={e}
                 type="button"
+                size="sm"
+                variant={events.includes(e) ? "default" : "outline"}
                 onClick={() => toggleEvent(e)}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  events.includes(e)
-                    ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-transparent"
-                    : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                }`}
+                aria-pressed={events.includes(e)}
               >
                 {e}
-              </button>
+              </Button>
             ))}
           </div>
           <Button size="sm" onClick={add}>
