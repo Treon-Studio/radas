@@ -88,12 +88,12 @@
 | 37 | API token management | ✅ | P0 | 0 |
 | 38 | Audit trail semua aksi admin | ✅ | P0 | 0 |
 | 39 | RBAC roles & permissions granular | ✅ | P0 | 0 |
-| 40 | MFA untuk user admin | 🔶 | P1 | 2 |
+| 40 | MFA untuk user admin | ✅ | P1 | 2 |
 | 41 | Password policy + rate-limit login | ✅ | P0 | 0 |
 | 42 | Kelola SSH key per stack | ✅ | P0 | 0 |
 | 43 | Sync secrets ke pipeline CI | ✅ | P1 | 2 |
 | 44 | Compliance report (siapa akses apa, kapan) | ✅ | P1 | 2 |
-| 45 | Isolasi kredensial antar environment | 🔶 | P1 | 2 |
+| 45 | Isolasi kredensial antar environment | ✅ | P1 | 2 |
 
 ## E. CI/CD & GitOps (46–55)
 
@@ -107,7 +107,7 @@
 | 51 | Auto-apply setelah review | ✅ | P1 | 5 |
 | 52 | Promosi environment via branch | ✅ | P1 | 5 |
 | 53 | Trigger pipeline via webhook (GitHub/GitLab) | ✅ | P1 | 5 |
-| 54 | Rollback release ke tag | ⬜ | P1 | 5 |
+| 54 | Rollback release ke tag | ✅ | P1 | 5 |
 | 55 | Notifikasi pipeline ke Slack/Discord | ✅ | P1 | 5 |
 
 ## F. Operasi & Observability (56–65)
@@ -135,7 +135,7 @@
 | 69 | Kuota & limit resource per project | ✅ | P1 | 2 |
 | 70 | Tagging wajib pada semua resource | ✅ | P1 | 2 |
 | 71 | Policy gate sebelum apply | ✅ | P0 | 2 |
-| 72 | Change management + audit trail | 🔶 | P1 | 2 |
+| 72 | Change management + audit trail | ✅ | P1 | 2 |
 | 73 | Compliance scorecard per project | ✅ | P2 | 2 |
 | 74 | User read-only / guest | ✅ | P1 | 2 |
 | 75 | Service account untuk integrasi CI | ✅ | P1 | 2 |

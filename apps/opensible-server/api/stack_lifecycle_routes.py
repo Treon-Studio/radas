@@ -109,3 +109,35 @@ def api_ci_secrets():
     return Response(lines, mimetype="text/plain",
                     headers={"Content-Disposition": f"attachment; filename={stack}.secrets.env"})
 
+
+@bp.route('/api/cloud/stacks/<name>/history', methods=['GET'])
+@require_auth
+def api_stack_history(name):
+    """Change history: snapshots + approvals + runs (Fase 5 — UC 72)."""
+    pid = _get_pid_raw(lambda: None)
+    if not pid or not _stack_dir(pid, name).exists():
+        return jsonify({"error": "Not found"}), 404
+    snaps = [{"kind": "snapshot", **x} for x in list_snapshots(pid, name)]
+    approvals = []
+    try:
+        from services.approval_service import list_approvals
+        approvals = [{"kind": "approval", "action": a.get("action"), "status": a.get("status"),
+                      "by": a.get("decided_by"), "at": a.get("decided_at") or a.get("created_at"),
+                      "note": a.get("note")} for a in list_approvals(project_id=pid) if a.get("stack") == name]
+    except Exception:
+        pass
+    runs = []
+    try:
+        from services.execution_history import list_executions
+        for e in list_executions(limit=50, project_id=pid):
+            rn = e.get("runName") or ""
+            if rn.startswith(f"{name}/"):
+                runs.append({"kind": "run", "action": rn.split("/", 1)[-1],
+                             "status": e.get("status"), "id": e.get("id"),
+                             "at": e.get("createdAt") or e.get("startedAt")})
+    except Exception:
+        pass
+    timeline = sorted(snaps + approvals + runs,
+                      key=lambda x: x.get("at") or 0, reverse=True)
+    return jsonify({"history": timeline[:50]})
+

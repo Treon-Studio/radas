@@ -94,6 +94,20 @@ def api_auth_login():
             if role:
                 role_names.append(role.name)
 
+        # MFA challenge (Fase 5 — UC 40): if the user enrolled a TOTP secret,
+        # issue a short-lived mfa token instead of the access token.
+        from services.mfa import get_secret as _mfa_get
+        if _mfa_get(user.id):
+            mfa_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                       data_dir=DATA_DIR, token_type="mfa")
+            current_app.logger.info(f"User {username} passed password step; MFA required")
+            return jsonify({
+                "success": True,
+                "mfa_required": True,
+                "mfa_token": mfa_token,
+                "user": {"id": user.id, "username": user.username},
+            })
+
         access_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
                                       data_dir=DATA_DIR, token_type="access")
         refresh_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
@@ -189,3 +203,38 @@ def api_auth_me():
     except Exception as e:
         current_app.logger.error(f"Error in /api/auth/me: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Error getting user information"}), 500
+
+@bp.route("/api/auth/mfa/verify", methods=["POST"])
+def api_mfa_verify():
+    """Complete the MFA challenge: validate TOTP code + mfa token, issue access tokens."""
+    from auth.service import generate_token, verify_token
+    from services.mfa import get_secret as _mfa_get, verify as _mfa_verify
+    data = request.json or {}
+    mfa_token = (data.get("mfa_token") or "").strip()
+    code = (data.get("code") or "").strip()
+    user_service, role_service, _, DATA_DIR = _services()
+    payload = verify_token(mfa_token, DATA_DIR, token_type="mfa")
+    if not payload:
+        return jsonify({"success": False, "error": "Invalid or expired MFA token"}), 401
+    uid = payload.get("user_id")
+    secret = _mfa_get(uid or "")
+    if not secret or not _mfa_verify(secret, code):
+        return jsonify({"success": False, "error": "Invalid MFA code"}), 401
+    user = user_service.get_user_by_id(uid)
+    if not user:
+        return jsonify({"success": False, "error": "User not found"}), 401
+    role_names = []
+    for role_id in user.roles:
+        role = role_service.get_role_by_id(role_id)
+        if role:
+            role_names.append(role.name)
+    access_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                  data_dir=DATA_DIR, token_type="access")
+    refresh_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                   data_dir=DATA_DIR, token_type="refresh")
+    return jsonify({
+        "success": True,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": {"id": user.id, "username": user.username, "roles": role_names},
+    })
