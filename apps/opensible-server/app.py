@@ -2872,6 +2872,11 @@ def start_recovery_task():
         start_rotation_scheduler()
     except Exception:
         pass
+    try:
+        from services.automation_rules import start_automation_scheduler
+        start_automation_scheduler()
+    except Exception:
+        pass
     recovery_thread.start()
     app.logger.info("Recovery task started")
 

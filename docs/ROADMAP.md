@@ -61,7 +61,7 @@
 | 20 | Check konektivitas SSH massal | ✅ | P0 | 0 |
 | 21 | Konfigurasi post-provision via platform roles | ✅ | P0 | 0 |
 | 22 | Jadwalkan playbook berkala (cron) | ✅ | P0 | 0 |
-| 23 | Remediasi konfigurasi saat drift | ⬜ | P1 | 5 |
+| 23 | Remediasi konfigurasi saat drift | ✅ | P1 | 5 |
 | 24 | Proxy via bastion/jump host | ⬜ | P2 | 5 |
 | 25 | Inject vault secrets ke playbook | ✅ | P0 | 0 |
 
@@ -146,9 +146,9 @@
 |---|---|---|---|---|
 | 76 | Scheduled stack refresh | ✅ | P0 | 0 |
 | 77 | Scheduled backup berkala | ✅ | P0 | 0 |
-| 78 | Auto-stop VM idle di luar jam kerja | ⬜ | P2 | 5 |
+| 78 | Auto-stop VM idle di luar jam kerja | ✅ | P2 | 5 |
 | 79 | Auto-scale berdasarkan beban | ⬜ | P2 | 5 |
-| 80 | Maintenance window | ⬜ | P2 | 5 |
+| 80 | Maintenance window | ✅ | P2 | 5 |
 | 81 | Event-driven provisioning via webhook | ✅ | P1 | 5 |
 | 82 | Retry policy & exponential backoff | 🔶 | P1 | 5 |
 | 83 | Cron playbook berkala | ✅ | P0 | 0 |

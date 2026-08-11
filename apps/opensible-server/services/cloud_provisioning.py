@@ -953,6 +953,15 @@ def stacks_action(name):
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
 
+    # Maintenance window gate (Fase 5 — UC 80).
+    if _mutating:
+        try:
+            from services.automation_rules import in_maintenance
+            if in_maintenance(pid):
+                return jsonify({"error": "Maintenance window active. Runs are paused until it ends."}), 423
+        except Exception:
+            pass
+
     # Approval gate (Fase 2 — UC 50/68): mutating actions on stacks with
     # approval_required must have an approved approval record.
     if _mutating:
