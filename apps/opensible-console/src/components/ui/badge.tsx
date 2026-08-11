@@ -1,13 +1,20 @@
+import { type HTMLAttributes, type ReactNode } from "react";
+import { RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes } from "react";
 
 const styles = {
-  default: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]",
-  success: "bg-[var(--color-success)]/15 text-[var(--color-success)]",
-  warning: "bg-[var(--color-warning)]/15 text-[var(--color-warning)]",
-  destructive: "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]",
-  primary: "bg-[var(--color-primary)]/15 text-[var(--color-primary)]",
+  default: "border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-stone)]",
+  primary: "border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)] font-semibold",
+  success: "border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)]",
+  warning: "border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)]",
+  destructive: "border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)] font-semibold",
 } as const;
+
+const glyphs: Record<string, ReactNode> = {
+  success: <Check className="h-3 w-3 shrink-0 text-[var(--color-success)]" />,
+  warning: <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-warning)]" />,
+  destructive: <X className="h-3 w-3 shrink-0" />,
+};
 
 export function Badge({
   className,
@@ -16,9 +23,12 @@ export function Badge({
 }: HTMLAttributes<HTMLSpanElement> & { variant?: keyof typeof styles }) {
   return (
     <span
-      className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", styles[variant], className)}
+      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.071em]", styles[variant], className)}
       {...props}
-    />
+    >
+      {glyphs[variant]}
+      {props.children}
+    </span>
   );
 }
 
