@@ -45,8 +45,8 @@ apps/
   dashboard/   Next.js template. Not wired to @radas/* packages.
   extension/   Chrome extension (tsup). Depends on packages/dev-tools.
   homepage/    Vite + React 18 landing page.
-  opensible-console/  @radas/opensible-console (Vite + React 19 console, from OpenSible).
-                        Run: pnpm --filter @radas/opensible-console dev (port 8080).
+  radas-console/  @radas/console (Vite + React 19 console, from OpenSible).
+                        Run: pnpm --filter @radas/console dev (port 8080).
   opensible-server/   Flask API (Python 3.14). Run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py (port 5000). Depends on IaC via symlink IaC -> ../../templates/opensible-iac.
   opensible-worker/   Go worker (module github.com/opensible/worker-go, go >= 1.22). Run: go build -o bin/worker ./cmd/worker.
   site/        Vite + React 19 site. Depends on packages/dev-tools.
@@ -79,10 +79,10 @@ about, or use `pnpm -r --filter <name> ...`.
   - `go run github.com/radas/radas/v3@latest create` — CLI's own quick start.
 - **Web apps (extension/site/dashboard/homepage):** each has its own
   `dev` / `build` script. Run from inside the app dir.
-- **OpenSible stack (local dev via pm2):** server (Flask :5001) + console
+- **Radas stack (local dev via pm2):** server (Flask :5001) + console
   (:8080, proxies `/api` → server) + worker (Go). One-time setup:
   `cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
-  Then `pnpm dev:opensible` (start), `pnpm dev:opensible:stop` / `:restart` /
+  Then `pnpm dev:radas` (start), `pnpm dev:radas:stop` / `:restart` /
   `:logs` (see `ecosystem.config.cjs`). First login: admin /
   `ADMIN_INITIAL_PASSWORD` from the ecosystem env (dev-only).
 - **macOS note:** port 5000 is occupied by AirPlay Receiver, so the server

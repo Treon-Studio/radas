@@ -1,4 +1,4 @@
 export const app: Record<string, string> = {
-  "app.name": "OpenSible",
+  "app.name": "Radas",
   "app.tagline": "Cloud Provisioning Control Plane",
 };

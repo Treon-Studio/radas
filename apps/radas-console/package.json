@@ -1,5 +1,5 @@
 {
-  "name": "@radas/opensible-console",
+  "name": "@radas/console",
   "private": true,
   "type": "module",
   "scripts": {

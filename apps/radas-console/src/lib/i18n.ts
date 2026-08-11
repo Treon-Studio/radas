@@ -31,7 +31,7 @@ export const LOCALES: { code: Locale; label: string; nativeLabel: string; flag: 
 ];
 
 const DICTS: Record<Locale, Record<string, string>> = { en, km, ko };
-const KEY = "opensible.locale";
+const KEY = "radas.locale";
 
 type Ctx = {
   locale: Locale;

@@ -127,7 +127,7 @@ terraform.tfvars*
 
 # Specific directories for individual projects
 
-# OpenSible (apps/opensible-*)
+# OpenSible / Radas (apps/opensible-*, apps/radas-*)
 __pycache__/
 *.py[cod]
 .venv/

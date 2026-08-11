@@ -1,14 +1,14 @@
 /**
- * pm2 local-development orchestration for the OpenSible stack inside radas.
+ * pm2 local-development orchestration for the Radas stack.
  *
  * First-time setup (once):
  *   cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
  *
  * Commands:
- *   pnpm dev:opensible            # start server (:5001) + console (:8080) + worker
- *   pnpm dev:opensible:stop       # stop everything (keeps pm2 daemon)
- *   pnpm dev:opensible:restart    # restart all apps
- *   pnpm dev:opensible:logs       # follow combined logs
+ *   pnpm dev:radas            # start server (:5001) + console (:8080) + worker
+ *   pnpm dev:radas:stop       # stop everything (keeps pm2 daemon)
+ *   pnpm dev:radas:restart    # restart all apps
+ *   pnpm dev:radas:logs       # follow combined logs
  *
  * Ports: server 5001 (PORT env). macOS AirPlay Receiver occupies :5000 by
  * default — either run on 5001 (default here) or free 5000 by disabling
@@ -25,7 +25,7 @@ const SECRET = "dev-only-change-me-0123456789abcdef";
 module.exports = {
   apps: [
     {
-      name: "opensible-server",
+      name: "radas-server",
       cwd: "./apps/opensible-server",
       script: ".venv/bin/python",
       args: "app.py",
@@ -44,8 +44,8 @@ module.exports = {
       },
     },
     {
-      name: "opensible-console",
-      cwd: "./apps/opensible-console",
+      name: "radas-console",
+      cwd: "./apps/radas-console",
       script: "pnpm",
       args: "dev",
       env: {
@@ -53,7 +53,7 @@ module.exports = {
       },
     },
     {
-      name: "opensible-worker",
+      name: "radas-worker",
       cwd: "./apps/opensible-worker",
       script: "go",
       args: "run ./cmd/worker",
