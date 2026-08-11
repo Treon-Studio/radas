@@ -2984,6 +2984,7 @@ if __name__ == '__main__':
     app.logger.info(f"Debug mode: {'ENABLED' if debug_mode else 'DISABLED'}")
     app.logger.info(f"Log level: {initial_log_level.upper()}")
     app.logger.info(f"Max upload file size: {max_upload_size_mb}MB")
-    app.logger.info("Open in browser: http://localhost:5000")
-    
-    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
+    port = int(os.environ.get('PORT', '5000'))
+    app.logger.info(f"Open in browser: http://localhost:{port}")
+
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

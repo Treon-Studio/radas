@@ -58,6 +58,10 @@ packages/      pnpm workspace members.
 templates/     Only `docs/` and README.md are checked in; rest are external
                degit targets. `opensible-iac/` is the imported OpenSible
                OpenTofu/Ansible tree (see apps/opensible-server IaC symlink).
+               NOTE: the Flask server rewrites platform-owned `_template/`
+               files (e.g. `opentofu-bytedc/envs/_template/backend.tf`) to its
+               own canonical form on boot — git diffs on those files after a
+               server run are expected; `git checkout -- <path>` before commit.
 ```
 
 ## Build & test commands
@@ -75,6 +79,16 @@ about, or use `pnpm -r --filter <name> ...`.
   - `go run github.com/radas/radas/v3@latest create` — CLI's own quick start.
 - **Web apps (extension/site/dashboard/homepage):** each has its own
   `dev` / `build` script. Run from inside the app dir.
+- **OpenSible stack (local dev via pm2):** server (Flask :5001) + console
+  (:8080, proxies `/api` → server) + worker (Go). One-time setup:
+  `cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
+  Then `pnpm dev:opensible` (start), `pnpm dev:opensible:stop` / `:restart` /
+  `:logs` (see `ecosystem.config.cjs`). First login: admin /
+  `ADMIN_INITIAL_PASSWORD` from the ecosystem env (dev-only).
+- **macOS note:** port 5000 is occupied by AirPlay Receiver, so the server
+  runs on 5001 by default (`PORT` env). To free 5000: System Settings →
+  General → AirDrop & Handoff → disable AirPlay Receiver, then
+  `OPEN_SERVER_PORT=5000 pm2 start ecosystem.config.cjs`.
 - **Workspace packages:** each has a `type-check` script (`tsc --noEmit`).
 - **Whole repo:** `./scripts/vulnerability-scan.sh` (Go + `pnpm audit --prod
   --audit-level high`). Run before pushing; requires `govulncheck` and `pnpm`.
