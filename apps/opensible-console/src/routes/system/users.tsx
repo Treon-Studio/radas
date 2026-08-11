@@ -176,7 +176,7 @@ function UsersTab() {
                       <Button size="sm" variant="ghost" onClick={() => setPwUser(u)} title="Set password"><KeyRound className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditing(u)} title="Edit"><Pencil className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleting(u)} disabled={u.id === meId} title="Delete">
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-[var(--color-destructive)]" />
                       </Button>
                     </div>
                   </Td>
@@ -277,7 +277,7 @@ function UserEditor({ user, roles, onClose, onSaved }: { user: User | null; role
             })}
           </div>
         </Field>
-        {err && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{err}</div>}
+        {err && <div className="text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{err}</div>}
       </div>
       <ModalFooter>
         <Button variant="ghost" onClick={onClose} disabled={saveMut.isPending}>{t("common.cancel")}</Button>
@@ -320,7 +320,7 @@ function PasswordDialog({ user, isSelf, onClose }: { user: User; isSelf: boolean
         <Field label="Confirm new password *">
           <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </Field>
-        {err && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{err}</div>}
+        {err && <div className="text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{err}</div>}
       </div>
       <ModalFooter>
         <Button variant="ghost" onClick={onClose} disabled={mut.isPending}>{t("common.cancel")}</Button>
@@ -410,7 +410,7 @@ function RolesTab() {
                   <Td className="text-right">
                     <div className="inline-flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => setEditing(r)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4 text-[var(--color-destructive)]" /></Button>
                     </div>
                   </Td>
                 </tr>
@@ -533,7 +533,7 @@ function RoleEditor({ role, permissions, onClose, onSaved }: { role: Role | null
           </div>
         </div>
       </div>
-      {err && <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{err}</div>}
+      {err && <div className="mt-3 text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{err}</div>}
       <ModalFooter>
         <Button variant="ghost" onClick={onClose} disabled={saveMut.isPending}>{t("common.cancel")}</Button>
         <Button onClick={() => { setErr(null); saveMut.mutate(); }} disabled={saveMut.isPending || !name}>

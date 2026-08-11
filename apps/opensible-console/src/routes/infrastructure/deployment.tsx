@@ -331,7 +331,7 @@ function DeploymentPage() {
           { label: "Total", value: counts.total, tone: "" },
           { label: "Running", value: counts.running, tone: "text-blue-600" },
           { label: "Succeeded", value: counts.succeeded, tone: "text-emerald-600" },
-          { label: "Failed", value: counts.failed, tone: "text-red-600" },
+          { label: "Failed", value: counts.failed, tone: "text-[var(--color-destructive)]" },
         ].map(s => (
           <div key={s.label} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3">
             <div className="text-xs uppercase tracking-wide text-[var(--color-muted-foreground)]">{s.label}</div>

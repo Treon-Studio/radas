@@ -143,7 +143,7 @@ export function StackBlueprintsPanel({
                 {group.blueprints.map((bp) => (
                   <Card
                     key={bp.id}
-                    className="group relative overflow-hidden border-[var(--color-border)] bg-[var(--color-card)] transition-all duration-300 hover:shadow-lg hover:border-[var(--color-primary)]"
+                    className="group relative overflow-hidden border-[var(--color-border)] bg-[var(--color-card)] transition-colors duration-300 hover:border-[var(--color-foreground)]"
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-4">

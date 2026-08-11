@@ -258,7 +258,7 @@ function SecretDialog({ secret, onClose, onSaved }: { secret: Secret | null; onC
                     disabled={isDisabled}
                     onClick={() => !isDisabled && setType(opt.value)}
                     className={[
-                      "relative flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all",
+                      "relative flex items-center gap-3 rounded-md border-2 p-4 text-left transition-all",
                       isSelected
                         ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
                         : "border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-primary)]/30",

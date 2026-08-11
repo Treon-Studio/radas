@@ -183,7 +183,7 @@ function StatCard({
     <Card className="h-full hover:border-[var(--color-primary)]/40 transition-colors">
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2">
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${tints[tint]}`}>{icon}</div>
+          <div className={`h-10 w-10 rounded-md flex items-center justify-center ${tints[tint]}`}>{icon}</div>
           {to && <ArrowRight className="h-4 w-4 text-[var(--color-muted-foreground)]" />}
         </div>
         <div className="mt-4 text-3xl font-bold tracking-tight">{value}</div>

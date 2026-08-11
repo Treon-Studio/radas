@@ -273,7 +273,7 @@ export function PolicyGateCard({ stackId }: { stackId: string }) {
                 return (
                   <div
                     key={id}
-                    className="rounded-xl border border-[var(--color-border)] p-3 flex flex-col gap-3"
+                    className="rounded-md border border-[var(--color-border)] p-3 flex flex-col gap-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -435,7 +435,7 @@ export function PolicyGateCard({ stackId }: { stackId: string }) {
 
             {/* Last verdict */}
             {last && (
-              <div className="rounded-xl border border-[var(--color-border)] p-3">
+              <div className="rounded-md border border-[var(--color-border)] p-3">
                 <div className="text-sm font-medium flex items-center gap-2">
                   Last evaluation
                   <Badge variant={verdictBadge.variant}>{verdictBadge.label}</Badge>

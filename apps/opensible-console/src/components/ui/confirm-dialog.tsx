@@ -26,7 +26,7 @@ export function ConfirmDialog({
       onClick={() => !busy && onCancel()}
     >
       <div
-        className="bg-[var(--color-card)] rounded-lg shadow-2xl w-full max-w-md border border-[var(--color-border)]"
+        className="bg-[var(--color-card)] rounded-md shadow-[var(--shadow-popover)] w-full max-w-md border border-[var(--color-border)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 flex gap-3">

@@ -142,7 +142,7 @@ function ProfilePage() {
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" />
           </Field>
 
-          {profileErr && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{profileErr}</div>}
+          {profileErr && <div className="text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{profileErr}</div>}
 
           <div className="grid grid-cols-2 gap-3 pt-2 text-xs text-muted-foreground">
             <div><span className="uppercase tracking-wide">Created:</span> {me?.created_at ? new Date(me.created_at).toLocaleString() : "—"}</div>
@@ -177,7 +177,7 @@ function ProfilePage() {
             <Input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
           </Field>
 
-          {pwErr && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{pwErr}</div>}
+          {pwErr && <div className="text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{pwErr}</div>}
 
           <div className="flex justify-end">
             <Button

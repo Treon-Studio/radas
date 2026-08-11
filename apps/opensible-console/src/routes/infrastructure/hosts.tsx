@@ -126,13 +126,13 @@ function Modal({
 // ---------- Status pill ----------
 function StatusPill({ status, lastChecked }: { status?: HostStatus; lastChecked?: string | null }) {
   const map: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
-    ok:       { label: "Online",   icon: <CheckCircle2 className="h-3 w-3" />, cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-    online:   { label: "Online",   icon: <CheckCircle2 className="h-3 w-3" />, cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-    failed:   { label: "Failed",   icon: <XCircle className="h-3 w-3" />,      cls: "bg-red-500/10 text-red-500 border-red-500/20" },
-    error:    { label: "Failed",   icon: <XCircle className="h-3 w-3" />,      cls: "bg-red-500/10 text-red-500 border-red-500/20" },
-    offline:  { label: "Offline",  icon: <XCircle className="h-3 w-3" />,      cls: "bg-red-500/10 text-red-500 border-red-500/20" },
-    checking: { label: "Checking", icon: <Activity className="h-3 w-3 animate-pulse" />, cls: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-    unknown:  { label: "Unknown",  icon: <CircleDashed className="h-3 w-3" />, cls: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" },
+    ok:       { label: "Online",   icon: <CheckCircle2 className="h-3 w-3 text-[var(--color-success)]" />, cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)]" },
+    online:   { label: "Online",   icon: <CheckCircle2 className="h-3 w-3 text-[var(--color-success)]" />, cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)]" },
+    failed:   { label: "Failed",   icon: <XCircle className="h-3 w-3" />,                                 cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)] font-semibold" },
+    error:    { label: "Failed",   icon: <XCircle className="h-3 w-3" />,                                 cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)] font-semibold" },
+    offline:  { label: "Offline",  icon: <XCircle className="h-3 w-3" />,                                 cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)] font-semibold" },
+    checking: { label: "Checking", icon: <Activity className="h-3 w-3 animate-pulse text-[var(--color-warning)]" />, cls: "border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)]" },
+    unknown:  { label: "Unknown",  icon: <CircleDashed className="h-3 w-3 text-[var(--color-stone)]" />, cls: "border-[var(--color-border)] bg-transparent text-[var(--color-stone)]" },
   };
   const cfg = map[status || "unknown"] ?? map.unknown!;
   const tip = lastChecked ? `Last checked: ${new Date(lastChecked).toLocaleString()}` : `Status: ${cfg.label}`;
@@ -408,7 +408,6 @@ function HostsPage() {
 
       {tab === "hosts" && (
         <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
-          {/* Groups sidebar */}
           <Card>
             <CardHeader className="py-3"><CardTitle className="text-sm">Filter by group</CardTitle></CardHeader>
             <CardContent className="p-2 space-y-0.5">
@@ -508,7 +507,7 @@ function HostsPage() {
                             {hasPlaintextSecret(hostVars[h] as Record<string, unknown>) && (
                               <span
                                 title="host_vars contains a sensitive-looking key that is not vault-encrypted. It will be pushed to git in cleartext."
-                                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-muted)] text-[var(--color-foreground)] font-mono uppercase tracking-wide"
                               >
                                 <AlertTriangle className="h-3 w-3" />
                                 plaintext
@@ -530,7 +529,7 @@ function HostsPage() {
                               <Edit3 className="h-3.5 w-3.5" />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(h)} title={t("hosts.deleteHost")}>
-                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              <Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" />
                             </Button>
                           </div>
                         </td>
@@ -581,7 +580,7 @@ function HostsPage() {
                           <Variable className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setDeleteGroup(gName)}>
-                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          <Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" />
                         </Button>
                       </td>
                     </tr>
@@ -907,7 +906,7 @@ function GroupVarsTab({
               <YamlEditor value={draft} onChange={setDraft} height={460} />
             </>
           )}
-          {saveMut.isError && <div className="text-xs text-red-500">{(saveMut.error as Error).message}</div>}
+          {saveMut.isError && <div className="text-xs text-[var(--color-destructive)]">{(saveMut.error as Error).message}</div>}
         </CardContent>
       </Card>
     </div>
@@ -1012,7 +1011,7 @@ function HostVarsTab({
               <YamlEditor value={draft} onChange={setDraft} height={460} />
             </>
           )}
-          {saveMut.isError && <div className="text-xs text-red-500">{(saveMut.error as Error).message}</div>}
+          {saveMut.isError && <div className="text-xs text-[var(--color-destructive)]">{(saveMut.error as Error).message}</div>}
         </CardContent>
       </Card>
     </div>
@@ -1099,7 +1098,7 @@ function InventoryFilesTab({ files, loading }: { files: InventoryFile[]; loading
               <YamlEditor value={draft} onChange={setDraft} height={520} />
             </>
           )}
-          {saveMut.isError && <div className="text-xs text-red-500">{(saveMut.error as Error).message}</div>}
+          {saveMut.isError && <div className="text-xs text-[var(--color-destructive)]">{(saveMut.error as Error).message}</div>}
         </CardContent>
       </Card>
     </div>

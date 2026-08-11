@@ -212,7 +212,7 @@ function KeysAndVaultsTab() {
                     <td className="px-4 py-2"><Badge variant="default" className="text-[10px]">{v.keyName || v.keyId || "—"}</Badge></td>
                     <td className="px-4 py-2 text-right">
                       <Button size="sm" variant="ghost" onClick={() => setEditVault(v)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDelVault(v)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDelVault(v)}><Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" /></Button>
                     </td>
                   </tr>
                 ))}
@@ -237,7 +237,7 @@ function KeysAndVaultsTab() {
                 </div>
                 <div className="flex">
                   <Button size="sm" variant="ghost" onClick={() => setEditKey(k)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDelKey(k)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDelKey(k)}><Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" /></Button>
                 </div>
               </div>
             ))}
@@ -329,7 +329,7 @@ function EncryptedFilesTab() {
                   <td className="px-4 py-2 text-xs">{f.keyName || "—"}</td>
                   <td className="px-4 py-2 text-right">
                     <Button size="sm" variant="ghost" onClick={() => setDelFile(f)} title="Delete encrypted file">
-                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      <Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" />
                     </Button>
                   </td>
                 </tr>
@@ -428,7 +428,7 @@ function SecretsTab() {
                   <td className="px-4 py-2 text-right">
                     <Button size="sm" variant="ghost" onClick={() => setEditTarget(s)}><Pencil className="h-3.5 w-3.5" /></Button>
                     {s.name !== "vault_pass" && (
-                      <Button size="sm" variant="ghost" onClick={() => setDelTarget(s)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDelTarget(s)}><Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" /></Button>
                     )}
                   </td>
                 </tr>
@@ -485,7 +485,7 @@ function VaultDialog({ vault, keys, onClose, onSaved }: { vault?: Vault; keys: V
           options={keys.map((k) => ({ value: k.id, label: k.name }))}
           placeholder="Select a vault key…" />
         <Field label="Vault ID (label)"><Input value={vaultId} onChange={(e) => setVaultId(e.target.value)} placeholder="prod" /></Field>
-        {err && <div className="text-xs text-red-500">{err}</div>}
+        {err && <div className="text-xs text-[var(--color-destructive)]">{err}</div>}
       </div>
     </Modal>
   );
@@ -521,7 +521,7 @@ function VaultKeyDialog({ vaultKey, onClose, onSaved }: { vaultKey?: VaultKey; o
         <Field label={vaultKey ? "Rotate Password (leave empty to keep)" : "Password *"}>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
-        {err && <div className="text-xs text-red-500">{err}</div>}
+        {err && <div className="text-xs text-[var(--color-destructive)]">{err}</div>}
       </div>
     </Modal>
   );
@@ -586,7 +586,7 @@ function CreateSecretDialog({ onClose, onSaved }: { onClose: () => void; onSaved
         ) : (
           <Field label="Password *"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         )}
-        {err && <div className="text-xs text-red-500">{err}</div>}
+        {err && <div className="text-xs text-[var(--color-destructive)]">{err}</div>}
       </div>
     </Modal>
   );
@@ -645,7 +645,7 @@ function EditSecretDialog({ secret, onClose, onSaved }: { secret: Secret; onClos
         {(secret.type === "login_password" || secret.name === "vault_pass") && (
           <Field label="Rotate Password (leave empty to keep)"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         )}
-        {err && <div className="text-xs text-red-500">{err}</div>}
+        {err && <div className="text-xs text-[var(--color-destructive)]">{err}</div>}
       </div>
     </Modal>
   );
@@ -857,7 +857,7 @@ function EncryptVariableDialog({
           />
         </Field>
 
-        {err && <div className="text-xs text-red-500">{err}</div>}
+        {err && <div className="text-xs text-[var(--color-destructive)]">{err}</div>}
       </div>
     </Modal>
   );

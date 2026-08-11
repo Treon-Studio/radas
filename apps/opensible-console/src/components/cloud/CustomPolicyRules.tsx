@@ -299,7 +299,7 @@ export function CustomPolicyRules({
           </Button>
         </div>
       ) : rules.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--color-border)] p-4 text-sm text-[var(--color-muted-foreground)]">
+        <div className="rounded-md border border-dashed border-[var(--color-border)] p-4 text-sm text-[var(--color-muted-foreground)]">
           No custom rules yet. Add one, or paste a YAML rule pack.
         </div>
       ) : (
@@ -308,7 +308,7 @@ export function CustomPolicyRules({
             const regexErrs = ruleRegexErrors(r);
             const needsValue = !["exists", "not_exists"].includes(r.operator || "matches");
             return (
-              <div key={r.id} className="rounded-xl border border-[var(--color-border)] p-3 space-y-3">
+              <div key={r.id} className="rounded-md border border-[var(--color-border)] p-3 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">

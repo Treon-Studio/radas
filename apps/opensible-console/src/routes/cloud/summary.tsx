@@ -126,7 +126,7 @@ function SummaryPage() {
   ];
   const toneClass = (t: string) =>
     t === "success" ? "text-emerald-600" :
-    t === "danger" ? "text-red-600" :
+    t === "danger" ? "text-[var(--color-destructive)]" :
     t === "info" ? "text-blue-600" :
     t === "muted" ? "text-amber-600" :
     "text-[var(--color-foreground)]";

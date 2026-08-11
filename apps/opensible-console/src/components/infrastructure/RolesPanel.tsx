@@ -240,7 +240,7 @@ export function RolesPanel() {
                 <button
                   title="Delete file"
                   onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${f.path}"?`)) deleteFileMut.mutate(f.path); }}
-                  className="opacity-0 group-hover:opacity-100 text-[var(--color-muted-foreground)] hover:text-red-500"
+                  className="opacity-0 group-hover:opacity-100 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -269,7 +269,7 @@ export function RolesPanel() {
             {!openFile && <div className="text-xs text-[var(--color-muted-foreground)] p-6 text-center">Pick a file from the list to edit.</div>}
             {openFile && fileQ.isLoading && <div className="text-xs text-[var(--color-muted-foreground)] p-3">Loading…</div>}
             {openFile && !fileQ.isLoading && <YamlEditor value={content} onChange={setContent} height={500} />}
-            {saveMut.isError && <div className="text-xs text-red-500 mt-2">{(saveMut.error as Error).message}</div>}
+            {saveMut.isError && <div className="text-xs text-[var(--color-destructive)] mt-2">{(saveMut.error as Error).message}</div>}
           </CardContent>
         </Card>
       </div>
@@ -385,7 +385,7 @@ function TreeNode({
         <button
           title="Delete role"
           onClick={(e) => { e.stopPropagation(); onDelete(path); }}
-          className="opacity-0 group-hover:opacity-100 text-[var(--color-muted-foreground)] hover:text-red-500"
+          className="opacity-0 group-hover:opacity-100 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

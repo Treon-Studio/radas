@@ -305,7 +305,7 @@ export function TemplateDialog({
             {(detail?.variables || []).map((v) => (
               <div key={v.name}>
                 <label className="text-xs font-medium">
-                  {v.label}{v.required && <span className="text-red-500"> *</span>}
+                  {v.label}{v.required && <span className="text-[var(--color-destructive)]"> *</span>}
                 </label>
                 {v.type === "boolean" ? (
                   <div className="mt-1">

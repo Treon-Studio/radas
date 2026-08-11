@@ -120,8 +120,8 @@ function DebugLoggingCard() {
         <CardTitle className="text-base flex items-center gap-2"><Bug className="h-4 w-4" /> Debug Mode & Logging</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="rounded-md border border-red-500/20 bg-red-500/5 p-3 flex gap-2 text-sm">
-          <span className="text-red-500">⚠️</span>
+        <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-3 flex gap-2 text-sm">
+          <span className="text-[var(--color-destructive)]">⚠️</span>
           <div>
             <div className="font-medium">Flask Debug Mode is not recommended for production</div>
             <div className="text-xs text-[var(--color-muted-foreground)] mt-1">
@@ -254,12 +254,12 @@ function EncryptionKeyCard() {
           {q.isLoading ? "Loading…" : key ? (
             <div className="flex items-center gap-2">
               {key.exists
-                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                : <XCircle className="h-4 w-4 text-red-500" />}
+                ? <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
+                : <XCircle className="h-4 w-4 text-[var(--color-destructive)]" />}
               <span className="font-medium">Status: {key.exists ? "Found" : "Not found"}</span>
               <span className="text-[var(--color-muted-foreground)]">·  Source: {key.source === "environment" ? "Environment variable" : key.source === "file" ? "File" : "—"}</span>
             </div>
-          ) : <span className="text-red-500">Error loading key information</span>}
+          ) : <span className="text-[var(--color-destructive)]">Error loading key information</span>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => create.mutate()} disabled={create.isPending || key?.exists}>
@@ -406,7 +406,7 @@ function AboutTab() {
           <img
             src={opensibleLogo}
             alt="OpenSible"
-            className="h-12 w-12 rounded-xl object-contain bg-[var(--color-background)]"
+            className="h-12 w-12 rounded-md object-contain bg-[var(--color-background)]"
           />
           <div>
             <div className="text-xs uppercase tracking-wider text-[var(--color-muted-foreground)] font-semibold">About OpenSible</div>

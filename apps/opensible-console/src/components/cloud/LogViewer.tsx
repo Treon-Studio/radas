@@ -41,7 +41,7 @@ export function LogViewer({ text, className }: { text: string; className?: strin
     <div
       ref={parentRef}
       className={cn(
-        "rounded-md bg-zinc-950 text-zinc-100 font-mono text-xs leading-[18px] overflow-auto max-h-[600px]",
+        "rounded-md bg-[var(--color-inverted)] text-[var(--color-inverted-foreground)] font-mono text-xs leading-[18px] overflow-auto max-h-[600px]",
         className
       )}
     >

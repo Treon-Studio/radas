@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const TONE_CLASS: Record<string, string> = {
   create: "text-emerald-600 dark:text-emerald-400",
   update: "text-amber-600 dark:text-amber-400",
-  destroy: "text-red-600 dark:text-red-400",
+  destroy: "text-[var(--color-destructive)]",
   neutral: "text-[var(--color-muted-foreground)]",
 };
 

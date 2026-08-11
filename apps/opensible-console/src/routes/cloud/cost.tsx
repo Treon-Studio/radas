@@ -502,7 +502,7 @@ function CalculatorTab() {
               <Button size="sm" variant="outline" onClick={() => extract.mutate()} disabled={!planText || extract.isPending}>
                 <FileUp className="h-4 w-4 mr-1" /> {extract.isPending ? "Parsing…" : "Extract resources"}
               </Button>
-              {extract.error && <span className="text-xs text-red-500">{(extract.error as Error).message}</span>}
+              {extract.error && <span className="text-xs text-[var(--color-destructive)]">{(extract.error as Error).message}</span>}
             </div>
           </CardContent>
         )}
@@ -553,7 +553,7 @@ function CalculatorTab() {
                     <td className="p-1"><Input type="number" min={0} value={r.size_gb ?? ""} disabled={!kindDef?.needsSize} onChange={(e) => update(r.id, { size_gb: Number(e.target.value) || 0 })} className="h-8" /></td>
                     <td className="p-1"><Input type="number" min={0} value={r.bandwidth_gb ?? ""} disabled={!kindDef?.needsBw} onChange={(e) => update(r.id, { bandwidth_gb: Number(e.target.value) || 0 })} className="h-8" /></td>
                     <td className="p-1 text-right">
-                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 className="h-4 w-4 text-[var(--color-destructive)]" /></Button>
                     </td>
                   </tr>
                 );
@@ -878,7 +878,7 @@ function ReportsTab() {
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" onClick={() => view.mutate(r.id)}>View</Button>
                     <Button size="sm" variant="ghost" onClick={() => del.mutate(r.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      <Trash2 className="h-3.5 w-3.5 text-[var(--color-destructive)]" />
                     </Button>
                   </td>
                 </tr>
