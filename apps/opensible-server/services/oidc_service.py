@@ -72,3 +72,14 @@ def exchange_code(cfg: Dict[str, Any], discovery_meta: Dict[str, Any], code: str
     }, timeout=15)
     r.raise_for_status()
     return r.json()
+
+
+def validate_id_token(id_token: str, client_id: str, discovery_meta: Dict[str, Any],
+                      key: Any = None, algorithms=("RS256", "ES256", "RS384", "ES384", "RS512")) -> Dict[str, Any]:
+    """Verify the OIDC id_token: signature (JWKS), audience and issuer."""
+    import jwt as pyjwt
+    if key is None:
+        jwks_client = pyjwt.PyJWKClient(discovery_meta["jwks_uri"])
+        key = jwks_client.get_signing_key_from_jwt(id_token).key
+    return pyjwt.decode(id_token, key, algorithms=list(algorithms),
+                        audience=client_id, issuer=discovery_meta.get("issuer"))

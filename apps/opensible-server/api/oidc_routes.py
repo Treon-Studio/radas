@@ -70,6 +70,44 @@ def api_sso_callback():
         tokens = exchange_code(cfg, meta, code)
     except Exception as e:
         return jsonify({"error": f"SSO callback failed: {e}"}), 502
-    # TODO(verify): validate id_token (issuer/aud/exp) + create/link local user.
     id_token = tokens.get("id_token") or ""
-    return jsonify({"success": True, "id_token": id_token[:40] + "…", "note": "user provisioning TBD with a real IdP"})
+    if not id_token:
+        return jsonify({"error": "no id_token in response"}), 502
+    # Verify signature (JWKS), audience and issuer.
+    try:
+        from services.oidc_service import validate_id_token
+        claims = validate_id_token(id_token, cfg["client_id"], meta)
+    except Exception as e:
+        return jsonify({"error": f"id_token validation failed: {e}"}), 401
+    # Find-or-create the local user keyed by SSO subject/email.
+    try:
+        from services.user_service import get_user_service
+        from auth.service import generate_token
+        import secrets as _secrets
+        username = claims.get("email") or claims.get("preferred_username") or claims.get("sub") or ""
+        if not username:
+            return jsonify({"error": "id_token missing subject/email"}), 401
+        user_service = get_user_service()
+        user = user_service.get_user_by_username(username)
+        if not user:
+            user = user_service.create_user(
+                username=username,
+                password=_secrets.token_urlsafe(24),
+                email=claims.get("email"),
+                roles=[],
+            )
+        user_service, role_service, _, DATA_DIR = _services()
+        role_names = []
+        for role_id in user.roles:
+            role = role_service.get_role_by_id(role_id)
+            if role:
+                role_names.append(role.name)
+        access_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                      data_dir=DATA_DIR, token_type="access")
+        refresh_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                       data_dir=DATA_DIR, token_type="refresh")
+        return jsonify({"success": True, "access_token": access_token,
+                        "refresh_token": refresh_token,
+                        "user": {"id": user.id, "username": user.username, "email": user.email, "roles": role_names}})
+    except Exception as e:
+        return jsonify({"error": f"SSO user provisioning failed: {e}"}), 500
