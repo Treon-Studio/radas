@@ -964,6 +964,24 @@ def stacks_action(name):
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
 
+    # Feature-flag gate (Fase 6 — UC 113+): global block_apply kill-switch,
+    # plus per-stack flags `stack.<name>.block_*`.
+    if _mutating:
+        try:
+            from services.feature_flags import enforcement as _ff_enforcement
+            _env = None
+            try:
+                _env = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("env")
+            except Exception:
+                _env = None
+            _user = (_cu.get("username") or "")
+            for _fkey in ("block_apply", "block_destroy", f"stack.{name}.block_apply"):
+                _err = _ff_enforcement(_fkey, env=_env or "prod", user=_user)
+                if _err:
+                    return jsonify({"error": _err}), 423
+        except Exception:
+            pass
+
     # Role-per-environment gate (Fase 5 — UC 67).
     try:
         from services.env_roles import allowed as _env_allowed
@@ -984,6 +1002,17 @@ def stacks_action(name):
             from services.automation_rules import in_maintenance
             if in_maintenance(pid):
                 return jsonify({"error": "Maintenance window active. Runs are paused until it ends."}), 423
+        except Exception:
+            pass
+
+    # Test-case gate (Fase 6 — UC 163): apply blocked if latest blocker test failed.
+    if action in ("apply", "destroy"):
+        try:
+            from services.test_cases import latest_failed_blocker
+            bad = latest_failed_blocker(pid, name)
+            if bad:
+                return jsonify({"error": f"Blocker test '{bad.get('name')}' failed. "
+                                         f"Run tests and fix findings before {action}."}), 409
         except Exception:
             pass
 

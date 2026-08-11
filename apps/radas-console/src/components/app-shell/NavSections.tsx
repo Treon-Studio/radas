@@ -4,7 +4,8 @@ import {
   RiAddLine as Plus, RiCalculatorLine as Calculator, RiSettings2Line as Settings2,
   RiRocketLine as Rocket, RiArchiveLine as Library, RiNodeTree as Network,
   RiBookOpenLine as BookOpen, RiShieldCheckLine as ShieldCheck, RiTeamLine as Users,
-  RiCpuLine as Cpu, RiPlugLine as Plug,
+  RiCpuLine as Cpu, RiPlugLine as Plug, RiFlagLine as Flag, RiFlaskLine as Flask,
+  RiGithubLine as Github, RiCloudLine as Cloud,
 } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,9 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
     { to: "/cloud/stacks", label: t("nav.stacks"), icon: Layers },
     { to: "/cloud/stacks/new", label: t("nav.newStack"), icon: Plus },
     { to: "/cloud/cost", label: t("nav.costAnalysis"), icon: Calculator },
+    { to: "/cloud/flags", label: t("nav.flags"), icon: Flag },
+    { to: "/cloud/tests", label: t("nav.tests"), icon: Flask },
+    { to: "/cloud/byoc", label: t("nav.byoc"), icon: Cloud },
     { to: "/cloud/settings", label: t("nav.projectSettings"), icon: Settings2 },
   ] as Item[],
   infrastructure: [
@@ -36,6 +40,7 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
     { to: "/system/workers", label: t("nav.workers"), icon: Cpu },
     { to: "/system/secrets", label: t("nav.secretsManagement"), icon: ShieldCheck },
     { to: "/system/api", label: t("nav.api"), icon: Plug },
+    { to: "/system/github-actions", label: t("nav.githubActions"), icon: Github },
   ] as Item[],
 });
 

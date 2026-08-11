@@ -24,4 +24,8 @@ export const nav: Record<string, string> = {
   "nav.workers": "កម្មករ",
   "nav.secretsManagement": "គ្រប់គ្រង Secrets",
   "nav.api": "API",
+  "nav.flags": "ផ្លាកសញ្ញា",
+  "nav.tests": "ករណីសាកល្បង",
+  "nav.byoc": "BYOC",
+  "nav.githubActions": "GitHub Actions",
 };
