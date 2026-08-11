@@ -5,6 +5,7 @@ import { RiPlayLine as Play, RiRefreshLine as RefreshCw, RiFolderLine as Folder,
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -480,7 +481,7 @@ function DeploymentPage() {
                     const on = selectedPlaybooks.includes(p.id);
                     return (
                       <label key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
-                        <input type="checkbox" checked={on} onChange={() => toggle(selectedPlaybooks, setSelectedPlaybooks, p.id)} />
+                        <CheckboxInput type="checkbox" checked={on} onChange={() => toggle(selectedPlaybooks, setSelectedPlaybooks, p.id)} />
                         <span className="font-mono text-xs">{p.name}</span>
                       </label>
                     );
@@ -498,7 +499,7 @@ function DeploymentPage() {
                     const on = selectedRoles.includes(r.id);
                     return (
                       <label key={r.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
-                        <input type="checkbox" checked={on} onChange={() => toggle(selectedRoles, setSelectedRoles, r.id)} />
+                        <CheckboxInput type="checkbox" checked={on} onChange={() => toggle(selectedRoles, setSelectedRoles, r.id)} />
                         <span className="font-mono text-xs">{r.label}</span>
                       </label>
                     );
@@ -521,7 +522,7 @@ function DeploymentPage() {
                     const on = selectedTemplates.includes(t.id);
                     return (
                       <label key={t.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
-                        <input type="checkbox" checked={on} onChange={() => toggle(selectedTemplates, setSelectedTemplates, t.id)} />
+                        <CheckboxInput type="checkbox" checked={on} onChange={() => toggle(selectedTemplates, setSelectedTemplates, t.id)} />
                         <span className="text-xs">{t.category ? `[${t.category}] ` : ""}{t.name}</span>
                       </label>
                     );
@@ -547,7 +548,7 @@ function DeploymentPage() {
                   const on = selectedGroups.includes(g);
                   return (
                     <label key={g} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
-                      <input type="checkbox" checked={on} onChange={() => toggle(selectedGroups, setSelectedGroups, g)} />
+                      <CheckboxInput type="checkbox" checked={on} onChange={() => toggle(selectedGroups, setSelectedGroups, g)} />
                       {g}
                     </label>
                   );
@@ -563,7 +564,7 @@ function DeploymentPage() {
                   const on = selectedHosts.includes(h);
                   return (
                     <label key={h} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer ${on ? "border-[var(--color-foreground)]/50 bg-[var(--color-foreground)]/5 text-[var(--color-foreground)]" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
-                      <input type="checkbox" checked={on} onChange={() => toggle(selectedHosts, setSelectedHosts, h)} />
+                      <CheckboxInput type="checkbox" checked={on} onChange={() => toggle(selectedHosts, setSelectedHosts, h)} />
                       <span className="font-mono text-xs">{h}</span>
                     </label>
                   );
@@ -580,7 +581,7 @@ function DeploymentPage() {
             </div>
 
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={become} onChange={(e) => setBecome(e.target.checked)} />
+              <CheckboxInput type="checkbox" checked={become} onChange={(e) => setBecome(e.target.checked)} />
               <span className="font-medium">Become (sudo/su)</span>
             </label>
 
@@ -621,11 +622,11 @@ function DeploymentPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={checkMode} onChange={(e) => setCheckMode(e.target.checked)} />
+                <CheckboxInput type="checkbox" checked={checkMode} onChange={(e) => setCheckMode(e.target.checked)} />
                 Check mode (dry-run)
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={forceHandlers} onChange={(e) => setForceHandlers(e.target.checked)} />
+                <CheckboxInput type="checkbox" checked={forceHandlers} onChange={(e) => setForceHandlers(e.target.checked)} />
                 Force handlers
               </label>
               <div>

@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { RiLayoutGridLine as LayoutTemplate, RiRefreshLine as RefreshCw, RiCloseLine as X, RiFileCodeLine as FileCode, RiSaveLine as Save, RiFileCopyLine as Copy, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiGitMergeLine as Workflow, RiFullscreenLine as Maximize2, RiFullscreenExitLine as Minimize2 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -312,7 +313,7 @@ export function TemplateDialog({
                 {v.type === "boolean" ? (
                   <div className="mt-1">
                     <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                      <input
+                      <CheckboxInput
                         type="checkbox"
                         checked={!!values[v.name]}
                         onChange={(e) => setValues({ ...values, [v.name]: e.target.checked })}
@@ -410,7 +411,7 @@ export function TemplateDialog({
                   <Badge variant="default" className="text-[10px]">optional</Badge>
                   {cicdPipelineId && <Badge variant="success" className="text-[10px]">linked</Badge>}
                 </span>
-                <input
+                <CheckboxInput
                   type="checkbox"
                   checked={cicdEnabled}
                   onChange={(e) => setCicdEnabled(e.target.checked)}
@@ -479,7 +480,7 @@ export function TemplateDialog({
                   </div>
                   <div className="border-t border-[var(--color-border)] pt-2">
                     <label className="flex items-center gap-2">
-                      <input
+                      <CheckboxInput
                         type="checkbox"
                         checked={cicdGitEnabled}
                         onChange={(e) => setCicdGitEnabled(e.target.checked)}

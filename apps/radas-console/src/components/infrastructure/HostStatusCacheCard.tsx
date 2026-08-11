@@ -3,6 +3,7 @@ import { RiTimerLine as Timer } from "@remixicon/react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -82,7 +83,7 @@ export function HostStatusCacheCard({ projectId }: { projectId: string | null })
         </div>
 
         <label className="flex items-start gap-2 cursor-pointer select-none">
-          <input
+          <CheckboxInput
             type="checkbox"
             className="mt-1"
             checked={autoCheck}

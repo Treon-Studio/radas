@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RiArchiveStackLine as Boxes, RiDownload2Line as Download, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -193,7 +194,7 @@ export function ImportFromCloudDialog({
                       const checked = selected.has(key);
                       return (
                         <tr key={key} className="border-b border-[var(--color-border)] hover:bg-[var(--color-accent)]/30">
-                          <td className="px-3 py-2"><input type="checkbox" checked={checked} onChange={() => toggle(key)} /></td>
+                          <td className="px-3 py-2"><CheckboxInput type="checkbox" checked={checked} onChange={() => toggle(key)} /></td>
                           <td className="px-3 py-2 font-mono text-xs">{vm.hostname || "—"}</td>
                           <td className="px-3 py-2 font-mono text-xs">{vm.private_ip || "—"}</td>
                           <td className="px-3 py-2 font-mono text-xs">{vm.public_ip || "—"}</td>

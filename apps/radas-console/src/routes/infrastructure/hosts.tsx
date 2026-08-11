@@ -5,6 +5,7 @@ import { RiServerLine as Server, RiRefreshLine as RefreshCw, RiAddLine as Plus, 
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -462,7 +463,7 @@ function HostsPage() {
                 <thead>
                   <tr className="text-left border-b text-xs uppercase tracking-wider text-[var(--color-muted-foreground)]">
                     <th className="px-3 py-2 w-8">
-                      <input type="checkbox" checked={selected.size > 0 && selected.size === filteredHosts.length} onChange={toggleAll} />
+                      <CheckboxInput type="checkbox" checked={selected.size > 0 && selected.size === filteredHosts.length} onChange={toggleAll} />
                     </th>
                     <th className="px-3 py-2 font-medium">Host</th>
                     <th className="px-3 py-2 font-medium">Groups</th>
@@ -485,7 +486,7 @@ function HostsPage() {
                     return (
                       <tr key={h} className="border-b hover:bg-[var(--color-accent)]/40">
                         <td className="px-3 py-2">
-                          <input type="checkbox" checked={selected.has(h)} onChange={() => toggleSelect(h)} />
+                          <CheckboxInput type="checkbox" checked={selected.has(h)} onChange={() => toggleSelect(h)} />
                         </td>
                         <td className="px-3 py-2 font-medium">{h}</td>
                         <td className="px-3 py-2">
@@ -778,7 +779,7 @@ function EditHostDialog({
         {groups.length === 0 && <div className="col-span-2 text-sm text-[var(--color-muted-foreground)]">No groups defined.</div>}
         {groups.map((g) => (
           <label key={g} className="flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-[var(--color-accent)] cursor-pointer">
-            <input type="checkbox" checked={sel.has(g)} onChange={() => toggle(g)} />
+            <CheckboxInput type="checkbox" checked={sel.has(g)} onChange={() => toggle(g)} />
             <span>{g}</span>
           </label>
         ))}

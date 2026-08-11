@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { RiCloseLine as X, RiSaveLine as Save, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -178,7 +179,7 @@ function FieldRow({
   if (field.type === "bool") {
     return (
       <label className="flex items-start gap-2 cursor-pointer select-none">
-        <input
+        <CheckboxInput
           type="checkbox"
           className="mt-0.5"
           checked={!!value}

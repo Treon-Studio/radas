@@ -8,6 +8,7 @@ import type { RemixiconComponentType } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -327,7 +328,7 @@ function FieldRenderer({ field, value, setValue }: {
     case "bool":
       return (
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={!!value} onChange={(e) => setValue(e.target.checked)} className="h-4 w-4" />
+          <CheckboxInput type="checkbox" checked={!!value} onChange={(e) => setValue(e.target.checked)} className="h-4 w-4" />
           <span className="font-medium">{f.label}{f.required && <span className="text-[var(--color-destructive)] ml-1">*</span>}</span>
           {f.help && <span className="text-xs text-[var(--color-muted-foreground)]">— {f.help}</span>}
         </label>

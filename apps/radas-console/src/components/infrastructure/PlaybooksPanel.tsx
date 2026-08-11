@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RiBookOpenLine as BookOpen, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiPlayLine as Play, RiSearchLine as Search, RiUpload2Line as Upload, RiDownload2Line as Download, RiFileCopyLine as Copy, RiPenNibLine as Edit3, RiDeleteBinLine as Trash2, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertCircle, RiFileCodeLine as FileCode, RiEyeLine as Eye } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -400,7 +401,7 @@ function CreateOrEditDialog({
           </Field>
           {mode === "edit" && (
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+              <CheckboxInput type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
               Disabled (skip during bulk runs)
             </label>
           )}
@@ -554,11 +555,11 @@ function RunDialog({ playbook, onClose }: { playbook: Playbook; onClose: () => v
         </Field>
         <div className="space-y-2 pt-5">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={checkMode} onChange={(e) => setCheckMode(e.target.checked)} />
+            <CheckboxInput type="checkbox" checked={checkMode} onChange={(e) => setCheckMode(e.target.checked)} />
             Check mode (dry run)
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={forceHandlers} onChange={(e) => setForceHandlers(e.target.checked)} />
+            <CheckboxInput type="checkbox" checked={forceHandlers} onChange={(e) => setForceHandlers(e.target.checked)} />
             Force handlers
           </label>
         </div>

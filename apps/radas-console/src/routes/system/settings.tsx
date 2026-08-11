@@ -5,6 +5,7 @@ import { RiEqualizerLine as SlidersHorizontal, RiInformationLine as Info, RiKey2
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -136,7 +137,7 @@ function DebugLoggingCard() {
             <div className="text-xs text-[var(--color-muted-foreground)]">Detailed logging and interactive debugger.</div>
           </div>
           <label className="inline-flex items-center cursor-pointer">
-            <input
+            <CheckboxInput
               type="checkbox"
               checked={!!settings.debug_mode}
               onChange={e => save.mutate({ debug_mode: e.target.checked })}
@@ -301,7 +302,7 @@ function ExecutionHistoryCard() {
             <div className="text-sm font-medium">Save execution history</div>
             <div className="text-xs text-[var(--color-muted-foreground)]">Persist run logs and metadata for later review.</div>
           </div>
-          <input
+          <CheckboxInput
             type="checkbox"
             checked={s.save_execution_history !== false}
             onChange={e => save.mutate({ save_execution_history: e.target.checked } as any)}
@@ -372,7 +373,7 @@ function BackupTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Field label="Enabled">
-          <input type="checkbox" checked={!!current.enabled} onChange={e => update("enabled", e.target.checked)} />
+          <CheckboxInput type="checkbox" checked={!!current.enabled} onChange={e => update("enabled", e.target.checked)} />
         </Field>
         <Field label="Schedule (cron)">
           <Input value={current.schedule ?? ""} onChange={e => update("schedule", e.target.value)} placeholder="0 2 * * *" />

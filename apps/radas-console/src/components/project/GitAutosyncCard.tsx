@@ -3,6 +3,7 @@ import { RiRefreshLine as RefreshCw } from "@remixicon/react";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -91,7 +92,7 @@ export function GitAutosyncCard({ projectId, sourceKey, sourceLabel }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         <label className="flex items-start gap-2 cursor-pointer select-none">
-          <input type="checkbox" className="mt-1" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <CheckboxInput type="checkbox" className="mt-1" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           <span>
             <div className="font-medium">Enable auto sync</div>
             <div className="text-sm text-[var(--color-muted-foreground)]">

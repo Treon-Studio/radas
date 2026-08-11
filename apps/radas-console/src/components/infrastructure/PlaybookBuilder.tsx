@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { RiAddLine as Plus, RiDeleteBinLine as Trash2, RiArrowUpLine as ArrowUp, RiArrowDownLine as ArrowDown, RiSaveLine as Save, RiDownload2Line as Download, RiPlayLine as Play, RiFileCodeLine as FileCode } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -210,7 +211,7 @@ export function PlaybookBuilder({ onSaved }: { onSaved?: () => void }) {
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={become} onChange={e => setBecome(e.target.checked)} /> become (sudo)
+              <CheckboxInput type="checkbox" checked={become} onChange={e => setBecome(e.target.checked)} /> become (sudo)
             </label>
           </CardContent>
         </Card>
