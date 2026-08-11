@@ -107,14 +107,31 @@ def _queue(pid: str, stack: str, action: str, why: str) -> bool:
 
 def run_rules_once() -> Dict[str, int]:
     now = datetime.now()
-    queued = {"auto_stop": 0, "remediate": 0}
+    queued = {"auto_stop": 0, "remediate": 0, "auto_scale": 0}
     for r in load():
         if not r.get("enabled"):
             continue
         if in_maintenance(r.get("project_id")):
             continue
         kind = r.get("kind")
-        if kind == "auto_stop" and now.hour == int(r.get("hour") or 0)                 and _in_day(r.get("days") or [], now.weekday()):
+        if kind == "auto_scale" and now.hour == int(r.get("hour") or 0) and _in_day(r.get("days") or [], now.weekday()):
+            try:
+                from services.cloud_provisioning import _create_execution, _stack_dir
+                pid, stack = r.get("project_id"), r.get("stack")
+                scale_to = int(r.get("scale_to") or 0)
+                if pid and stack and scale_to > 0 and _stack_dir(pid, stack).exists():
+                    tf = _stack_dir(pid, stack) / "terraform.tfvars"
+                    if tf.exists():
+                        import re as _re
+                        text = tf.read_text(encoding="utf-8")
+                        if _re.search(r"app_vm_count\s*=\s*\d+", text):
+                            text = _re.sub(r"app_vm_count\s*=\s*\d+", "app_vm_count = %d" % scale_to, text)
+                            tf.write_text(text, encoding="utf-8")
+                            _create_execution(pid, stack, "apply", triggered_by="auto_scale")
+                            queued["auto_scale"] += 1
+            except Exception:
+                pass
+        elif kind == "auto_stop" and now.hour == int(r.get("hour") or 0)                 and _in_day(r.get("days") or [], now.weekday()):
             if _queue(r.get("project_id"), r.get("stack"), r.get("action") or "destroy", "auto_stop"):
                 queued["auto_stop"] += 1
         elif kind == "remediate" and r.get("stack"):

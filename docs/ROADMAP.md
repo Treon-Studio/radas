@@ -47,7 +47,7 @@
 | 11 | Deteksi drift & refresh stack | ✅ | P0 | 0 |
 | 12 | Remote state management (S3/OBS) | ✅ | P1 | 5 |
 | 13 | Rollback & strip stack | ✅ | P1 | 5 |
-| 14 | Multi-region deploy dalam satu stack | ⬜ | P2 | 5 |
+| 14 | Multi-region deploy dalam satu stack | ✅ | P2 | 5 |
 | 15 | Template stack custom dari repo sendiri | ✅ | P1 | 5 |
 
 ## B. Configuration Management / Ansible (16–25)
@@ -147,7 +147,7 @@
 | 76 | Scheduled stack refresh | ✅ | P0 | 0 |
 | 77 | Scheduled backup berkala | ✅ | P0 | 0 |
 | 78 | Auto-stop VM idle di luar jam kerja | ✅ | P2 | 5 |
-| 79 | Auto-scale berdasarkan beban | ⬜ | P2 | 5 |
+| 79 | Auto-scale berdasarkan beban | ✅ | P2 | 5 |
 | 80 | Maintenance window | ✅ | P2 | 5 |
 | 81 | Event-driven provisioning via webhook | ✅ | P1 | 5 |
 | 82 | Retry policy & exponential backoff | ✅ | P1 | 5 |

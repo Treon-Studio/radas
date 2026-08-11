@@ -12,7 +12,7 @@ from services.automation_rules import create, delete, in_maintenance, load, run_
 
 bp = Blueprint("automation_api", __name__)
 
-KINDS = ("maintenance", "auto_stop", "remediate")
+KINDS = ("maintenance", "auto_stop", "remediate", "auto_scale")
 
 
 @bp.route('/api/automation/rules', methods=['GET'])
