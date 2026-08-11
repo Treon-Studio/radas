@@ -1,70 +1,79 @@
 @import "tailwindcss";
 @import "@fontsource/geist-pixel";
+@import "@fontsource/geist-mono";
 
 @theme {
   --font-sans: "Geist Pixel", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Light theme — Kampondewa-inspired */
-  --color-background: hsl(220 20% 97%);
-  --color-foreground: hsl(222 47% 11%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222 47% 11%);
-  --color-muted: hsl(220 14% 96%);
-  --color-muted-foreground: hsl(220 9% 46%);
-  --color-border: hsl(220 13% 91%);
-  --color-input: hsl(220 13% 91%);
-  --color-primary: hsl(45 95% 50%);
-  --color-primary-foreground: hsl(222 47% 11%);
-  --color-secondary: hsl(220 14% 96%);
-  --color-secondary-foreground: hsl(222 47% 11%);
-  --color-accent: hsl(220 14% 96%);
-  --color-accent-foreground: hsl(222 47% 11%);
-  --color-destructive: hsl(0 84% 60%);
-  --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: hsl(160 84% 39%);
-  --color-warning: hsl(38 92% 50%);
+  /* Vercel system — light */
+  --color-background: #fafafa;
+  --color-foreground: #171717;
+  --color-card: #ffffff;
+  --color-card-foreground: #171717;
+  --color-muted: #f4f4f4;
+  --color-muted-foreground: #666666;
+  --color-border: #ebebeb;
+  --color-input: #ebebeb;
+  --color-primary: #171717;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f4f4f4;
+  --color-secondary-foreground: #4d4d4d;
+  --color-accent: hsl(45 95% 50%);
+  --color-accent-foreground: #171717;
+  --color-charcoal: #4d4d4d;
+  --color-stone: #666666;
+  --color-smoke: #a8a8a8;
+  --color-ash: #c9c9c9;
+  --color-carbon: #000000;
+  --color-destructive: #171717;
+  --color-destructive-foreground: #ffffff;
+  --color-success: #297a3a;
+  --color-warning: hsl(45 95% 50%);
   --color-ring: hsl(45 95% 50%);
 
-  /* Sidebar tokens (dark in both themes, like reference) */
-  --color-sidebar: hsl(220 26% 10%);
-  --color-sidebar-foreground: hsl(210 20% 92%);
-  --color-sidebar-muted: hsl(220 14% 60%);
-  --color-sidebar-border: hsl(220 20% 16%);
-  --color-sidebar-accent: hsl(180 70% 55%);
-  --color-sidebar-active-bg: hsl(220 30% 16%);
+  /* Inverted surfaces (CLI / log panels) */
+  --color-inverted: #171717;
+  --color-inverted-foreground: #e8e8e8;
+  --color-inverted-muted: #8f8f8f;
 
-  --radius: 0.75rem;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --radius: 0.375rem;
+  --shadow-card: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-popover: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="dark"] {
-  --color-background: hsl(222 30% 8%);
-  --color-foreground: hsl(210 40% 98%);
-  --color-card: hsl(222 28% 11%);
-  --color-card-foreground: hsl(210 40% 98%);
-  --color-muted: hsl(217 25% 17%);
-  --color-muted-foreground: hsl(215 16% 65%);
-  --color-border: hsl(217 25% 20%);
-  --color-input: hsl(217 25% 20%);
-  --color-primary: hsl(45 95% 55%);
-  --color-primary-foreground: hsl(222 47% 11%);
-  --color-secondary: hsl(217 25% 17%);
-  --color-secondary-foreground: hsl(210 40% 98%);
-  --color-accent: hsl(217 25% 17%);
-  --color-accent-foreground: hsl(210 40% 98%);
-  --color-destructive: hsl(0 72% 51%);
-  --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: hsl(160 84% 45%);
-  --color-warning: hsl(38 92% 50%);
+  --color-background: #0a0a0a;
+  --color-foreground: #ededed;
+  --color-card: #0e0e0e;
+  --color-card-foreground: #ededed;
+  --color-muted: #161616;
+  --color-muted-foreground: #8f8f8f;
+  --color-border: #1f1f1f;
+  --color-input: #1f1f1f;
+  --color-primary: #ededed;
+  --color-primary-foreground: #0a0a0a;
+  --color-secondary: #161616;
+  --color-secondary-foreground: #ededed;
+  --color-accent: hsl(45 95% 55%);
+  --color-accent-foreground: #0a0a0a;
+  --color-charcoal: #c9c9c9;
+  --color-stone: #8f8f8f;
+  --color-smoke: #6b6b6b;
+  --color-ash: #4f4f4f;
+  --color-carbon: #000000;
+  --color-destructive: #ededed;
+  --color-destructive-foreground: #0a0a0a;
+  --color-success: #45d165;
+  --color-warning: hsl(45 95% 55%);
   --color-ring: hsl(45 95% 55%);
 
-  --color-sidebar: hsl(222 30% 6%);
-  --color-sidebar-foreground: hsl(210 20% 92%);
-  --color-sidebar-muted: hsl(220 14% 55%);
-  --color-sidebar-border: hsl(220 20% 14%);
-  --color-sidebar-accent: hsl(180 70% 55%);
-  --color-sidebar-active-bg: hsl(222 30% 12%);
+  --color-inverted: #ffffff;
+  --color-inverted-foreground: #171717;
+  --color-inverted-muted: #4d4d4d;
+
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-popover: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 html, body, #root { height: 100%; }
@@ -92,10 +101,10 @@ select:not(:disabled) {
   cursor: pointer;
 }
 
-/* Thin custom scrollbar for dark sidebar */
+/* Thin custom scrollbar */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: hsl(220 14% 35%) transparent;
+  scrollbar-color: var(--color-smoke) transparent;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
@@ -104,11 +113,11 @@ select:not(:disabled) {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: hsl(220 14% 35%);
+  background: var(--color-smoke);
   border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: hsl(220 14% 50%);
+  background: var(--color-stone);
 }
 
 button:disabled,
@@ -117,8 +126,7 @@ button:disabled,
   cursor: not-allowed;
 }
 
-/* Global native <select> styling — matches the custom Select trigger look
-   (rounded, bordered card, chevron, yellow focus ring) used elsewhere. */
+/* Global native <select> styling — matches the custom Select trigger look */
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -126,11 +134,10 @@ select {
   background-color: var(--color-card);
   color: var(--color-foreground);
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  border-radius: 0.375rem;
   padding: 0.375rem 2rem 0.375rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
@@ -142,8 +149,8 @@ select:hover:not(:disabled) {
 }
 select:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 30%, transparent);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 30%, transparent);
 }
 select:disabled {
   opacity: 0.6;
@@ -153,9 +160,17 @@ select option {
   color: var(--color-foreground);
 }
 select option:checked {
-  background-color: color-mix(in oklab, var(--color-primary) 15%, var(--color-card));
-  color: var(--color-primary);
+  background-color: color-mix(in oklab, var(--color-accent) 15%, var(--color-card));
+  color: var(--color-accent);
   font-weight: 600;
 }
 
-
+/* Table headers — mono stamp (Vercel system) */
+thead th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.071em;
+  color: var(--color-stone);
+}
