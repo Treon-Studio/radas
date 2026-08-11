@@ -21,8 +21,8 @@ function BlueprintLogo({
   const isLg = size === "lg";
   return (
     <div
-      className={`rounded-2xl flex items-center justify-center shrink-0 overflow-hidden bg-[var(--color-muted)] ${
-        isLg ? "h-16 w-16" : "h-10 w-10 rounded-md"
+      className={`rounded-md flex items-center justify-center shrink-0 overflow-hidden bg-[var(--color-muted)] ${
+        isLg ? "h-16 w-16" : "h-10 w-10"
       }`}
     >
       <img

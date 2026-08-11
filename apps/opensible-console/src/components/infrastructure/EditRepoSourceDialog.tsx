@@ -176,10 +176,10 @@ export function EditRepoSourceDialog({ open, onOpenChange, projectId }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !busy && onOpenChange(false)}>
-      <div className="w-full max-w-xl rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] shadow-xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-xl rounded-md bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)] max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-md bg-[var(--color-primary)]/10 flex items-center justify-center">
               <GitBranch className="h-4 w-4 text-[var(--color-primary)]" />
             </div>
             <div>
