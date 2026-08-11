@@ -130,7 +130,7 @@
 | # | Use case | Status | Prio | Fase |
 |---|---|---|---|---|
 | 66 | Isolasi antar project | ✅ | P0 | 0 |
-| 67 | Role per environment (dev/sit/prod) | ⬜ | P1 | 2 |
+| 67 | Role per environment (dev/sit/prod) | ✅ | P1 | 2 |
 | 68 | Approval workflow untuk perubahan prod | ✅ | P0 | 2 |
 | 69 | Kuota & limit resource per project | ✅ | P1 | 2 |
 | 70 | Tagging wajib pada semua resource | ✅ | P1 | 2 |
@@ -153,7 +153,7 @@
 | 82 | Retry policy & exponential backoff | 🔶 | P1 | 5 |
 | 83 | Cron playbook berkala | ✅ | P0 | 0 |
 | 84 | Preferensi notifikasi per user | ✅ | P1 | 5 |
-| 85 | Roadmap otomasi terencana (AI planner) | ⬜ | P2 | 4 |
+| 85 | Roadmap otomasi terencana (AI planner) | ✅ | P2 | 4 |
 
 ## I. AI & Developer Experience (86–93)
 

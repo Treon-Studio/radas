@@ -959,6 +959,20 @@ def stacks_action(name):
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
 
+    # Role-per-environment gate (Fase 5 — UC 67).
+    try:
+        from services.env_roles import allowed as _env_allowed
+        _env = None
+        try:
+            _env = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("env")
+        except Exception:
+            _env = None
+        _roles = (getattr(request, "current_user", {}) or {}).get("roles") or []
+        if not _env_allowed(pid, _env, _roles):
+            return jsonify({"error": f"Role not allowed to act on environment '{_env}'."}), 403
+    except Exception:
+        pass
+
     # Maintenance window gate (Fase 5 — UC 80).
     if _mutating:
         try:
