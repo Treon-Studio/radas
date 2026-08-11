@@ -2878,6 +2878,11 @@ def start_recovery_task():
     except Exception:
         pass
     try:
+        from services.retry_policy import start_retry_scheduler
+        start_retry_scheduler()
+    except Exception:
+        pass
+    try:
         from services.health import install_redaction
         install_redaction()
     except Exception:
