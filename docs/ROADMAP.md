@@ -45,8 +45,8 @@
 | 9 | Bootstrap dari blueprint (docker/observability/db/cicd) | ✅ | P0 | 0 |
 | 10 | Plan preview (dry-run) sebelum apply | ✅ | P0 | 0 |
 | 11 | Deteksi drift & refresh stack | ✅ | P0 | 0 |
-| 12 | Remote state management (S3/OBS) | 🔶 | P1 | 5 |
-| 13 | Rollback & strip stack | 🔶 | P1 | 5 |
+| 12 | Remote state management (S3/OBS) | ✅ | P1 | 5 |
+| 13 | Rollback & strip stack | ✅ | P1 | 5 |
 | 14 | Multi-region deploy dalam satu stack | ⬜ | P2 | 5 |
 | 15 | Template stack custom dari repo sendiri | ⬜ | P1 | 5 |
 

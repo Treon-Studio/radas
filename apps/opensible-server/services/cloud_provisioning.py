@@ -928,6 +928,12 @@ def _create_execution(project_id: Optional[str], stack: str, action: str, worker
     if triggered_by_user_id:
         data["triggeredByUserId"] = triggered_by_user_id
     eid = create_execution_record(data, project_id=(project_id or "default"))
+    if action == "apply":
+        try:
+            from services.stack_snapshots import snapshot as _snap
+            _snap(project_id or "default", stack, reason="pre-apply")
+        except Exception:
+            pass
     if not eid:
         raise RuntimeError("Failed to create execution record")
     return eid
