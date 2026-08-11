@@ -108,7 +108,7 @@
 | 52 | Promosi environment via branch | ⬜ | P1 | 5 |
 | 53 | Trigger pipeline via webhook (GitHub/GitLab) | ⬜ | P1 | 5 |
 | 54 | Rollback release ke tag | ⬜ | P1 | 5 |
-| 55 | Notifikasi pipeline ke Slack/Discord | 🔶 | P1 | 1 |
+| 55 | Notifikasi pipeline ke Slack/Discord | 🔶 | P1 | 5 |
 
 ## F. Operasi & Observability (56–65)
 
@@ -119,8 +119,8 @@
 | 58 | Status worker & concurrency | ✅ | P0 | 0 |
 | 59 | Antrian job dengan prioritas | ⬜ | P2 | 5 |
 | 60 | Health check infrastruktur | ✅ | P0 | 0 |
-| 61 | Alert saat run gagal / drift | ⬜ | P1 | 1 |
-| 62 | Export metrics ke Prometheus | ⬜ | P2 | 5 |
+| 61 | Alert saat run gagal / drift | ✅ | P1 | 5 |
+| 62 | Export metrics ke Prometheus | ✅ | P2 | 5 |
 | 63 | Backup & restore data server | ✅ | P0 | 0 |
 | 64 | Disaster recovery: redeploy dari backup | ⬜ | P1 | 5 |
 | 65 | Live log streaming (SSE) | ✅ | P0 | 1 |
@@ -152,7 +152,7 @@
 | 81 | Event-driven provisioning via webhook | ⬜ | P1 | 5 |
 | 82 | Retry policy & exponential backoff | ⬜ | P1 | 5 |
 | 83 | Cron playbook berkala | ✅ | P0 | 0 |
-| 84 | Preferensi notifikasi per user | 🔶 | P1 | 1 |
+| 84 | Preferensi notifikasi per user | 🔶 | P1 | 5 |
 | 85 | Roadmap otomasi terencana (AI planner) | ⬜ | P2 | 4 |
 
 ## I. AI & Developer Experience (86–93)
