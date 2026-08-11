@@ -7,6 +7,7 @@ import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { login } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { toast } from "sonner";
 
