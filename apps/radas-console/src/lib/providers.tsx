@@ -9,6 +9,8 @@ import proxmoxLogo from "@/assets/proxmox-logo.png";
 import vcenterLogo from "@/assets/vcenter-logo.png";
 import cloudflareLogo from "@/assets/cloudflare-logo.png";
 import hetznerLogo from "@/assets/hetzner-h.svg";
+import biznetLogo from "@/assets/biznet-gio-logo.png";
+import idcloudhostLogo from "@/assets/idcloudhost-logo.png";
 import { useTheme } from "@/lib/theme";
 
 
@@ -33,6 +35,8 @@ export const PROVIDER_LOGOS: Record<string, string> = {
   esxi: vcenterLogo,
   cloudflare: cloudflareLogo,
   hetzner: hetznerLogo,
+  biznet: biznetLogo,
+  idcloudhost: idcloudhostLogo,
   kubernetes: kubernetesLogo,
   k8s: kubernetesLogo,
 };
@@ -62,6 +66,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
   esxi: "vCenter ESXi",
   cloudflare: "Cloudflare",
   hetzner: "Hetzner Cloud",
+  biznet: "Biznet Gio",
+  idcloudhost: "IDCloudHost",
   kubernetes: "Kubernetes",
   k8s: "Kubernetes",
 };
@@ -69,8 +75,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
 // Display order for the picker & any provider list. Providers not in this list
 // keep their original relative order after the ones listed here.
 export const PROVIDER_DISPLAY_ORDER: string[] = [
-  "aws", "eks", "gcp", "gke", "azure", "hetzner", "cloudflare", "bytedc",
-  "kubernetes", "vcenter", "proxmox",
+  "aws", "eks", "gcp", "gke", "azure", "hetzner", "biznet", "idcloudhost",
+  "cloudflare", "bytedc", "kubernetes", "vcenter", "proxmox",
 ];
 
 export const STATIC_PROVIDERS: ProviderMeta[] = [
@@ -80,6 +86,8 @@ export const STATIC_PROVIDERS: ProviderMeta[] = [
   { id: "gke", label: "Google Kubernetes Engine", description: "GKE — managed Kubernetes on Google Cloud with VPC-native networking and node pools.", enabled: true, category: "cloud" },
   { id: "azure", label: "Azure", description: "Microsoft Azure — VMs, VNet, AKS, Storage.", enabled: false, category: "cloud" },
   { id: "hetzner", label: "Hetzner Cloud", description: "Hetzner Cloud — European cloud servers, volumes, and networks.", enabled: true, category: "cloud" },
+  { id: "biznet", label: "Biznet Gio", description: "Biznet Gio Cloud — Indonesian OpenStack-based public cloud (VPC, VMs, load balancer).", enabled: true, category: "cloud" },
+  { id: "idcloudhost", label: "IDCloudHost", description: "IDCloudHost — Indonesian VPS provider (Jakarta & Singapore regions).", enabled: true, category: "cloud" },
   { id: "cloudflare", label: "Cloudflare", description: "Cloudflare — CDN, DNS, Workers, R2, Zero Trust.", enabled: true, category: "cloud" },
   { id: "bytedc", label: "ByteDC", description: "Huawei-compatible private cloud — VPC, ECS, ELB, NAT, DNS.", enabled: true, category: "cloud" },
   { id: "kubernetes", label: "Kubernetes", description: "Bring your own cluster — namespaces, deployments, services, ingress and Helm addons.", enabled: true, category: "onprem" },

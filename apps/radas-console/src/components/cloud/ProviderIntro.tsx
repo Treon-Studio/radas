@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 const GITHUB_ISSUES_URL = "https://github.com/opensible/opensible/issues/new";
 
-type ProviderId = "aws" | "eks" | "gcp" | "gke" | "hetzner" | "bytedc" | "cloudflare" | "kubernetes";
+type ProviderId = "aws" | "eks" | "gcp" | "gke" | "hetzner" | "bytedc" | "cloudflare" | "kubernetes" | "biznet" | "idcloudhost";
 
 type Info = {
   tagline: string;
@@ -55,6 +55,20 @@ const INFO: Record<ProviderId, Info> = {
     credentials: "Uses a Hetzner Cloud API token (Read & Write) scoped to the target project.",
     docsUrl: "https://registry.terraform.io/providers/hetznercloud/hcloud/latest/docs",
     docsLabel: "Hetzner provider docs",
+  },
+  biznet: {
+    tagline: "Biznet Gio — Indonesian OpenStack-based public cloud (VPC, VMs, load balancer).",
+    about:
+      "Gio Cloud provisions an OpenStack-compatible footprint: VPC network + subnet + router, SSH security group, App / Platform / Extras VM pools with a floating IP each, and an optional Octavia load balancer — all in one OpenTofu workspace.",
+    credentials: "Uses Gio Keystone v3 credentials (username + password + project). Stored encrypted per stack.",
+    docsUrl: "https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs",
+    docsLabel: "OpenStack provider docs",
+  },
+  idcloudhost: {
+    tagline: "IDCloudHost — Indonesian VPS provider with Jakarta & Singapore datacenters.",
+    about:
+      "Provisions IDCloudHost vision-plan VPS instances grouped in App / Extras pools with public IPv4, injected SSH key, and optional cloud-init metadata via an HTTP API blueprint.",
+    credentials: "Uses an IDCloudHost API token. Stored encrypted per stack.",
   },
   bytedc: {
     tagline: "ByteDC — Cambodia-based Huawei Cloud Stack (HCS) compatible region.",

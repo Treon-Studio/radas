@@ -62,6 +62,8 @@ function NewStackPicker() {
     }
     if (p.id === "bytedc") navigate({ to: "/cloud/stacks/new/bytedc" });
     else if (p.id === "hetzner") navigate({ to: "/cloud/stacks/new/hetzner" });
+    else if (p.id === "biznet") navigate({ to: "/cloud/stacks/new/biznet" });
+    else if (p.id === "idcloudhost") navigate({ to: "/cloud/stacks/new/idcloudhost" });
     else if (p.id === "cloudflare") navigate({ to: "/cloud/stacks/new/cloudflare" });
     else if (p.id === "aws") navigate({ to: "/cloud/stacks/new/aws" });
     else if (p.id === "eks") navigate({ to: "/cloud/stacks/new/eks" });

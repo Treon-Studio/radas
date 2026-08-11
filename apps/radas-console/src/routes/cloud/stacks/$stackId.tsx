@@ -355,6 +355,8 @@ function StackDetail() {
             <Link
               to={
                stack?.provider === "hetzner" ? "/cloud/stacks/new/hetzner"
+               : stack?.provider === "biznet" ? "/cloud/stacks/new/biznet"
+               : stack?.provider === "idcloudhost" ? "/cloud/stacks/new/idcloudhost"
                : stack?.provider === "cloudflare" ? "/cloud/stacks/new/cloudflare"
                : stack?.provider === "aws" ? "/cloud/stacks/new/aws"
                : stack?.provider === "eks" ? "/cloud/stacks/new/eks"

@@ -36,12 +36,14 @@ import { Route as CloudStacksIndexRouteImport } from './routes/cloud/stacks/inde
 import { Route as CloudStacksStackIdRouteImport } from './routes/cloud/stacks/$stackId'
 import { Route as CloudStacksNewRouteImport } from './routes/cloud/stacks/new'
 import { Route as CloudStacksNewAwsRouteImport } from './routes/cloud/stacks/new.aws'
+import { Route as CloudStacksNewBiznetRouteImport } from './routes/cloud/stacks/new.biznet'
 import { Route as CloudStacksNewBytedcRouteImport } from './routes/cloud/stacks/new.bytedc'
 import { Route as CloudStacksNewCloudflareRouteImport } from './routes/cloud/stacks/new.cloudflare'
 import { Route as CloudStacksNewEksRouteImport } from './routes/cloud/stacks/new.eks'
 import { Route as CloudStacksNewGcpRouteImport } from './routes/cloud/stacks/new.gcp'
 import { Route as CloudStacksNewGkeRouteImport } from './routes/cloud/stacks/new.gke'
 import { Route as CloudStacksNewHetznerRouteImport } from './routes/cloud/stacks/new.hetzner'
+import { Route as CloudStacksNewIdcloudhostRouteImport } from './routes/cloud/stacks/new.idcloudhost'
 import { Route as CloudStacksNewImportRouteImport } from './routes/cloud/stacks/new.import'
 import { Route as CloudStacksNewKubernetesRouteImport } from './routes/cloud/stacks/new.kubernetes'
 
@@ -183,6 +185,11 @@ const CloudStacksNewAwsRoute = CloudStacksNewAwsRouteImport.update({
   path: '/aws',
   getParentRoute: () => CloudStacksNewRoute,
 } as any)
+const CloudStacksNewBiznetRoute = CloudStacksNewBiznetRouteImport.update({
+  id: '/biznet',
+  path: '/biznet',
+  getParentRoute: () => CloudStacksNewRoute,
+} as any)
 const CloudStacksNewBytedcRoute = CloudStacksNewBytedcRouteImport.update({
   id: '/bytedc',
   path: '/bytedc',
@@ -214,6 +221,12 @@ const CloudStacksNewHetznerRoute = CloudStacksNewHetznerRouteImport.update({
   path: '/hetzner',
   getParentRoute: () => CloudStacksNewRoute,
 } as any)
+const CloudStacksNewIdcloudhostRoute =
+  CloudStacksNewIdcloudhostRouteImport.update({
+    id: '/idcloudhost',
+    path: '/idcloudhost',
+    getParentRoute: () => CloudStacksNewRoute,
+  } as any)
 const CloudStacksNewImportRoute = CloudStacksNewImportRouteImport.update({
   id: '/import',
   path: '/import',
@@ -254,12 +267,14 @@ export interface FileRoutesByFullPath {
   '/cloud/stacks/new': typeof CloudStacksNewRouteWithChildren
   '/cloud/stacks/': typeof CloudStacksIndexRoute
   '/cloud/stacks/new/aws': typeof CloudStacksNewAwsRoute
+  '/cloud/stacks/new/biznet': typeof CloudStacksNewBiznetRoute
   '/cloud/stacks/new/bytedc': typeof CloudStacksNewBytedcRoute
   '/cloud/stacks/new/cloudflare': typeof CloudStacksNewCloudflareRoute
   '/cloud/stacks/new/eks': typeof CloudStacksNewEksRoute
   '/cloud/stacks/new/gcp': typeof CloudStacksNewGcpRoute
   '/cloud/stacks/new/gke': typeof CloudStacksNewGkeRoute
   '/cloud/stacks/new/hetzner': typeof CloudStacksNewHetznerRoute
+  '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
 }
@@ -291,12 +306,14 @@ export interface FileRoutesByTo {
   '/cloud/stacks/new': typeof CloudStacksNewRouteWithChildren
   '/cloud/stacks': typeof CloudStacksIndexRoute
   '/cloud/stacks/new/aws': typeof CloudStacksNewAwsRoute
+  '/cloud/stacks/new/biznet': typeof CloudStacksNewBiznetRoute
   '/cloud/stacks/new/bytedc': typeof CloudStacksNewBytedcRoute
   '/cloud/stacks/new/cloudflare': typeof CloudStacksNewCloudflareRoute
   '/cloud/stacks/new/eks': typeof CloudStacksNewEksRoute
   '/cloud/stacks/new/gcp': typeof CloudStacksNewGcpRoute
   '/cloud/stacks/new/gke': typeof CloudStacksNewGkeRoute
   '/cloud/stacks/new/hetzner': typeof CloudStacksNewHetznerRoute
+  '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
 }
@@ -329,12 +346,14 @@ export interface FileRoutesById {
   '/cloud/stacks/new': typeof CloudStacksNewRouteWithChildren
   '/cloud/stacks/': typeof CloudStacksIndexRoute
   '/cloud/stacks/new/aws': typeof CloudStacksNewAwsRoute
+  '/cloud/stacks/new/biznet': typeof CloudStacksNewBiznetRoute
   '/cloud/stacks/new/bytedc': typeof CloudStacksNewBytedcRoute
   '/cloud/stacks/new/cloudflare': typeof CloudStacksNewCloudflareRoute
   '/cloud/stacks/new/eks': typeof CloudStacksNewEksRoute
   '/cloud/stacks/new/gcp': typeof CloudStacksNewGcpRoute
   '/cloud/stacks/new/gke': typeof CloudStacksNewGkeRoute
   '/cloud/stacks/new/hetzner': typeof CloudStacksNewHetznerRoute
+  '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
 }
@@ -368,12 +387,14 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new'
     | '/cloud/stacks/'
     | '/cloud/stacks/new/aws'
+    | '/cloud/stacks/new/biznet'
     | '/cloud/stacks/new/bytedc'
     | '/cloud/stacks/new/cloudflare'
     | '/cloud/stacks/new/eks'
     | '/cloud/stacks/new/gcp'
     | '/cloud/stacks/new/gke'
     | '/cloud/stacks/new/hetzner'
+    | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
   fileRoutesByTo: FileRoutesByTo
@@ -405,12 +426,14 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new'
     | '/cloud/stacks'
     | '/cloud/stacks/new/aws'
+    | '/cloud/stacks/new/biznet'
     | '/cloud/stacks/new/bytedc'
     | '/cloud/stacks/new/cloudflare'
     | '/cloud/stacks/new/eks'
     | '/cloud/stacks/new/gcp'
     | '/cloud/stacks/new/gke'
     | '/cloud/stacks/new/hetzner'
+    | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
   id:
@@ -442,12 +465,14 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new'
     | '/cloud/stacks/'
     | '/cloud/stacks/new/aws'
+    | '/cloud/stacks/new/biznet'
     | '/cloud/stacks/new/bytedc'
     | '/cloud/stacks/new/cloudflare'
     | '/cloud/stacks/new/eks'
     | '/cloud/stacks/new/gcp'
     | '/cloud/stacks/new/gke'
     | '/cloud/stacks/new/hetzner'
+    | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
   fileRoutesById: FileRoutesById
@@ -672,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CloudStacksNewAwsRouteImport
       parentRoute: typeof CloudStacksNewRoute
     }
+    '/cloud/stacks/new/biznet': {
+      id: '/cloud/stacks/new/biznet'
+      path: '/biznet'
+      fullPath: '/cloud/stacks/new/biznet'
+      preLoaderRoute: typeof CloudStacksNewBiznetRouteImport
+      parentRoute: typeof CloudStacksNewRoute
+    }
     '/cloud/stacks/new/bytedc': {
       id: '/cloud/stacks/new/bytedc'
       path: '/bytedc'
@@ -714,6 +746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CloudStacksNewHetznerRouteImport
       parentRoute: typeof CloudStacksNewRoute
     }
+    '/cloud/stacks/new/idcloudhost': {
+      id: '/cloud/stacks/new/idcloudhost'
+      path: '/idcloudhost'
+      fullPath: '/cloud/stacks/new/idcloudhost'
+      preLoaderRoute: typeof CloudStacksNewIdcloudhostRouteImport
+      parentRoute: typeof CloudStacksNewRoute
+    }
     '/cloud/stacks/new/import': {
       id: '/cloud/stacks/new/import'
       path: '/import'
@@ -733,24 +772,28 @@ declare module '@tanstack/react-router' {
 
 interface CloudStacksNewRouteChildren {
   CloudStacksNewAwsRoute: typeof CloudStacksNewAwsRoute
+  CloudStacksNewBiznetRoute: typeof CloudStacksNewBiznetRoute
   CloudStacksNewBytedcRoute: typeof CloudStacksNewBytedcRoute
   CloudStacksNewCloudflareRoute: typeof CloudStacksNewCloudflareRoute
   CloudStacksNewEksRoute: typeof CloudStacksNewEksRoute
   CloudStacksNewGcpRoute: typeof CloudStacksNewGcpRoute
   CloudStacksNewGkeRoute: typeof CloudStacksNewGkeRoute
   CloudStacksNewHetznerRoute: typeof CloudStacksNewHetznerRoute
+  CloudStacksNewIdcloudhostRoute: typeof CloudStacksNewIdcloudhostRoute
   CloudStacksNewImportRoute: typeof CloudStacksNewImportRoute
   CloudStacksNewKubernetesRoute: typeof CloudStacksNewKubernetesRoute
 }
 
 const CloudStacksNewRouteChildren: CloudStacksNewRouteChildren = {
   CloudStacksNewAwsRoute: CloudStacksNewAwsRoute,
+  CloudStacksNewBiznetRoute: CloudStacksNewBiznetRoute,
   CloudStacksNewBytedcRoute: CloudStacksNewBytedcRoute,
   CloudStacksNewCloudflareRoute: CloudStacksNewCloudflareRoute,
   CloudStacksNewEksRoute: CloudStacksNewEksRoute,
   CloudStacksNewGcpRoute: CloudStacksNewGcpRoute,
   CloudStacksNewGkeRoute: CloudStacksNewGkeRoute,
   CloudStacksNewHetznerRoute: CloudStacksNewHetznerRoute,
+  CloudStacksNewIdcloudhostRoute: CloudStacksNewIdcloudhostRoute,
   CloudStacksNewImportRoute: CloudStacksNewImportRoute,
   CloudStacksNewKubernetesRoute: CloudStacksNewKubernetesRoute,
 }

@@ -178,3 +178,8 @@ thead th {
   letter-spacing: 0.071em;
   color: var(--color-stone);
 }
+
+/* Global table border-color styling to override user-agent default black */
+table, th, td, tr, thead, tbody, tfoot {
+  border-color: var(--color-border);
+}

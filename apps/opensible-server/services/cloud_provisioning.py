@@ -38,6 +38,8 @@ IAC_EKS_DIR = BASE_DIR / "IaC" / "opentofu-eks"
 IAC_GCP_DIR = BASE_DIR / "IaC" / "opentofu-gcp"
 IAC_GKE_DIR = BASE_DIR / "IaC" / "opentofu-gke"
 IAC_KUBERNETES_DIR = BASE_DIR / "IaC" / "opentofu-kubernetes"
+IAC_BIZNET_DIR = BASE_DIR / "IaC" / "opentofu-biznet"
+IAC_IDCLOUDHOST_DIR = BASE_DIR / "IaC" / "opentofu-idcloudhost"
 GLOBAL_ENVS_DIR = IAC_BYTEDC_DIR / "envs"
 GLOBAL_TEMPLATE_DIR = GLOBAL_ENVS_DIR / "_template"
 # Per-provider IaC roots. Keyed by the provider id stored in meta.json.
@@ -50,6 +52,8 @@ PROVIDER_IAC_DIRS: Dict[str, Path] = {
     "gcp":        IAC_GCP_DIR,
     "gke":        IAC_GKE_DIR,
     "kubernetes": IAC_KUBERNETES_DIR,
+    "biznet":     IAC_BIZNET_DIR,
+    "idcloudhost": IAC_IDCLOUDHOST_DIR,
 }
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
 PROJECTS_DIR = DATA_DIR / "projects"

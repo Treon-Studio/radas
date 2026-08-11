@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from .base import ProviderAdapter
-from . import bytedc, hetzner, cloudflare, aws, gcp, gke, eks, kubernetes
+from . import bytedc, hetzner, cloudflare, aws, gcp, gke, eks, kubernetes, biznet, idcloudhost
 
 
 # Ordered so the wizard picker displays: AWS | Google Cloud | GKE | Hetzner | Cloudflare | ByteDC | Kubernetes.
@@ -25,6 +25,8 @@ _ADAPTERS: Dict[str, ProviderAdapter] = {
     gcp.ADAPTER.id: gcp.ADAPTER,
     gke.ADAPTER.id: gke.ADAPTER,
     hetzner.ADAPTER.id: hetzner.ADAPTER,
+    biznet.ADAPTER.id: biznet.ADAPTER,
+    idcloudhost.ADAPTER.id: idcloudhost.ADAPTER,
     cloudflare.ADAPTER.id: cloudflare.ADAPTER,
     bytedc.ADAPTER.id: bytedc.ADAPTER,
     kubernetes.ADAPTER.id: kubernetes.ADAPTER,

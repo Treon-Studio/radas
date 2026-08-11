@@ -22,6 +22,8 @@ import gkeLogo from "@/assets/gke-logo.svg";
 import azureLogo from "@/assets/azure-logo.png";
 import cloudflareLogo from "@/assets/cloudflare.svg";
 import hetznerLogo from "@/assets/hetzner-h.svg";
+import biznetLogo from "@/assets/biznet-gio-logo.png";
+import idcloudhostLogo from "@/assets/idcloudhost-logo.png";
 import kubernetesLogo from "@/assets/kubernetes-logo.svg";
 import { useT } from "@/lib/i18n";
 
@@ -34,6 +36,8 @@ const PROVIDERS: { id: string; name: string; logo?: string; color: string }[] = 
   { id: "gke", name: "Google GKE", logo: gkeLogo, color: "#4285f4" },
   { id: "azure", name: "Azure", logo: azureLogo, color: "#0078d4" },
   { id: "hetzner", name: "Hetzner Cloud", logo: hetznerLogo, color: "#d50c2d" },
+  { id: "biznet", name: "Biznet Gio", logo: biznetLogo, color: "#e60012" },
+  { id: "idcloudhost", name: "IDCloudHost", logo: idcloudhostLogo, color: "#1d74e8" },
   { id: "cloudflare", name: "Cloudflare", logo: cloudflareLogo, color: "#f48120" },
   { id: "bytedc", name: "ByteDC", color: "#16a34a" },
   { id: "kubernetes", name: "Kubernetes", logo: kubernetesLogo, color: "#326ce5" },
