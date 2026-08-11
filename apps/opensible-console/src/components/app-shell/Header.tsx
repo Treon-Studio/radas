@@ -1,16 +1,17 @@
 import { RiMoonLine as Moon, RiSunLine as Sun, RiTranslate as Languages, RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import logoSvg from "@/assets/opensible-logo.png";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { NavSections } from "@/components/app-shell/NavSections";
+import { getActiveSection, SubNavLinks } from "@/components/app-shell/NavSections";
 import { useTheme } from "@/lib/theme";
 import { useLocale, useT, LOCALES, type Locale } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { getStoredUser } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type StoredUser = { username?: string; email?: string; roles?: string[]; role_details?: { name: string }[] };
 
@@ -18,6 +19,8 @@ export function AppHeader() {
   const { theme, toggle } = useTheme();
   const { locale, setLocale } = useLocale();
   const t = useT();
+  const { pathname } = useLocation();
+  const activeSection = getActiveSection(pathname);
   const { projects, currentId, setCurrent, loading } = useProjects();
   const navigate = useNavigate();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -57,98 +60,129 @@ export function AppHeader() {
     navigate({ to: "/profile" });
   }
 
+  const primaryTabs = [
+    { key: "overview", label: t("nav.overview"), to: "/dashboard" },
+    { key: "cloud", label: t("nav.cloud"), to: "/cloud/summary" },
+    { key: "infrastructure", label: t("nav.infrastructure"), to: "/infrastructure/deployment" },
+    { key: "system", label: t("nav.system"), to: "/system/settings" },
+  ];
+
   return (
-    <header className="h-16 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-background)] flex items-center justify-between px-6 gap-4">
-      <div className="flex items-center gap-6 min-w-0">
-        <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
-          <img src={logoSvg} className="h-8 w-8" alt="OpenSible" />
-          <span className="hidden md:inline text-sm font-medium tracking-tight">{t("app.name")}</span>
-        </Link>
-        <NavSections />
-      </div>
+    <div className="flex flex-col shrink-0 border-b border-[var(--color-border)] bg-[var(--color-background)]">
+      {/* Layer 1 (Height 48px, h-12) */}
+      <header className="h-12 flex items-center justify-between px-6 gap-4 border-b border-[var(--color-border)]/60">
+        <div className="flex items-center gap-3 min-w-0 h-full">
+          <Link to="/dashboard" className="flex items-center shrink-0">
+            <img src={logoSvg} className="h-6 w-6" alt="OpenSible" />
+          </Link>
+          <span className="text-[var(--color-stone)] font-mono text-sm leading-none shrink-0 select-none">/</span>
+          <div className="w-[180px] shrink-0">
+            <Select
+              value={currentId ?? ""}
+              onChange={(v) => setCurrent(v || null)}
+              disabled={loading}
+              placeholder={loading ? t("common.loading") : t("common.noProjects")}
+              prefix={<StackLine className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
+              options={projects.map(p => ({ value: p.id, label: p.name }))}
+              triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
+              align="start"
+            />
+          </div>
 
-      <div className="flex items-center gap-2">
-        <div className="hidden xl:block w-[200px]">
-          <Select
-            value={currentId ?? ""}
-            onChange={(v) => setCurrent(v || null)}
-            disabled={loading}
-            placeholder={loading ? t("common.loading") : t("common.noProjects")}
-            prefix={<StackLine className="h-3.5 w-3.5 text-[var(--color-foreground)] shrink-0" />}
-            options={projects.map(p => ({ value: p.id, label: p.name, description: p.description }))}
-            triggerClassName="h-8 rounded-full"
-            align="start"
-          />
+          {/* Primary horizontal tabs */}
+          <nav className="hidden md:flex items-center gap-1 h-full ml-2">
+            {primaryTabs.map((tab) => {
+              const active = activeSection === tab.key;
+              return (
+                <Link
+                  key={tab.key}
+                  to={tab.to}
+                  className={cn(
+                    "px-3 h-8 flex items-center text-xs font-mono uppercase tracking-[0.071em] rounded-md transition-colors",
+                    active
+                      ? "text-[var(--color-foreground)] font-semibold bg-[var(--color-muted)]/60"
+                      : "text-[var(--color-stone)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]/30"
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")}>
-          <Plus className="h-4 w-4" />
-          <span className="hidden md:inline">{t("common.newProject")}</span>
-        </Button>
+        {/* Right controls */}
+        <div className="flex items-center gap-2 h-full">
+          <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")} className="h-7 px-3 text-xs">
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">{t("common.newProject")}</span>
+          </Button>
 
-        <div className="w-[150px]">
-          <Select
-            value={locale}
-            onChange={(v) => setLocale(v as Locale)}
-            options={LOCALES.map((l) => ({
-              value: l.code,
-              label: `${l.flag}  ${l.nativeLabel}`,
-              description: l.label !== l.nativeLabel ? l.label : undefined,
-            }))}
-            prefix={<Languages className="h-3.5 w-3.5 text-[var(--color-foreground)] shrink-0" />}
-            align="end"
-          />
-        </div>
+          <div className="w-[120px] hidden sm:block">
+            <Select
+              value={locale}
+              onChange={(v) => setLocale(v as Locale)}
+              options={LOCALES.map((l) => ({
+                value: l.code,
+                label: `${l.flag}  ${l.nativeLabel}`,
+              }))}
+              prefix={<Languages className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
+              triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
+              align="end"
+            />
+          </div>
 
-        <Button variant="ghost" size="icon" onClick={toggle} title={t("common.theme")} className="rounded-full">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
+          <Button variant="ghost" size="icon" onClick={toggle} title={t("common.theme")} className="rounded-full h-7 w-7">
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </Button>
 
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            className="flex items-center gap-2 pl-1 pr-2 h-8 rounded-full hover:bg-[var(--color-muted)] transition-colors"
-            title={displayName}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <div className="h-8 w-8 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-sm font-medium">{initial}</div>
-            <div className="hidden sm:flex flex-col items-start leading-tight max-w-[140px]">
-              <span className="text-sm font-medium truncate max-w-[140px]">{displayName}</span>
-              <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-muted-foreground)] truncate max-w-[140px]">{primaryRole}</span>
-            </div>
-            <ChevronDown className="h-3.5 w-3.5 text-[var(--color-muted-foreground)] ml-0.5" />
-          </button>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 mt-2 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] shadow-[var(--shadow-popover)] z-50 overflow-hidden"
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="flex items-center gap-1.5 pl-1 pr-1.5 h-8 rounded-full hover:bg-[var(--color-muted)] transition-colors"
+              title={displayName}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
             >
-              <div className="px-4 py-3 border-b border-[var(--color-border)]">
-                <div className="text-sm font-semibold truncate">{displayName}</div>
-                {user.email && <div className="text-xs text-[var(--color-muted-foreground)] truncate">{user.email}</div>}
-                <div className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-muted-foreground)] mt-1">{primaryRole}</div>
+              <div className="h-6 w-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-xs font-semibold">{initial}</div>
+              <ChevronDown className="h-3 w-3 text-[var(--color-muted-foreground)]" />
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] shadow-[var(--shadow-popover)] z-50 overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-[var(--color-border)]">
+                  <div className="text-sm font-semibold truncate">{displayName}</div>
+                  {user.email && <div className="text-xs text-[var(--color-muted-foreground)] truncate">{user.email}</div>}
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-muted-foreground)] mt-1">{primaryRole}</div>
+                </div>
+                <button
+                  role="menuitem"
+                  onClick={onProfile}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--color-muted)] text-left"
+                >
+                  <UserCog className="h-4 w-4" /> Profile Settings
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={onLogout}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--color-muted)] text-left border-t border-[var(--color-border)]"
+                >
+                  <LogOut className="h-4 w-4" /> {t("common.logOut")}
+                </button>
               </div>
-              <button
-                role="menuitem"
-                onClick={onProfile}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--color-muted)] text-left"
-              >
-                <UserCog className="h-4 w-4" /> Profile Settings
-              </button>
-              <button
-                role="menuitem"
-                onClick={onLogout}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--color-muted)] text-left border-t border-[var(--color-border)]"
-              >
-                <LogOut className="h-4 w-4" /> {t("common.logOut")}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+      </header>
+
+      {/* Layer 2 (Height 40px, h-10) */}
+      <div className="h-10 flex items-center px-6 bg-[var(--color-card)] overflow-x-auto scrollbar-none">
+        <SubNavLinks />
       </div>
       <NewProjectDialog open={newProjectOpen} onOpenChange={setNewProjectOpen} />
-    </header>
+    </div>
   );
 }
