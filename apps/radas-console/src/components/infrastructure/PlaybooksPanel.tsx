@@ -4,6 +4,7 @@ import { RiBookOpenLine as BookOpen, RiRefreshLine as RefreshCw, RiAddLine as Pl
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { YamlEditor } from "@/components/ui/yaml-editor";
@@ -543,16 +544,7 @@ function RunDialog({ playbook, onClose }: { playbook: Playbook; onClose: () => v
           <Input value={ansibleConfig} onChange={(e) => setAnsibleConfig(e.target.value)} placeholder="ansible.cfg" />
         </Field>
         <Field label="Verbosity">
-          <select
-            className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
-            value={verbosity} onChange={(e) => setVerbosity(e.target.value)}
-          >
-            <option value="">Normal</option>
-            <option value="-v">-v</option>
-            <option value="-vv">-vv</option>
-            <option value="-vvv">-vvv</option>
-            <option value="-vvvv">-vvvv (debug)</option>
-          </select>
+          <Select value={verbosity} onChange={setVerbosity} options={[{ value: "", label: "Normal" }, { value: "-v", label: "-v" }, { value: "-vv", label: "-vv" }, { value: "-vvv", label: "-vvv" }, { value: "-vvvv", label: "-vvvv (debug)" }]} />
         </Field>
         <Field label="Forks">
           <Input type="number" value={forks} onChange={(e) => setForks(e.target.value)} placeholder="5" />

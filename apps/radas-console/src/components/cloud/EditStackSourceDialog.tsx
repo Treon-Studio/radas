@@ -4,6 +4,7 @@ import { RiCloseLine as X, RiCloudLine as Cloud, RiLoader4Line as Loader2 } from
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api";
 
 type SecretOption = { id: string; name: string; meta?: { username?: string; fingerprint?: string } };
@@ -277,22 +278,7 @@ export function EditStackSourceDialog({ open, onOpenChange, projectId }: Props) 
                 <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">
                   Authentication Secret (optional)
                 </label>
-                <select
-                  className="w-full h-10 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-input,white)] text-sm"
-                  value={authSecretId}
-                  onChange={(e) => setAuthSecretId(e.target.value)}
-                >
-                  <option value="">None (anonymous)</option>
-                  {secrets.map((s) => {
-                    const u = s.meta?.username || "git";
-                    const fp = s.meta?.fingerprint ? ` • ${s.meta.fingerprint.slice(0, 16)}…` : "";
-                    return (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({u}{fp})
-                      </option>
-                    );
-                  })}
-                </select>
+                <Select value={authSecretId} onChange={setAuthSecretId} options={[{ value: "", label: "None (anonymous)" }, ...secrets.map((x) => { const u = x.meta?.username || "git"; const fp = x.meta?.fingerprint ? ` • ${x.meta.fingerprint.slice(0, 16)}…` : ""; return { value: x.id, label: x.name + " (" + u + fp + ")" }; })]} />
                 <div className="text-[11px] text-[var(--color-muted-foreground)] mt-1">
                   SSH key or token for private repositories.
                 </div>
@@ -302,16 +288,7 @@ export function EditStackSourceDialog({ open, onOpenChange, projectId }: Props) 
                 <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">
                   Source Binding (Sync Direction)
                 </label>
-                <select
-                  className="w-full h-10 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-input,white)] text-sm"
-                  value={syncDirection}
-                  onChange={(e) => setSyncDirection(e.target.value)}
-                >
-                  <option value="none">None (no sync binding)</option>
-                  <option value="push">Push only (Project Storage → Git)</option>
-                  <option value="pull">Pull only (Git → Project Storage)</option>
-                  <option value="both">Bidirectional (both directions)</option>
-                </select>
+                <Select value={syncDirection} onChange={setSyncDirection} options={[{ value: "none", label: "None (no sync binding)" }, { value: "push", label: "Push only (Project Storage → Git)" }, { value: "pull", label: "Pull only (Git → Project Storage)" }, { value: "both", label: "Bidirectional (both directions)" }]} />
               </div>
 
               <div className="pt-4 border-t border-[var(--color-border)]">

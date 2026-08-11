@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { RiCloseLine as X, RiSaveLine as Save, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { YamlEditor } from "@/components/ui/yaml-editor";
@@ -229,15 +230,7 @@ function FieldRow({
           />
         )}
         {field.type === "select" && (
-          <select
-            value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-8 text-sm px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)]"
-          >
-            {(field.options || []).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <Select value={(value as string) ?? ""} onChange={onChange} options={(field.options || []).map((o) => ({ value: o.value, label: o.label }))} />
         )}
         {field.type === "list" && (
           <ListField value={(value as string[]) ?? []} onChange={(v) => onChange(v)} placeholder={field.placeholder} />

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { formatSyncTime } from "@/lib/format-time";
 
@@ -102,15 +103,7 @@ export function GitAutosyncCard({ projectId, sourceKey, sourceLabel }: Props) {
         <div className={enabled ? "space-y-4" : "space-y-4 opacity-50 pointer-events-none"}>
           <div>
             <label className="block text-sm font-medium mb-1">Direction</label>
-            <select
-              className="h-10 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-input,transparent)] text-sm"
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as any)}
-            >
-              <option value="pull">Pull (Git → Project Storage)</option>
-              <option value="push">Push (Project Storage → Git)</option>
-              <option value="both">Bidirectional</option>
-            </select>
+<Select value={direction} onChange={(v) => setDirection(v as any)} options={[{ value: "pull", label: "Pull (Git → Project Storage)" }, { value: "push", label: "Push (Project Storage → Git)" }, { value: "both", label: "Bidirectional" }]} />
           </div>
 
           <div>

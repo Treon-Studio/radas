@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RiArchiveStackLine as Boxes, RiDownload2Line as Download, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -130,28 +131,11 @@ export function ImportFromCloudDialog({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Cloud stack</label>
-              <select
-                className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
-                value={stackId} onChange={(e) => { setStackId(e.target.value); setSelected(new Set()); }}
-              >
-                <option value="">{stacksQ.isLoading ? "Loading…" : "Pick a stack…"}</option>
-                {stacks.map((s, i) => {
-                  const v = s.id || s.name || s.stack_id || "";
-                  return <option key={i} value={String(v)}>{String(v)}</option>;
-                })}
-              </select>
+              <Select value={stackId} onChange={(v) => { setStackId(v); setSelected(new Set()); }} placeholder={stacksQ.isLoading ? "Loading…" : "Pick a stack…"} options={stacks.map((x, i) => { const v = x.id || x.name || x.stack_id || ""; return { value: String(v), label: String(v) }; })} />
             </div>
             <div>
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Inventory file</label>
-              <select
-                className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
-                value={invFile} onChange={(e) => setInvFile(e.target.value)}
-              >
-                {inventoryFiles.length === 0 && <option value="inventories/inventory.yml">inventories/inventory.yml</option>}
-                {inventoryFiles.map(f => (
-                  <option key={f.path} value={f.relative_path || f.path}>{f.relative_path || f.path}</option>
-                ))}
-              </select>
+              <Select value={invFile} onChange={setInvFile} options={[...(inventoryFiles.length === 0 ? [{ value: "inventories/inventory.yml", label: "inventories/inventory.yml" }] : []), ...inventoryFiles.map((f) => ({ value: f.relative_path || f.path, label: f.relative_path || f.path }))]} />
             </div>
             <div>
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Target group (optional)</label>
@@ -159,14 +143,7 @@ export function ImportFromCloudDialog({
             </div>
             <div>
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Use as host name</label>
-              <select
-                className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
-                value={ipType} onChange={(e) => setIpType(e.target.value as any)}
-              >
-                <option value="private">Private IP</option>
-                <option value="public">Public IP</option>
-                <option value="hostname">Hostname</option>
-              </select>
+              <Select value={ipType} onChange={(v) => setIpType(v as any)} options={[{ value: "private", label: "Private IP" }, { value: "public", label: "Public IP" }, { value: "hostname", label: "Hostname" }]} />
             </div>
             <div className="md:col-span-4">
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Name prefix (optional)</label>

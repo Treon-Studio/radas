@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { YamlEditor } from "@/components/ui/yaml-editor";
 import { RunLogDialog } from "@/components/infrastructure/RunLogDialog";
@@ -344,20 +345,9 @@ function DeploymentPage() {
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-3">
         <div className="flex flex-wrap items-center gap-3">
           <Input placeholder={t("deployment.searchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
-          <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">{t("status.all")}</option>
-            <option value="RUNNING">{t("status.running")}</option>
-            <option value="PENDING">{t("status.pending")}</option>
-            <option value="SUCCESS">{t("status.success")}</option>
-            <option value="COMPLETED">{t("status.completed")}</option>
-            <option value="FAILED">{t("status.failed")}</option>
-            <option value="ERROR">{t("status.error")}</option>
-          </select>
+          <Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "", label: t("status.all") }, { value: "RUNNING", label: t("status.running") }, { value: "PENDING", label: t("status.pending") }, { value: "SUCCESS", label: t("status.success") }, { value: "COMPLETED", label: t("status.completed") }, { value: "FAILED", label: t("status.failed") }, { value: "ERROR", label: t("status.error") }]} />
           {typeOptions.length > 0 && (
-            <select className="h-9 px-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">{t("status.allTypes")}</option>
-              {typeOptions.map(tp => <option key={tp} value={tp}>{tp}</option>)}
-            </select>
+            <Select value={typeFilter} onChange={setTypeFilter} options={[{ value: "", label: t("status.allTypes") }, ...typeOptions.map(tp => ({ value: tp, label: tp }))]} />
           )}
           <span className="ml-auto text-xs text-[var(--color-muted-foreground)]">{t("deployment.runsCount").replace("{filtered}", String(filtered.length)).replace("{total}", String(executions.length))}</span>
         </div>
@@ -597,26 +587,11 @@ function DeploymentPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <Label>Strategy</Label>
-                <select value={strategy} onChange={(e) => setStrategy(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm">
-                  <option value="linear">Linear</option>
-                  <option value="free">Free</option>
-                  <option value="debug">Debug</option>
-                  <option value="host_pinned">Host pinned</option>
-                  <option value="mitogen_linear">Mitogen linear</option>
-                  <option value="mitogen_free">Mitogen free</option>
-                  <option value="mitogen_host_pinned">Mitogen host pinned</option>
-                </select>
+                <Select value={strategy} onChange={setStrategy} options={[{ value: "linear", label: "Linear" }, { value: "free", label: "Free" }, { value: "debug", label: "Debug" }, { value: "host_pinned", label: "Host pinned" }, { value: "mitogen_linear", label: "Mitogen linear" }, { value: "mitogen_free", label: "Mitogen free" }, { value: "mitogen_host_pinned", label: "Mitogen host pinned" }]} />
               </div>
               <div>
                 <Label><Lock className="inline h-3.5 w-3.5 mr-1" />Vaults</Label>
-                <select value={vaultId} onChange={(e) => setVaultId(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm">
-                  <option value="">— None —</option>
-                  {vaults.map((v) => (
-                    <option key={v.id} value={v.id}>{v.name || v.file || v.id}</option>
-                  ))}
-                </select>
+                <Select value={vaultId} onChange={setVaultId} placeholder="— None —" options={vaults.map((v) => ({ value: v.id, label: v.name || v.file || v.id }))} />
                 <div className="text-xs text-[var(--color-muted-foreground)] mt-1">vault vars_files (vars/name.yml)</div>
               </div>
             </div>
@@ -655,14 +630,7 @@ function DeploymentPage() {
               </label>
               <div>
                 <Label>Verbosity</Label>
-                <select value={verbosity} onChange={(e) => setVerbosity(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm">
-                  <option value="">default</option>
-                  <option value="-v">-v</option>
-                  <option value="-vv">-vv</option>
-                  <option value="-vvv">-vvv</option>
-                  <option value="-vvvv">-vvvv</option>
-                </select>
+                <Select value={verbosity} onChange={setVerbosity} options={[{ value: "", label: "default" }, { value: "-v", label: "-v" }, { value: "-vv", label: "-vv" }, { value: "-vvv", label: "-vvv" }, { value: "-vvvv", label: "-vvvv" }]} />
               </div>
               <div>
                 <Label>Forks</Label>

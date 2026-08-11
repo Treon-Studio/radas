@@ -5,6 +5,7 @@ import { RiLayoutGridLine as LayoutTemplate, RiRefreshLine as RefreshCw, RiClose
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { YamlEditor } from "@/components/ui/yaml-editor";
@@ -454,16 +455,7 @@ export function TemplateDialog({
                                 const next = [...cicdSteps]; next[i] = { ...s, name: e.target.value }; setCicdSteps(next);
                               }}
                             />
-                            <select
-                              className="h-7 text-xs border border-[var(--color-border)] rounded bg-[var(--color-background)] px-1.5"
-                              value={s.type}
-                              onChange={(e) => {
-                                const next = [...cicdSteps]; next[i] = { ...s, type: e.target.value as "shell" | "ansible" }; setCicdSteps(next);
-                              }}
-                            >
-                              <option value="shell">shell</option>
-                              <option value="ansible">ansible</option>
-                            </select>
+                            <Select className="h-7 text-xs" value={s.type} onChange={(v) => { const next = [...cicdSteps]; next[i] = { ...s, type: v as "shell" | "ansible" }; setCicdSteps(next); }} options={[{ value: "shell", label: "shell" }, { value: "ansible", label: "ansible" }]} />
                             <button
                               type="button"
                               onClick={() => setCicdSteps(cicdSteps.filter((_, j) => j !== i))}

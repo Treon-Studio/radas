@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/api";
@@ -737,18 +738,10 @@ function AddHostDialog({
           <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="10.0.0.5 (optional)" />
         </Field>
         <Field label={t("common.group")}>
-          <select value={group} onChange={(e) => setGroup(e.target.value)} className="w-full h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
-            <option value="all">all</option>
-            {groups.filter((g) => g !== "all").map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <Select value={group} onChange={setGroup} options={[{ value: "all", label: "all" }, ...groups.filter((g) => g !== "all").map((g) => ({ value: g, label: g }))]} />
         </Field>
         <Field label={t("hosts.inventoryFile")}>
-          <select value={file} onChange={(e) => setFile(e.target.value)} className="w-full h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
-            {inventoryFiles.length === 0 && <option value="inventory.yml">inventory.yml</option>}
-            {inventoryFiles.map((f) => (
-              <option key={f.path} value={f.relative_path || f.path}>{f.relative_path || f.path}</option>
-            ))}
-          </select>
+          <Select value={file} onChange={setFile} options={[...(inventoryFiles.length === 0 ? [{ value: "inventory.yml", label: "inventory.yml" }] : []), ...inventoryFiles.map((f) => ({ value: f.relative_path || f.path, label: f.relative_path || f.path }))]} />
         </Field>
       </div>
     </Modal>
@@ -1163,15 +1156,7 @@ function SetConnectionDialog({
     >
       <div className="space-y-3">
         <Field label="Secret (SSH key or password)">
-          <select value={secretName} onChange={(e) => setSecretName(e.target.value)}
-            className="w-full h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
-            <option value="">— select secret —</option>
-            {secrets.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.name} {s.type ? `(${s.type})` : ""}{s.username ? ` · ${s.username}` : ""}
-              </option>
-            ))}
-          </select>
+          <Select value={secretName} onChange={setSecretName} placeholder="— select secret —" options={secrets.map((x) => ({ value: x.name, label: x.name + (x.type ? ` (${x.type})` : "") + (x.username ? ` · ${x.username}` : "") }))} />
           {secrets.length === 0 && (
             <div className="text-xs text-[var(--color-warning)] mt-1">No secrets defined. Create one under Infrastructure → Secrets.</div>
           )}
