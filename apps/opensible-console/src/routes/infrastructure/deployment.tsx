@@ -329,8 +329,8 @@ function DeploymentPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Total", value: counts.total, tone: "" },
-          { label: "Running", value: counts.running, tone: "text-blue-600" },
-          { label: "Succeeded", value: counts.succeeded, tone: "text-emerald-600" },
+          { label: "Running", value: counts.running, tone: "text-[var(--color-warning)]" },
+          { label: "Succeeded", value: counts.succeeded, tone: "text-[var(--color-success)]" },
           { label: "Failed", value: counts.failed, tone: "text-[var(--color-destructive)]" },
         ].map(s => (
           <div key={s.label} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3">

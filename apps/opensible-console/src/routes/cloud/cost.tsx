@@ -581,12 +581,12 @@ function CalculatorTab() {
               <CardContent className="p-4 space-y-2">
                 {result.insights.map((i, idx) => (
                   <div key={"i" + idx} className="flex items-start gap-2 text-sm">
-                    <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" /><span>{i}</span>
+                    <Lightbulb className="h-4 w-4 text-[var(--color-warning)] mt-0.5 shrink-0" /><span>{i}</span>
                   </div>
                 ))}
                 {result.warnings.map((w, idx) => (
                   <div key={"w" + idx} className="flex items-start gap-2 text-sm">
-                    <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" /><span>{w}</span>
+                    <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] mt-0.5 shrink-0" /><span>{w}</span>
                   </div>
                 ))}
               </CardContent>

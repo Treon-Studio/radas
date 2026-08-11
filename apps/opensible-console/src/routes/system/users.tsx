@@ -167,8 +167,8 @@ function UsersTab() {
                   </Td>
                   <Td>
                     {u.is_active
-                      ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{t("common.active")}</Badge>
-                      : <Badge variant="default">{t("common.disabled")}</Badge>}
+                      ? <Badge variant="default">{t("common.active")}</Badge>
+                      : <Badge variant="default" className="opacity-60">{t("common.disabled")}</Badge>}
                   </Td>
                   <Td className="text-muted-foreground text-xs">{u.last_login ? new Date(u.last_login).toLocaleString() : "Never"}</Td>
                   <Td className="text-right">

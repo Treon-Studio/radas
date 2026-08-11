@@ -116,12 +116,12 @@ function relTime(v: number | string | undefined): string {
 function StageBadge({ stage }: { stage?: string }) {
   if (!stage) return <span className="text-[var(--color-muted-foreground)]">—</span>;
   const map: Record<string, string> = {
-    init: "bg-[var(--color-primary)]/15 text-[var(--color-primary)]",
-    validate: "bg-blue-500/15 text-blue-500 dark:text-blue-400",
-    plan: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    apply: "bg-[var(--color-success)]/15 text-[var(--color-success)]",
-    deploy: "bg-[var(--color-success)]/15 text-[var(--color-success)]",
-    destroy: "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]",
+    init: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
+    validate: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
+    plan: "bg-[var(--color-warning)]/10 text-[var(--color-warning)]",
+    apply: "bg-[var(--color-success)]/10 text-[var(--color-success)]",
+    deploy: "bg-[var(--color-success)]/10 text-[var(--color-success)]",
+    destroy: "bg-[var(--color-muted)] text-[var(--color-destructive)]",
   };
   const cls = map[stage.toLowerCase()] || "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]";
   return (

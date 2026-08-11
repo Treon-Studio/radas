@@ -61,7 +61,7 @@ function yamlHasPlaintextSecret(text: string): boolean {
 
 function PlaintextSecretBanner({ what }: { what: string }) {
   return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 flex gap-2 mb-2">
+    <div className="rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-xs text-[var(--color-warning)] flex gap-2 mb-2">
       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
       <div>
         <div className="font-medium">Plaintext secret detected in {what}.</div>
@@ -498,11 +498,11 @@ function HostsPage() {
                           <div className="flex items-center gap-2">
                             {hostConnSecret[h] ? (
                               <span className="inline-flex items-center gap-1 text-xs">
-                                <KeyRound className="h-3 w-3 text-emerald-500" />
+                                <KeyRound className="h-3 w-3 text-[var(--color-success)]" />
                                 <span className="font-mono">{hostConnSecret[h]}</span>
                               </span>
                             ) : (
-                              <span className="text-xs text-amber-500">— none —</span>
+                              <span className="text-xs text-[var(--color-warning)]">— none —</span>
                             )}
                             {hasPlaintextSecret(hostVars[h] as Record<string, unknown>) && (
                               <span
@@ -978,7 +978,7 @@ function HostVarsTab({
               >
                 <span className="truncate font-mono text-xs">{h}</span>
                 <span className="flex items-center gap-1 flex-shrink-0">
-                  {hasSecret && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                  {hasSecret && <AlertTriangle className="h-3 w-3 text-[var(--color-warning)]" />}
                   <span className="text-[10px] text-[var(--color-muted-foreground)]">{keyCount}</span>
                 </span>
               </button>
@@ -1173,7 +1173,7 @@ function SetConnectionDialog({
             ))}
           </select>
           {secrets.length === 0 && (
-            <div className="text-xs text-amber-500 mt-1">No secrets defined. Create one under Infrastructure → Secrets.</div>
+            <div className="text-xs text-[var(--color-warning)] mt-1">No secrets defined. Create one under Infrastructure → Secrets.</div>
           )}
         </Field>
         <div className="grid grid-cols-2 gap-3">
@@ -1184,7 +1184,7 @@ function SetConnectionDialog({
             <Input value={port} onChange={(e) => setPort(e.target.value)} placeholder="22" />
           </Field>
         </div>
-        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 flex gap-2">
+        <div className="rounded-md border border-[var(--color-success)]/20 bg-[var(--color-success)]/5 px-3 py-2 text-xs text-[var(--color-success)] flex gap-2">
           <KeyRound className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <div className="font-medium">Credentials stay out of git.</div>

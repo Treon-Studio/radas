@@ -125,10 +125,10 @@ function SummaryPage() {
     { key: "failed", label: t("summary.failed"), value: counts.failed, tone: "danger" },
   ];
   const toneClass = (t: string) =>
-    t === "success" ? "text-emerald-600" :
+    t === "success" ? "text-[var(--color-success)]" :
     t === "danger" ? "text-[var(--color-destructive)]" :
-    t === "info" ? "text-blue-600" :
-    t === "muted" ? "text-amber-600" :
+    t === "info" ? "text-[var(--color-warning)]" :
+    t === "muted" ? "text-[var(--color-warning)]" :
     "text-[var(--color-foreground)]";
 
   return (
