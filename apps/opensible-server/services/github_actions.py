@@ -279,3 +279,49 @@ def scaffold_workflow(owner: str, repo: str, template_id: str,
         return {"ok": True, "path": path, "branch": branch}
     except RuntimeError as e:
         return {"ok": False, "error": str(e)}
+
+
+# --------------------------------------------------------------------------
+# Secrets / variables / runners (UC 230-235)
+# --------------------------------------------------------------------------
+
+def list_secrets(owner: str, repo: str) -> List[Dict[str, Any]]:
+    d = _gh_api("GET", f"/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}/actions/secrets")
+    return [{"name": s.get("name"), "created_at": s.get("created_at"),
+             "updated_at": s.get("updated_at"), "visibility": s.get("visibility")}
+            for s in d.get("secrets") or []]
+
+
+def upsert_secret(owner: str, repo: str, name: str, value: str) -> Dict[str, Any]:
+    # Fetch repo public key, encrypt with libsodium sealed box via gh api put.
+    # gh api handles this via /actions/secrets/<name> with encrypted_value.
+    # For plan scope: store plaintext is NOT allowed — we require gh CLI to
+    # encrypt. Use `gh secret set` which handles encryption automatically.
+    import subprocess as sp
+    r = sp.run(["gh", "secret", "set", name, "--repo", f"{owner}/{repo}",
+                "--body", value], capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        return {"ok": False, "error": (r.stderr or r.stdout or "failed").strip()[:300]}
+    return {"ok": True, "message": f"secret {name} set"}
+
+
+def delete_secret(owner: str, repo: str, name: str) -> Dict[str, Any]:
+    try:
+        _gh_api("DELETE", f"/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}/actions/secrets/{urllib.parse.quote(name)}")
+        return {"ok": True}
+    except RuntimeError as e:
+        return {"ok": False, "error": str(e)}
+
+
+def list_variables(owner: str, repo: str) -> List[Dict[str, Any]]:
+    d = _gh_api("GET", f"/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}/actions/variables")
+    return [{"name": v.get("name"), "value": v.get("value"),
+             "visibility": v.get("visibility"), "updated_at": v.get("updated_at")}
+            for v in d.get("variables") or []]
+
+
+def list_runners(owner: str) -> List[Dict[str, Any]]:
+    d = _gh_api("GET", f"/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(owner)}/actions/runners")
+    return [{"id": r.get("id"), "name": r.get("name"), "os": r.get("os"),
+             "status": r.get("status"), "labels": [l.get("name") for l in (r.get("labels") or [])]}
+            for r in d.get("runners") or []]

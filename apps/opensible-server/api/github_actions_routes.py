@@ -98,3 +98,42 @@ def api_gh_scaffold(owner, repo):
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(out), 200 if out.get("ok") else 400
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/secrets', methods=['GET'])
+@require_auth
+def api_gh_secrets(owner, repo):
+    from services.github_actions import list_secrets
+    try:
+        return jsonify({"secrets": list_secrets(owner, repo)})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/secrets', methods=['POST'])
+@require_auth
+def api_gh_set_secret(owner, repo):
+    from services.github_actions import upsert_secret
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    value = (data.get("value") or "").strip()
+    if not name or not value:
+        return jsonify({"error": "name and value required"}), 400
+    return jsonify(upsert_secret(owner, repo, name, value))
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/secrets/<secret_name>', methods=['DELETE'])
+@require_auth
+def api_gh_delete_secret(owner, repo, secret_name):
+    from services.github_actions import delete_secret
+    return jsonify(delete_secret(owner, repo, secret_name))
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/variables', methods=['GET'])
+@require_auth
+def api_gh_variables(owner, repo):
+    from services.github_actions import list_variables
+    try:
+        return jsonify({"variables": list_variables(owner, repo)})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 400
