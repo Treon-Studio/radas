@@ -82,21 +82,15 @@ def expire_due_flags(now: Optional[int] = None) -> int:
 
 
 def _load() -> List[Dict[str, Any]]:
-    try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, list):
-                return d
-    except Exception:
-        pass
-    return []
+    from storage import kv
+    v = kv.kv_load("flags")
+    return v if isinstance(v, list) else []
 
 
 def _save(items: List[Dict[str, Any]]) -> None:
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_save("flags", items)
+
 
 
 def _now() -> int:

@@ -16,6 +16,7 @@ keep working unchanged; only the storage module's import line changes.
 from __future__ import annotations
 
 import re
+import threading
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from storage import pg
@@ -110,6 +111,7 @@ class CompatConnection:
         self._raw.autocommit = True  # statement-level autocommit like sqlite isolation_level=None
         self.row_factory = None  # accepted for API compatibility; rows are CompatRow
         self._in_txn = False
+        self._closed = False
 
     # ------------------------------------------------------------------
     def _statement(self, sql: str) -> Tuple[str, bool]:
@@ -167,6 +169,9 @@ class CompatConnection:
         self._raw.autocommit = True
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         try:
             if self._in_txn:
                 self._raw.rollback()
@@ -185,10 +190,26 @@ class CompatConnection:
         self.close()
 
 
+_TLS = threading.local()
+
+
 def get_conn() -> CompatConnection:
-    """Return a sqlite3-compatible connection backed by Postgres."""
-    return CompatConnection()
+    """Return a sqlite3-compatible connection backed by Postgres.
+
+    Mirrors the old sqlite thread-local pattern: one CompatConnection per
+    thread, so services that call ``get_conn()`` per operation without an
+    explicit close() reuse the same underlying pooled connection instead of
+    exhausting the pool. ``close()`` releases it back to the pool.
+    """
+    conn = getattr(_TLS, "conn", None)
+    if conn is not None and not conn._closed:
+        return conn
+    conn = CompatConnection()
+    _TLS.conn = conn
+    return conn
 
 
 def close_all() -> None:
     pg.reset_connection_pool()
+    if hasattr(_TLS, "conn"):
+        _TLS.conn = None

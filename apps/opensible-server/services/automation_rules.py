@@ -36,9 +36,9 @@ def load() -> List[Dict[str, Any]]:
 
 
 def _save(items: List[Dict[str, Any]]) -> None:
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_save("automation_rules", items)
+
 
 
 def create(rule: Dict[str, Any]) -> Dict[str, Any]:

@@ -31,20 +31,19 @@ def _store_path(name: str) -> Path:
 
 def _load(name: str) -> List[Dict[str, Any]]:
     try:
-        p = _store_path(name)
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, list):
-                return d
+        from storage import kv
+        scope = name.replace(".json", "")
+        v = kv.kv_load(scope)
+        return v if isinstance(v, list) else []
     except Exception:
         pass
     return []
 
 
 def _save(name: str, items: List[Dict[str, Any]]) -> None:
-    p = _store_path(name)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    from storage import kv
+    scope = name.replace(".json", "")
+    kv.kv_save(scope, items)
 
 
 # --------------------------------------------------------------------------

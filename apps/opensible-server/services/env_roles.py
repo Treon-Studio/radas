@@ -17,11 +17,10 @@ def _store_path() -> Path:
 
 def load() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                return d
+        from storage import kv
+        v = kv.kv_load("env_roles")
+        if isinstance(v, dict):
+            return v
     except Exception:
         pass
     return {}
@@ -35,9 +34,8 @@ def save_for_project(project_id: str, mapping: Dict[str, List[str]]) -> Dict[str
     data = load()
     clean = {env: [str(r) for r in roles] for env, roles in mapping.items()}
     data[project_id] = clean
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("env_roles", project_id, clean)
     return clean
 
 

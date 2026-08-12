@@ -17,11 +17,10 @@ def _store_path() -> Path:
 
 def _load() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                return d
+        from storage import kv
+        v = kv.kv_load("notif_prefs")
+        if isinstance(v, dict):
+            return v
     except Exception:
         pass
     return {}
@@ -41,7 +40,6 @@ def save_prefs(user_id: str, prefs: Dict[str, Any]) -> Dict[str, Any]:
         "updated_at": time.time(),
     }
     data[user_id] = clean
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("notif_prefs", user_id, clean)
     return clean

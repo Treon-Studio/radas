@@ -17,9 +17,9 @@ def _store_path() -> Path:
 
 def load_quotas() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
+        from storage import kv
+        v = kv.kv_load("quotas")
+        return v if isinstance(v, dict) else {}
     except Exception:
         pass
     return {}
@@ -38,9 +38,8 @@ def save_quota(project_id: str, max_stacks: int, max_vms: int, max_cost_monthly:
         "max_cost_monthly": max(0.0, float(max_cost_monthly)),
         "updated_at": time.time(),
     }
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(quotas, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("quotas", project_id, quotas[project_id])
     return quotas[project_id]
 
 
@@ -49,7 +48,8 @@ def delete_quota(project_id: str) -> bool:
     if project_id not in quotas:
         return False
     quotas.pop(project_id)
-    _store_path().write_text(json.dumps(quotas, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_delete("quotas", project_id)
     return True
 
 

@@ -18,11 +18,10 @@ def _store_path() -> Path:
 
 def _load() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                return d
+        from storage import kv
+        v = kv.kv_load("bastion")
+        if isinstance(v, dict):
+            return v
     except Exception:
         pass
     return {}
@@ -70,19 +69,15 @@ def save_bastion(project_id: str, host: str, user: str, port: int = 22, ssh_key:
            "updated_at": time.time()}
     proxyjump = "{}@{}:{}".format(user, host, int(port or 22))
     _apply(_cfg_path(project_id), proxyjump, ssh_key.strip() or None)
-    data = _load()
-    data[project_id] = cfg
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("bastion", project_id, cfg)
     return cfg
 
 
 def delete_bastion(project_id: str) -> bool:
-    data = _load()
-    if project_id not in data:
+    from storage import kv
+    if kv.kv_get("bastion", project_id) is None:
         return False
-    data.pop(project_id)
-    _store_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+    kv.kv_delete("bastion", project_id)
     _apply(_cfg_path(project_id), None, None)
     return True

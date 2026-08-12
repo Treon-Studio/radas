@@ -26,21 +26,15 @@ def _store_path() -> Path:
 
 
 def _load() -> List[Dict[str, Any]]:
-    try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, list):
-                return d
-    except Exception:
-        pass
-    return []
+    from storage import kv
+    v = kv.kv_load("preview_envs")
+    return v if isinstance(v, list) else []
 
 
 def _save(items: List[Dict[str, Any]]) -> None:
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_save("preview_envs", items)
+
 
 
 def list_previews(project_id: Optional[str] = None) -> List[Dict[str, Any]]:

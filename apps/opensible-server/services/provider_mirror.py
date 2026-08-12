@@ -29,9 +29,8 @@ def get_config() -> Dict[str, Any]:
 
 def save_config(directory: str, enabled: bool = True) -> Dict[str, Any]:
     cfg = {"enabled": bool(enabled), "dir": (directory or "").strip(), "updated_at": time.time()}
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("provider_mirror", "default", cfg)
     return cfg
 
 

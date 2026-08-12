@@ -17,9 +17,9 @@ def _store_path() -> Path:
 
 def load_budgets() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
+        from storage import kv
+        v = kv.kv_load("budgets")
+        return v if isinstance(v, dict) else {}
     except Exception:
         pass
     return {}
@@ -34,9 +34,8 @@ def save_budget(project_id: str, amount: float, currency: str, alert_at_pct: flo
         "alert_at_pct": min(max(float(alert_at_pct), 1.0), 100.0),
         "updated_at": time.time(),
     }
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(budgets, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("budgets", project_id, budgets[project_id])
     return budgets[project_id]
 
 
@@ -49,7 +48,8 @@ def delete_budget(project_id: str) -> bool:
     if project_id not in budgets:
         return False
     budgets.pop(project_id)
-    _store_path().write_text(json.dumps(budgets, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_delete("budgets", project_id)
     return True
 
 

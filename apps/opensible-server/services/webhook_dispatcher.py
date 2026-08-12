@@ -38,24 +38,19 @@ def set_data_dir(path: Path) -> None:
 
 
 def load_webhooks() -> List[Dict[str, Any]]:
-    p = _store_path()
     try:
-        if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
+        from storage import kv
+        v = kv.kv_load("webhooks")
+        return v if isinstance(v, list) else []
     except Exception as e:
         logger.error(f"[webhooks] failed to load: {e}")
     return []
 
 
 def _save_webhooks(webhooks: List[Dict[str, Any]]) -> None:
-    p = _store_path()
     try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(webhooks, f, indent=2)
+        from storage import kv
+        kv.kv_save("webhooks", webhooks)
     except Exception as e:
         logger.error(f"[webhooks] failed to save: {e}")
 

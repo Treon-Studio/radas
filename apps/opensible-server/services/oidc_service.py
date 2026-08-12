@@ -18,11 +18,10 @@ def _store_path() -> Path:
 
 def get_config() -> Dict[str, Any]:
     try:
-        p = _store_path()
-        if p.exists():
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                return d
+        from storage import kv
+        v = kv.kv_get("oidc_config")
+        if isinstance(v, dict):
+            return v
     except Exception:
         pass
     return {}
@@ -37,9 +36,8 @@ def save_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     clean = {k: cfg.get(k) for k in ("issuer", "client_id", "client_secret", "scopes", "redirect_uri") if cfg.get(k)}
     clean["scopes"] = clean.get("scopes") or "openid profile email"
     clean["redirect_uri"] = clean.get("redirect_uri") or "http://localhost:8080/api/auth/sso/callback"
-    p = _store_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(clean, indent=2), encoding="utf-8")
+    from storage import kv
+    kv.kv_set("oidc_config", "default", clean)
     return clean
 
 
