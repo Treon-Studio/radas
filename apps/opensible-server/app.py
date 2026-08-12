@@ -2962,7 +2962,19 @@ except Exception as _v2_final_err:
 
 if __name__ == '__main__':
 
-    
+    # (Fase 7) Postgres wajib: ping + apply schema sebelum layanan start.
+    try:
+        from storage import pg as _pg
+        from storage import pg_schema as _pg_schema
+        _pg.ping()
+        _pg_schema.migrate()
+        app.logger.info("PostgreSQL connected and schema up-to-date")
+    except Exception as e:
+        app.logger.error(
+            "DATABASE_URL is required and must point at a reachable PostgreSQL "
+            f"(Neon supported). Boot aborted: {e}", exc_info=True)
+        raise SystemExit(1)
+
     # ( )
     _initialize_projects()
     
