@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -18,11 +17,12 @@ def _auth_db() -> Path:
 
 def _query(sql: str, params: tuple = ()) -> List[tuple]:
     try:
-        conn = sqlite3.connect(_auth_db())
-        try:
-            return conn.execute(sql, params).fetchall()
-        finally:
-            conn.close()
+        from storage import pg
+        rows = pg.query_all(sql.replace("?", "%s"), params)
+        if not rows:
+            return []
+        cols = list(rows[0].keys())
+        return [tuple(r[c] for c in cols) for r in rows]
     except Exception:
         return []
 

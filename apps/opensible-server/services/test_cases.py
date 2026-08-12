@@ -18,6 +18,10 @@ KINDS = ("assertion", "tofu_validate", "tofu_test", "smoke")
 
 
 def _store_path(name: str) -> Path:
+    import os
+    env_dir = os.environ.get("DATA_DIR")
+    if env_dir:
+        return Path(env_dir) / name
     try:
         import app as _app
         return Path(getattr(_app, "DATA_DIR", "data")) / name

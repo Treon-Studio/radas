@@ -55,25 +55,18 @@ def verify(secret: str, code: str, window: int = 1) -> bool:
 
 def get_secret(user_id: str) -> str:
     try:
-        conn = sqlite3.connect(_auth_db())
-        try:
-            row = conn.execute("SELECT mfa_secret FROM users WHERE id = ?", (user_id,)).fetchone()
-            return (row[0] or "") if row else ""
-        finally:
-            conn.close()
+        from storage import pg
+        row = pg.query_one("SELECT mfa_secret FROM users WHERE id = %s", (user_id,))
+        return (row["mfa_secret"] or "") if row else ""
     except Exception:
         return ""
 
 
 def set_secret(user_id: str, secret: Optional[str]) -> bool:
     try:
-        conn = sqlite3.connect(_auth_db())
-        try:
-            conn.execute("UPDATE users SET mfa_secret = ? WHERE id = ?", (secret, user_id))
-            conn.commit()
-            return True
-        finally:
-            conn.close()
+        from storage import pg
+        pg.execute("UPDATE users SET mfa_secret = %s WHERE id = %s", (secret, user_id))
+        return True
     except Exception:
         return False
 

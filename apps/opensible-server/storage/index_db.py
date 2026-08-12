@@ -1,133 +1,57 @@
-"""
-Lightweight SQLite index (libSQL-compatible, WAL mode) for the two backend
-hot paths that were burning CPU:
+"""PostgreSQL-backed worker/execution index (Fase 7 — ported from SQLite).
 
-  1. /api/worker/claim  -> "which executions are QUEUED?"
-  2. /api/worker/claim  -> "how many RUNNING executions does this worker own?"
-  3. /api/worker/log/finish -> "which project owns this execution id?"
-  4. /api/worker/heartbeat + token verify -> "which worker owns this token?"
+Replaces the legacy SQLite ``index.db`` optimization for the hot worker
+paths (claim queue, running ownership, token lookup). JSON execution files
+remain the source of truth; this module is an index with a fast fallback to
+file scans when Postgres is unreachable.
 
-JSON files under data/projects/**/history/executions/ and data/workers/*.json
-remain the source of truth. This module keeps a small index in sync so those
-hot paths become an indexed SQL lookup instead of a full-directory scan.
+Public API (unchanged from the SQLite version):
 
-If anything about the index fails, callers fall back to the legacy JSON scan.
-The index is only an *optimization*, never a hard dependency.
+    is_ready() -> bool
+    add_queued_execution / remove_queued_execution / list_queued / queued_count
+    upsert_execution_location / find_execution_project
+    mark_running_execution / remove_running_execution
+    running_count_for_worker / list_running_for_worker
+    prune_stale_running_for_worker
+    upsert_worker_token / remove_worker_token
+    find_worker_by_token_hash / all_worker_salts / worker_token_count
+    backfill_if_empty(projects_dir, workers_dir)
 """
 from __future__ import annotations
 
 import json
 import logging
-import os
-import sqlite3
-import threading
 import time
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-_LOCK = threading.Lock()
-_CONN: Optional[sqlite3.Connection] = None
-_DB_PATH: Optional[Path] = None
 _READY = False
 
 
 def _data_dir() -> Path:
+    import os
     env_dir = os.environ.get("DATA_DIR")
     if env_dir:
         return Path(env_dir)
     return Path(__file__).resolve().parent.parent.parent / "data"
 
 
-def _open() -> Optional[sqlite3.Connection]:
-    """Open (or return the existing) connection. Safe to call repeatedly."""
-    global _CONN, _DB_PATH, _READY
-    if _CONN is not None:
-        return _CONN
-    with _LOCK:
-        if _CONN is not None:
-            return _CONN
-        try:
-            data_dir = _data_dir()
-            data_dir.mkdir(parents=True, exist_ok=True)
-            _DB_PATH = data_dir / "index.db"
-            conn = sqlite3.connect(
-                str(_DB_PATH),
-                check_same_thread=False,
-                isolation_level=None,  # autocommit; we manage BEGIN explicitly if needed
-                timeout=5.0,
-            )
-            # WAL + friends: readers never block writers, small mmap for hot pages.
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA busy_timeout=5000")
-            conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA mmap_size=67108864")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS queued_executions (
-                    execution_id TEXT PRIMARY KEY,
-                    project_id   TEXT NOT NULL,
-                    queued_at    REAL NOT NULL,
-                    requirements TEXT
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_queued_at ON queued_executions(queued_at)"
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS running_executions (
-                    execution_id TEXT PRIMARY KEY,
-                    project_id   TEXT NOT NULL,
-                    worker_id    TEXT NOT NULL,
-                    started_at   REAL NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_running_worker ON running_executions(worker_id)"
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS execution_locations (
-                    execution_id TEXT PRIMARY KEY,
-                    project_id   TEXT NOT NULL,
-                    status       TEXT,
-                    worker_id    TEXT,
-                    updated_at   REAL NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_execution_locations_project ON execution_locations(project_id)"
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS worker_tokens (
-                    token_hash TEXT PRIMARY KEY,
-                    worker_id  TEXT NOT NULL,
-                    salt       TEXT NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_worker_tokens_worker ON worker_tokens(worker_id)"
-            )
-            _CONN = conn
-            _READY = True
-            logger.info("index_db ready at %s (WAL)", _DB_PATH)
-            return _CONN
-        except Exception as e:  # pragma: no cover - defensive
-            logger.warning("index_db unavailable, falling back to JSON scans: %s", e)
-            _READY = False
-            return None
+def _check_ready() -> bool:
+    global _READY
+    try:
+        from storage import pg
+        pg.ping()
+        _READY = True
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("index_db unavailable, falling back to JSON scans: %s", e)
+        _READY = False
+    return _READY
 
 
 def is_ready() -> bool:
-    return _READY and _CONN is not None
+    return _READY
 
 
 # ---------------------------------------------------------------------------
@@ -140,32 +64,29 @@ def add_queued_execution(
     queued_at: float,
     requirements: Optional[dict] = None,
 ) -> None:
-    conn = _open()
-    if conn is None or not execution_id or not project_id:
+    from storage import pg
+    if not execution_id or not project_id:
         return
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO queued_executions "
-            "(execution_id, project_id, queued_at, requirements) VALUES (?, ?, ?, ?)",
-            (
-                execution_id,
-                project_id,
-                float(queued_at or time.time()),
-                json.dumps(requirements or {}, ensure_ascii=False),
-            ),
+        pg.execute(
+            "INSERT INTO queued_executions "
+            "(execution_id, project_id, queued_at, requirements) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (execution_id) DO UPDATE SET "
+            "project_id = EXCLUDED.project_id, queued_at = EXCLUDED.queued_at, "
+            "requirements = EXCLUDED.requirements",
+            (execution_id, project_id, float(queued_at or time.time()),
+             json.dumps(requirements or {}, ensure_ascii=False)),
         )
     except Exception as e:
         logger.warning("add_queued_execution failed for %s: %s", execution_id, e)
 
 
 def remove_queued_execution(execution_id: str) -> None:
-    conn = _open()
-    if conn is None or not execution_id:
+    from storage import pg
+    if not execution_id:
         return
     try:
-        conn.execute(
-            "DELETE FROM queued_executions WHERE execution_id = ?", (execution_id,)
-        )
+        pg.execute("DELETE FROM queued_executions WHERE execution_id = %s", (execution_id,))
     except Exception as e:
         logger.warning("remove_queued_execution failed for %s: %s", execution_id, e)
 
@@ -177,13 +98,16 @@ def upsert_execution_location(
     worker_id: Optional[str] = None,
     updated_at: Optional[float] = None,
 ) -> None:
-    conn = _open()
-    if conn is None or not execution_id or not project_id:
+    from storage import pg
+    if not execution_id or not project_id:
         return
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO execution_locations "
-            "(execution_id, project_id, status, worker_id, updated_at) VALUES (?, ?, ?, ?, ?)",
+        pg.execute(
+            "INSERT INTO execution_locations "
+            "(execution_id, project_id, status, worker_id, updated_at) VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT (execution_id) DO UPDATE SET "
+            "project_id = EXCLUDED.project_id, status = EXCLUDED.status, "
+            "worker_id = EXCLUDED.worker_id, updated_at = EXCLUDED.updated_at",
             (execution_id, project_id, status, worker_id, float(updated_at or time.time())),
         )
     except Exception as e:
@@ -191,15 +115,15 @@ def upsert_execution_location(
 
 
 def find_execution_project(execution_id: str) -> Optional[str]:
-    conn = _open()
-    if conn is None or not execution_id:
+    from storage import pg
+    if not execution_id:
         return None
     try:
-        row = conn.execute(
-            "SELECT project_id FROM execution_locations WHERE execution_id = ?",
+        row = pg.query_one(
+            "SELECT project_id FROM execution_locations WHERE execution_id = %s",
             (execution_id,),
-        ).fetchone()
-        return row[0] if row else None
+        )
+        return row["project_id"] if row else None
     except Exception as e:
         logger.warning("find_execution_project failed for %s: %s", execution_id, e)
         return None
@@ -211,14 +135,17 @@ def mark_running_execution(
     worker_id: str,
     started_at: Optional[float] = None,
 ) -> None:
-    conn = _open()
-    if conn is None or not execution_id or not project_id or not worker_id:
+    if not execution_id or not project_id or not worker_id:
         return
     ts = float(started_at or time.time())
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO running_executions "
-            "(execution_id, project_id, worker_id, started_at) VALUES (?, ?, ?, ?)",
+        from storage import pg
+        pg.execute(
+            "INSERT INTO running_executions "
+            "(execution_id, project_id, worker_id, started_at) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (execution_id) DO UPDATE SET "
+            "project_id = EXCLUDED.project_id, worker_id = EXCLUDED.worker_id, "
+            "started_at = EXCLUDED.started_at",
             (execution_id, project_id, worker_id, ts),
         )
         remove_queued_execution(execution_id)
@@ -228,25 +155,25 @@ def mark_running_execution(
 
 
 def remove_running_execution(execution_id: str) -> None:
-    conn = _open()
-    if conn is None or not execution_id:
+    from storage import pg
+    if not execution_id:
         return
     try:
-        conn.execute("DELETE FROM running_executions WHERE execution_id = ?", (execution_id,))
+        pg.execute("DELETE FROM running_executions WHERE execution_id = %s", (execution_id,))
     except Exception as e:
         logger.warning("remove_running_execution failed for %s: %s", execution_id, e)
 
 
 def running_count_for_worker(worker_id: str) -> Optional[int]:
-    conn = _open()
-    if conn is None or not worker_id:
+    from storage import pg
+    if not worker_id:
         return None
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM running_executions WHERE worker_id = ?",
+        row = pg.query_one(
+            "SELECT COUNT(*) AS n FROM running_executions WHERE worker_id = %s",
             (worker_id,),
-        ).fetchone()
-        return int(row[0]) if row else 0
+        )
+        return int(row["n"]) if row else 0
     except Exception as e:
         logger.warning("running_count_for_worker failed for %s: %s", worker_id, e)
         return None
@@ -254,16 +181,15 @@ def running_count_for_worker(worker_id: str) -> Optional[int]:
 
 def list_running_for_worker(worker_id: str) -> List[Tuple[str, str, float]]:
     """Return list of (execution_id, project_id, started_at) rows for a worker."""
-    conn = _open()
-    if conn is None or not worker_id:
+    from storage import pg
+    if not worker_id:
         return []
     try:
-        rows = conn.execute(
+        rows = pg.query_all(
             "SELECT execution_id, project_id, started_at FROM running_executions "
-            "WHERE worker_id = ?",
-            (worker_id,),
-        ).fetchall()
-        return [(r[0], r[1], float(r[2] or 0)) for r in rows]
+            "WHERE worker_id = %s", (worker_id,),
+        )
+        return [(r["execution_id"], r["project_id"], float(r["started_at"] or 0)) for r in rows]
     except Exception as e:
         logger.warning("list_running_for_worker failed for %s: %s", worker_id, e)
         return []
@@ -341,35 +267,31 @@ def list_queued(
     project_id: Optional[str] = None, limit: int = 50
 ) -> List[Tuple[str, str, float]]:
     """Return oldest-first list of (execution_id, project_id, queued_at)."""
-    conn = _open()
-    if conn is None:
-        return []
+    from storage import pg
     try:
         if project_id:
-            rows = conn.execute(
+            rows = pg.query_all(
                 "SELECT execution_id, project_id, queued_at FROM queued_executions "
-                "WHERE project_id = ? ORDER BY queued_at ASC LIMIT ?",
+                "WHERE project_id = %s ORDER BY queued_at ASC LIMIT %s",
                 (project_id, int(limit)),
-            ).fetchall()
+            )
         else:
-            rows = conn.execute(
+            rows = pg.query_all(
                 "SELECT execution_id, project_id, queued_at FROM queued_executions "
-                "ORDER BY queued_at ASC LIMIT ?",
+                "ORDER BY queued_at ASC LIMIT %s",
                 (int(limit),),
-            ).fetchall()
-        return [(r[0], r[1], r[2]) for r in rows]
+            )
+        return [(r["execution_id"], r["project_id"], r["queued_at"]) for r in rows]
     except Exception as e:
         logger.warning("list_queued failed: %s", e)
         return []
 
 
 def queued_count() -> int:
-    conn = _open()
-    if conn is None:
-        return 0
+    from storage import pg
     try:
-        row = conn.execute("SELECT COUNT(*) FROM queued_executions").fetchone()
-        return int(row[0]) if row else 0
+        row = pg.query_one("SELECT COUNT(*) AS n FROM queued_executions")
+        return int(row["n"]) if row else 0
     except Exception:
         return 0
 
@@ -379,15 +301,15 @@ def queued_count() -> int:
 # ---------------------------------------------------------------------------
 
 def upsert_worker_token(worker_id: str, token_hash: str, salt: str) -> None:
-    conn = _open()
-    if conn is None or not worker_id or not token_hash or not salt:
+    from storage import pg
+    if not worker_id or not token_hash or not salt:
         return
     try:
         # A worker only has one active token at a time; drop any prior rows for it.
-        conn.execute("DELETE FROM worker_tokens WHERE worker_id = ?", (worker_id,))
-        conn.execute(
-            "INSERT OR REPLACE INTO worker_tokens (token_hash, worker_id, salt) "
-            "VALUES (?, ?, ?)",
+        pg.execute("DELETE FROM worker_tokens WHERE worker_id = %s", (worker_id,))
+        pg.execute(
+            "INSERT INTO worker_tokens (token_hash, worker_id, salt) "
+            "VALUES (%s, %s, %s) ON CONFLICT (token_hash) DO NOTHING",
             (token_hash, worker_id, salt),
         )
     except Exception as e:
@@ -395,27 +317,27 @@ def upsert_worker_token(worker_id: str, token_hash: str, salt: str) -> None:
 
 
 def remove_worker_token(worker_id: str) -> None:
-    conn = _open()
-    if conn is None or not worker_id:
+    from storage import pg
+    if not worker_id:
         return
     try:
-        conn.execute("DELETE FROM worker_tokens WHERE worker_id = ?", (worker_id,))
+        pg.execute("DELETE FROM worker_tokens WHERE worker_id = %s", (worker_id,))
     except Exception as e:
         logger.warning("remove_worker_token failed for %s: %s", worker_id, e)
 
 
 def find_worker_by_token_hash(token_hash: str) -> Optional[Tuple[str, str]]:
     """Return (worker_id, salt) matching a full token hash, or None."""
-    conn = _open()
-    if conn is None or not token_hash:
+    from storage import pg
+    if not token_hash:
         return None
     try:
-        row = conn.execute(
-            "SELECT worker_id, salt FROM worker_tokens WHERE token_hash = ?",
+        row = pg.query_one(
+            "SELECT worker_id, salt FROM worker_tokens WHERE token_hash = %s",
             (token_hash,),
-        ).fetchone()
+        )
         if row:
-            return (row[0], row[1])
+            return (row["worker_id"], row["salt"])
     except Exception as e:
         logger.warning("find_worker_by_token_hash failed: %s", e)
     return None
@@ -423,25 +345,19 @@ def find_worker_by_token_hash(token_hash: str) -> Optional[Tuple[str, str]]:
 
 def all_worker_salts() -> List[Tuple[str, str, str]]:
     """Return list of (worker_id, salt, token_hash) — used for slow-path token verify."""
-    conn = _open()
-    if conn is None:
-        return []
+    from storage import pg
     try:
-        rows = conn.execute(
-            "SELECT worker_id, salt, token_hash FROM worker_tokens"
-        ).fetchall()
-        return [(r[0], r[1], r[2]) for r in rows]
+        rows = pg.query_all("SELECT worker_id, salt, token_hash FROM worker_tokens")
+        return [(r["worker_id"], r["salt"], r["token_hash"]) for r in rows]
     except Exception:
         return []
 
 
 def worker_token_count() -> int:
-    conn = _open()
-    if conn is None:
-        return 0
+    from storage import pg
     try:
-        row = conn.execute("SELECT COUNT(*) FROM worker_tokens").fetchone()
-        return int(row[0]) if row else 0
+        row = pg.query_one("SELECT COUNT(*) AS n FROM worker_tokens")
+        return int(row["n"]) if row else 0
     except Exception:
         return 0
 
@@ -452,9 +368,6 @@ def worker_token_count() -> int:
 
 def backfill_if_empty(projects_dir: Path, workers_dir: Path) -> None:
     """Walk the JSON tree once and populate the index if it's empty."""
-    conn = _open()
-    if conn is None:
-        return
     try:
         if queued_count() == 0:
             _backfill_queued(projects_dir)

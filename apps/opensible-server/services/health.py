@@ -20,6 +20,13 @@ def readiness() -> Dict:
     ok = True
     checks = {}
     try:
+        from storage import pg
+        pg.ping()
+        checks["postgres"] = True
+    except Exception:
+        checks["postgres"] = False
+        ok = False
+    try:
         d = _data_dir()
         d.mkdir(parents=True, exist_ok=True)
         probe = d / ".ready_probe"
@@ -28,15 +35,6 @@ def readiness() -> Dict:
         checks["data_dir"] = True
     except Exception:
         checks["data_dir"] = False
-        ok = False
-    try:
-        import sqlite3
-        conn = sqlite3.connect(str(_data_dir() / "auth" / "auth.db"))
-        conn.execute("SELECT 1")
-        conn.close()
-        checks["auth_db"] = True
-    except Exception:
-        checks["auth_db"] = False
         ok = False
     return {"ok": ok, "checks": checks}
 
