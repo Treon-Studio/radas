@@ -183,6 +183,21 @@ _V1_DDL: List[str] = [
     """CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id)""",
 ]
 
+# Version 2 — fix timestamp precision: REAL (float4) truncated epoch values
+# (e.g. 1786532773618 -> 1786532700000). Timestamps become DOUBLE PRECISION.
+_V2_DDL: List[str] = [
+    "ALTER TABLE projects ALTER COLUMN created_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE queued_executions ALTER COLUMN queued_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE running_executions ALTER COLUMN started_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE execution_locations ALTER COLUMN updated_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE kv_store ALTER COLUMN updated_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE executions ALTER COLUMN created_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE snapshots ALTER COLUMN ts TYPE DOUBLE PRECISION",
+    "ALTER TABLE orgs ALTER COLUMN created_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE org_members ALTER COLUMN created_at TYPE DOUBLE PRECISION",
+    "ALTER TABLE schema_migrations ALTER COLUMN applied_at TYPE DOUBLE PRECISION",
+]
+
 
 def migrate() -> None:
     """Apply pending schema migrations (idempotent)."""
@@ -195,7 +210,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue

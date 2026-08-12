@@ -50,20 +50,10 @@ def mfa_users() -> int:
 def prod_stacks_without_approval(project_id: str) -> List[str]:
     out = []
     try:
-        from services.cloud_provisioning import _stack_data_dir
-        base = _stack_data_dir(project_id, "_").parent
-        if not base.exists():
-            return out
-        for d in sorted(base.iterdir()):
-            meta_p = d / "meta.json"
-            if not meta_p.exists():
-                continue
-            try:
-                m = json.loads(meta_p.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if m.get("env") == "prod" and m.get("approval_required") is not True:
-                out.append(m.get("name") or d.name)
+        from services.cloud_provisioning import _list_stacks
+        for st in _list_stacks(project_id):
+            if st.get("env") == "prod" and st.get("approval_required") is not True:
+                out.append(st.get("name"))
     except Exception:
         pass
     return out

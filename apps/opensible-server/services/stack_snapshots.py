@@ -16,7 +16,8 @@ def _stack_data_dir(pid: str, name: str) -> Path:
 
 
 def _files(pid: str, name: str) -> Dict[str, Path]:
-    d = _stack_data_dir(pid, name)
+    from services.cloud_provisioning import _stack_dir
+    d = _stack_dir(pid, name)
     out = {}
     for f in ("terraform.tfvars", "terraform.tfstate"):
         p = d / f
@@ -26,69 +27,82 @@ def _files(pid: str, name: str) -> Dict[str, Path]:
 
 
 def snapshot(pid: str, name: str, reason: str = "manual") -> Optional[str]:
-    files = _files(pid, name)
-    if not files:
+    from services.cloud_provisioning import _stack_dir
+    sd = _stack_dir(pid, name)
+    payload: Dict[str, Any] = {}
+    for f in ("terraform.tfvars", "terraform.tfstate"):
+        p = sd / f
+        if p.exists():
+            payload[f] = p.read_bytes().decode("utf-8", errors="replace")
+    if not payload:
         return None
     ts = int(time.time() * 1000)
-    snap_id = f"{ts}"
-    d = _stack_data_dir(pid, name) / "snapshots" / snap_id
-    d.mkdir(parents=True, exist_ok=True)
-    for f, p in files.items():
-        shutil.copy2(p, d / f)
-    (d / "meta.json").write_text(json.dumps({"created_at": ts / 1000, "reason": reason}), encoding="utf-8")
+    snap_id = str(ts)
+    from storage import pg
+    pg.execute(
+        "INSERT INTO snapshots (project_id, stack, ts, data) VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT (project_id, stack, ts) DO UPDATE SET ts = EXCLUDED.ts, "
+        "data = EXCLUDED.data",
+        (pid or "default", name, ts, json.dumps(
+            {"files": payload, "created_at": ts / 1000, "reason": reason}).encode("utf-8")))
     _prune(pid, name)
     return snap_id
 
 
 def _prune(pid: str, name: str) -> None:
-    root = _stack_data_dir(pid, name) / "snapshots"
-    if not root.exists():
-        return
-    snaps = sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.name)
-    for old in snaps[:-MAX_SNAPSHOTS]:
-        shutil.rmtree(old, ignore_errors=True)
+    from storage import pg
+    rows = pg.query_all(
+        "SELECT ts FROM snapshots WHERE project_id = %s AND stack = %s ORDER BY ts DESC",
+        (pid or "default", name))
+    for r in rows[MAX_SNAPSHOTS:]:
+        pg.execute("DELETE FROM snapshots WHERE project_id = %s AND stack = %s AND ts = %s",
+                   (pid or "default", name, r["ts"]))
 
 
 def list_snapshots(pid: str, name: str) -> List[Dict[str, Any]]:
-    root = _stack_data_dir(pid, name) / "snapshots"
+    from storage import pg
+    rows = pg.query_all(
+        "SELECT ts, data FROM snapshots WHERE project_id = %s AND stack = %s ORDER BY ts DESC",
+        (pid or "default", name))
     out = []
-    if root.exists():
-        for p in sorted(root.iterdir(), key=lambda p: p.name, reverse=True):
-            if not p.is_dir():
-                continue
-            meta = {}
-            mp = p / "meta.json"
-            if mp.exists():
-                try:
-                    meta = json.loads(mp.read_text(encoding="utf-8"))
-                except Exception:
-                    meta = {}
-            out.append({"id": p.name, "created_at": meta.get("created_at"), "reason": meta.get("reason")})
+    for r in rows:
+        try:
+            data = json.loads(r["data"].decode("utf-8"))
+        except Exception:
+            data = {}
+        out.append({"id": str(r["ts"]), "created_at": data.get("created_at"),
+                    "reason": data.get("reason")})
     return out
 
 
 def restore(pid: str, name: str, snapshot_id: Optional[str] = None) -> Optional[str]:
+    from services.cloud_provisioning import _stack_dir
     snaps = list_snapshots(pid, name)
     if not snaps:
         return None
     sid = snapshot_id or snaps[0]["id"]
-    src = _stack_data_dir(pid, name) / "snapshots" / sid
-    if not src.is_dir():
+    from storage import pg
+    row = pg.query_one(
+        "SELECT data FROM snapshots WHERE project_id = %s AND stack = %s AND ts = %s",
+        (pid or "default", name, float(sid)))
+    if not row:
         return None
-    d = _stack_data_dir(pid, name)
-    for f in ("terraform.tfvars", "terraform.tfstate"):
-        p = src / f
-        if p.exists():
-            shutil.copy2(p, d / f)
+    try:
+        data = json.loads(row["data"].decode("utf-8"))
+    except Exception:
+        return None
+    sd = _stack_dir(pid, name)
+    sd.mkdir(parents=True, exist_ok=True)
+    for f, content in (data.get("files") or {}).items():
+        (sd / f).write_text(content, encoding="utf-8")
     return sid
 
 
 def get_state_config(pid: str, name: str) -> Dict[str, Any]:
     try:
-        meta_p = _stack_data_dir(pid, name) / "meta.json"
-        if meta_p.exists():
-            m = json.loads(meta_p.read_text(encoding="utf-8"))
-            return dict(m.get("remote_state") or {})
+        from services.cloud_provisioning import _load_meta
+        m = _load_meta(pid, name)
+        return dict(m.get("remote_state") or {})
     except Exception:
         pass
     return {}

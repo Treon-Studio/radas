@@ -7,14 +7,8 @@ from typing import Any, Dict, Optional
 
 
 def _meta(project_id: Optional[str], name: str) -> Dict[str, Any]:
-    from services.cloud_provisioning import _stack_data_dir
-    p = _stack_data_dir(project_id, name) / "meta.json"
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
+    from services.cloud_provisioning import _load_meta
+    return _load_meta(project_id, name)
 
 
 def is_locked(project_id: Optional[str], name: str) -> bool:

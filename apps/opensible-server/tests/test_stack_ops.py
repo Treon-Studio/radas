@@ -42,12 +42,11 @@ def test_locked_stack_blocks_action(tmp_path, monkeypatch):
     envs.mkdir(parents=True, exist_ok=True)
     (envs / "s3").mkdir()
     (envs / "s3" / "terraform.tfvars").write_text("env = \"prod\"\n")
-    import json
-    from services.cloud_provisioning import _stack_data_dir
+    from services.cloud_provisioning import _load_meta
     from services.stack_ops import is_locked, lock_stack, unlock_stack
     lock_stack(None, "s3", reason="maintenance", actor="admin")
     assert is_locked(None, "s3") is True
-    meta = json.loads((_stack_data_dir(None, "s3") / "meta.json").read_text(encoding="utf-8"))
+    meta = _load_meta(None, "s3")
     assert (meta.get("locked") or {}).get("reason") == "maintenance"
     assert (meta.get("locked") or {}).get("by") == "admin"
     # Unlocking clears the lock so mutating actions are allowed again.

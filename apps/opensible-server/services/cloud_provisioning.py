@@ -250,14 +250,26 @@ def _template_dir(project_id: Optional[str], provider: str = "bytedc") -> Path:
 
 
 def _read_stack_provider(project_id: Optional[str], name: str) -> Optional[str]:
-    """Read the provider id from a stack's meta.json without importing heavy helpers."""
+    """Read the provider id from a stack's meta (Postgres) without importing heavy helpers."""
     try:
-        p = _data_base(project_id) / name / "meta.json"
-        if not p.exists():
-            return None
-        return (json.loads(p.read_text(encoding="utf-8")) or {}).get("provider")
+        meta = _load_meta(project_id, name)
+        return (meta or {}).get("provider")
     except Exception:
         return None
+
+
+def _load_meta(project_id: Optional[str], name: str) -> Dict[str, Any]:
+    """Load a stack's meta dict (Fase 7: Postgres jsonb)."""
+    try:
+        from storage import pg
+        row = pg.query_one(
+            "SELECT data FROM stack_meta WHERE project_id = %s AND stack = %s",
+            (project_id or "default", name))
+        if row and isinstance(row.get("data"), dict):
+            return row["data"]
+    except Exception:
+        pass
+    return {}
 
 
 def _data_base(project_id: Optional[str]) -> Path:
@@ -447,22 +459,26 @@ def _write_stack_files(project_id: Optional[str], name: str, values: Dict[str, A
 
 
 def _save_secrets(project_id: Optional[str], name: str, secrets_map: Dict[str, str]) -> None:
+    from storage import pg
     enc = get_encryption()
     payload = {k: enc.encrypt(v) for k, v in secrets_map.items() if v}
-    out = _stack_data_dir(project_id, name) / "secrets.json"
-    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    try:
-        os.chmod(out, 0o600)
-    except OSError:
-        pass
+    raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    pg.execute(
+        "INSERT INTO stack_secrets (project_id, stack, data) VALUES (%s, %s, %s) "
+        "ON CONFLICT (project_id, stack) DO UPDATE SET data = EXCLUDED.data",
+        (project_id or "default", name, raw),
+    )
 
 
 def _load_secrets(project_id: Optional[str], name: str) -> Dict[str, str]:
-    p = _stack_data_dir(project_id, name) / "secrets.json"
-    if not p.exists():
+    from storage import pg
+    row = pg.query_one(
+        "SELECT data FROM stack_secrets WHERE project_id = %s AND stack = %s",
+        (project_id or "default", name))
+    if not row or not row.get("data"):
         return {}
     enc = get_encryption()
-    raw = json.loads(p.read_text(encoding="utf-8"))
+    raw = json.loads(row["data"].decode("utf-8"))
     return {k: enc.decrypt(v) for k, v in raw.items()}
 
 
@@ -545,13 +561,7 @@ def _list_stacks(project_id: Optional[str]) -> List[Dict[str, Any]]:
         if not entry.is_dir() or entry.name.startswith(".") or entry.name == "_template":
             continue
         tfvars = entry / "terraform.tfvars"
-        meta_path = _stack_data_dir(project_id, entry.name) / "meta.json"
-        meta = {}
-        if meta_path.exists():
-            try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception:
-                meta = {}
+        meta = _load_meta(project_id, entry.name)
         cloud_project = None
         region = None
         if tfvars.exists():
@@ -589,18 +599,20 @@ def _list_stacks(project_id: Optional[str]) -> List[Dict[str, Any]]:
 
 
 def _save_meta(project_id: Optional[str], name: str, **patch: Any) -> None:
-    p = _stack_data_dir(project_id, name) / "meta.json"
-    meta = {}
-    if p.exists():
-        try:
-            meta = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            meta = {}
+    from storage import pg
+    row = pg.query_one(
+        "SELECT data FROM stack_meta WHERE project_id = %s AND stack = %s",
+        (project_id or "default", name))
+    meta = dict(row["data"]) if row and isinstance(row.get("data"), dict) else {}
     meta.update(patch)
     if "created_at" not in meta:
         meta["created_at"] = int(time.time())
     meta["updated_at"] = int(time.time())
-    p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s) "
+        "ON CONFLICT (project_id, stack) DO UPDATE SET data = EXCLUDED.data",
+        (project_id or "default", name, json.dumps(meta, ensure_ascii=False)),
+    )
 
 
 
@@ -687,9 +699,8 @@ def _stack_info(project_id: Optional[str], name: str) -> Dict[str, Any]:
     """Lightweight (env, cloud_project, provider) lookup for a stack — for runs listing."""
     info: Dict[str, Any] = {"env": None, "cloud_project": None, "provider": None}
     try:
-        meta_path = _stack_data_dir(project_id, name) / "meta.json"
-        if meta_path.exists():
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta = _load_meta(project_id, name)
+        if meta:
             info["env"] = meta.get("env")
             info["cloud_project"] = meta.get("project_name")
             info["provider"] = meta.get("provider")
@@ -762,8 +773,7 @@ def stacks_get(name):
     tfvars = (sd / "terraform.tfvars").read_text(encoding="utf-8") if (sd / "terraform.tfvars").exists() else ""
     backend = (sd / "backend.hcl").read_text(encoding="utf-8") if (sd / "backend.hcl").exists() else ""
     has_secrets = (_stack_data_dir(pid, name) / "secrets.json").exists()
-    meta_path = _stack_data_dir(pid, name) / "meta.json"
-    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    meta = _load_meta(pid, name)
     files = sorted([p.name for p in sd.iterdir() if p.is_file()])
     try:
         rel = str(sd.relative_to(BASE_DIR))
@@ -1020,7 +1030,7 @@ def stacks_action(name):
             if _is_locked(pid, name):
                 _lr = ""
                 try:
-                    _lr = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("locked", {}).get("reason", "")
+                    _lr = _load_meta(pid, name).get("locked", {}).get("reason", "")
                 except Exception:
                     pass
                 return jsonify({"error": f"Stack is locked" + (f" ({_lr})" if _lr else "") + ". Unlock before mutating."}), 423
@@ -1034,7 +1044,7 @@ def stacks_action(name):
             from services.feature_flags import enforcement as _ff_enforcement
             _env = None
             try:
-                _env = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("env")
+                _env = _load_meta(pid, name).get("env")
             except Exception:
                 _env = None
             _user = (_cu.get("username") or "")
@@ -1050,7 +1060,7 @@ def stacks_action(name):
         from services.env_roles import allowed as _env_allowed
         _env = None
         try:
-            _env = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("env")
+            _env = _load_meta(pid, name).get("env")
         except Exception:
             _env = None
         _roles = (getattr(request, "current_user", {}) or {}).get("roles") or []
@@ -1086,7 +1096,7 @@ def stacks_action(name):
             from services.approval_service import has_approved, latest_pending
             _req = False
             try:
-                _req = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("approval_required") is True
+                _req = _load_meta(pid, name).get("approval_required") is True
             except Exception:
                 _req = False
             if _req and not has_approved(name, pid, action):
@@ -1140,13 +1150,7 @@ def stacks_action(name):
 # ---------------------------------------------------------------------------
 
 def _read_meta(project_id: Optional[str], name: str) -> Dict[str, Any]:
-    p = _stack_data_dir(project_id, name) / "meta.json"
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return _load_meta(project_id, name)
 
 
 def _drift_enabled(project_id: Optional[str], name: str) -> bool:

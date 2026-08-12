@@ -27,11 +27,8 @@ def rotate_stack_secrets(project_id: str, name: str, keys: Optional[List[str]] =
     _save_secrets(project_id, name, newmap)
     # audit trail: rotate marker on the meta
     try:
-        meta_p = _stack_data_dir(project_id, name) / "meta.json"
-        if meta_p.exists():
-            meta = json.loads(meta_p.read_text(encoding="utf-8"))
-            meta["last_secret_rotation"] = int(time.time())
-            meta_p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        from services.cloud_provisioning import _save_meta
+        _save_meta(project_id, name, last_secret_rotation=int(time.time()))
     except Exception:
         pass
     logger.info(f"[secrets] rotated {len(targets)} secret(s) for stack {name} (project {project_id})")
@@ -55,19 +52,10 @@ def _rotation_loop(interval: int = ROTATION_INTERVAL_SECONDS) -> None:
                 pid = proj if isinstance(proj, str) else proj.get("id")
                 if not pid:
                     continue
-                base = _stack_data_dir(pid, "_").parent
-                if not base.exists():
-                    continue
-                for d in base.iterdir():
-                    meta_p = d / "meta.json"
-                    if not meta_p.exists():
-                        continue
-                    try:
-                        meta = json.loads(meta_p.read_text(encoding="utf-8"))
-                    except Exception:
-                        continue
-                    if meta.get("secret_rotation") is True:
-                        rotate_stack_secrets(pid, d.name)
+                from services.cloud_provisioning import _list_stacks
+                for st in _list_stacks(pid):
+                    if st.get("secret_rotation") is True:
+                        rotate_stack_secrets(pid, st["name"])
         except Exception as e:
             logger.error(f"[secrets] rotation loop error: {e}")
         time.sleep(interval)
