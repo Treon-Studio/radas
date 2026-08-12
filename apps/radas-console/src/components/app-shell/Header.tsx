@@ -141,7 +141,8 @@ export function AppHeader() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2 h-full">
-          {orgs.length > 0 && (
+          {/* Org-switcher hanya relevan bila user anggota >1 org; kelola org di /settings/orgs */}
+          {orgs.length > 1 && (
             <div className="hidden md:flex items-center gap-1" title="Active organization">
               <Team className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
               <Select
@@ -187,6 +188,15 @@ export function AppHeader() {
                 >
                   <UserCog className="h-4 w-4" /> Profile Settings
                 </button>
+                {orgs.length > 0 && (
+                  <Link
+                    to="/settings/orgs"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--color-muted)] text-left"
+                  >
+                    <Team className="h-4 w-4" /> Organizations
+                  </Link>
+                )}
                 <button
                   role="menuitem"
                   onClick={onLogout}
