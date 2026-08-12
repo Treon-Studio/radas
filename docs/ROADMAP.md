@@ -257,8 +257,8 @@ fitur terpisah:
 | 119 | Enumerasi flag untuk seed default (block_apply, block_destroy, preview, auto_scale) | 🔶 | P1 | 6 |
 | 120 | Kill-switch block_apply menahan semua apply stack (423) | ✅ | P1 | 6 |
 | 121 | Flag per-stack stack.<name>.block_apply | ✅ | P1 | 6 |
-| 122 | Audit trail perubahan flag (siapa, kapan, dari-ke) | 🔶 | P1 | 6 |
-| 123 | TTL/schedule auto-expire flag (maintenance window) | ⬜ | P2 | 6 |
+| 122 | Audit trail perubahan flag (siapa, kapan, dari-ke) | ✅ | P1 | 6 |
+| 123 | TTL/schedule auto-expire flag (maintenance window) | ✅ | P2 | 6 |
 | 124 | Flag eksperimen untuk A/B testing safety | ⬜ | P2 | 6 |
 | 125 | Progressive rollout otomatis: 10%->25%->50%->100% dengan interval | ⬜ | P2 | 6 |
 | 126 | Rollback flag ke nilai sebelumnya (snapshot) | ⬜ | P2 | 6 |
@@ -303,7 +303,7 @@ fitur terpisah:
 |---|---|---|---|---|
 | 161 | Registry test case: definisi test (nama, stack, assertion) CRUD | ✅ | P0 | 6 |
 | 162 | Eksekusi test terhadap plan terakhir (tofu plan output) | ✅ | P0 | 6 |
-| 163 | Support OpenTofu native test (.tftest.hcl run blocks) | 🔶 | P1 | 6 |
+| 163 | Support OpenTofu native test (.tftest.hcl run blocks) | ✅ | P1 | 6 |
 | 164 | Assertion library bawaan: CIDR publik, volume unencrypted, tag wajib | ✅ | P0 | 6 |
 | 165 | Assertion: IAM wildcard (Action * / Resource *) | ✅ | P1 | 6 |
 | 166 | Assertion: S3 bucket public / ACL terbuka | ✅ | P1 | 6 |
@@ -379,18 +379,18 @@ fitur terpisah:
 | 231 | Statistik: success rate per repo/workflow 7d/30d | ⬜ | P1 | 6 |
 | 232 | Durasi rata-rata workflow & p95 | ⬜ | P2 | 6 |
 | 233 | Deteksi flaky: workflow sukses setelah retry | ⬜ | P2 | 6 |
-| 234 | Buat workflow baru dari template (scaffold tofu/ansible) | ⬜ | P0 | 6 |
+| 234 | Buat workflow baru dari template (scaffold tofu/ansible) | ✅ | P0 | 6 |
 | 235 | Template workflow: tofu-plan.yaml, tofu-apply.yaml, ansible-run.yaml | ⬜ | P0 | 6 |
 | 236 | Commit workflow file via Contents API (create/update) | ⬜ | P0 | 6 |
 | 237 | PR plan comment integration (komentar hasil plan di PR) | ⬜ | P1 | 6 |
 | 238 | Required check enforcement: workflow harus sukses sebelum merge | ⬜ | P1 | 6 |
 | 239 | Atur environment protection rules (require approval) | ⬜ | P1 | 6 |
-| 240 | List self-hosted runner groups & runners | ⬜ | P1 | 6 |
+| 240 | List self-hosted runner groups & runners | 🔶 | P1 | 6 |
 | 241 | Registrasi runner token + instruksi setup runner | ⬜ | P1 | 6 |
 | 242 | Provision runner sebagai stack OpenTofu (ephemeral) | ⬜ | P2 | 6 |
 | 243 | Hapus runner offline (remove runner) | ⬜ | P1 | 6 |
 | 244 | Label runner management (add/remove labels) | ⬜ | P2 | 6 |
-| 245 | Secrets per repo/environment via API (CRUD) | ⬜ | P1 | 6 |
+| 245 | Secrets per repo/environment via API (CRUD) | ✅ | P1 | 6 |
 | 246 | Workflow template: scaffold tofu/ansible workflow files di console | ✅ | P0 | 6 |
 | 247 | Template workflow: tofu-plan.yaml, tofu-apply.yaml, ansible-run.yaml | ✅ | P0 | 6 |
 | 248 | Commit workflow file via Contents API (create/update) | ✅ | P0 | 6 |
@@ -439,15 +439,15 @@ fitur terpisah:
 | 286 | Drift detection untuk resource imported | ⬜ | P1 | 6 |
 | 287 | Cost access: read billing API per akun | ⬜ | P2 | 6 |
 | 288 | Budget alert bergabung dengan BYOC akun | ⬜ | P2 | 6 |
-| 289 | Health check berkala koneksi (cron ping) | 🔶 | P1 | 6 |
+| 289 | Health check berkala koneksi (cron ping) | ✅ | P1 | 6 |
 | 290 | Notifikasi saat credential expired/rejected | 🔶 | P1 | 6 |
 | 291 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ✅ | P1 | 6 |
 | 292 | Provider IDCloudHost: REST API import | ✅ | P1 | 6 |
 | 293 | Sync state dari existing terraform state (import state) | ⬜ | P1 | 6 |
 | 294 | Multiple state file: remote vs local detect | ⬜ | P1 | 6 |
 | 295 | Kredensial per stack (bukan hanya per akun) | ⬜ | P1 | 6 |
-| 296 | Rotasi kredensial otomatis (schedule) | ⬜ | P2 | 6 |
-| 297 | Health check berkala koneksi (cron ping) | ⬜ | P1 | 6 |
+| 296 | Rotasi kredensial otomatis (schedule) | ✅ | P2 | 6 |
+| 297 | Health check berkala koneksi (cron ping) | 🔶 | P1 | 6 |
 | 298 | Notifikasi saat credential expired/rejected | ⬜ | P1 | 6 |
 | 299 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ⬜ | P1 | 6 |
 | 300 | Provider IDCloudHost: REST API import | ⬜ | P1 | 6 |
@@ -684,9 +684,9 @@ fitur terpisah:
 | 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ⬜ | P1 | 6 |
 | 522 | Backend.hcl edit guard (jangan rusak state key) | ⬜ | P1 | 6 |
 | 523 | Force-unlock state (tofu force-unlock wrapper) | ⬜ | P1 | 6 |
-| 524 | Taint/unt-aint resource dari console | ⬜ | P1 | 6 |
+| 524 | Taint/unt-aint resource dari console | ✅ | P1 | 6 |
 | 525 | Import via console ke stack existing | ⬜ | P1 | 6 |
-| 526 | Output values viewer (state outputs) | ⬜ | P1 | 6 |
+| 526 | Output values viewer (state outputs) | ✅ | P1 | 6 |
 | 527 | Resource graph canvas (interaktif) | ⬜ | P2 | 6 |
 | 528 | Plan diff viewer sudah -> attach test hasil | 🔶 | P1 | 6 |
 | 529 | Run timeline: semua langkah tofu (init/validate/plan/apply) | ⬜ | P1 | 6 |
@@ -697,8 +697,8 @@ fitur terpisah:
 | 534 | Worker resource usage monitoring | ⬜ | P2 | 6 |
 | 535 | Worker online/offline status di dasbor | ⬜ | P1 | 6 |
 | 536 | Cooldown after failed apply (anti-spam) | ⬜ | P1 | 6 |
-| 537 | Lock stack manual (mode maintenance) | ⬜ | P1 | 6 |
-| 538 | Lock reason & who (viewable) | ⬜ | P2 | 6 |
+| 537 | Lock stack manual (mode maintenance) | ✅ | P1 | 6 |
+| 538 | Lock reason & who (viewable) | ✅ | P2 | 6 |
 | 539 | DR: restore stack dari snapshot (sudah) | 🔶 | P1 | 6 |
 | 540 | Snapshots: komentar/penamaan | ⬜ | P2 | 6 |
 | 541 | Schedule snapshot berkala | ⬜ | P2 | 6 |
