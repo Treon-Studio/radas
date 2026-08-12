@@ -29,38 +29,36 @@ _SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(_SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(_SERVER_ROOT))
 
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql://localhost/radas_test"
+)
+os.environ.setdefault(
+    "TEST_DATABASE_URL", "postgresql://localhost/radas_test"
+)
+
 import pytest
 
 
 @pytest.fixture
-def data_dir(tmp_path, monkeypatch):
-    """Isolated DATA_DIR plus a fresh SQLite index connection."""
+def pg_db(monkeypatch):
+    """Isolated Postgres schema for tests: reset all tables per test."""
+    from storage import pg, pg_schema
+
+    pg.reset_connection_pool()
+    pg_schema.reset_schema()
+    yield
+    pg.reset_connection_pool()
+
+
+@pytest.fixture
+def data_dir(tmp_path, monkeypatch, pg_db):
+    """Isolated DATA_DIR (file-based stores) + fresh Postgres schema."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     (tmp_path / "auth").mkdir(parents=True, exist_ok=True)
     (tmp_path / "workers").mkdir(parents=True, exist_ok=True)
     (tmp_path / "projects").mkdir(parents=True, exist_ok=True)
 
-    import storage.index_db as index_db
-
-    if index_db._CONN is not None:
-        try:
-            index_db._CONN.close()
-        except Exception:
-            pass
-    index_db._CONN = None
-    index_db._DB_PATH = None
-    index_db._READY = False
-
     yield tmp_path
-
-    if index_db._CONN is not None:
-        try:
-            index_db._CONN.close()
-        except Exception:
-            pass
-    index_db._CONN = None
-    index_db._DB_PATH = None
-    index_db._READY = False
 
 
 @pytest.fixture
