@@ -21,6 +21,19 @@ def api_list_flags():
     return jsonify({"flags": list_flags()})
 
 
+@bp.route('/api/flags/audit', methods=['GET'])
+@require_auth
+def api_flag_audit():
+    from services.feature_flags import flag_audit
+    limit = request.args.get("limit", "100")
+    try:
+        limit = max(1, min(500, int(limit)))
+    except (TypeError, ValueError):
+        limit = 100
+    key = (request.args.get("flag_key") or "").strip() or None
+    return jsonify({"audit": flag_audit(limit=limit, flag_key=key)})
+
+
 @bp.route('/api/flags', methods=['POST'])
 @require_auth
 def api_create_flag():

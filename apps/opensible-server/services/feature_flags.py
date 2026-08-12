@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -18,11 +19,66 @@ DEFAULT_ENVS = ("dev", "staging", "prod", "preview")
 
 
 def _store_path() -> Path:
+    env_dir = os.environ.get("DATA_DIR")
+    if env_dir:
+        return Path(env_dir) / "feature_flags.json"
     try:
         import app as _app
         return Path(getattr(_app, "DATA_DIR", "data")) / "feature_flags.json"
     except Exception:
         return Path("data") / "feature_flags.json"
+
+
+def _audit_store_path() -> Path:
+    env_dir = os.environ.get("DATA_DIR")
+    if env_dir:
+        return Path(env_dir) / "flag_audit.json"
+    try:
+        import app as _app
+        return Path(getattr(_app, "DATA_DIR", "data")) / "flag_audit.json"
+    except Exception:
+        return Path("data") / "flag_audit.json"
+
+
+def log_flag_change(key: str, actor: str = "", changes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    entry = {"key": key, "actor": actor or "system", "changes": changes or {},
+             "at": _now()}
+    items = json.loads(_audit_store_path().read_text(encoding="utf-8")) if _audit_store_path().exists() else []
+    if not isinstance(items, list):
+        items = []
+    items.append(entry)
+    items = items[-1000:]
+    _audit_store_path().write_text(json.dumps(items, indent=2), encoding="utf-8")
+    return entry
+
+
+def flag_audit(limit: int = 100, flag_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    items = json.loads(_audit_store_path().read_text(encoding="utf-8")) if _audit_store_path().exists() else []
+    if not isinstance(items, list):
+        items = []
+    if flag_key:
+        items = [e for e in items if e.get("key") == flag_key]
+    return items[-limit:][::-1]
+
+
+def expire_due_flags(now: Optional[int] = None) -> int:
+    """Disable flags whose scheduled_expire_at (or created+ttl) passed. Returns count."""
+    now = now or _now()
+    items = _load()
+    changed = 0
+    for f in items:
+        if not f.get("enabled"):
+            continue
+        expire_at = f.get("scheduled_expire_at")
+        if expire_at is None and f.get("ttl_seconds"):
+            expire_at = f.get("created_at", 0) + int(f["ttl_seconds"])
+        if expire_at and now >= expire_at:
+            f["enabled"] = False
+            f["expired_at"] = now
+            changed += 1
+    if changed:
+        _save(items)
+    return changed
 
 
 def _load() -> List[Dict[str, Any]]:
@@ -89,9 +145,16 @@ def create_flag(data: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": _now(),
         "updated_at": _now(),
     }
+    for _field in ("ttl_seconds", "scheduled_expire_at"):
+        if data.get(_field) is not None:
+            try:
+                flag[_field] = int(data[_field])
+            except (TypeError, ValueError):
+                pass
     items = _load()
     items.append(flag)
     _save(items)
+    log_flag_change(key, changes={"enabled": flag["enabled"]})
     return flag
 
 
@@ -117,7 +180,9 @@ def update_flag(key: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if "users_blacklist" in patch:
         flag["users_blacklist"] = [str(u) for u in patch["users_blacklist"]]
     flag["updated_at"] = _now()
+    changes = {k: patch[k] for k in patch if k in ("enabled", "kill_switch", "rollout_percent", "environments")}
     _save(items)
+    log_flag_change(key, changes=changes)
     return flag
 
 
