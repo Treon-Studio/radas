@@ -827,7 +827,7 @@ def stacks_delete(name):
 
 # ---- tofu execution (dispatched to workers, like Ansible) ------------------
 
-_VALID_ACTIONS = {"init", "plan", "apply", "destroy", "validate", "fmt", "refresh", "drift"}
+_VALID_ACTIONS = {"init", "plan", "apply", "destroy", "validate", "fmt", "refresh", "drift", "test"}
 
 
 def _tofu_cmd(action: str) -> List[str]:
@@ -853,6 +853,9 @@ def _tofu_cmd(action: str) -> List[str]:
         # the real world still matches state. -detailed-exitcode yields
         # 0 = in sync, 2 = drift detected, 1 = error. Never writes state.
         return ["tofu", "plan", "-refresh-only", "-input=false", "-no-color", "-detailed-exitcode"]
+    if action == "test":
+        # OpenTofu test framework: runs *.tftest.hcl files in the stack dir.
+        return ["tofu", "test"]
     raise ValueError(action)
 
 

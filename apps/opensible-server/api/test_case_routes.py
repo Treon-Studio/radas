@@ -74,6 +74,17 @@ def api_run_test(test_id):
     return jsonify({"success": True, "result": result}), 201
 
 
+@bp.route('/api/tests/<test_id>/tofu-test', methods=['POST'])
+@require_auth
+def api_run_tofu_test(test_id):
+    from services.test_cases import run_tofu_test
+    try:
+        result = run_tofu_test(_pid(), test_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"success": True, "result": result}), 201
+
+
 @bp.route('/api/tests/results', methods=['GET'])
 @require_auth
 def api_test_results():

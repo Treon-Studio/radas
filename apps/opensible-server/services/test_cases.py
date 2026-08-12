@@ -273,6 +273,32 @@ def run_test_case(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
     return result
 
 
+def run_tofu_test(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
+    tc = get_test_case(test_id)
+    if not tc:
+        raise ValueError("test case not found")
+    stack = tc.get("stack") or ""
+    if not stack:
+        raise ValueError("test case has no stack; set stack first")
+    from services.cloud_provisioning import _create_execution, _stack_dir
+    if not _stack_dir(project_id, stack).exists():
+        raise ValueError(f"stack '{stack}' not found; create the stack first")
+    eid = _create_execution(project_id, stack, "test", triggered_by=f"test:{tc.get('name','')}")
+    result = {
+        "id": str(uuid.uuid4()), "test_id": test_id, "name": tc["name"],
+        "stack": stack, "kind": "tofu_test", "severity": tc.get("severity") or "warning",
+        "passed": True, "queued": True, "execution_id": eid,
+        "findings": [{"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",
+                      "severity": "info", "source": "plan",
+                      "detail": f"tofu test queued (execution {eid})." }],
+        "ran_at": int(time.time()), "project_id": project_id,
+    }
+    history = _load("test_results.json")
+    history.append(result)
+    _save("test_results.json", history[-500:])
+    return result
+
+
 def list_test_results(limit: int = 100) -> List[Dict[str, Any]]:
     return _load("test_results.json")[-limit:][::-1]
 

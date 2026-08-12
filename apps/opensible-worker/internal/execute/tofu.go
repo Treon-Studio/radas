@@ -43,6 +43,9 @@ func tofuArgs(action string) ([]string, error) {
 		// Read-only drift detection. -detailed-exitcode: 0 = in sync,
 		// 2 = drift detected, 1 = error. State is never written.
 		return []string{"tofu", "plan", "-refresh-only", "-input=false", "-no-color", "-detailed-exitcode"}, nil
+	case "test":
+		// OpenTofu test framework: runs *.tftest.hcl files in the stack dir.
+		return []string{"tofu", "test"}, nil
 	}
 	return nil, errors.New("unsupported tofu action: " + action)
 }
