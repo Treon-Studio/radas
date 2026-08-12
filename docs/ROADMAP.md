@@ -287,7 +287,7 @@ fitur terpisah:
 | 149 | Search/filter flag by tag, env, status | 🔶 | P1 | 6 |
 | 150 | Export key flag ke environment untuk CI (evaluasi di pipeline) | ⬜ | P2 | 6 |
 | 151 | Flag webhook: panggil URL saat flag berubah | ⬜ | P2 | 6 |
-| 152 | Multi-tenant: flag per project dengan inherit global | ⬜ | P1 | 6 |
+| 152 | Multi-tenant: flag per project dengan inherit global | ✅ | ⬜ | P1 | 6 |
 | 153 | Graceful degradation: kegagalan evaluasi -> default safe (off) | ⬜ | P1 | 6 |
 | 154 | Caching hasil evaluasi (TTL) untuk performa | ⬜ | P2 | 6 |
 | 155 | Flag schedule override via cron (aktivasi libur) | ⬜ | P2 | 6 |
@@ -543,9 +543,9 @@ fitur terpisah:
 | 385 | Smart inventory: dynamic host groups | ⬜ | P1 | 6 |
 | 386 | Workflow templates multi-playbook (chain) | ⬜ | P1 | 6 |
 | 387 | Callback/webhook untuk job launch | ⬜ | P2 | 6 |
-| 388 | RBAC granular: role per resource type (stack, secret, key) | ⬜ | P0 | 6 |
-| 389 | Project hierarchy: org -> project -> env | ⬜ | P1 | 6 |
-| 390 | Delegated admin (project admin) | ⬜ | P2 | 6 |
+| 388 | RBAC granular: role per resource type (stack, secret, key) | ✅ | ⬜ | P0 | 6 |
+| 389 | Project hierarchy: org -> project -> env | ✅ | ⬜ | P1 | 6 |
+| 390 | Delegated admin (project admin) | ✅ | ⬜ | P2 | 6 |
 | 391 | Read-only kls semua (sudah ada role) | 🔶 | P1 | 6 |
 | 392 | Audit retention & export policy | ⬜ | P2 | 6 |
 | 393 | Landing dashboard per project (widget stack) | ⬜ | P0 | 6 |
@@ -782,7 +782,7 @@ fitur terpisah:
 | 619 | Audit export CSV | ⬜ | P2 | 6 |
 | 620 | Search audit log lengkap | ⬜ | P1 | 6 |
 | 621 | Retensi audit configurable | ⬜ | P2 | 6 |
-| 622 | User roles matrix viewer | ⬜ | P2 | 6 |
+| 622 | User roles matrix viewer | ✅ | ⬜ | P2 | 6 |
 | 623 | Deactivate user (bukan delete) | ⬜ | P1 | 6 |
 | 624 | Welcome email onboarding | ⬜ | P3 | 6 |
 | 625 | Invite link user dengan role | ⬜ | P1 | 6 |

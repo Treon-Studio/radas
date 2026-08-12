@@ -1,4 +1,4 @@
-import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine } from "@remixicon/react";
+import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine, RiTeamLine as Team } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import logoSvg from "@/assets/opensible-logo.png";
@@ -9,10 +9,11 @@ import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
-import { getStoredUser } from "@/lib/api";
+import { api, getStoredUser, setToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type StoredUser = { username?: string; email?: string; roles?: string[]; role_details?: { name: string }[] };
+type Org = { id: string; name: string; role: string };
 
 export function AppHeader() {
   const t = useT();
@@ -23,6 +24,36 @@ export function AppHeader() {
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [activeOrg, setActiveOrg] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    api<{ orgs: Org[] }>("GET", "/api/orgs")
+      .then((d) => {
+        if (!alive) return;
+        setOrgs(d.orgs ?? []);
+        const stored = window.localStorage.getItem("active_org_id");
+        const match = d.orgs?.find((o) => o.id === stored);
+        if (match) setActiveOrg(match.id);
+        else if (d.orgs?.[0]) setActiveOrg(d.orgs[0].id);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const switchOrg = async (orgId: string) => {
+    if (!orgId || orgId === activeOrg) return;
+    try {
+      const d = await api<{ access_token: string; refresh_token: string }>("POST", "/api/auth/switch-org", { org_id: orgId });
+      setToken(d.access_token, d.refresh_token);
+      window.localStorage.setItem("active_org_id", orgId);
+      setActiveOrg(orgId);
+      window.location.reload();
+    } catch (e: any) {
+      console.error("switch-org failed", e);
+    }
+  };
 
   const user = getStoredUser<StoredUser>() || {};
   const displayName = user.username || t("common.admin");
@@ -110,6 +141,18 @@ export function AppHeader() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2 h-full">
+          {orgs.length > 0 && (
+            <div className="hidden md:flex items-center gap-1" title="Active organization">
+              <Team className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
+              <Select
+                value={activeOrg}
+                onChange={switchOrg}
+                options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+                className="w-36"
+                triggerClassName="h-7 text-xs"
+              />
+            </div>
+          )}
           <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")} className="h-7 px-3 text-xs">
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">{t("common.newProject")}</span>

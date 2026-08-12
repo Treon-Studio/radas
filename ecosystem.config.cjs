@@ -41,6 +41,8 @@ module.exports = {
         WORKER_REGISTRATION_SECRET: SECRET,
         ADMIN_INITIAL_PASSWORD: "admin12345",
         CORS_ALLOWED_ORIGINS: "http://localhost:8080",
+        DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
+        TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || "postgresql://localhost/radas_test",
       },
     },
     {

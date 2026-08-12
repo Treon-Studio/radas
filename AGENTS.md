@@ -171,3 +171,20 @@ about, or use `pnpm -r --filter <name> ...`.
 - Secrets for the chrome-ext come from Infisical, not from `.env`. Locally
   you can copy `.env.example` to `.env`; CI uses dummy values when the
   token is absent.
+
+## Database (Fase 7)
+
+- **Selalu PostgreSQL.** `DATABASE_URL` wajib; server menolak boot tanpa
+  koneksi yang bisa diakses (Neon supported). Skema di-manage
+  `apps/opensible-server/storage/pg_schema.py` (versioned
+  `schema_migrations`); jangan buat tabel manual di luar itu.
+- Akses via `storage/pg.py` helpers (`execute/query_one/query_all/
+  transaction`) atau `storage/pg_compat.py` (facade sqlite3-style untuk
+  modul yang masih pakai pola lama `get_conn()` + `?` placeholders).
+- JSON-config stores → tabel `kv_store(scope, key, value jsonb)`; gunakan
+  `storage/kv.py`.
+- Test memakai `TEST_DATABASE_URL` (default `postgresql://localhost/radas_test`);
+  schema di-reset per test via fixture `pg_db`.
+- Multi-tenant: `orgs`/`org_members`, `projects.org_id`; JWT membawa
+  `org_id`; route project-scoped memakai `require_project_access`.
+- Lihat `docs/postgres-neon.md`.
