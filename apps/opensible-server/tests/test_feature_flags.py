@@ -74,3 +74,10 @@ def test_blacklist_beats_whitelist(data_dir):
                  "users_whitelist": ["boss"], "users_blacklist": ["boss"]})
     assert evaluate("bl", env="prod", user="boss")["enabled"] is False
     assert evaluate("bl", env="prod", user="boss")["reason"] == "blacklisted"
+
+
+def test_rollout_percent_string_coerced(data_dir):
+    from services.feature_flags import create_flag, evaluate
+    create_flag({"key": "strroll", "rollout_percent": "50"})
+    r = evaluate("strroll", env="prod")
+    assert "enabled" in r  # must not raise TypeError

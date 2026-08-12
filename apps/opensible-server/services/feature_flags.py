@@ -68,6 +68,11 @@ def create_flag(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Flag key must be at least 2 chars")
     if get_flag(key):
         raise ValueError(f"Flag '{key}' already exists")
+    _raw_rollout = data.get("rollout_percent", 100)
+    try:
+        _rollout = int(_raw_rollout)
+    except (TypeError, ValueError):
+        _rollout = 100
     flag = {
         "id": str(uuid.uuid4()),
         "key": key,
@@ -76,7 +81,7 @@ def create_flag(data: Dict[str, Any]) -> Dict[str, Any]:
         "enabled": bool(data.get("enabled", True)),
         "environments": {e: bool(data.get("environments", {}).get(e, True))
                          for e in DEFAULT_ENVS},
-        "rollout_percent": data.get("rollout_percent", 100),
+        "rollout_percent": max(0, min(100, _rollout)),
         "users_whitelist": [str(u) for u in (data.get("users_whitelist") or [])],
         "users_blacklist": [str(u) for u in (data.get("users_blacklist") or [])],
         "tags": [str(t) for t in (data.get("tags") or [])],
@@ -145,7 +150,11 @@ def evaluate(key: str, env: str = "prod", user: str = "") -> Dict[str, Any]:
         if user in (flag.get("users_whitelist") or []):
             return {"key": key, "enabled": True, "reason": "whitelisted"}
     # Percentage rollout.
-    percent = flag.get("rollout_percent", 100)
+    try:
+        percent = int(flag.get("rollout_percent", 100))
+    except (TypeError, ValueError):
+        percent = 100
+    percent = max(0, min(100, percent))
     if percent >= 100:
         return {"key": key, "enabled": True, "reason": "full_rollout"}
     if percent <= 0:
