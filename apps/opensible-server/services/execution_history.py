@@ -35,6 +35,34 @@ from app_context import get_projects_dir
 logger = logging.getLogger("app")
 
 
+def _pg_upsert_execution(execution_id: str, project_id: str, execution: dict) -> None:
+    """Store an execution record as jsonb (Fase 7 — C2)."""
+    from storage import pg
+    pg.execute(
+        "INSERT INTO executions (id, project_id, data, created_at) VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, "
+        "project_id = EXCLUDED.project_id, created_at = EXCLUDED.created_at",
+        (execution_id, project_id, json.dumps(execution, ensure_ascii=False),
+         execution.get("createdAt") or time.time()),
+    )
+
+
+def _pg_get_execution(execution_id: str, project_id: Optional[str] = None):
+    from storage import pg
+    try:
+        if project_id:
+            row = pg.query_one(
+                "SELECT data FROM executions WHERE id = %s AND project_id = %s",
+                (execution_id, project_id))
+        else:
+            row = pg.query_one("SELECT data FROM executions WHERE id = %s", (execution_id,))
+        if row:
+            return row["data"]
+    except Exception:
+        pass
+    return None
+
+
 def _app():
     for module_name in ("__main__", "app"):
         module = sys.modules.get(module_name)
@@ -158,14 +186,9 @@ def create_execution_record(data, project_id=None, execution_id=None):
         execution['triggeredByUserId'] = data.get('triggeredByUserId')
 
     
-    # ALWAYS use Project Storage - no fallback
-    executions_dir = get_project_executions_dir(project_id)
-    executions_dir.mkdir(parents=True, exist_ok=True)
-    
-    execution_file = executions_dir / f'{execution_id}.json'
+    # ALWAYS use Project Storage - no fallback. (Fase 7: Postgres jsonb.)
     try:
-        with open(execution_file, 'w', encoding='utf-8') as f:
-            json.dump(execution, f, indent=2, ensure_ascii=False)
+        _pg_upsert_execution(execution_id, project_id, execution)
         # Index for fast worker/claim/log/finish lookups (best-effort).
         try:
             from storage import index_db as _index_db
@@ -221,17 +244,14 @@ def append_execution_log(execution_id, text, project_id=None):
         logger.error(f"[append_execution_log] project_id is required for execution {execution_id}")
         raise ValueError(f"project_id is required for append_execution_log (execution_id: {execution_id})")
     
-    # ALWAYS use Project Storage - no fallback
-    # : history/logs/
-    logs_dir = get_project_logs_dir(project_id)
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    
-    log_file = logs_dir / f'{execution_id}.log'
+    # ALWAYS use Project Storage - no fallback. (Fase 7: Postgres bytea.)
     try:
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(text)
-            if not text.endswith('\n'):
-                f.write('\n')
+        from storage import pg
+        pg.execute(
+            "INSERT INTO execution_logs (execution_id, chunk, data) VALUES (%s, 0, %s) "
+            "ON CONFLICT (execution_id, chunk) DO UPDATE SET data = execution_logs.data || EXCLUDED.data",
+            (execution_id, (text + ("" if text.endswith("\n") else "\n")).encode("utf-8")),
+        )
         return True
     except Exception as e:
         logger.error(f"Error writing log for execution {execution_id}: {e}")
@@ -247,79 +267,63 @@ def get_execution_log(execution_id, project_id=None):
         logger.error(f"[get_execution_log] project_id is required for execution {execution_id}")
         raise ValueError(f"project_id is required for get_execution_log (execution_id: {execution_id})")
     
-    # ALWAYS use Project Storage - no fallback
-    # : history/logs/
-    logs_dir = get_project_logs_dir(project_id)
-    
-    log_file = logs_dir / f'{execution_id}.log'
+    # ALWAYS use Project Storage - no fallback. (Fase 7: Postgres bytea.)
     try:
-        if log_file.exists():
-            with open(log_file, 'r', encoding='utf-8') as f:
-                return f.read()
+        from storage import pg
+        row = pg.query_one(
+            "SELECT data FROM execution_logs WHERE execution_id = %s AND chunk = 0",
+            (execution_id,))
+        if row and row["data"]:
+            return row["data"].decode("utf-8", errors="replace")
     except Exception as e:
         logger.error(f"Error reading log for execution {execution_id}: {e}")
     return ''
 
 
 def list_executions(limit=None, offset=0, search_query=None, playbook_id=None, project_id=None):
-    """ executions ( ) Project Storage
-    
-    REQUIRED: project_id must be provided (no fallback to legacy EXECUTIONS_DIR)
-    """
+    """ executions ( ) Project Storage (Fase 7: Postgres jsonb)"""
     if not project_id:
         logger.error("[list_executions] project_id is required")
         raise ValueError("project_id is required for list_executions")
-    
+
     executions = []
     try:
-        # ALWAYS use Project Storage - no fallback
-        executions_dir = get_project_executions_dir(project_id)
-        
-        if not executions_dir.exists():
-            return []
-        
-        for execution_file in sorted(executions_dir.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True):
-            try:
-                with open(execution_file, 'r', encoding='utf-8') as f:
-                    execution = json.load(f)
-                    
-                    # playbook_id
-                    if playbook_id:
-                        selection_snapshot = execution.get('selectionSnapshot', {})
-                        execution_playbook_id = selection_snapshot.get('playbookId')
-                        if execution_playbook_id != playbook_id:
-                            continue
-                    
-                    if search_query:
-                        query_lower = search_query.lower()
-                        if (query_lower not in execution.get('id', '').lower() and
-                            query_lower not in str(execution.get('stats', {}).get('hostsTargeted', '')).lower()):
-                            # inventorySnapshot
-                            found = False
-                            inventory = execution.get('inventorySnapshot', {})
-                            for group in inventory.get('groups', []):
-                                if query_lower in group.get('groupName', '').lower():
-                                    found = True
-                                    break
-                                for host in group.get('hosts', []):
-                                    if query_lower in host.get('hostId', '').lower() or query_lower in host.get('ip', '').lower():
-                                        found = True
-                                        break
-                                if found:
-                                    break
-                            if not found:
-                                continue
-                    
-                    executions.append(execution)
-            except Exception as e:
-                logger.warning(f"Error reading execution file {execution_file}: {e}")
-        
-        # limit offset
+        from storage import pg
+        rows = pg.query_all(
+            "SELECT data FROM executions WHERE project_id = %s "
+            "ORDER BY COALESCE(data->>'createdAt', '0')::float DESC",
+            (project_id,))
+        for r in rows:
+            execution = r["data"] or {}
+            # playbook_id
+            if playbook_id:
+                selection_snapshot = execution.get('selectionSnapshot', {})
+                execution_playbook_id = selection_snapshot.get('playbookId')
+                if execution_playbook_id != playbook_id:
+                    continue
+            if search_query:
+                query_lower = search_query.lower()
+                if (query_lower not in execution.get('id', '').lower() and
+                        query_lower not in str(execution.get('stats', {}).get('hostsTargeted', '')).lower()):
+                    found = False
+                    inventory = execution.get('inventorySnapshot', {})
+                    for group in inventory.get('groups', []):
+                        if query_lower in group.get('groupName', '').lower():
+                            found = True
+                            break
+                        for host in group.get('hosts', []):
+                            if query_lower in host.get('hostId', '').lower() or query_lower in host.get('ip', '').lower():
+                                found = True
+                                break
+                        if found:
+                            break
+                    if not found:
+                        continue
+            executions.append(execution)
         if limit:
             executions = executions[offset:offset + limit]
         elif offset:
             executions = executions[offset:]
-        
         return executions
     except Exception as e:
         logger.error(f"Error getting list of executions: {e}")
@@ -327,43 +331,8 @@ def list_executions(limit=None, offset=0, search_query=None, playbook_id=None, p
 
 
 def get_execution(execution_id, project_id=None):
-    """ execution ID"""
-    # project_id , 
-    if not project_id:
-        try:
-            from storage import index_db as _index_db
-            project_id = _index_db.find_execution_project(execution_id)
-        except Exception:
-            project_id = None
-    if project_id:
-        executions_dir = get_project_executions_dir(project_id)
-        execution_file = executions_dir / f'{execution_id}.json'
-        if execution_file.exists():
-            try:
-                with open(execution_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Error getting execution {execution_id}: {e}")
-    else:
-        # ( : history/executions/)
-        for proj_dir in PROJECTS_DIR.iterdir():
-            if not proj_dir.is_dir():
-                continue
-            # : history/executions/
-            executions_dir = proj_dir / 'history' / 'executions'
-            if not executions_dir.exists():
-                # : executions/
-                executions_dir = proj_dir / 'executions'
-            if not executions_dir.exists():
-                continue
-            execution_file = executions_dir / f'{execution_id}.json'
-            if execution_file.exists():
-                try:
-                    with open(execution_file, 'r', encoding='utf-8') as f:
-                        return json.load(f)
-                except Exception as e:
-                    logger.error(f"Error getting execution {execution_id}: {e}")
-    return None
+    """ execution ID (Fase 7: Postgres jsonb)"""
+    return _pg_get_execution(execution_id, project_id)
 
 
 def _cleanup_generated_playbooks_for_execution(project_id, execution_id):
@@ -439,46 +408,26 @@ def _cleanup_orphaned_generated_playbooks(project_id, min_age_seconds=600):
 
 
 def delete_execution(execution_id, project_id=None):
-    """ execution, generated_playbooks"""
+    """ execution, generated_playbooks (Fase 7: Postgres)"""
     try:
-        # project_id , 
+        from storage import pg
+        if not project_id:
+            try:
+                from storage import index_db as _index_db
+                project_id = _index_db.find_execution_project(execution_id)
+            except Exception:
+                project_id = None
         if project_id:
-            executions_dir = get_project_executions_dir(project_id)
-            logs_dir = get_project_logs_dir(project_id)
-            execution_file = executions_dir / f'{execution_id}.json'
-            log_file = logs_dir / f'{execution_id}.log'
-            
             _cleanup_generated_playbooks_for_execution(project_id, execution_id)
-            if execution_file.exists():
-                execution_file.unlink()
-            if log_file.exists():
-                log_file.unlink()
+            pg.execute("DELETE FROM executions WHERE id = %s", (execution_id,))
+            pg.execute("DELETE FROM execution_logs WHERE execution_id = %s", (execution_id,))
+            try:
+                from storage import index_db as _index_db
+                _index_db.remove_queued_execution(execution_id)
+                _index_db.remove_running_execution(execution_id)
+            except Exception:
+                pass
             return True
-        else:
-            # ( : history/executions/ history/logs/)
-            for proj_dir in PROJECTS_DIR.iterdir():
-                if not proj_dir.is_dir():
-                    continue
-                # : history/executions/ history/logs/
-                executions_dir = proj_dir / 'history' / 'executions'
-                logs_dir = proj_dir / 'history' / 'logs'
-                if not executions_dir.exists():
-                    # : executions/ executions/logs/
-                    executions_dir = proj_dir / 'executions'
-                    logs_dir = executions_dir / 'logs'
-                if not executions_dir.exists():
-                    continue
-                
-                execution_file = executions_dir / f'{execution_id}.json'
-                log_file = logs_dir / f'{execution_id}.log'
-                
-                if execution_file.exists():
-                    proj_id = proj_dir.name
-                    _cleanup_generated_playbooks_for_execution(proj_id, execution_id)
-                    execution_file.unlink()
-                if log_file.exists():
-                    log_file.unlink()
-                return True
         return False
     except Exception as e:
         logger.error(f"Error deleting execution {execution_id}: {e}")
@@ -518,21 +467,22 @@ def apply_retention_policy():
                     executions = list_executions(project_id=project_id)
                     total_size = 0
                     
-                    # execution
+                    # execution (Fase 7: PG octet_length)
                     execution_sizes = []
-                    executions_dir = get_project_executions_dir(project_id)
-                    logs_dir = get_project_logs_dir(project_id)
-                    
+                    try:
+                        from storage import pg as _pg
+                        size_rows = _pg.query_all(
+                            "SELECT e.id, octet_length(e.data::text) AS sz, "
+                            "COALESCE(octet_length(l.data), 0) AS log_sz "
+                            "FROM executions e LEFT JOIN execution_logs l "
+                            "ON l.execution_id = e.id AND l.chunk = 0 "
+                            "WHERE e.project_id = %s", (project_id,))
+                        size_by_id = {r["id"]: int(r["sz"] or 0) + int(r["log_sz"] or 0)
+                                      for r in size_rows}
+                    except Exception:
+                        size_by_id = {}
                     for execution in executions:
-                        size = 0
-                        execution_file = executions_dir / f"{execution['id']}.json"
-                        log_file = logs_dir / f"{execution['id']}.log"
-                        
-                        if execution_file.exists():
-                            size += execution_file.stat().st_size
-                        if log_file.exists():
-                            size += log_file.stat().st_size
-                        
+                        size = size_by_id.get(execution["id"], 0)
                         execution_sizes.append((execution, size))
                         total_size += size
                     
@@ -565,33 +515,18 @@ def clear_all_executions(project_id=None):
     Legacy EXECUTIONS_DIR is no longer used.
     """
     try:
-        deleted_count = 0
+        from storage import pg
         if project_id:
-            # Clear executions for specific project
-            executions_dir = get_project_executions_dir(project_id)
-            if executions_dir.exists():
-                for execution_file in executions_dir.glob('*.json'):
-                    execution_id = execution_file.stem
-                    if delete_execution(execution_id, project_id=project_id):
-                        deleted_count += 1
+            rows = pg.query_all("SELECT id FROM executions WHERE project_id = %s", (project_id,))
+            for r in rows:
+                if delete_execution(r["id"], project_id=project_id):
+                    pass
+            return len(rows)
         else:
-            # Clear executions from all projects ( : history/executions/)
-            for proj_dir in PROJECTS_DIR.iterdir():
-                if not proj_dir.is_dir():
-                    continue
-                project_id_from_path = proj_dir.name
-                # : history/executions/
-                executions_dir = proj_dir / 'history' / 'executions'
-                if not executions_dir.exists():
-                    # : executions/
-                    executions_dir = proj_dir / 'executions'
-                if not executions_dir.exists():
-                    continue
-                for execution_file in executions_dir.glob('*.json'):
-                    execution_id = execution_file.stem
-                    if delete_execution(execution_id, project_id=project_id_from_path):
-                        deleted_count += 1
-        return deleted_count
+            rows = pg.query_all("SELECT id, project_id FROM executions")
+            for r in rows:
+                delete_execution(r["id"], project_id=r["project_id"])
+            return len(rows)
     except Exception as e:
         logger.error(f"Error clearing executions: {e}")
     return 0

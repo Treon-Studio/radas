@@ -128,15 +128,10 @@ def update_execution_record(execution_id, updates, project_id=None):
         logger.error(f"[update_execution_record] project_id is required for execution {execution_id}")
         raise ValueError(f"project_id is required for update_execution_record (execution_id: {execution_id})")
     
-    # ALWAYS use Project Storage - no fallback
-    executions_dir = get_project_executions_dir(project_id)
-    
-    execution_file = executions_dir / f'{execution_id}.json'
+    # ALWAYS use Project Storage - no fallback. (Fase 7: Postgres jsonb.)
     try:
-        if execution_file.exists():
-            with open(execution_file, 'r', encoding='utf-8') as f:
-                execution = json.load(f)
-            
+        execution = get_execution(execution_id, project_id=project_id)
+        if execution is not None:
             # Comment removed.
             old_status = execution.get('status', 'QUEUED')
             new_status = updates.get('status')
@@ -190,9 +185,15 @@ def update_execution_record(execution_id, updates, project_id=None):
             # Comment removed.
             execution.update(updates)
             
-            # Comment removed.
-            with open(execution_file, 'w', encoding='utf-8') as f:
-                json.dump(execution, f, indent=2, ensure_ascii=False)
+            # Comment removed. (Fase 7: Postgres jsonb.)
+            from storage import pg as _pg
+            _pg.execute(
+                "INSERT INTO executions (id, project_id, data, created_at) VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, "
+                "project_id = EXCLUDED.project_id, created_at = EXCLUDED.created_at",
+                (execution_id, project_id, json.dumps(execution, ensure_ascii=False),
+                 execution.get("createdAt") or time.time()),
+            )
 
             # Outbound webhook (Fase 1 — UC 95): fire-and-forget on terminal status.
             if new_status in ('SUCCESS', 'FAILED'):
@@ -255,23 +256,17 @@ def update_execution_record(execution_id, updates, project_id=None):
 
 
 def append_execution_log(execution_id, text, project_id=None):
-    """Documentation."""
+    """Documentation. (Fase 7: Postgres bytea.)"""
     if not project_id:
         logger.error(f"[append_execution_log] project_id is required for execution {execution_id}")
         raise ValueError(f"project_id is required for append_execution_log (execution_id: {execution_id})")
-    
-    # ALWAYS use Project Storage - no fallback
-    # Comment removed.
-    project_dir = PROJECTS_DIR / project_id
-    logs_dir = project_dir / 'history' / 'logs'
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    
-    log_file = logs_dir / f'{execution_id}.log'
     try:
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(text)
-            if not text.endswith('\n'):
-                f.write('\n')
+        from storage import pg
+        payload = (text if text.endswith("\n") else text + "\n").encode("utf-8")
+        pg.execute(
+            "INSERT INTO execution_logs (execution_id, chunk, data) VALUES (%s, 0, %s) "
+            "ON CONFLICT (execution_id, chunk) DO UPDATE SET data = execution_logs.data || EXCLUDED.data",
+            (execution_id, payload))
         return True
     except Exception as e:
         logger.error(f"Error writing log for execution {execution_id}: {e}")
@@ -284,81 +279,48 @@ def read_log_chunk(execution_id, offset=0, limit=1024*1024, project_id=None):
         logger.error(f"[read_log_chunk] project_id is required for execution {execution_id}")
         raise ValueError(f"project_id is required for read_log_chunk (execution_id: {execution_id})")
     
-    # Comment removed.
-    project_dir = PROJECTS_DIR / project_id
-    logs_dir = project_dir / 'history' / 'logs'
-    log_file = logs_dir / f'{execution_id}.log'
-    
     try:
-        if not log_file.exists():
+        from storage import pg
+        row = pg.query_one(
+            "SELECT data FROM execution_logs WHERE execution_id = %s AND chunk = 0",
+            (execution_id,))
+        if not row or not row["data"]:
             return ('', 0, 0, False)
-        
-        # Comment removed.
-        file_size = log_file.stat().st_size
-        
-        # Comment removed.
+        data = row["data"]
+        file_size = len(data)
         if offset >= file_size:
-            # Comment removed.
             execution = get_execution(execution_id, project_id=project_id)
-            # Comment removed.
             is_complete = execution and execution.get('status') in FINAL_STATUSES if execution else False
             return ('', offset, file_size, is_complete)
-        
-        # Comment removed.
-        with open(log_file, 'rb') as f:
-            f.seek(offset)
-            chunk = f.read(limit)
-            # Comment removed.
-            text = chunk.decode('utf-8', errors='ignore')
-        
+        chunk = data[offset:offset + limit]
+        text = chunk.decode('utf-8', errors='ignore')
         next_offset = offset + len(chunk)
-        
-        # Comment removed.
         execution = get_execution(execution_id, project_id=project_id)
-        # Comment removed.
         is_complete = execution and execution.get('status') in FINAL_STATUSES if execution else False
-        
         return (text, next_offset, file_size, is_complete)
-        
     except Exception as e:
         logger.error(f"Error reading log chunk for execution {execution_id}: {e}")
         return ('', offset, 0, False)
 
 
 def get_execution(execution_id, project_id=None):
-    """Documentation."""
-    # Comment removed.
+    """Documentation. (Fase 7: Postgres jsonb.)"""
     if not project_id:
         try:
             from storage import index_db as _index_db
             project_id = _index_db.find_execution_project(execution_id)
         except Exception:
             project_id = None
-    if project_id:
-        executions_dir = get_project_executions_dir(project_id)
-        execution_file = executions_dir / f'{execution_id}.json'
-        if execution_file.exists():
-            try:
-                with open(execution_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Error getting execution {execution_id}: {e}")
-    else:
-        # Comment removed.
-        for proj_dir in PROJECTS_DIR.iterdir():
-            if not proj_dir.is_dir():
-                continue
-            # Comment removed.
-            executions_dir = proj_dir / 'history' / 'executions'
-            if not executions_dir.exists():
-                continue
-            execution_file = executions_dir / f'{execution_id}.json'
-            if execution_file.exists():
-                try:
-                    with open(execution_file, 'r', encoding='utf-8') as f:
-                        return json.load(f)
-                except Exception as e:
-                    logger.error(f"Error getting execution {execution_id}: {e}")
+    try:
+        from storage import pg
+        if project_id:
+            row = pg.query_one("SELECT data FROM executions WHERE id = %s AND project_id = %s",
+                               (execution_id, project_id))
+        else:
+            row = pg.query_one("SELECT data FROM executions WHERE id = %s", (execution_id,))
+        return row["data"] if row else None
+    except Exception as e:
+        logger.error(f"Error getting execution {execution_id}: {e}")
     return None
 
 
