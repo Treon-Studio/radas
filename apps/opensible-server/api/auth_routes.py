@@ -113,11 +113,31 @@ def api_auth_login():
         refresh_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
                                        data_dir=DATA_DIR, token_type="refresh")
 
+        # Org context (Fase 7 — D3): user's orgs + active org in token.
+        orgs = []
+        org_id = None
+        try:
+            from services.org_service import list_orgs_for_user
+            orgs = list_orgs_for_user(user.id)
+            if orgs:
+                org_id = orgs[0]["id"]
+        except Exception:
+            orgs = []
+        if org_id:
+            access_token = generate_token(user_id=user.id, username=user.username,
+                                          roles=role_names, data_dir=DATA_DIR,
+                                          token_type="access", org_id=org_id)
+            refresh_token = generate_token(user_id=user.id, username=user.username,
+                                           roles=role_names, data_dir=DATA_DIR,
+                                           token_type="refresh", org_id=org_id)
+
         current_app.logger.info(f"User {username} logged in successfully")
         return jsonify({
             "success": True,
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "orgs": orgs,
+            "active_org_id": org_id,
             "user": {"id": user.id, "username": user.username, "email": user.email, "roles": role_names},
         })
     except Exception as e:
@@ -238,3 +258,35 @@ def api_mfa_verify():
         "refresh_token": refresh_token,
         "user": {"id": user.id, "username": user.username, "roles": role_names},
     })
+
+
+@bp.route("/api/auth/switch-org", methods=["POST"])
+@require_auth
+def api_auth_switch_org():
+    """Switch active org: returns fresh access/refresh tokens carrying org_id."""
+    from auth.service import generate_token as _gt
+    try:
+        _, _, _, DATA_DIR = _services()
+        data = request.get_json(silent=True) or {}
+        org_id = (data.get("org_id") or "").strip()
+        cu = getattr(request, "current_user", {}) or {}
+        uid = cu.get("user_id") or ""
+        username = cu.get("username") or ""
+        roles = cu.get("roles") or []
+        if not org_id:
+            return jsonify({"error": "org_id required"}), 400
+        from services.org_service import is_member
+        if not is_member(org_id, uid):
+            return jsonify({"error": "not a member of this org"}), 403
+        access_token = _gt(uid, username, roles, DATA_DIR, token_type="access", org_id=org_id)
+        refresh_token = _gt(uid, username, roles, DATA_DIR, token_type="refresh", org_id=org_id)
+        return jsonify({
+            "success": True,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "active_org_id": org_id,
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error switching org: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Switch org error"}), 500
+

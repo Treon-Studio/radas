@@ -136,7 +136,8 @@ def is_token_blacklisted(data_dir: Path, token: str) -> bool:
 # Token generation / verification
 # ---------------------------------------------------------------------------
 def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
-                   token_type: str = 'access', expires_delta: Optional[timedelta] = None) -> str:
+                   token_type: str = 'access', expires_delta: Optional[timedelta] = None,
+                   org_id: Optional[str] = None) -> str:
     if expires_delta is None:
         if token_type == 'refresh':
             expires_delta = timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
@@ -152,6 +153,8 @@ def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
         'exp': expire,
         'iat': datetime.utcnow(),
     }
+    if org_id:
+        payload['org_id'] = org_id
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 

@@ -164,7 +164,9 @@ def require_auth(f: Callable) -> Callable:
                 'user_id': payload.get('user_id'),
                 'username': payload.get('username'),
                 'roles': payload.get('roles', []),
+                'org_id': payload.get('org_id'),
             }
+            request.current_org_id = payload.get('org_id')
             request.token = token
             if 'readonly' in (payload.get('roles') or []) and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
                 return jsonify({'error': 'Read-only access',
