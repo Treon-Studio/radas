@@ -1,0 +1,7 @@
+{
+  "name": "ingress",
+  "type": "tofu-block",
+  "version": "1.2.0",
+  "description": "Load balancer + TLS cert placeholder (Hetzner LB)",
+  "tags": ["ingress", "load-balancer", "tls", "hetzner"]
+}

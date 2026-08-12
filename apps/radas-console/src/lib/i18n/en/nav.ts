@@ -28,4 +28,5 @@ export const nav: Record<string, string> = {
   "nav.tests": "Test Cases",
   "nav.byoc": "BYOC",
   "nav.githubActions": "GitHub Actions",
+  "nav.registry": "Code Registry",
 };

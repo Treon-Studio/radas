@@ -17,6 +17,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CloudByocRouteImport } from './routes/cloud/byoc'
 import { Route as CloudCostRouteImport } from './routes/cloud/cost'
 import { Route as CloudFlagsRouteImport } from './routes/cloud/flags'
+import { Route as CloudRegistryRouteImport } from './routes/cloud/registry'
 import { Route as CloudSettingsRouteImport } from './routes/cloud/settings'
 import { Route as CloudSummaryRouteImport } from './routes/cloud/summary'
 import { Route as CloudTestsRouteImport } from './routes/cloud/tests'
@@ -89,6 +90,11 @@ const CloudCostRoute = CloudCostRouteImport.update({
 const CloudFlagsRoute = CloudFlagsRouteImport.update({
   id: '/cloud/flags',
   path: '/cloud/flags',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CloudRegistryRoute = CloudRegistryRouteImport.update({
+  id: '/cloud/registry',
+  path: '/cloud/registry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CloudSettingsRoute = CloudSettingsRouteImport.update({
@@ -272,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
+  '/cloud/registry': typeof CloudRegistryRoute
   '/cloud/settings': typeof CloudSettingsRoute
   '/cloud/summary': typeof CloudSummaryRoute
   '/cloud/tests': typeof CloudTestsRoute
@@ -315,6 +322,7 @@ export interface FileRoutesByTo {
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
+  '/cloud/registry': typeof CloudRegistryRoute
   '/cloud/settings': typeof CloudSettingsRoute
   '/cloud/summary': typeof CloudSummaryRoute
   '/cloud/tests': typeof CloudTestsRoute
@@ -359,6 +367,7 @@ export interface FileRoutesById {
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
+  '/cloud/registry': typeof CloudRegistryRoute
   '/cloud/settings': typeof CloudSettingsRoute
   '/cloud/summary': typeof CloudSummaryRoute
   '/cloud/tests': typeof CloudTestsRoute
@@ -404,6 +413,7 @@ export interface FileRouteTypes {
     | '/cloud/byoc'
     | '/cloud/cost'
     | '/cloud/flags'
+    | '/cloud/registry'
     | '/cloud/settings'
     | '/cloud/summary'
     | '/cloud/tests'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/cloud/byoc'
     | '/cloud/cost'
     | '/cloud/flags'
+    | '/cloud/registry'
     | '/cloud/settings'
     | '/cloud/summary'
     | '/cloud/tests'
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/cloud/byoc'
     | '/cloud/cost'
     | '/cloud/flags'
+    | '/cloud/registry'
     | '/cloud/settings'
     | '/cloud/summary'
     | '/cloud/tests'
@@ -534,6 +546,7 @@ export interface RootRouteChildren {
   CloudByocRoute: typeof CloudByocRoute
   CloudCostRoute: typeof CloudCostRoute
   CloudFlagsRoute: typeof CloudFlagsRoute
+  CloudRegistryRoute: typeof CloudRegistryRoute
   CloudSettingsRoute: typeof CloudSettingsRoute
   CloudSummaryRoute: typeof CloudSummaryRoute
   CloudTestsRoute: typeof CloudTestsRoute
@@ -614,6 +627,13 @@ declare module '@tanstack/react-router' {
       path: '/cloud/flags'
       fullPath: '/cloud/flags'
       preLoaderRoute: typeof CloudFlagsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cloud/registry': {
+      id: '/cloud/registry'
+      path: '/cloud/registry'
+      fullPath: '/cloud/registry'
+      preLoaderRoute: typeof CloudRegistryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cloud/settings': {
@@ -891,6 +911,7 @@ const rootRouteChildren: RootRouteChildren = {
   CloudByocRoute: CloudByocRoute,
   CloudCostRoute: CloudCostRoute,
   CloudFlagsRoute: CloudFlagsRoute,
+  CloudRegistryRoute: CloudRegistryRoute,
   CloudSettingsRoute: CloudSettingsRoute,
   CloudSummaryRoute: CloudSummaryRoute,
   CloudTestsRoute: CloudTestsRoute,

@@ -1,0 +1,7 @@
+{
+  "name": "nginx",
+  "type": "ansible-role",
+  "version": "2.1.0",
+  "description": "Install & configure nginx (vhost + TLS placeholder)",
+  "tags": ["nginx", "webserver", "tls"]
+}

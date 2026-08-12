@@ -28,4 +28,5 @@ export const nav: Record<string, string> = {
   "nav.tests": "ករណីសាកល្បង",
   "nav.byoc": "BYOC",
   "nav.githubActions": "GitHub Actions",
+  "nav.registry": "បញ្ជីកូដ",
 };

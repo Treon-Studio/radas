@@ -814,6 +814,27 @@ fitur terpisah:
 | 651 | Restore from backup test (sudah UC 112) | 🔶 | P1 | 6 |
 
 
+## Q. Code Registry / Bring-Your-Own-Code (652+)
+
+| # | Use case | Status | Prio | Fase |
+|---|---|---|---|---|
+| 652 | Registry berisi modul OpenTofu (tofu-block) dengan metadata (version, desc, tags) | ✅ | P0 | 6 |
+| 653 | Registry berisi role Ansible (ansible-role) dengan metadata | ✅ | P0 | 6 |
+| 654 | Catalog API: daftar semua item registry | ✅ | P0 | 6 |
+| 655 | Install item: copy kode ke stack workspace (shadcn-style, bukan referensi) | ✅ | P0 | 6 |
+| 656 | tofu-block di-copy flat dengan prefix nama (anti-kolisi, kebaca OpenTofu) | ✅ | P1 | 6 |
+| 657 | ansible-role di-copy ke roles/<name>/ (layout role standar) | ✅ | P1 | 6 |
+| 658 | Uninstall: hapus persis file yang di-copy (manifest per stack) | ✅ | P1 | 6 |
+| 659 | Installed list per stack (registry manifest) | ✅ | P1 | 6 |
+| 660 | Registry storage swappable (filesystem sekarang, DB nanti — env REGISTRY_DIR) | ✅ | P2 | 6 |
+| 661 | Shareable registry URL / import item dari registry eksternal | ⬜ | P2 | 6 |
+| 662 | Version pinning: install versi tertentu, changelog per item | ⬜ | P2 | 6 |
+| 663 | Dependensi antar item (vpc → monitoring) resolusi otomatis | ⬜ | P2 | 6 |
+| 664 | Publish item dari stack ke registry (extract code jadi reusable) | ⬜ | P2 | 6 |
+| 665 | Update item ke versi baru + diff dry-run sebelum overwrite | ⬜ | P2 | 6 |
+| 666 | Adopsi repository Git eksternal sebagai registry remote (BYOC code) | ⬜ | P2 | 6 |
+
+
 ## Ringkasan
 
 - ✅ Sudah ada: **35** · 🔶 Parsial: **8** · ⬜ Backlog: **57**

@@ -1,0 +1,14 @@
+---
+# tasks file for nginx role — copied from Radas registry
+- name: Ensure nginx is installed
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Ensure nginx is enabled & started
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

@@ -1,0 +1,7 @@
+{
+  "name": "bastion",
+  "type": "tofu-block",
+  "version": "1.0.0",
+  "description": "Bastion/jump host: server kecil + floating IP",
+  "tags": ["bastion", "security", "jump-host", "hetzner"]
+}

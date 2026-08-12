@@ -5,7 +5,7 @@ import {
   RiRocketLine as Rocket, RiArchiveLine as Library, RiNodeTree as Network,
   RiBookOpenLine as BookOpen, RiShieldCheckLine as ShieldCheck, RiTeamLine as Users,
   RiCpuLine as Cpu, RiPlugLine as Plug, RiFlagLine as Flag, RiFlaskLine as Flask,
-  RiGithubLine as Github, RiCloudLine as Cloud,
+  RiGithubLine as Github, RiCloudLine as Cloud, RiCodeBoxLine as CodeBox,
 } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
     { to: "/cloud/flags", label: t("nav.flags"), icon: Flag },
     { to: "/cloud/tests", label: t("nav.tests"), icon: Flask },
     { to: "/cloud/byoc", label: t("nav.byoc"), icon: Cloud },
+    { to: "/cloud/registry", label: t("nav.registry"), icon: CodeBox },
     { to: "/cloud/settings", label: t("nav.projectSettings"), icon: Settings2 },
   ] as Item[],
   infrastructure: [

@@ -1,0 +1,7 @@
+{
+  "name": "hardening",
+  "type": "ansible-role",
+  "version": "1.4.0",
+  "description": "Hardening dasar: SSH key-only, fail2ban, unattended-upgrades",
+  "tags": ["hardening", "security", "ssh", "fail2ban"]
+}

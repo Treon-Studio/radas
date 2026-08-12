@@ -1,0 +1,6 @@
+---
+# handlers file for hardening role
+- name: restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted

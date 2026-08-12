@@ -1,0 +1,7 @@
+{
+  "name": "vpc",
+  "type": "tofu-block",
+  "version": "1.0.0",
+  "description": "VPC + subnet + router + security group dasar (Hetzner)",
+  "tags": ["network", "vpc", "hetzner"]
+}

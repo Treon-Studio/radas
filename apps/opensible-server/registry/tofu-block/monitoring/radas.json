@@ -1,0 +1,7 @@
+{
+  "name": "monitoring",
+  "type": "tofu-block",
+  "version": "0.9.0",
+  "description": "Prometheus + Grafana instance (Hetzner cloud) — server_type & volume",
+  "tags": ["monitoring", "prometheus", "grafana", "hetzner"]
+}

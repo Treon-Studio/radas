@@ -262,10 +262,11 @@ def _read_stack_provider(project_id: Optional[str], name: str) -> Optional[str]:
 
 def _data_base(project_id: Optional[str]) -> Path:
     """Per-project secrets/meta/runs storage."""
+    data_dir = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
     if project_id:
-        p = PROJECTS_DIR / project_id / ".cloud-provisioning"
+        p = data_dir / "projects" / project_id / ".cloud-provisioning"
     else:
-        p = LEGACY_DATA_BASE
+        p = data_dir / "cloud-provisioning"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
