@@ -58,6 +58,10 @@ def _artifacts_dir(project_id: str) -> Path:
 # Pipelines
 # ---------------------------------------------------------------------------
 
+def _scope(project_id: str, kind: str) -> str:
+    return f"cicd_{kind}:{project_id}"
+
+
 def create_pipeline(project_id: str, data: Dict[str, Any]) -> str:
     pipeline_id = data.get('id') or str(uuid.uuid4())
     record = {
@@ -71,50 +75,36 @@ def create_pipeline(project_id: str, data: Dict[str, Any]) -> str:
         'created_at': time.time(),
         'updated_at': time.time(),
     }
-    path = _pipelines_dir(project_id) / f'{pipeline_id}.json'
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(record, f, indent=2, ensure_ascii=False)
+    from storage import kv
+    kv.kv_set(_scope(project_id, "pipelines"), pipeline_id, record)
     logger.info(f"Created pipeline {pipeline_id} for project {project_id}")
     return pipeline_id
 
 
 def list_pipelines(project_id: str) -> List[Dict[str, Any]]:
-    d = _pipelines_dir(project_id)
-    pipelines = []
-    for f in sorted(d.glob('*.json')):
-        try:
-            with open(f, 'r', encoding='utf-8') as fh:
-                pipelines.append(json.load(fh))
-        except Exception as e:
-            logger.warning(f"Error reading pipeline {f}: {e}")
+    from storage import kv
+    rows = kv.kv_list(_scope(project_id, "pipelines"))
+    pipelines = [r["value"] for r in rows]
+    pipelines.sort(key=lambda r: r.get("created_at") or 0)
     return pipelines
 
 
 def get_pipeline(project_id: str, pipeline_id: str) -> Optional[Dict[str, Any]]:
-    path = _pipelines_dir(project_id) / f'{pipeline_id}.json'
-    if not path.exists():
-        return None
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error reading pipeline {pipeline_id}: {e}")
-        return None
+    from storage import kv
+    return kv.kv_get(_scope(project_id, "pipelines"), pipeline_id)
 
 
 def update_pipeline(project_id: str, pipeline_id: str, data: Dict[str, Any]) -> bool:
-    path = _pipelines_dir(project_id) / f'{pipeline_id}.json'
-    if not path.exists():
+    from storage import kv
+    record = kv.kv_get(_scope(project_id, "pipelines"), pipeline_id)
+    if record is None:
         return False
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            record = json.load(f)
         for key in ('name', 'git_repo', 'git_branch', 'trigger_config', 'stages'):
             if key in data:
                 record[key] = data[key]
         record['updated_at'] = time.time()
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(record, f, indent=2, ensure_ascii=False)
+        kv.kv_set(_scope(project_id, "pipelines"), pipeline_id, record)
         return True
     except Exception as e:
         logger.error(f"Error updating pipeline {pipeline_id}: {e}")
@@ -122,11 +112,11 @@ def update_pipeline(project_id: str, pipeline_id: str, data: Dict[str, Any]) -> 
 
 
 def delete_pipeline(project_id: str, pipeline_id: str) -> bool:
-    path = _pipelines_dir(project_id) / f'{pipeline_id}.json'
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    from storage import kv
+    if kv.kv_get(_scope(project_id, "pipelines"), pipeline_id) is None:
+        return False
+    kv.kv_delete(_scope(project_id, "pipelines"), pipeline_id)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -152,59 +142,41 @@ def create_pipeline_run(project_id: str, pipeline_id: str, data: Dict[str, Any])
         'created_at': time.time(),
         'steps': data.get('steps', []),
     }
-    path = _runs_dir(project_id) / f'{run_id}.json'
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(record, f, indent=2, ensure_ascii=False)
+    from storage import kv
+    kv.kv_set(_scope(project_id, "runs"), run_id, record)
     logger.info(f"Created pipeline run {run_id} (#{run_number}) for pipeline {pipeline_id}")
     return run_id
 
 
 def list_pipeline_runs(project_id: str, pipeline_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    d = _runs_dir(project_id)
+    from storage import kv
+    rows = kv.kv_list(_scope(project_id, "runs"))
     runs = []
-    for f in sorted(d.glob('*.json')):
-        try:
-            with open(f, 'r', encoding='utf-8') as fh:
-                run = json.load(fh)
-            if pipeline_id and run.get('pipeline_id') != pipeline_id:
-                continue
-            runs.append(run)
-        except Exception as e:
-            logger.warning(f"Error reading run {f}: {e}")
-    # Sort by created_at desc
-    runs.sort(key=lambda r: r.get('created_at', 0), reverse=True)
+    for r in rows:
+        run = r["value"]
+        if pipeline_id and run.get('pipeline_id') != pipeline_id:
+            continue
+        runs.append(run)
+    runs.sort(key=lambda r: r.get('created_at') or 0)
     return runs
 
 
 def get_pipeline_run(project_id: str, run_id: str) -> Optional[Dict[str, Any]]:
-    path = _runs_dir(project_id) / f'{run_id}.json'
-    if not path.exists():
-        return None
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error reading run {run_id}: {e}")
-        return None
+    from storage import kv
+    return kv.kv_get(_scope(project_id, "runs"), run_id)
 
 
 def update_pipeline_run(project_id: str, run_id: str, updates: Dict[str, Any]) -> bool:
-    path = _runs_dir(project_id) / f'{run_id}.json'
-    if not path.exists():
+    from storage import kv
+    record = kv.kv_get(_scope(project_id, "runs"), run_id)
+    if record is None:
         return False
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            record = json.load(f)
-        old_status = record.get('status', 'QUEUED')
-        new_status = updates.get('status')
-        if new_status and new_status != old_status:
-            if old_status == 'QUEUED' and new_status == 'RUNNING':
-                updates['started_at'] = updates.get('started_at', time.time())
-            if new_status in FINAL_STATUSES:
-                updates['finished_at'] = updates.get('finished_at', time.time())
-        record.update(updates)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(record, f, indent=2, ensure_ascii=False)
+        for key in ('status', 'trigger_type', 'git_commit', 'triggered_by', 'started_at', 'finished_at', 'steps', 'error'):
+            if key in updates:
+                record[key] = updates[key]
+        record['updated_at'] = time.time()
+        kv.kv_set(_scope(project_id, "runs"), run_id, record)
         return True
     except Exception as e:
         logger.error(f"Error updating run {run_id}: {e}")
@@ -212,11 +184,11 @@ def update_pipeline_run(project_id: str, run_id: str, updates: Dict[str, Any]) -
 
 
 def delete_pipeline_run(project_id: str, run_id: str) -> bool:
-    path = _runs_dir(project_id) / f'{run_id}.json'
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    from storage import kv
+    if kv.kv_get(_scope(project_id, "runs"), run_id) is None:
+        return False
+    kv.kv_delete(_scope(project_id, "runs"), run_id)
+    return True
 
 
 # ---------------------------------------------------------------------------

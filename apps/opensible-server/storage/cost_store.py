@@ -264,13 +264,20 @@ def _estimates_file(project_id: str) -> Path:
     safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
     return ESTIMATES_DIR / f"{safe}.json"
 
+def _est_scope(project_id: str) -> str:
+    safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
+    return f"cost_estimates:{safe}"
+
 def list_estimates(project_id: str) -> List[Dict[str, Any]]:
-    f = _estimates_file(project_id)
-    if not f.exists(): return []
-    try: return json.loads(f.read_text(encoding="utf-8"))
-    except Exception: return []
+    try:
+        from storage import kv
+        v = kv.kv_load(_est_scope(project_id))
+        return v if isinstance(v, list) else []
+    except Exception:
+        return []
 
 def save_estimate(project_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    from storage import kv
     items = list_estimates(project_id)
     record = {
         "id": str(uuid.uuid4()),
@@ -279,14 +286,15 @@ def save_estimate(project_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     }
     items.insert(0, record)
     items = items[:100]
-    _estimates_file(project_id).write_text(json.dumps(items, indent=2), encoding="utf-8")
+    kv.kv_set(_est_scope(project_id), "default", items)
     return record
 
 def delete_estimate(project_id: str, estimate_id: str) -> bool:
+    from storage import kv
     items = list_estimates(project_id)
     new_items = [x for x in items if x.get("id") != estimate_id]
     if len(new_items) == len(items): return False
-    _estimates_file(project_id).write_text(json.dumps(new_items, indent=2), encoding="utf-8")
+    kv.kv_set(_est_scope(project_id), "default", new_items)
     return True
 
 
@@ -404,56 +412,50 @@ def save_report(
         "currency": result.get("currency", "USD"),
         "resource_count": len(resources),
     }
-    (_project_reports_dir(project_id) / fname).write_text(
-        json.dumps(rec, indent=2), encoding="utf-8"
-    )
+    from storage import kv
+    safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
+    scope = f"cost_reports:{safe}"
+    kv.kv_set(scope, rid, rec)
     return rec
 
 def list_reports(project_id: str, stack: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
-    d = _project_reports_dir(project_id)
+    from storage import kv
+    safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
+    scope = f"cost_reports:{safe}"
+    rows = kv.kv_list(scope)
+    recs = [r["value"] for r in rows]
+    recs.sort(key=lambda r: r.get("created_at") or 0, reverse=True)
     items: List[Dict[str, Any]] = []
-    for f in sorted(d.glob("*.json"), reverse=True)[:limit]:
-        try:
-            rec = json.loads(f.read_text(encoding="utf-8"))
-            if stack and rec.get("stack") != stack:
-                continue
-            # Slim down — list view doesn't need full breakdown.
-            items.append({
-                "id": rec.get("id"),
-                "filename": rec.get("filename"),
-                "created_at": rec.get("created_at"),
-                "provider": rec.get("provider"),
-                "stack": rec.get("stack"),
-                "env": rec.get("env"),
-                "cloud_project": rec.get("cloud_project"),
-                "source": rec.get("source"),
-                "run_id": rec.get("run_id"),
-                "monthly_total": rec.get("monthly_total"),
-                "yearly_total": rec.get("yearly_total"),
-                "currency": rec.get("currency", "USD"),
-                "resource_count": rec.get("resource_count", len(rec.get("resources") or [])),
-            })
-        except Exception:
+    for rec in recs[:limit]:
+        if stack and rec.get("stack") != stack:
             continue
+        # Slim down — list view doesn't need full breakdown.
+        items.append({
+            "id": rec.get("id"),
+            "filename": rec.get("filename"),
+            "created_at": rec.get("created_at"),
+            "provider": rec.get("provider"),
+            "stack": rec.get("stack"),
+            "env": rec.get("env"),
+            "cloud_project": rec.get("cloud_project"),
+            "source": rec.get("source"),
+            "run_id": rec.get("run_id"),
+            "monthly_total": rec.get("monthly_total"),
+            "yearly_total": rec.get("yearly_total"),
+            "currency": rec.get("currency", "USD"),
+            "resource_count": rec.get("resource_count", len(rec.get("resources") or [])),
+        })
     return items
 
 def get_report(project_id: str, report_id: str) -> Optional[Dict[str, Any]]:
-    for f in _project_reports_dir(project_id).glob("*.json"):
-        try:
-            rec = json.loads(f.read_text(encoding="utf-8"))
-            if rec.get("id") == report_id:
-                return rec
-        except Exception:
-            continue
-    return None
+    from storage import kv
+    safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
+    return kv.kv_get(f"cost_reports:{safe}", report_id)
 
 def delete_report(project_id: str, report_id: str) -> bool:
-    for f in _project_reports_dir(project_id).glob("*.json"):
-        try:
-            rec = json.loads(f.read_text(encoding="utf-8"))
-            if rec.get("id") == report_id:
-                f.unlink()
-                return True
-        except Exception:
-            continue
-    return False
+    from storage import kv
+    safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
+    if kv.kv_get(f"cost_reports:{safe}", report_id) is None:
+        return False
+    kv.kv_delete(f"cost_reports:{safe}", report_id)
+    return True

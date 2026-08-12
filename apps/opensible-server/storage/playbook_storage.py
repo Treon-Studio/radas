@@ -66,6 +66,21 @@ class PlaybookStorage:
         """Documentation."""
         playbooks_dir = self.get_playbooks_dir(project_id)
         return playbooks_dir / f'{playbook_id}.json'
+
+    def _pb_scope(self, project_id: str) -> str:
+        return f"playbooks:{project_id}"
+
+    def _pb_get(self, project_id: str, playbook_id: str):
+        from storage import kv
+        return kv.kv_get(self._pb_scope(project_id), playbook_id)
+
+    def _pb_set(self, project_id: str, playbook_id: str, playbook: Dict[str, Any]) -> None:
+        from storage import kv
+        kv.kv_set(self._pb_scope(project_id), playbook_id, playbook)
+
+    def _pb_delete(self, project_id: str, playbook_id: str) -> None:
+        from storage import kv
+        kv.kv_delete(self._pb_scope(project_id), playbook_id)
     
     def list_playbooks(self, project_id: str) -> List[Dict[str, Any]]:
         """Documentation."""
@@ -235,7 +250,12 @@ class PlaybookStorage:
     def get_playbook(self, project_id: str, playbook_id: str) -> Optional[Dict[str, Any]]:
         """Documentation."""
         try:
-            # Comment removed.
+            # Fase 7: read from Postgres kv first, fall back to file/YAML.
+            playbook = self._pb_get(project_id, playbook_id)
+            if playbook is not None:
+                playbook['id'] = playbook_id
+                playbook['project_id'] = project_id
+                return playbook
             playbook_file = self.get_playbook_file(project_id, playbook_id)
             
             if playbook_file.exists():
@@ -300,9 +320,7 @@ class PlaybookStorage:
                 }
             }
             
-            playbook_file = self.get_playbook_file(project_id, playbook_id)
-            with open(playbook_file, 'w', encoding='utf-8') as f:
-                json.dump(playbook, f, indent=2, ensure_ascii=False)
+            self._pb_set(project_id, playbook_id, playbook)
             
             # Comment removed.
             self._save_playbook_yaml(project_id, playbook)
@@ -336,9 +354,7 @@ class PlaybookStorage:
             # Comment removed.
             playbook['project_id'] = project_id
             
-            playbook_file = self.get_playbook_file(project_id, playbook_id)
-            with open(playbook_file, 'w', encoding='utf-8') as f:
-                json.dump(playbook, f, indent=2, ensure_ascii=False)
+            self._pb_set(project_id, playbook_id, playbook)
             
             # Comment removed.
             self._save_playbook_yaml(project_id, playbook)
@@ -382,7 +398,12 @@ class PlaybookStorage:
 
             # Resolve name first (needed to also remove the YAML sidecar).
             playbook_name = None
-            if playbook_file.exists():
+            pb = self._pb_get(project_id, playbook_id)
+            if pb is not None:
+                playbook_name = pb.get('name')
+                self._pb_delete(project_id, playbook_id)
+                deleted_any = True
+            elif playbook_file.exists():
                 try:
                     with open(playbook_file, 'r', encoding='utf-8') as f:
                         pb = json.load(f)
@@ -500,117 +521,20 @@ class PlaybookStorage:
     
     def get_schedule(self, project_id: str, playbook_id: str) -> Optional[Dict[str, Any]]:
         """Documentation."""
-        try:
-            playbook = self.get_playbook(project_id, playbook_id)
-            if not playbook:
-                return None
-            
-            # Comment removed.
-            metadata = playbook.get('metadata', {})
-            schedule = metadata.get('schedule')
-            
-            if not schedule or not schedule.get('enabled', False):
-                return None
-            
-            return {
-                'enabled': schedule.get('enabled', False),
-                'cron': schedule.get('cron', ''),
-                'timezone': schedule.get('timezone', 'UTC')
-            }
-        except Exception as e:
-            logger.error(f"Error getting schedule for playbook {playbook_id} in project {project_id}: {e}")
-            return None
-    
+        from storage import kv
+        return kv.kv_get(f"playbook_schedules:{project_id}", playbook_id)
+
     def save_schedule(self, project_id: str, playbook_id: str, schedule: Dict[str, Any]) -> bool:
         """Documentation."""
-        try:
-            playbook = self.get_playbook(project_id, playbook_id)
-            if not playbook:
-                logger.error(f"Playbook {playbook_id} not found in project {project_id}")
-                return False
-            
-            # Comment removed.
-            if 'metadata' not in playbook:
-                playbook['metadata'] = {}
-            
-            # Comment removed.
-            playbook['metadata']['schedule'] = {
-                'enabled': schedule.get('enabled', False),
-                'cron': schedule.get('cron', ''),
-                'timezone': schedule.get('timezone', 'UTC'),
-                'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-            }
-            
-            # Comment removed.
-            return self.save_playbook(project_id, playbook)
-        except Exception as e:
-            logger.error(f"Error saving schedule for playbook {playbook_id} in project {project_id}: {e}")
-            return False
-    
+        from storage import kv
+        kv.kv_set(f"playbook_schedules:{project_id}", playbook_id, schedule)
+        return True
+
     def delete_schedule(self, project_id: str, playbook_id: str) -> bool:
         """Documentation."""
-        try:
-            playbook = self.get_playbook(project_id, playbook_id)
-            if not playbook:
-                logger.error(f"Playbook {playbook_id} not found in project {project_id}")
-                return False
-            
-            # Comment removed.
-            if 'metadata' not in playbook:
-                playbook['metadata'] = {}
-            
-            # Comment removed.
-            if 'schedule' in playbook['metadata']:
-                playbook['metadata']['schedule'] = {
-                    'enabled': False,
-                    'cron': playbook['metadata']['schedule'].get('cron', ''),
-                    'timezone': playbook['metadata']['schedule'].get('timezone', 'UTC'),
-                    'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-                }
-            
-            # Comment removed.
-            return self.save_playbook(project_id, playbook)
-        except Exception as e:
-            logger.error(f"Error deleting schedule for playbook {playbook_id} in project {project_id}: {e}")
+        from storage import kv
+        if kv.kv_get(f"playbook_schedules:{project_id}", playbook_id) is None:
             return False
-    
-    def list_all_schedules(self) -> List[Dict[str, Any]]:
-        """Documentation."""
-        schedules = []
-        try:
-            if not self.projects_dir.exists():
-                return schedules
-            
-            # Comment removed.
-            for project_dir in self.projects_dir.iterdir():
-                if not project_dir.is_dir():
-                    continue
-                
-                project_id = project_dir.name
-                
-                try:
-                    # Comment removed.
-                    playbooks = self.list_playbooks(project_id)
-                    
-                    for playbook in playbooks:
-                        playbook_id = playbook['id']
-                        
-                        # Skip disabled playbooks - scheduler should not run them
-                        if playbook.get('disabled') or playbook.get('metadata', {}).get('disabled'):
-                            continue
-                        
-                        schedule = self.get_schedule(project_id, playbook_id)
-                        
-                        if schedule and schedule.get('enabled', False):
-                            schedules.append({
-                                'project_id': project_id,
-                                'playbook_id': playbook_id,
-                                'schedule': schedule
-                            })
-                except Exception as e:
-                    logger.error(f"Error listing schedules for project {project_id}: {e}")
-                    continue
-        except Exception as e:
-            logger.error(f"Error listing all schedules: {e}")
-        
-        return schedules
+        kv.kv_delete(f"playbook_schedules:{project_id}", playbook_id)
+        return True
+
