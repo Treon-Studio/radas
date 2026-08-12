@@ -212,10 +212,14 @@ def _get_project_id() -> Optional[str]:
 def _project_stacks_root(project_id: Optional[str]) -> Path:
     """Per-project synced workspace root: data/projects/<id>/stacks/.
     With no project id, falls back to DATA_DIR/cloud-provisioning/default so
-    stacks persist across container restarts (the in-image IaC/ dir does not)."""
+    stacks persist across container restarts (the in-image IaC/ dir does not).
+
+    DATA_DIR is re-read from the environment on each call so path helpers
+    honor env changes (e.g. tests pointing DATA_DIR at a temp dir)."""
+    data_dir = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
     if project_id:
-        return PROJECTS_DIR / project_id / "stacks"
-    return LEGACY_STACKS_ROOT
+        return data_dir / "projects" / project_id / "stacks"
+    return data_dir / "cloud-provisioning" / "default"
 
 
 def _envs_dir(project_id: Optional[str]) -> Path:
@@ -860,7 +864,8 @@ def _project_logs_dir(project_id: Optional[str]) -> Path:
 
 def _project_executions_dir(project_id: Optional[str]) -> Path:
     pid = project_id or "default"
-    return PROJECTS_DIR / pid / "history" / "executions"
+    data_dir = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
+    return data_dir / "projects" / pid / "history" / "executions"
 
 
 def _create_execution(project_id: Optional[str], stack: str, action: str, worker_id: Optional[str] = None, triggered_by: Optional[str] = None, triggered_by_user_id: Optional[str] = None, priority: int = 0) -> str:
