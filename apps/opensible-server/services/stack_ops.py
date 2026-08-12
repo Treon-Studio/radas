@@ -39,7 +39,8 @@ def taint_resource(project_id: Optional[str], name: str, address: str) -> Dict[s
     from services.cloud_provisioning import _create_execution
     if not address:
         raise ValueError("address required")
-    eid = _create_execution(project_id, name, "taint", triggered_by="console:taint")
+    eid = _create_execution(project_id, name, "taint", triggered_by="console:taint",
+                            extra_run_params={"target": address})
     return {"queued": True, "execution_id": eid, "address": address,
             "message": "Taint via `tofu apply -target=<address>` dijalankan worker."}
 
@@ -48,5 +49,6 @@ def untaint_resource(project_id: Optional[str], name: str, address: str) -> Dict
     from services.cloud_provisioning import _create_execution
     if not address:
         raise ValueError("address required")
-    eid = _create_execution(project_id, name, "untaint", triggered_by="console:untaint")
+    eid = _create_execution(project_id, name, "untaint", triggered_by="console:untaint",
+                            extra_run_params={"target": address})
     return {"queued": True, "execution_id": eid, "address": address}

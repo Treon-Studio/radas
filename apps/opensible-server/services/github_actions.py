@@ -297,9 +297,15 @@ def upsert_secret(owner: str, repo: str, name: str, value: str) -> Dict[str, Any
     # gh api handles this via /actions/secrets/<name> with encrypted_value.
     # For plan scope: store plaintext is NOT allowed — we require gh CLI to
     # encrypt. Use `gh secret set` which handles encryption automatically.
-    import subprocess as sp
-    r = sp.run(["gh", "secret", "set", name, "--repo", f"{owner}/{repo}",
-                "--body", value], capture_output=True, text=True, timeout=30)
+    try:
+        r = subprocess.run(["gh", "secret", "set", name, "--repo", f"{owner}/{repo}",
+                            "--body", value], capture_output=True, text=True, timeout=30)
+    except FileNotFoundError:
+        return {"ok": False, "error": "gh CLI tidak tersedia. Install gh atau set GH_TOKEN."}
+    except subprocess.CalledProcessError as e:
+        return {"ok": False, "error": (e.stderr or e.stdout or str(e)).strip()[:300]}
+    except Exception as e:  # noqa: BLE001 — never raise; report as failure
+        return {"ok": False, "error": str(e).strip()[:300]}
     if r.returncode != 0:
         return {"ok": False, "error": (r.stderr or r.stdout or "failed").strip()[:300]}
     return {"ok": True, "message": f"secret {name} set"}

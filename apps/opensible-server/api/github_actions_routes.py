@@ -119,14 +119,16 @@ def api_gh_set_secret(owner, repo):
     value = (data.get("value") or "").strip()
     if not name or not value:
         return jsonify({"error": "name and value required"}), 400
-    return jsonify(upsert_secret(owner, repo, name, value))
+    out = upsert_secret(owner, repo, name, value)
+    return jsonify(out), 200 if out.get("ok") else 400
 
 
 @bp.route('/api/github/repos/<owner>/<repo>/secrets/<secret_name>', methods=['DELETE'])
 @require_auth
 def api_gh_delete_secret(owner, repo, secret_name):
     from services.github_actions import delete_secret
-    return jsonify(delete_secret(owner, repo, secret_name))
+    out = delete_secret(owner, repo, secret_name)
+    return jsonify(out), 200 if out.get("ok") else 400
 
 
 @bp.route('/api/github/repos/<owner>/<repo>/variables', methods=['GET'])

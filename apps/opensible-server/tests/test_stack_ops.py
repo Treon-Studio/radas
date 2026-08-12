@@ -30,3 +30,26 @@ def test_taint_queues_execution(tmp_path, monkeypatch):
     from services.stack_ops import taint_resource
     out = taint_resource(None, "s2", "hcloud_server.web")
     assert out["queued"] is True
+
+
+def test_locked_stack_blocks_action(tmp_path, monkeypatch):
+    """A manually locked stack is reported locked; the actions gate refuses
+    mutating actions on it (stacks_action returns 423-style). Unit test of the
+    service contract — is_locked must reflect lock_stack, and meta.json must
+    carry the lock reason the gate surfaces in its error message."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    envs = tmp_path / "cloud-provisioning" / "default" / "envs"
+    envs.mkdir(parents=True, exist_ok=True)
+    (envs / "s3").mkdir()
+    (envs / "s3" / "terraform.tfvars").write_text("env = \"prod\"\n")
+    import json
+    from services.cloud_provisioning import _stack_data_dir
+    from services.stack_ops import is_locked, lock_stack, unlock_stack
+    lock_stack(None, "s3", reason="maintenance", actor="admin")
+    assert is_locked(None, "s3") is True
+    meta = json.loads((_stack_data_dir(None, "s3") / "meta.json").read_text(encoding="utf-8"))
+    assert (meta.get("locked") or {}).get("reason") == "maintenance"
+    assert (meta.get("locked") or {}).get("by") == "admin"
+    # Unlocking clears the lock so mutating actions are allowed again.
+    unlock_stack(None, "s3")
+    assert is_locked(None, "s3") is False

@@ -23,7 +23,7 @@ import (
 
 var tofuInstallMu sync.Mutex
 
-func tofuArgs(action string) ([]string, error) {
+func tofuArgs(action string, runParams map[string]any) ([]string, error) {
 	switch strings.ToLower(action) {
 	case "init":
 		return []string{"tofu", "init", "-input=false", "-no-color", "-reconfigure"}, nil
@@ -46,6 +46,12 @@ func tofuArgs(action string) ([]string, error) {
 	case "test":
 		// OpenTofu test framework: runs *.tftest.hcl files in the stack dir.
 		return []string{"tofu", "test"}, nil
+	case "taint", "untaint":
+		target, _ := runParams["target"].(string)
+		if target == "" {
+			return nil, fmt.Errorf("unsupported tofu action: %s (no target address)", action)
+		}
+		return []string{"tofu", "apply", fmt.Sprintf("-target=%s", target), "-auto-approve", "-no-color"}, nil
 	}
 	return nil, errors.New("unsupported tofu action: " + action)
 }
@@ -294,7 +300,7 @@ func executeTofuRun(executionID string, execData map[string]any, projectID strin
 
 	syncIaCIntoStack(stackDir, provider, sendLog)
 
-	cmdArgs, err := tofuArgs(action)
+	cmdArgs, err := tofuArgs(action, runParams)
 	if err != nil {
 		sendLog("ERROR: " + err.Error() + "\n")
 		rc := 2

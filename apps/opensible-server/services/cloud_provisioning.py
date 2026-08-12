@@ -884,7 +884,7 @@ def _project_executions_dir(project_id: Optional[str]) -> Path:
     return data_dir / "projects" / pid / "history" / "executions"
 
 
-def _create_execution(project_id: Optional[str], stack: str, action: str, worker_id: Optional[str] = None, triggered_by: Optional[str] = None, triggered_by_user_id: Optional[str] = None, priority: int = 0) -> str:
+def _create_execution(project_id: Optional[str], stack: str, action: str, worker_id: Optional[str] = None, triggered_by: Optional[str] = None, triggered_by_user_id: Optional[str] = None, priority: int = 0, extra_run_params: Optional[Dict[str, Any]] = None) -> str:
     """Enqueue a TOFU_RUN execution that any online worker can claim."""
     import sys as _sys
     _app_mod = _sys.modules.get("app") or _sys.modules.get("__main__")
@@ -917,6 +917,8 @@ def _create_execution(project_id: Optional[str], stack: str, action: str, worker
         "secret_keys": list(_secret_keys_for(provider)),
         "env": {"TF_IN_AUTOMATION": "1"},
     }
+    if extra_run_params:
+        run_params.update(extra_run_params)
 
     if _policy_enabled(project_id, stack) and action in ("plan", "apply", "destroy"):
         run_params["policy"] = _policy_config(project_id, stack)
@@ -993,6 +995,11 @@ def stacks_action(name):
     if action == "unlock":
         from services.stack_ops import unlock_stack
         return jsonify({"ok": True, **unlock_stack(pid, name)})
+    if action == "force-unlock":
+        # Real force-unlock lives on the state-lock endpoint
+        # (cloud_state.force_unlock); queueing a TOFU_RUN here would only
+        # produce a worker-side "unsupported tofu action" failure.
+        return jsonify({"error": "force-unlock is not supported via actions; use the state lock endpoint"}), 400
     if action in ("taint", "untaint"):
         from services.stack_ops import taint_resource, untaint_resource
         _addr = (body.get("address") or "").strip()
@@ -1003,6 +1010,21 @@ def stacks_action(name):
             return jsonify({"ok": True, **fn(pid, name, _addr)})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+
+    # Manual operator lock (Fase 6 — UC 347/374): an operator lock outranks
+    # automation kill-switches, so check it before the feature-flag gate.
+    if _mutating:
+        try:
+            from services.stack_ops import is_locked as _is_locked
+            if _is_locked(pid, name):
+                _lr = ""
+                try:
+                    _lr = (json.loads((_dd / "meta.json").read_text(encoding="utf-8")) or {}).get("locked", {}).get("reason", "")
+                except Exception:
+                    pass
+                return jsonify({"error": f"Stack is locked" + (f" ({_lr})" if _lr else "") + ". Unlock before mutating."}), 423
+        except Exception:
+            pass
 
     # Feature-flag gate (Fase 6 — UC 113+): global block_apply kill-switch,
     # plus per-stack flags `stack.<name>.block_*`.
