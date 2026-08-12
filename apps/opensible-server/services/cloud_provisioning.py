@@ -768,6 +768,14 @@ def stacks_get(name):
         rel = str(sd.relative_to(BASE_DIR))
     except ValueError:
         rel = str(sd)
+    outputs = {}
+    state_file = sd / "terraform.tfstate"
+    if state_file.exists():
+        try:
+            st = json.loads(state_file.read_text(encoding="utf-8"))
+            outputs = {k: v.get("value") for k, v in (st.get("outputs") or {}).items()}
+        except Exception:
+            outputs = {}
     return jsonify({
         "name": name,
         "path": rel,
@@ -778,6 +786,9 @@ def stacks_get(name):
         "meta": meta,
         "provider": meta.get("provider") or "bytedc",
         "drift": _drift_status(pid, name),
+        "locked": bool(meta.get("locked")),
+        "lock_reason": (meta.get("locked") or {}).get("reason", ""),
+        "outputs": outputs,
     })
 
 
@@ -827,7 +838,8 @@ def stacks_delete(name):
 
 # ---- tofu execution (dispatched to workers, like Ansible) ------------------
 
-_VALID_ACTIONS = {"init", "plan", "apply", "destroy", "validate", "fmt", "refresh", "drift", "test"}
+_VALID_ACTIONS = {"init", "plan", "apply", "destroy", "validate", "fmt", "refresh", "drift", "test",
+                  "lock", "unlock", "taint", "untaint", "force-unlock"}
 
 
 def _tofu_cmd(action: str) -> List[str]:
@@ -972,6 +984,25 @@ def stacks_action(name):
 
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
+
+    # Stack lock/taint/untaint (Fase 6 — UC 347/356/374/375).
+    if action == "lock":
+        from services.stack_ops import lock_stack
+        _reason = (body.get("reason") or "manual").strip()
+        return jsonify({"ok": True, **lock_stack(pid, name, _reason, _tb)})
+    if action == "unlock":
+        from services.stack_ops import unlock_stack
+        return jsonify({"ok": True, **unlock_stack(pid, name)})
+    if action in ("taint", "untaint"):
+        from services.stack_ops import taint_resource, untaint_resource
+        _addr = (body.get("address") or "").strip()
+        if not _addr:
+            return jsonify({"error": "address required"}), 400
+        fn = taint_resource if action == "taint" else untaint_resource
+        try:
+            return jsonify({"ok": True, **fn(pid, name, _addr)})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
     # Feature-flag gate (Fase 6 — UC 113+): global block_apply kill-switch,
     # plus per-stack flags `stack.<name>.block_*`.

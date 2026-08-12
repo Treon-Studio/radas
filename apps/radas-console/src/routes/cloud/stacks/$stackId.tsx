@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RiArrowLeftLine as ArrowLeft, RiCheckboxCircleLine as CheckCircle2, RiDownload2Line as Download, RiSearchLine as Search, RiRocketLine as Rocket, RiFlashlightLine as Bomb, RiArrowGoBackLine as RefreshCcw, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiGitBranchLine as GitBranch, RiGitPullRequestLine as GitPullRequestArrow, RiEditLine as Edit, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiErrorWarningLine as AlertTriangle, RiArchiveStackLine as Boxes, RiGithubLine as Github, RiRadarLine as Radar, RiSettingsLine as Settings, RiCloseLine as X, RiMore2Line as MoreHorizontal } from "@remixicon/react";
+import { RiArrowLeftLine as ArrowLeft, RiCheckboxCircleLine as CheckCircle2, RiDownload2Line as Download, RiSearchLine as Search, RiRocketLine as Rocket, RiFlashlightLine as Bomb, RiArrowGoBackLine as RefreshCcw, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiGitBranchLine as GitBranch, RiGitPullRequestLine as GitPullRequestArrow, RiEditLine as Edit, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiErrorWarningLine as AlertTriangle, RiArchiveStackLine as Boxes, RiGithubLine as Github, RiRadarLine as Radar, RiSettingsLine as Settings, RiCloseLine as X, RiMore2Line as MoreHorizontal, RiLockLine as Lock, RiLockUnlockLine as Unlock } from "@remixicon/react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -47,6 +47,10 @@ type StackData = {
   has_secrets?: boolean;
   terraform_tfvars?: string;
   drift?: DriftInfo;
+  locked?: boolean;
+  lock_reason?: string;
+  meta?: { locked?: any };
+  outputs?: Record<string, unknown>;
 };
 
 type RunResp = {
@@ -130,7 +134,7 @@ function StackDetail() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
 
-  const { data: stack, error } = useQuery({
+  const { data: stack, error, refetch } = useQuery({
     queryKey: qk.stack(stackId),
     queryFn: () => api<StackData>("GET", `/api/cloud/stacks/${encodeURIComponent(stackId)}`),
   });
@@ -237,6 +241,37 @@ function StackDetail() {
 
   const [gitBusy, setGitBusy] = useState<"pull" | "push" | null>(null);
   const [gitStatus, setGitStatusMsg] = useState<{ msg: string; tone: "muted" | "warn" | "ok" | "err" }>({ msg: "", tone: "muted" });
+
+  const isLocked = stack?.locked ?? !!stack?.meta?.locked;
+
+  const lockStack = async () => {
+    try {
+      await api("POST", `/api/cloud/stacks/${encodeURIComponent(stackId)}/actions`, { action: "lock", reason: "manual" });
+      toast.success("Stack dikunci");
+      refetch();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to lock stack");
+    }
+  };
+  const unlockStack = async () => {
+    try {
+      await api("POST", `/api/cloud/stacks/${encodeURIComponent(stackId)}/actions`, { action: "unlock" });
+      toast.success("Stack dibuka");
+      refetch();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to unlock stack");
+    }
+  };
+  const taintVm = async () => {
+    const addr = prompt("Resource address (mis. hcloud_server.web):");
+    if (!addr) return;
+    try {
+      await api("POST", `/api/cloud/stacks/${encodeURIComponent(stackId)}/actions`, { action: "taint", address: addr });
+      toast.success(`Taint ${addr} di-queue`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to queue taint");
+    }
+  };
 
   // Initial: show last sync time
   useEffect(() => {
@@ -433,6 +468,24 @@ function StackDetail() {
           <Boxes className="h-4 w-4" /> Inventory Resources
         </Button>
 
+        {isLocked ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={unlockStack}
+            title={stack?.lock_reason ? `Locked: ${stack.lock_reason}` : "Stack is locked"}
+          >
+            <Unlock className="h-4 w-4" /> Unlock
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={lockStack}>
+            <Lock className="h-4 w-4" /> Lock
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={taintVm}>
+          <Bomb className="h-4 w-4" /> Taint resource
+        </Button>
+
         {runStatus.status && (
           <div className="ml-auto text-xs flex items-center gap-2">
             <Badge variant={statusToVariant(runStatus.status)}>{runStatus.status}</Badge>
@@ -611,6 +664,28 @@ function StackDetail() {
           <pre className="rounded-md bg-[var(--color-muted)] font-mono text-xs p-4 overflow-auto max-h-[400px] whitespace-pre">
             {stack?.terraform_tfvars || "(empty)"}
           </pre>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Outputs</CardTitle></CardHeader>
+        <CardContent>
+          {stack?.outputs && Object.keys(stack.outputs).length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {Object.entries(stack.outputs).map(([k, v]) => (
+                <div key={k} className="rounded-md border border-[var(--color-border)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-muted-foreground)]">{k}</div>
+                  <div className="font-mono text-xs mt-0.5 break-all">
+                    {typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-[var(--color-muted-foreground)]">
+              No outputs yet — they appear here after an apply writes terraform.tfstate.
+            </div>
+          )}
         </CardContent>
       </Card>
 
