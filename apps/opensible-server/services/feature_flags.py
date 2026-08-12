@@ -76,7 +76,7 @@ def create_flag(data: Dict[str, Any]) -> Dict[str, Any]:
         "enabled": bool(data.get("enabled", True)),
         "environments": {e: bool(data.get("environments", {}).get(e, True))
                          for e in DEFAULT_ENVS},
-        "rollout_percent": max(0, min(100, int(data.get("rollout_percent") or 100))),
+        "rollout_percent": data.get("rollout_percent", 100),
         "users_whitelist": [str(u) for u in (data.get("users_whitelist") or [])],
         "users_blacklist": [str(u) for u in (data.get("users_blacklist") or [])],
         "tags": [str(t) for t in (data.get("tags") or [])],
@@ -138,14 +138,14 @@ def evaluate(key: str, env: str = "prod", user: str = "") -> Dict[str, Any]:
     env_map = flag.get("environments") or {}
     if env in env_map and not env_map[env]:
         return {"key": key, "enabled": False, "reason": f"disabled_in_{env}"}
-    # Per-user rules.
+    # Per-user rules should be checked before rollout percentage.
     if user:
         if user in (flag.get("users_blacklist") or []):
             return {"key": key, "enabled": False, "reason": "blacklisted"}
         if user in (flag.get("users_whitelist") or []):
             return {"key": key, "enabled": True, "reason": "whitelisted"}
     # Percentage rollout.
-    percent = int(flag.get("rollout_percent") or 100)
+    percent = flag.get("rollout_percent", 100)
     if percent >= 100:
         return {"key": key, "enabled": True, "reason": "full_rollout"}
     if percent <= 0:
