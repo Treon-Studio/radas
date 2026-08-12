@@ -859,7 +859,8 @@ def _tofu_cmd(action: str) -> List[str]:
 
 def _project_logs_dir(project_id: Optional[str]) -> Path:
     pid = project_id or "default"
-    return PROJECTS_DIR / pid / "history" / "logs"
+    data_dir = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
+    return data_dir / "projects" / pid / "history" / "logs"
 
 
 def _project_executions_dir(project_id: Optional[str]) -> Path:
