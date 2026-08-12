@@ -17,7 +17,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -124,7 +124,7 @@ def _load_vars_file_safe(project_id, file_path):
 # Routes
 # ---------------------------------------------------------------------------
 @bp.route('/api/all_data')
-@require_auth
+@require_project_access
 def get_all_data():
     """Return merged group_vars/host_vars/hosts/groups payload for a project."""
     try:
@@ -334,7 +334,7 @@ def get_all_data():
 
 
 @bp.route('/api/preview', methods=['POST'])
-@require_auth
+@require_project_access
 def preview_data():
     """Return YAML-serialized preview of group_vars/host_vars."""
     try:
@@ -373,7 +373,7 @@ def preview_data():
 
 
 @bp.route('/api/save', methods=['POST'])
-@require_auth
+@require_project_access
 def save_all_data():
     """Save group_vars/host_vars for a project."""
     try:
@@ -483,7 +483,7 @@ def save_all_data():
 
 
 @bp.route('/api/hosts')
-@require_auth
+@require_project_access
 def get_hosts():
     """Return names of all hosts across the inventory."""
     hosts = _app_module().get_inventory_hosts()
@@ -491,7 +491,7 @@ def get_hosts():
 
 
 @bp.route('/api/inventory/hosts', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_inventory_hosts():
     """API: return hosts for the selected inventory files (or all)."""
     try:
@@ -561,7 +561,7 @@ def api_get_inventory_hosts():
 
 
 @bp.route('/api/dashboard_stats')
-@require_auth
+@require_project_access
 def get_dashboard_stats():
     """Dashboard summary counts (hosts, roles, tasks, variables)."""
     try:

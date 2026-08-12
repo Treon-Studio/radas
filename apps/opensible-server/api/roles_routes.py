@@ -18,7 +18,7 @@ import sys
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -71,7 +71,7 @@ def _resolve_role_target(project_id, pack_id, role_name, sub_path=''):
 # Routes
 # ---------------------------------------------------------------------------
 @bp.route('/api/roles/storage', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_roles_storage():
     """Return the roles tree for the current project's storage."""
     try:
@@ -107,7 +107,7 @@ def api_get_roles_storage():
 
 
 @bp.route('/api/roles/config', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_roles_config():
     try:
         project_id = get_project_id_from_request()
@@ -121,7 +121,7 @@ def api_get_roles_config():
 
 
 @bp.route('/api/roles/config', methods=['POST'])
-@require_auth
+@require_project_access
 def api_save_roles_config():
     try:
         project_id = get_project_id_from_request()
@@ -140,7 +140,7 @@ def api_save_roles_config():
 
 
 @bp.route('/api/roles/<pack_id>/<role_name>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_role_details(pack_id, role_name):
     try:
         project_id = get_project_id_from_request()
@@ -154,7 +154,7 @@ def api_get_role_details(pack_id, role_name):
 
 
 @bp.route('/api/roles/files/<path:role_path>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_role_files(role_path):
     """List all files inside a role directory."""
     try:
@@ -231,7 +231,7 @@ def api_get_role_files(role_path):
 
 
 @bp.route('/api/roles/file/<pack_id>/<path:role_name>/<path:file_path>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_role_file(pack_id, role_name, file_path):
     try:
         a = _app_module()
@@ -307,7 +307,7 @@ def api_get_role_file(pack_id, role_name, file_path):
 
 
 @bp.route('/api/roles/file/<pack_id>/<path:role_name>/<path:file_path>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_save_role_file(pack_id, role_name, file_path):
     try:
         a = _app_module()
@@ -372,7 +372,7 @@ def api_save_role_file(pack_id, role_name, file_path):
 
 
 @bp.route('/api/roles/file/<pack_id>/<path:role_name>/<path:file_path>', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_role_file(pack_id, role_name, file_path):
     """Create a new (optionally empty) file inside a role."""
     try:
@@ -396,7 +396,7 @@ def api_create_role_file(pack_id, role_name, file_path):
 
 
 @bp.route('/api/roles/file/<pack_id>/<path:role_name>/<path:file_path>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_role_file(pack_id, role_name, file_path):
     """Delete a file inside a role."""
     try:
@@ -419,7 +419,7 @@ def api_delete_role_file(pack_id, role_name, file_path):
 
 
 @bp.route('/api/roles/folder/<pack_id>/<path:role_name>/<path:folder_path>', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_role_folder(pack_id, role_name, folder_path):
     """Create a directory inside a role."""
     try:
@@ -440,7 +440,7 @@ def api_create_role_folder(pack_id, role_name, folder_path):
 
 
 @bp.route('/api/roles/folder/<pack_id>/<path:role_name>/<path:folder_path>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_role_folder(pack_id, role_name, folder_path):
     """Delete a directory inside a role (recursive)."""
     try:
@@ -460,7 +460,7 @@ def api_delete_role_folder(pack_id, role_name, folder_path):
 
 
 @bp.route('/api/roles/role', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_role():
     """Create a new role skeleton. Body: { name, pack? }."""
     try:
@@ -496,7 +496,7 @@ def api_create_role():
 
 
 @bp.route('/api/roles/role/<path:role_path>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_role(role_path):
     """Delete an entire role directory."""
     try:

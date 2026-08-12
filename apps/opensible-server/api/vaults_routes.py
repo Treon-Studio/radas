@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -115,7 +115,7 @@ del _n
 # Routes (verbatim from app.py, @app.route -> @bp.route)
 # ---------------------------------------------------------------------------
 @bp.route('/api/projects/<project_id>/vault-keys', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_vault_keys(project_id):
     """API: vault keys ( )"""
     try:
@@ -148,7 +148,7 @@ def api_list_vault_keys(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-keys', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_vault_key(project_id):
     """API: vault key"""
     try:
@@ -195,7 +195,7 @@ def api_create_vault_key(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-keys/<key_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_vault_key(project_id, key_id):
     """API: vault key (, )"""
     try:
@@ -217,7 +217,7 @@ def api_get_vault_key(project_id, key_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-keys/<key_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_vault_key(project_id, key_id):
     """API: vault key (, , )"""
     try:
@@ -263,7 +263,7 @@ def api_update_vault_key(project_id, key_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-keys/<key_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_vault_key(project_id, key_id):
     """API: vault key"""
     try:
@@ -301,7 +301,7 @@ def api_delete_vault_key(project_id, key_id):
 # ============================================================================
 
 @bp.route('/api/projects/<project_id>/vaults', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_vaults(project_id):
     """API: vaults """
     try:
@@ -361,7 +361,7 @@ def api_list_vaults(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_vault(project_id):
     """API: vault key"""
     try:
@@ -405,7 +405,7 @@ def api_create_vault(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults/<vault_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_vault(project_id, vault_id):
     """API: vault ID"""
     try:
@@ -426,7 +426,7 @@ def api_get_vault(project_id, vault_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults/<vault_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_vault(project_id, vault_id):
     """API: vault"""
     try:
@@ -468,7 +468,7 @@ def api_update_vault(project_id, vault_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults/<vault_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_vault(project_id, vault_id):
     """API: vault"""
     try:
@@ -492,7 +492,7 @@ def api_delete_vault(project_id, vault_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults/<vault_id>/encrypt', methods=['POST'])
-@require_auth
+@require_project_access
 def api_vault_encrypt(project_id, vault_id):
     """API: vault' (ansible-vault backend)"""
     try:
@@ -511,7 +511,7 @@ def api_vault_encrypt(project_id, vault_id):
 
 
 @bp.route('/api/projects/<project_id>/vaults/<vault_id>/decrypt', methods=['POST'])
-@require_auth
+@require_project_access
 def api_vault_decrypt(project_id, vault_id):
     """API: vault' (ansible-vault backend)"""
     try:
@@ -530,7 +530,7 @@ def api_vault_decrypt(project_id, vault_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-files/get', methods=['GET'])
-@require_auth
+@require_project_access
 def api_vault_file_get(project_id):
     """API: vault- (group_vars/host_vars)"""
     try:
@@ -589,7 +589,7 @@ def api_vault_file_get(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-files/encrypt', methods=['POST'])
-@require_auth
+@require_project_access
 def api_vault_file_encrypt(project_id):
     """API: keyId + vaultId (ansible-vault label)"""
     try:
@@ -617,7 +617,7 @@ def api_vault_file_encrypt(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-files/decrypt', methods=['POST'])
-@require_auth
+@require_project_access
 def api_vault_file_decrypt(project_id):
     """API: keyId"""
     try:
@@ -645,7 +645,7 @@ def api_vault_file_decrypt(project_id):
 
 
 @bp.route('/api/projects/<project_id>/vault-files/save', methods=['POST'])
-@require_auth
+@require_project_access
 def api_vault_file_save(project_id):
     """API: vault- ( )"""
     try:

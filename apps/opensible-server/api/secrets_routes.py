@@ -17,7 +17,7 @@ import time
 from flask import Blueprint, current_app, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -95,7 +95,7 @@ def _find_secret_file(secrets_dir, secret_name):
 
 
 @bp.route('/api/secrets', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_secrets():
     """List all project secrets (metadata only)."""
     try:
@@ -174,7 +174,7 @@ def api_list_secrets():
 
 
 @bp.route('/api/secrets/<secret_name>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_secret(secret_name):
     """Get a single project secret (metadata only)."""
     try:
@@ -231,7 +231,7 @@ def api_get_secret(secret_name):
 
 
 @bp.route('/api/secrets', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_secret():
     """Create a new project secret."""
     data = None
@@ -307,7 +307,7 @@ def api_create_secret():
 
 
 @bp.route('/api/secrets/<secret_name>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_secret(secret_name):
     """Update an existing project secret."""
     data = None
@@ -383,7 +383,7 @@ def api_update_secret(secret_name):
 
 
 @bp.route('/api/secrets/<secret_name>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_secret(secret_name):
     """Delete a project secret."""
     try:
@@ -409,7 +409,7 @@ def api_delete_secret(secret_name):
 
 
 @bp.route('/api/secrets/meta', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_secrets_meta():
     """List secret metadata (name/type/username) for host/group binding UIs."""
     try:

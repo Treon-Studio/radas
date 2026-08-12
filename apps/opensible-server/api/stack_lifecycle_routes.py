@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, Response, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -25,7 +25,7 @@ def _ctx(name: str):
 
 
 @bp.route('/api/cloud/stacks/<name>/snapshot', methods=['POST'])
-@require_auth
+@require_project_access
 def api_snapshot(name):
     pid, name = _ctx(name)
     if not pid:
@@ -37,7 +37,7 @@ def api_snapshot(name):
 
 
 @bp.route('/api/cloud/stacks/<name>/snapshots', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_snapshots(name):
     pid, name = _ctx(name)
     if not pid:
@@ -46,7 +46,7 @@ def api_list_snapshots(name):
 
 
 @bp.route('/api/cloud/stacks/<name>/rollback', methods=['POST'])
-@require_auth
+@require_project_access
 def api_rollback(name):
     pid, name = _ctx(name)
     if not pid:
@@ -60,7 +60,7 @@ def api_rollback(name):
 
 
 @bp.route('/api/cloud/stacks/<name>/strip', methods=['POST'])
-@require_auth
+@require_project_access
 def api_strip(name):
     pid, name = _ctx(name)
     if not pid:
@@ -70,7 +70,7 @@ def api_strip(name):
 
 
 @bp.route('/api/cloud/stacks/<name>/state-config', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_state_config(name):
     pid, name = _ctx(name)
     if not pid:
@@ -79,7 +79,7 @@ def api_get_state_config(name):
 
 
 @bp.route('/api/cloud/stacks/<name>/state-config', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_put_state_config(name):
     pid, name = _ctx(name)
     if not pid:
@@ -92,7 +92,7 @@ def api_put_state_config(name):
 
 
 @bp.route('/api/ci/secrets', methods=['GET'])
-@require_auth
+@require_project_access
 def api_ci_secrets():
     """Export stack secrets as KEY=value for CI pipelines (UC 43).
     Readable by service accounts (readonly can GET)."""
@@ -111,7 +111,7 @@ def api_ci_secrets():
 
 
 @bp.route('/api/cloud/stacks/<name>/history', methods=['GET'])
-@require_auth
+@require_project_access
 def api_stack_history(name):
     """Change history: snapshots + approvals + runs (Fase 5 — UC 72)."""
     pid = _get_pid_raw(lambda: None)
@@ -143,7 +143,7 @@ def api_stack_history(name):
 
 
 @bp.route('/api/cloud/stacks/from-template', methods=['POST'])
-@require_auth
+@require_project_access
 def api_stack_from_template():
     """Create a stack from an imported custom template (Fase 5 — UC 15/96)."""
     pid = _get_pid_raw(lambda: None)

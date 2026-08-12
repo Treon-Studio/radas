@@ -84,6 +84,15 @@ def api_list_projects():
     """API: """
     try:
         projects = load_projects()
+        # Org-scope: only projects in orgs the user belongs to (Fase 7 — D2).
+        uid = (getattr(request, "current_user", {}) or {}).get("user_id")
+        try:
+            from services.org_service import list_orgs_for_user
+            my_org_ids = {o["id"] for o in list_orgs_for_user(uid)} if uid else set()
+            projects = [p for p in projects
+                        if (not p.get("org_id")) or p.get("org_id") in my_org_ids]
+        except Exception:
+            pass
         # ( include_archived)
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
         if not include_archived:
@@ -117,13 +126,29 @@ def api_create_project():
         if any(p.get('name') == name and not p.get('isArchived', False) for p in projects):
             return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
         
+        # Org assignment (Fase 7 — D2): default to user's first org.
+        uid = (getattr(request, "current_user", {}) or {}).get("user_id")
+        org_id = None
+        try:
+            from services.org_service import list_orgs_for_user
+            orgs = list_orgs_for_user(uid) if uid else []
+            requested = (data.get("org_id") or "").strip()
+            if requested:
+                org_id = requested if any(o["id"] == requested for o in orgs) else None
+            elif orgs:
+                org_id = orgs[0]["id"]
+        except Exception:
+            org_id = None
         project = {
             'id': str(uuid.uuid4()),
             'name': name,
             'description': data.get('description', '').strip(),
+            'org_id': org_id,
+            'orgId': org_id,
+            'owner_id': uid,
             'createdAt': time.time(),
             'updatedAt': time.time(),
-            'createdBy': data.get('createdBy', 'current_user'),  # TODO: 
+            'createdBy': uid or 'current_user',
             'isArchived': False
         }
         

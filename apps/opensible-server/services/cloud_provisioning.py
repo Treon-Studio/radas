@@ -17,10 +17,10 @@ from typing import Any, Dict, List, Optional
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
     from utils.secret_encryption import get_encryption
 except ImportError:  # pragma: no cover
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
     from utils.secret_encryption import get_encryption
 
 
@@ -625,7 +625,7 @@ bp = Blueprint("cloud_provisioning", __name__, url_prefix="/api/cloud")
 
 
 @bp.route("/providers", methods=["GET"])
-@require_auth
+@require_project_access
 def list_providers():
     return jsonify({"providers": PROVIDERS})
 
@@ -634,14 +634,14 @@ _PROVIDER_SCHEMAS: Dict[str, Dict[str, Any]] = _providers.schemas()
 
 
 @bp.route("/bytedc/schema", methods=["GET"])
-@require_auth
+@require_project_access
 def bytedc_schema():
     # Legacy route kept for the older wizard frontend.
     return jsonify(_PROVIDER_SCHEMAS["bytedc"])
 
 
 @bp.route("/<provider>/schema", methods=["GET"])
-@require_auth
+@require_project_access
 def provider_schema(provider):
     schema = _PROVIDER_SCHEMAS.get(provider)
     if not schema:
@@ -651,14 +651,14 @@ def provider_schema(provider):
 
 
 @bp.route("/stacks", methods=["GET"])
-@require_auth
+@require_project_access
 def stacks_list():
     pid = _get_project_id()
     return jsonify({"stacks": _list_stacks(pid)})
 
 
 @bp.route("/runs", methods=["GET"])
-@require_auth
+@require_project_access
 def all_runs_list():
     """Aggregate list of all OpenTofu (TOFU_RUN) executions for this project,
     across every stack. Powers the Provisioning Summary dashboard."""
@@ -723,7 +723,7 @@ def _stack_info(project_id: Optional[str], name: str) -> Dict[str, Any]:
 
 
 @bp.route("/stacks", methods=["POST"])
-@require_auth
+@require_project_access
 def stacks_create():
     pid = _get_project_id()
     body = request.get_json(silent=True) or {}
@@ -764,7 +764,7 @@ def stacks_create():
 
 
 @bp.route("/stacks/<name>", methods=["GET"])
-@require_auth
+@require_project_access
 def stacks_get(name):
     pid = _get_project_id()
     if not _valid_name(name) or not _stack_dir(pid, name).exists():
@@ -804,7 +804,7 @@ def stacks_get(name):
 
 
 @bp.route("/stacks/<name>", methods=["PUT"])
-@require_auth
+@require_project_access
 def stacks_update(name):
     pid = _get_project_id()
     if not _valid_name(name) or not _stack_dir(pid, name).exists():
@@ -829,7 +829,7 @@ def stacks_update(name):
 
 
 @bp.route("/stacks/<name>", methods=["DELETE"])
-@require_auth
+@require_project_access
 def stacks_delete(name):
     pid = _get_project_id()
     if not _valid_name(name) or not _stack_dir(pid, name).exists():
@@ -975,7 +975,7 @@ def _create_execution(project_id: Optional[str], stack: str, action: str, worker
 
 
 @bp.route("/stacks/<name>/actions", methods=["POST"])
-@require_auth
+@require_project_access
 def stacks_action(name):
     pid = _get_project_id()
     if not _valid_name(name) or not _stack_dir(pid, name).exists():
@@ -1216,7 +1216,7 @@ def _drift_status(project_id: Optional[str], name: str) -> Dict[str, Any]:
 
 
 @bp.route("/stacks/<name>/drift", methods=["GET"])
-@require_auth
+@require_project_access
 def drift_get(name):
     pid = _get_project_id()
     if not _valid_name(name) or not _stack_dir(pid, name).exists():
@@ -1225,7 +1225,7 @@ def drift_get(name):
 
 
 @bp.route("/stacks/<name>/drift", methods=["PUT"])
-@require_auth
+@require_project_access
 def drift_set(name):
     """Enable/disable drift detection for a single stack. Default: disabled."""
     pid = _get_project_id()
@@ -1343,7 +1343,7 @@ def _exec_to_run(exe: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @bp.route("/stacks/<name>/runs", methods=["GET"])
-@require_auth
+@require_project_access
 def runs_list(name):
     pid = _get_project_id()
     if not _valid_name(name):
@@ -1367,7 +1367,7 @@ def runs_list(name):
 
 
 @bp.route("/stacks/<name>/runs/<run_id>", methods=["GET"])
-@require_auth
+@require_project_access
 def run_get(name, run_id):
     pid = _get_project_id() or "default"
     if not _valid_name(name):
@@ -1394,7 +1394,7 @@ def run_get(name, run_id):
 
 
 @bp.route("/stacks/<name>/runs/<run_id>/stream", methods=["GET"])
-@require_auth
+@require_project_access
 def run_stream(name, run_id):
     """SSE tail of the worker-written log."""
     pid = _get_project_id() or "default"
@@ -1455,7 +1455,7 @@ def _build_inventory_from_state(state: Dict[str, Any], provider: str = "bytedc")
 
 
 @bp.route("/stacks/<name>/inventory", methods=["GET"])
-@require_auth
+@require_project_access
 def stacks_inventory(name):
     """Return VM inventory parsed from terraform.tfstate.
 
@@ -1531,7 +1531,7 @@ def stacks_inventory(name):
 
 
 @bp.route("/stacks/<name>/state", methods=["GET"])
-@require_auth
+@require_project_access
 def stacks_state(name):
     """Inspect the local terraform.tfstate.
 

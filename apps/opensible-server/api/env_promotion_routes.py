@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -15,7 +15,7 @@ bp = Blueprint("env_promotion_api", __name__)
 
 
 @bp.route('/api/cloud/stacks/promote', methods=['POST'])
-@require_auth
+@require_project_access
 def api_promote():
     pid = _get_pid_raw(lambda: None)
     data = request.get_json(silent=True) or {}

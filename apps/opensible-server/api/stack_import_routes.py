@@ -5,7 +5,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -20,7 +20,7 @@ def _project_id():
 
 
 @bp.route('/api/cloud/stacks/import', methods=['POST'])
-@require_auth
+@require_project_access
 def api_import_stack():
     pid = _project_id()
     if not pid:
