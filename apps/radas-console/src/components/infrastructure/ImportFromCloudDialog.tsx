@@ -125,7 +125,7 @@ export function ImportFromCloudDialog({
             <Boxes className="h-5 w-5" />
             <h2 className="text-lg font-semibold">Import hosts from Cloud VM Inventory</h2>
           </div>
-          <button onClick={onClose} className="text-xl leading-none text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">×</button>
+          <button onClick={onClose} aria-label="Close" className="text-xl leading-none text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">×</button>
         </div>
 
         <div className="p-6 space-y-4">

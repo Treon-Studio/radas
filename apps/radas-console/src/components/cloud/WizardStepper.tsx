@@ -49,14 +49,14 @@ function StepRow({ index, active, done, title, Icon, onClick }: {
       onClick={onClick}
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left transition-colors relative",
-        active && "bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium",
+        active && "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium",
         !active && "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]",
       )}
     >
       <span
         className={cn(
           "inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 relative z-10",
-          active && "bg-blue-600 text-white",
+          active && "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]",
           !active && done && "bg-[var(--color-success)]/15 text-[var(--color-success)]",
           !active && !done && "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]",
         )}

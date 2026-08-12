@@ -50,7 +50,7 @@ function Modal({ open, onClose, title, children, footer, wide }: {
       >
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
           <h2 className="text-base font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] text-xl leading-none">×</button>
+          <button onClick={onClose} aria-label="Close" className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] text-xl leading-none">×</button>
         </div>
         <div className="p-5 overflow-y-auto flex-1">{children}</div>
         {footer && <div className="px-5 py-3 border-t border-[var(--color-border)] flex justify-end gap-2">{footer}</div>}

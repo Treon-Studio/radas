@@ -918,7 +918,7 @@ function ReportDetailModal({ report, onClose }: { report: ReportDetail; onClose:
               {report.run_id ? ` · run ${report.run_id.slice(0, 8)}` : ""}
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
+          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
         </div>
         <div className="p-5 overflow-y-auto space-y-4">
           <div className="grid grid-cols-3 gap-3">

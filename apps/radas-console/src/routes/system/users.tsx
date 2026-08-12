@@ -574,7 +574,7 @@ function Modal({ title, children, onClose, wide }: { title: string; children: Re
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
           <h2 className="font-semibold">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5">{children}</div>
       </div>

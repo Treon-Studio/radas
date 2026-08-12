@@ -274,7 +274,7 @@ function ModalShell({ title, icon, onClose, children }: { title: string; icon?: 
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
           <h3 className="text-base font-semibold flex items-center gap-2">{icon}{title}</h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-muted)]"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-[var(--color-muted)]"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -405,7 +405,7 @@ function ConnectWorkerPanel({ onClose }: { onClose: () => void }) {
           <h3 className="text-base font-semibold flex items-center gap-2">
             <Info className="h-4 w-4" /> How to connect a worker agent
           </h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-muted)]"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-[var(--color-muted)]"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 text-sm text-[var(--color-muted-foreground)] space-y-2">
           <p>1. Create a worker above and copy the token.</p>

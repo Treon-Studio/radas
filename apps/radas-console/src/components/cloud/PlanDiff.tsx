@@ -6,8 +6,8 @@ import { parseTofuPlan, ACTION_META, type PlanChangeAction, type PlanResource, t
 import { cn } from "@/lib/utils";
 
 const TONE_CLASS: Record<string, string> = {
-  create: "text-emerald-600 dark:text-emerald-400",
-  update: "text-amber-600 dark:text-amber-400",
+  create: "text-[var(--color-success)]",
+  update: "text-[var(--color-warning)]",
   destroy: "text-[var(--color-destructive)]",
   neutral: "text-[var(--color-muted-foreground)]",
 };

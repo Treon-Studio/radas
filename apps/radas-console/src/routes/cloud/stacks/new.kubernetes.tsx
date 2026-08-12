@@ -277,7 +277,7 @@ function StepPanel({
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
-        <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+        <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] shrink-0">
           <Icon className="h-5 w-5" />
         </span>
         <div>
