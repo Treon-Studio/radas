@@ -8,6 +8,7 @@ encrypted via the global secret encryption helper.
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -87,11 +88,17 @@ def providers() -> List[Dict[str, Any]]:
 
 
 def _store_path() -> Path:
-    try:
-        import app as _app
-        return Path(getattr(_app, "DATA_DIR", "data")) / "byoc_accounts.json"
-    except Exception:
-        return Path("data") / "byoc_accounts.json"
+    # Prefer the live env var (matches worker_registry/secret_encryption and
+    # keeps the `data_dir` test fixture isolated after `app` has been imported);
+    # fall back to app.DATA_DIR / cwd.
+    data_dir = Path(os.environ["DATA_DIR"]) if os.environ.get("DATA_DIR") else None
+    if data_dir is None:
+        try:
+            import app as _app
+            data_dir = Path(getattr(_app, "DATA_DIR", "data"))
+        except Exception:
+            data_dir = Path("data")
+    return data_dir / "byoc_accounts.json"
 
 
 def _load() -> List[Dict[str, Any]]:
@@ -226,6 +233,42 @@ def validate_account(account_id: str) -> Dict[str, Any]:
             a["validate_detail"] = probe.get("detail", "")
     _save(items)
     return {"account_id": account_id, **probe}
+
+
+def check_due_accounts(now: Optional[int] = None) -> List[Dict[str, Any]]:
+    now = now or int(time.time())
+    checked = []
+    for a in _load():
+        interval = int(a.get("check_interval_seconds") or 3600)
+        last = int(a.get("last_check") or 0)
+        if now - last >= interval:
+            try:
+                result = validate_account(a["id"])
+            except Exception as e:
+                result = {"ok": False, "status": 0, "detail": str(e)}
+            checked.append({"account_id": a["id"], "name": a["name"], **result})
+    return checked
+
+
+def rotate_credentials(account_id: str, new_creds: Dict[str, str]) -> Dict[str, Any]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    items = _load()
+    for a in items:
+        if a["id"] != account_id:
+            continue
+        secret_keys = [c["key"] for c in _PROVIDER_META[a["provider"]]["creds"] if c.get("secret")]
+        merged = dict(a.get("credentials") or {})
+        for k, v in new_creds.items():
+            if v:
+                merged[k] = _encrypt(v) if k in secret_keys else v
+        a["credentials"] = merged
+        a["status"] = "unverified"
+        a["last_check"] = 0
+        a["updated_at"] = int(time.time())
+    _save(items)
+    return {"account_id": account_id, "status": "unverified"}
 
 
 def get_inventory(account_id: str) -> Dict[str, Any]:

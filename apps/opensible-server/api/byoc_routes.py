@@ -57,6 +57,25 @@ def api_byoc_validate(account_id):
     return jsonify(out)
 
 
+@bp.route('/api/byoc/check-due', methods=['POST'])
+@require_auth
+def api_byoc_check_due():
+    from services.byoc import check_due_accounts
+    return jsonify({"checked": check_due_accounts()})
+
+
+@bp.route('/api/byoc/accounts/<account_id>/rotate', methods=['POST'])
+@require_auth
+def api_byoc_rotate(account_id):
+    from services.byoc import rotate_credentials
+    data = request.get_json(silent=True) or {}
+    try:
+        out = rotate_credentials(account_id, data.get("credentials") or {})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify(out)
+
+
 @bp.route('/api/byoc/accounts/<account_id>/inventory', methods=['GET'])
 @require_auth
 def api_byoc_inventory(account_id):
