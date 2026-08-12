@@ -446,7 +446,7 @@ fitur terpisah:
 | 293 | Sync state dari existing terraform state (import state) | ⬜ | P1 | 6 |
 | 294 | Multiple state file: remote vs local detect | ⬜ | P1 | 6 |
 | 295 | Kredensial per stack (bukan hanya per akun) | ⬜ | P1 | 6 |
-| 296 | Rotasi kredensial otomatis (schedule) | ✅ | P2 | 6 |
+| 296 | Rotasi kredensial otomatis (schedule) | 🔶 | P2 | 6 |
 | 297 | Health check berkala koneksi (cron ping) | 🔶 | P1 | 6 |
 | 298 | Notifikasi saat credential expired/rejected | ⬜ | P1 | 6 |
 | 299 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ⬜ | P1 | 6 |
