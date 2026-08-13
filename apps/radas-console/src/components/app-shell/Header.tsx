@@ -2,7 +2,6 @@ import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as Us
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import logoSvg from "@/assets/opensible-logo.png";
-import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { getActiveSection } from "@/components/app-shell/NavSections";
 import { useT } from "@/lib/i18n";
@@ -112,6 +111,11 @@ export function AppHeader() {
               placeholder={loading ? t("common.loading") : t("common.noProjects")}
               prefix={<StackLine className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
               options={projects.map(p => ({ value: p.id, label: p.name }))}
+              action={{
+                label: t("common.newProject"),
+                icon: <Plus className="h-4 w-4" />,
+                onClick: () => setNewProjectOpen(true),
+              }}
               triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
               align="start"
             />
@@ -154,11 +158,6 @@ export function AppHeader() {
               />
             </div>
           )}
-          <Button variant="outline" size="pill" onClick={() => setNewProjectOpen(true)} title={t("common.createNewProject")} className="h-7 px-3 text-xs">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">{t("common.newProject")}</span>
-          </Button>
-
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(v => !v)}

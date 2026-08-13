@@ -31,6 +31,8 @@ type Props = {
   side?: "top" | "bottom";
   /** Render a custom prefix inside the trigger (e.g. an icon). */
   prefix?: React.ReactNode;
+  /** Render an action at the bottom of the options panel. */
+  action?: { label: string; icon?: React.ReactNode; onClick: () => void };
 };
 
 export function Select({
@@ -46,6 +48,7 @@ export function Select({
   align = "start",
   side = "bottom",
   prefix,
+  action,
 }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -138,6 +141,19 @@ export function Select({
               </button>
             );
           })}
+          {action && (
+            <>
+              <div className="my-1.5 border-t border-[var(--color-border)]" />
+              <button
+                type="button"
+                onClick={() => { setOpen(false); action.onClick(); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-[var(--color-primary)] hover:bg-[var(--color-muted)] transition-colors"
+              >
+                {action.icon}
+                <span className="truncate">{action.label}</span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
