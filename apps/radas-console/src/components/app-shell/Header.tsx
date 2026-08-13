@@ -19,6 +19,7 @@ export function AppHeader() {
   const { pathname } = useLocation();
   const activeSection = getActiveSection(pathname);
   const { projects, currentId, setCurrent, loading } = useProjects();
+  const isProjectPicker = pathname === "/dashboard";
   const navigate = useNavigate();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,21 +105,27 @@ export function AppHeader() {
           </Link>
           <span className="text-[var(--color-stone)] font-mono text-sm leading-none shrink-0 select-none">/</span>
           <div className="w-[180px] shrink-0">
-            <Select
-              value={currentId ?? ""}
-              onChange={(v) => setCurrent(v || null)}
-              disabled={loading}
-              placeholder={loading ? t("common.loading") : t("common.noProjects")}
-              prefix={<StackLine className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
-              options={projects.map(p => ({ value: p.id, label: p.name }))}
-              action={{
-                label: t("common.newProject"),
-                icon: <Plus className="h-4 w-4" />,
-                onClick: () => setNewProjectOpen(true),
-              }}
-              triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
-              align="start"
-            />
+            {isProjectPicker ? (
+              <span className="text-xs font-mono uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
+                Project home
+              </span>
+            ) : (
+              <Select
+                value={currentId ?? ""}
+                onChange={(v) => setCurrent(v || null)}
+                disabled={loading}
+                placeholder={loading ? t("common.loading") : t("common.noProjects")}
+                prefix={<StackLine className="h-3 w-3 text-[var(--color-foreground)] shrink-0" />}
+                options={projects.map(p => ({ value: p.id, label: p.name }))}
+                action={{
+                  label: t("common.newProject"),
+                  icon: <Plus className="h-4 w-4" />,
+                  onClick: () => setNewProjectOpen(true),
+                }}
+                triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
+                align="start"
+              />
+            )}
           </div>
 
           {/* Primary horizontal tabs */}

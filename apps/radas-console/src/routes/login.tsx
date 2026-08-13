@@ -24,7 +24,7 @@ function LoginPage() {
 
   const mutation = useMutation({
     mutationFn: ({ u, p }: { u: string; p: string }) => login(u, p),
-    onSuccess: () => navigate({ to: "/cloud/summary", replace: true }),
+    onSuccess: () => navigate({ to: "/dashboard", replace: true }),
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : t("auth.login.error"));
     },

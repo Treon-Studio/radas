@@ -64,12 +64,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const list = Array.isArray(r) ? r : (r.projects ?? []);
       setProjects(list);
       const sel = getCurrentProjectId();
-      if (!sel || !list.find(p => p.id === sel)) {
-        const first = list[0]?.id ?? null;
-        setCurrentProjectId(first);
-        setCurrentIdState(first);
-      } else {
+      if (sel && list.find(p => p.id === sel)) {
         setCurrentIdState(sel);
+      } else {
+        // Keep the global project picker explicit; don't silently open the first project.
+        setCurrentProjectId(null);
+        setCurrentIdState(null);
       }
     } catch { /* ignore */ }
     finally { setLoading(false); }

@@ -1,196 +1,117 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { RiFolder2Line as FolderKanban, RiCloudLine as Cloud, RiBookOpenLine as BookOpen, RiAddLine as Plus, RiArrowRightLine as ArrowRight, RiPulseLine as Activity, RiStackLine as Layers } from "@remixicon/react";
+import {
+  RiArrowRightLine as ArrowRight,
+  RiAddLine as Plus,
+  RiFolder2Line as FolderKanban,
+} from "@remixicon/react";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, statusToVariant } from "@/components/ui/badge";
-import { api } from "@/lib/api";
-import { useProjects } from "@/lib/project";
+import { Card, CardContent } from "@/components/ui/card";
+import { useProjects, type Project } from "@/lib/project";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/dashboard")({ component: Dashboard });
 
-type StackRow = { name: string; provider?: string; last_status?: string; updated_at?: number };
-type Run = { run_id: string; stack: string; action: string; status: string; mtime?: number };
-type Playbook = { id: string; name?: string };
-
 function Dashboard() {
   const t = useT();
-  const { projects, current, currentId, loading: projectsLoading } = useProjects();
+  const navigate = useNavigate();
+  const { projects, loading, setCurrent } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const stacksQ = useQuery({
-    queryKey: ["cloud", "stacks", currentId],
-    queryFn: () => api<{ stacks: StackRow[] }>("GET", "/api/cloud/stacks"),
-    enabled: !!currentId,
-  });
-  const runsQ = useQuery({
-    queryKey: ["cloud", "runs", currentId],
-    queryFn: () => api<{ runs: Run[] }>("GET", "/api/cloud/runs"),
-    enabled: !!currentId,
-    refetchInterval: 8000,
-  });
-  const playbooksQ = useQuery({
-    queryKey: ["ansible", "playbooks", currentId],
-    queryFn: () => api<{ playbooks?: Playbook[] } | Playbook[]>("GET", "/api/projects/_current/playbooks"),
-    enabled: !!currentId,
-  });
-
-  const stacks = stacksQ.data?.stacks ?? [];
-  const runs = runsQ.data?.runs ?? [];
-  const playbooks = Array.isArray(playbooksQ.data)
-    ? playbooksQ.data
-    : (playbooksQ.data?.playbooks ?? []);
-
-  const activeProjects = projects.filter(p => !p.archived && !p.isArchived).length;
-  const runningCount = runs.filter(r => r.status === "running" || r.status === "queued").length;
+  const openProject = async (project: Project) => {
+    await setCurrent(project.id);
+    await navigate({ to: "/projects/$projectId", params: { projectId: project.id } });
+  };
 
   return (
-    <div className="space-y-6 animate-enter">
+    <div className="space-y-8 animate-enter">
       <Breadcrumbs items={[{ label: t("nav.homeDashboard") }]} />
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">{t("page.home.title")}</h1>
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{t("page.home.subtitle")}</p>
+          <p className="text-xs font-mono uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
+            Workspace
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight mt-2">{t("page.home.title")}</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-2 max-w-xl">
+            Choose a project to open its cloud and infrastructure workspace.
+          </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> {t("common.newProject")}</Button>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4" /> {t("common.newProject")}
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={<FolderKanban className="h-5 w-5" />}
-          label={t("page.home.totalProjects")}
-          value={projectsLoading ? "…" : activeProjects}
-          hint={current ? t("page.home.activeProject", { name: current.name }) : t("page.home.noActiveProject")}
-          tint="primary"
-        />
-        <StatCard
-          icon={<Cloud className="h-5 w-5" />}
-          label={t("page.home.cloudProvisioning")}
-          value={stacksQ.isLoading ? "…" : stacks.length}
-          hint={t("page.home.opentofuStacks")}
-          tint="success"
-          to="/cloud/stacks"
-        />
-        <StatCard
-          icon={<BookOpen className="h-5 w-5" />}
-          label={t("page.home.infrastructure")}
-          value={playbooksQ.isLoading ? "…" : playbooks.length}
-          hint={t("page.home.ansiblePlaybooks")}
-          tint="accent"
-        />
-        <StatCard
-          icon={<Activity className="h-5 w-5" />}
-          label={t("page.home.activeRuns")}
-          value={runsQ.isLoading ? "…" : runningCount}
-          hint={t("page.home.totalInHistory", { count: runs.length })}
-          tint="warning"
-          to="/cloud/summary"
-        />
-      </div>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Your projects</h2>
+          <span className="text-xs text-[var(--color-muted-foreground)]">
+            {loading ? "Loading…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2"><Layers className="h-4 w-4" /> {t("page.home.recentStacks")}</CardTitle>
-            <Link to="/cloud/stacks" className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1">
-              {t("page.home.viewAll")} <ArrowRight className="h-3 w-3" />
-            </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {stacks.length === 0 ? (
-              <EmptyRow label={t("page.home.noStacks")} cta={<Link to="/cloud/stacks/new" className="text-[var(--color-primary)] hover:underline">{t("page.home.createStack")}</Link>} />
-            ) : (
-              <ul className="divide-y divide-[var(--color-border)]">
-                {stacks.slice(0, 6).map(s => (
-                  <li key={s.name} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="h-8 w-8 rounded-md bg-[var(--color-primary)]/10 text-[var(--color-primary)] flex items-center justify-center shrink-0">
-                      <Cloud className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{s.name}</div>
-                      <div className="text-xs text-[var(--color-muted-foreground)] truncate">{s.provider ?? "—"}</div>
-                    </div>
-                    {s.last_status && <Badge variant={statusToVariant(s.last_status)} className="shrink-0">{s.last_status}</Badge>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        {loading ? (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-6 py-12 text-center text-sm text-[var(--color-muted-foreground)]">
+            Loading projects…
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-card)] px-6 py-16 text-center">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-[var(--color-muted)] flex items-center justify-center">
+              <FolderKanban className="h-6 w-6 text-[var(--color-muted-foreground)]" />
+            </div>
+            <h2 className="mt-4 text-base font-semibold">No projects yet</h2>
+            <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+              Create your first project to start managing stacks and playbooks.
+            </p>
+            <Button className="mt-5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> Create project
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {projects.filter((p) => !p.isArchived && !p.archived).map((project) => (
+              <ProjectCard key={project.id} project={project} onOpen={() => void openProject(project)} />
+            ))}
+          </div>
+        )}
+      </section>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2"><FolderKanban className="h-4 w-4" /> {t("page.home.yourProjects")}</CardTitle>
-            <button onClick={() => setCreateOpen(true)} className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1">
-              <Plus className="h-3 w-3" /> {t("page.home.new")}
-            </button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {projects.length === 0 ? (
-              <EmptyRow label={t("page.home.noProjects")} cta={<button onClick={() => setCreateOpen(true)} className="text-[var(--color-primary)] hover:underline">{t("page.home.createFirstProject")}</button>} />
-            ) : (
-              <ul className="divide-y divide-[var(--color-border)]">
-                {projects.slice(0, 6).map(p => (
-                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="h-8 w-8 rounded-md bg-[var(--color-muted)] flex items-center justify-center shrink-0 text-xs font-semibold">
-                      {p.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{p.name}</div>
-                      {p.description && <div className="text-xs text-[var(--color-muted-foreground)] truncate">{p.description}</div>}
-                    </div>
-                    {p.id === currentId && <Badge variant="success" className="shrink-0">{t("common.active")}</Badge>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <NewProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <NewProjectDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(id) => void navigate({ to: "/projects/$projectId", params: { projectId: id } })}
+      />
     </div>
   );
 }
 
-function EmptyRow({ label, cta }: { label: string; cta: React.ReactNode }) {
+function ProjectCard({ project, onOpen }: { project: Project; onOpen: () => void }) {
   return (
-    <div className="px-4 py-10 text-center text-sm text-[var(--color-muted-foreground)]">
-      <div className="mb-2">{label}</div>
-      <div className="text-xs">{cta}</div>
-    </div>
-  );
-}
-
-function StatCard({
-  icon, label, value, hint, tint, to,
-}: {
-  icon: React.ReactNode; label: string; value: number | string; hint?: string;
-  tint: "primary" | "success" | "accent" | "warning"; to?: string;
-}) {
-  const tints: Record<string, string> = {
-    primary: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
-    success: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
-    accent: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
-    warning: "bg-[var(--color-muted)] text-[var(--color-foreground)]",
-  };
-  const inner = (
-    <Card className="h-full hover:border-[var(--color-primary)]/40 transition-colors">
+    <Card
+      className="group cursor-pointer transition-all hover:border-[var(--color-primary)]/50 hover:-translate-y-0.5"
+      onClick={onOpen}
+    >
       <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className={`h-10 w-10 rounded-md flex items-center justify-center ${tints[tint]}`}>{icon}</div>
-          {to && <ArrowRight className="h-4 w-4 text-[var(--color-muted-foreground)]" />}
+        <div className="flex items-start justify-between gap-3">
+          <div className="h-10 w-10 rounded-lg bg-[var(--color-muted)] flex items-center justify-center">
+            <FolderKanban className="h-5 w-5" />
+          </div>
+          <ArrowRight className="h-4 w-4 text-[var(--color-muted-foreground)] transition-transform group-hover:translate-x-1" />
         </div>
-        <div className="mt-4 text-3xl font-bold tracking-tight">{value}</div>
-        <div className="text-sm font-medium mt-0.5">{label}</div>
-        {hint && <div className="text-xs text-[var(--color-muted-foreground)] mt-1 truncate">{hint}</div>}
+        <h3 className="mt-5 text-base font-semibold truncate">{project.name}</h3>
+        <p className="mt-1 min-h-10 text-sm text-[var(--color-muted-foreground)] line-clamp-2">
+          {project.description || "No description"}
+        </p>
+        <button
+          type="button"
+          className="mt-5 text-xs font-medium text-[var(--color-primary)] hover:underline"
+          onClick={(event) => { event.stopPropagation(); onOpen(); }}
+        >
+          Open project
+        </button>
       </CardContent>
     </Card>
   );
-  return to ? <Link to={to} className="block">{inner}</Link> : inner;
 }
