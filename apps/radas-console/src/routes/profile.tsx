@@ -47,6 +47,9 @@ function ProfilePage() {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwErr, setPwErr] = useState<string | null>(null);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   useEffect(() => {
     if (me) {
@@ -98,7 +101,9 @@ function ProfilePage() {
   function submitPassword() {
     setPwErr(null);
     if (!currentPw) return setPwErr("Enter your current password");
-    if (newPw.length < 6) return setPwErr("New password must be at least 6 characters");
+    if (newPw.length < 12) return setPwErr("New password must be at least 12 characters");
+    const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((pattern) => pattern.test(newPw)).length;
+    if (classes < 3) return setPwErr("Use at least three of uppercase, lowercase, number, and symbol");
     if (newPw !== confirmPw) return setPwErr("Passwords do not match");
     changePassword.mutate();
   }
@@ -164,17 +169,26 @@ function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Change password</CardTitle>
-          <CardDescription>Use a strong password of at least 6 characters.</CardDescription>
+          <CardDescription>Use a strong password of at least 12 characters with uppercase, lowercase, number, and symbol.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field label="Current password *">
-            <Input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" />
+            <div className="flex gap-2">
+              <Input type={showCurrentPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowCurrentPw((value) => !value)}>{showCurrentPw ? "Hide" : "Show"}</Button>
+            </div>
           </Field>
           <Field label="New password *">
-            <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+            <div className="flex gap-2">
+              <Input type={showNewPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowNewPw((value) => !value)}>{showNewPw ? "Hide" : "Show"}</Button>
+            </div>
           </Field>
           <Field label="Confirm new password *">
-            <Input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+            <div className="flex gap-2">
+              <Input type={showConfirmPw ? "text" : "password"} value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowConfirmPw((value) => !value)}>{showConfirmPw ? "Hide" : "Show"}</Button>
+            </div>
           </Field>
 
           {pwErr && <div className="text-sm text-[var(--color-destructive)] bg-[var(--color-muted)] border border-[var(--color-border)] rounded p-2">{pwErr}</div>}

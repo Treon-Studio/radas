@@ -76,6 +76,11 @@ function RegistryPage() {
         <CardContent className="pt-0">
           <Select value={target} onChange={setTarget} placeholder="Pilih stack tujuan install…" className="w-72"
             options={stackNames.map((s) => ({ value: s, label: s }))} />
+          {stackNames.length === 0 && (
+            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+              Create a cloud stack first before installing registry code.
+            </p>
+          )}
         </CardContent>
       </Card>
 
