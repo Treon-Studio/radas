@@ -1,0 +1,39 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy server+worker → VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/radas
+            git pull origin main
+            cd apps/opensible-server
+            .venv/bin/pip install -q -r requirements.txt
+            pm2 restart radas-server --update-env || true
+            cd /opt/radas/apps/opensible-worker
+            go mod tidy && go build -o /opt/radas/bin/radas-worker ./cmd/worker
+            pm2 restart radas-worker --update-env || true
+            cd /opt/radas
+            grep -q 'PORT=5001' .env || echo 'PORT=5001' >> .env
+            sleep 5
+            curl -s -o /dev/null -w "health: %{http_code}\n" http://localhost:5001/api/health
