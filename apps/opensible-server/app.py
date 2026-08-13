@@ -385,6 +385,7 @@ try:
     from services.permission_service import AccessControlService
     from auth.validators import validate_username, validate_password, validate_email, validate_role_name
     from auth.seed import seed_default_user, seed_default_roles
+    from services.bootstrap_seed import seed_default_tenant
 except ImportError:
     from auth import generate_token, add_token_to_blacklist, verify_token
     from auth.middleware import require_auth, require_optional_auth, set_data_dir, set_access_control_service
@@ -393,6 +394,7 @@ except ImportError:
     from services.permission_service import AccessControlService
     from auth.validators import validate_username, validate_password, validate_email, validate_role_name
     from auth.seed import seed_default_user, seed_default_roles
+    from services.bootstrap_seed import seed_default_tenant
 
 # Set DATA_DIR in auth_middleware
 set_data_dir(DATA_DIR)
@@ -2983,6 +2985,16 @@ if __name__ == '__main__':
         seed_default_roles(role_service, permission_service, DATA_DIR)
         # admin ( )
         seed_default_user(user_service, role_service, DATA_DIR)
+        seeded_tenant = seed_default_tenant(DATA_DIR, PROJECTS_DIR)
+        if seeded_tenant:
+            # The starter project is created after the initial directory pass.
+            # Run it once more so every standard project directory exists.
+            _initialize_projects()
+            app.logger.info(
+                "Bootstrap tenant ready: org=%s project=%s",
+                seeded_tenant["org"]["id"],
+                seeded_tenant["project"]["id"],
+            )
         app.logger.info("Authentication system initialized successfully")
     except Exception as e:
         app.logger.error(f"Error initializing authentication system: {e}", exc_info=True)
