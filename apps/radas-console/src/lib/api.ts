@@ -59,6 +59,11 @@ export async function api<T = unknown>(
   const token = getToken();
   // Attach X-Project-Id like old-web-frontend (cloud endpoints scope by project).
   const projectId = (typeof window !== "undefined") ? window.localStorage.getItem("current_project_id") : null;
+  // API base: VITE_API_BASE overrides for Cloudflare Pages (points at the
+  // tunneled backend). Empty in dev -> relative /api hits the Vite proxy.
+  const apiBase = (typeof window !== "undefined")
+    ? (import.meta.env.VITE_API_BASE ?? "")
+    : "";
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -68,7 +73,7 @@ export async function api<T = unknown>(
   };
   // Allow `_current` placeholder in path for project-scoped endpoints.
   const realPath = projectId ? path.replace("/_current/", `/${encodeURIComponent(projectId)}/`) : path;
-  const res = await fetch(realPath, {
+  const res = await fetch(apiBase + realPath, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

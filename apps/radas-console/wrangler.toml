@@ -1,0 +1,22 @@
+# Cloudflare Pages — radas-console (free tier)
+#
+# Deploy:
+#   pnpm --filter @radas/console build
+#   cd apps/radas-console
+#   npx wrangler pages deploy dist --project-name radas-console
+#
+# Set VITE_API_BASE saat build untuk menunjuk backend tunnel:
+#   VITE_API_BASE=https://radas-api.<subdomain>.trycloudflare.com \
+#     pnpm --filter @radas/console build
+#
+# (tanpa VITE_API_BASE: /api relative -> untuk dev via Vite proxy)
+
+name = "radas-console"
+compatibility_date = "2025-08-13"
+
+[env.production]
+# Placeholder — override dengan project yang sudah dibuat:
+# npx wrangler pages project create radas-console
+
+[observability]
+enabled = true
