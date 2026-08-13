@@ -9,7 +9,7 @@ except ImportError:
     from ..auth.middleware import require_auth, require_project_access
 
 from services.test_cases import (
-    ASSERTIONS, create_test_case, delete_test_case, get_test_case, list_test_cases,
+    ASSERTIONS, clone_test_case, create_test_case, delete_test_case, get_test_case, list_test_cases,
     list_test_results, run_test_case, update_test_case,
 )
 from utils.request_ctx import get_project_id_from_request as _get_pid_raw
@@ -62,6 +62,15 @@ def api_delete_test(test_id):
     if not delete_test_case(test_id, _pid()):
         return jsonify({"error": "not found"}), 404
     return jsonify({"success": True})
+
+
+@bp.route('/api/tests/<test_id>/clone', methods=['POST'])
+@require_project_access
+def api_clone_test(test_id):
+    clone = clone_test_case(test_id, _pid())
+    if not clone:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"success": True, "test_case": clone}), 201
 
 
 @bp.route('/api/tests/<test_id>/run', methods=['POST'])

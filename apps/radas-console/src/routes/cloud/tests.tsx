@@ -77,6 +77,12 @@ function TestsPage() {
     onSuccess: () => { invalidate(); },
   });
 
+  const cloneMut = useMutation({
+    mutationFn: (id: string) => api("POST", `/api/tests/${id}/clone`),
+    onSuccess: () => { invalidate(); toast.success("Test case cloned"); },
+    onError: (e: any) => toast.error(e?.message || "Failed to clone test"),
+  });
+
   const updateMut = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<TestCase> }) => api("PATCH", `/api/tests/${id}`, patch),
     onSuccess: () => { invalidate(); setEditing(null); toast.success("Test case updated"); },
@@ -252,6 +258,7 @@ function TestsPage() {
                   {t.enabled ? "Disable" : "Enable"}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setEditing(t)}>Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => cloneMut.mutate(t.id)} disabled={cloneMut.isPending}>Clone</Button>
                 <Button size="sm" variant="ghost" className="text-[var(--color-destructive)]" onClick={() => deleteMut.mutate(t.id)}>
                   <Trash className="h-3.5 w-3.5" />
                 </Button>

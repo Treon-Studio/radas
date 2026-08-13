@@ -184,6 +184,23 @@ def delete_test_case(test_id: str, project_id: Optional[str] = None) -> bool:
     return True
 
 
+def clone_test_case(test_id: str, project_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Clone a case within its project without copying execution history."""
+    source = get_test_case(test_id, project_id)
+    if not source:
+        return None
+    clone = dict(source)
+    now = int(time.time())
+    clone["id"] = str(uuid.uuid4())
+    clone["name"] = f"{source['name']} (copy)"
+    clone["created_at"] = now
+    clone["updated_at"] = now
+    items = list_test_cases(project_id)
+    items.append(clone)
+    _save("test_cases.json", items, project_id)
+    return clone
+
+
 # --------------------------------------------------------------------------
 # Running tests
 # --------------------------------------------------------------------------
