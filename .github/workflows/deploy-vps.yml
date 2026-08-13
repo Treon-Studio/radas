@@ -23,12 +23,18 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: ADMIN_RESET_PASSWORD
+          env:
+            ADMIN_RESET_PASSWORD: ${{ secrets.ADMIN_RESET_PASSWORD }}
           script: |
             set -e
             cd /opt/radas
             git pull origin main
             cd apps/opensible-server
             .venv/bin/pip install -q -r requirements.txt
+            if [ -n "${ADMIN_RESET_PASSWORD:-}" ]; then
+              .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
+            fi
             test -n "$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)" || { echo 'DATABASE_URL is required in /opt/radas/.env'; exit 1; }
             test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
             test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
