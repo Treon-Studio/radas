@@ -245,7 +245,7 @@ function UserEditor({ user, roles, onClose, onSaved }: { user: User | null; role
 
   return (
     <Modal title={isNew ? "Create User" : `Edit User — ${user!.username}`} onClose={onClose}>
-      <div className="space-y-4">
+      <div className="space-y-4 animate-enter">
         <Field label="Username *">
           <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="jdoe" />
         </Field>

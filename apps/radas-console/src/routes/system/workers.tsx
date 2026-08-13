@@ -79,7 +79,7 @@ function WorkersPage() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-enter">
       <Breadcrumbs items={[{ label: "System" }, { label: "Workers" }]} />
       <div className="flex items-center justify-between gap-2">
         <div>

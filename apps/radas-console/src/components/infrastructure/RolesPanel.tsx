@@ -211,11 +211,11 @@ export function RolesPanel() {
             <CardTitle className="text-sm truncate">{selected ? selected.role : "Files"}</CardTitle>
             {selected && (
               <div className="flex gap-1">
-                <Button size="icon" variant="ghost" title="New file" className="h-7 w-7"
+                <Button size="icon" variant="ghost" title="New file" className="h-7 w-7 min-hit"
                   onClick={() => { setPromptValue(""); setPrompt({ kind: "new-file" }); }}>
                   <FilePlus className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" title="New folder" className="h-7 w-7"
+                <Button size="icon" variant="ghost" title="New folder" className="h-7 w-7 min-hit"
                   onClick={() => { setPromptValue(""); setPrompt({ kind: "new-folder" }); }}>
                   <FolderPlus className="h-3.5 w-3.5" />
                 </Button>

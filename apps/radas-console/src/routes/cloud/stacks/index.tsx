@@ -72,7 +72,9 @@ function StacksList() {
       header: "Status",
       cell: (c) => {
         const v = c.getValue();
-        return v ? <Badge variant={statusToVariant(v)}>{v}</Badge> : "—";
+        if (!v) return "—";
+        const live = String(v).toLowerCase() === "running" || String(v).toLowerCase() === "queued";
+        return <Badge variant={statusToVariant(v)} className={live ? "animate-pulse-soft" : undefined}>{v}</Badge>;
       },
     }),
     col.accessor("drift_status", {
@@ -119,7 +121,7 @@ function StacksList() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-enter">
       <Breadcrumbs items={[{ label: "Cloud Stacks" }]} />
       <div className="flex items-start justify-between gap-4">
         <div>

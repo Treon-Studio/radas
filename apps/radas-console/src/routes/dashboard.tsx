@@ -49,7 +49,7 @@ function Dashboard() {
   const runningCount = runs.filter(r => r.status === "running" || r.status === "queued").length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-enter">
       <Breadcrumbs items={[{ label: t("nav.homeDashboard") }]} />
 
       <div className="flex items-start justify-between gap-4 flex-wrap">

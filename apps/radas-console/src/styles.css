@@ -183,3 +183,68 @@ thead th {
 table, th, td, tr, thead, tbody, tfoot {
   border-color: var(--color-border);
 }
+
+/* ============================================================
+   make-interfaces-feel-better — motion & polish
+   ============================================================ */
+
+/* Image inset outline so edges don't blur into the surface */
+img {
+  outline: 1px solid rgba(0, 0, 0, 0.08);
+  outline-offset: -1px;
+}
+@media (prefers-color-scheme: dark) {
+  img { outline-color: rgba(255, 255, 255, 0.08); }
+}
+
+/* Balanced / pretty wrapping */
+h1, h2, h3, h4, .text-balance { text-wrap: balance; }
+p, li, td, dd, .text-pretty { text-wrap: pretty; }
+
+/* Tabular numerals for counters, timers, tables */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+td, th { font-variant-numeric: tabular-nums; }
+
+/* Motion keyframes — split enter (opacity+translateY) and exit (short) */
+@keyframes radas-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes radas-exit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes radas-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+@keyframes radas-pop {
+  0%   { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-enter  { animation: radas-enter 180ms ease-out both; }
+.animate-exit   { animation: radas-exit 150ms ease-in both; }
+.animate-pop    { animation: radas-pop 160ms ease-out both; }
+.animate-pulse-soft { animation: radas-pulse 1.6s ease-in-out infinite; }
+
+/* Tactile press on buttons — interruptible via transition retarget */
+button:not(:disabled) { transition-property: transform, background-color, box-shadow, border-color, color, opacity; transition-duration: 140ms; transition-timing-function: ease-out; }
+button:not(:disabled):active { transform: scale(0.97); }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hit-area expansion for compact icon buttons (visual stays small, target 40px) */
+.min-hit::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+.min-hit { position: relative; }

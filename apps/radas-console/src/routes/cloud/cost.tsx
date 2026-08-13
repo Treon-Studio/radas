@@ -66,7 +66,7 @@ function CostAnalysisPage() {
   const t = useT();
   const [tab, setTab] = useState<TabId>("pricing");
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-enter">
       <Breadcrumbs items={[{ label: "Cost Analysis" }]} />
       <div className="flex items-center justify-between">
         <div>
