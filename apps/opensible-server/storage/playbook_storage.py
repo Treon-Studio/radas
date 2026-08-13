@@ -538,3 +538,20 @@ class PlaybookStorage:
         kv.kv_delete(f"playbook_schedules:{project_id}", playbook_id)
         return True
 
+    def list_all_schedules(self) -> List[Dict[str, Any]]:
+        """List saved playbook schedules across projects for the scheduler."""
+        from storage import kv
+        schedules: List[Dict[str, Any]] = []
+        for scope in kv.kv_list_scopes(prefix="playbook_schedules:"):
+            project_id = scope.removeprefix("playbook_schedules:")
+            for entry in kv.kv_list(scope):
+                playbook_id = entry["key"]
+                schedule = entry["value"]
+                if isinstance(schedule, dict):
+                    schedules.append({
+                        "project_id": project_id,
+                        "playbook_id": playbook_id,
+                        "schedule": schedule,
+                    })
+        return schedules
+

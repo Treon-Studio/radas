@@ -51,6 +51,18 @@ def kv_keys(scope: str) -> List[str]:
     return [r["key"] for r in rows]
 
 
+def kv_list_scopes(prefix: str = "") -> List[str]:
+    """List distinct scopes, optionally restricted to a prefix."""
+    if prefix:
+        rows = pg.query_all(
+            "SELECT DISTINCT scope FROM kv_store WHERE scope LIKE %s ORDER BY scope",
+            (f"{prefix}%",),
+        )
+    else:
+        rows = pg.query_all("SELECT DISTINCT scope FROM kv_store ORDER BY scope")
+    return [r["scope"] for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Whole-scope load/save (auto-detect list vs dict)
 # ---------------------------------------------------------------------------
