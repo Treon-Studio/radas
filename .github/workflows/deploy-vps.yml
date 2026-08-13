@@ -37,9 +37,14 @@ jobs:
             test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
             test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
             if [ -n "${ADMIN_RESET_PASSWORD:-}" ]; then
-              set -a
-              . /opt/radas/.env
-              set +a
+              server_pid=$(pm2 pid radas-server || true)
+              if [ -n "$server_pid" ] && [ "$server_pid" != "0" ] && [ -r "/proc/$server_pid/environ" ]; then
+                export DATABASE_URL="$(tr '\0' '\n' < "/proc/$server_pid/environ" | sed -n 's/^DATABASE_URL=//p')"
+              fi
+              if [ -z "${DATABASE_URL:-}" ]; then
+                export DATABASE_URL="$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)"
+              fi
+              test -n "${DATABASE_URL:-}" || { echo 'DATABASE_URL is required for admin reset'; exit 1; }
               .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
             fi
             if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
