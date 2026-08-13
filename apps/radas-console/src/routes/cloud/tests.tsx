@@ -269,7 +269,7 @@ function TestsPage() {
           {totalResults.length === 0 && <div className="text-[var(--color-muted-foreground)]">Belum ada hasil run.</div>}
           {totalResults.slice(0, 12).map((r) => (
             <div key={r.id} className="flex items-center gap-2 border-b border-[var(--color-border)] last:border-0 pb-1.5">
-              <Badge variant={r.passed ? "success" : "destructive"}>{r.passed ? "PASS" : "FAIL"}</Badge>
+              <Badge variant={r.status === "queued" ? "warning" : r.passed ? "success" : "destructive"}>{r.status === "queued" ? "QUEUED" : r.passed ? "PASS" : "FAIL"}</Badge>
               <span className="font-medium truncate">{r.name}</span>
               <span className="text-[var(--color-muted-foreground)] truncate">{r.stack}</span>
               <span className="ml-auto text-[var(--color-muted-foreground)] shrink-0">
