@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OrgsRouteImport } from './routes/orgs'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CloudByocRouteImport } from './routes/cloud/byoc'
@@ -32,7 +33,6 @@ import { Route as InfrastructureTemplatesRouteImport } from './routes/infrastruc
 import { Route as InfrastructureVaultsRouteImport } from './routes/infrastructure/vaults'
 import { Route as InfrastructureVaultsSecretsRouteImport } from './routes/infrastructure/vaults-secrets'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
-import { Route as SettingsOrgsRouteImport } from './routes/settings/orgs'
 import { Route as SystemApiRouteImport } from './routes/system/api'
 import { Route as SystemGithubActionsRouteImport } from './routes/system/github-actions'
 import { Route as SystemSecretsRouteImport } from './routes/system/secrets'
@@ -67,6 +67,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrgsRoute = OrgsRouteImport.update({
+  id: '/orgs',
+  path: '/orgs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -171,11 +176,6 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsOrgsRoute = SettingsOrgsRouteImport.update({
-  id: '/orgs',
-  path: '/orgs',
-  getParentRoute: () => SettingsRoute,
 } as any)
 const SystemApiRoute = SystemApiRouteImport.update({
   id: '/system/api',
@@ -285,8 +285,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
@@ -305,7 +306,6 @@ export interface FileRoutesByFullPath {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/settings/orgs': typeof SettingsOrgsRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -331,8 +331,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
@@ -351,7 +352,6 @@ export interface FileRoutesByTo {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/settings/orgs': typeof SettingsOrgsRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -378,8 +378,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/cloud/byoc': typeof CloudByocRoute
   '/cloud/cost': typeof CloudCostRoute
   '/cloud/flags': typeof CloudFlagsRoute
@@ -398,7 +399,6 @@ export interface FileRoutesById {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/settings/orgs': typeof SettingsOrgsRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -426,6 +426,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/orgs'
     | '/profile'
     | '/settings'
     | '/cloud/byoc'
@@ -446,7 +447,6 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
-    | '/settings/orgs'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -472,6 +472,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/orgs'
     | '/profile'
     | '/settings'
     | '/cloud/byoc'
@@ -492,7 +493,6 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
-    | '/settings/orgs'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -518,6 +518,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/orgs'
     | '/profile'
     | '/settings'
     | '/cloud/byoc'
@@ -538,7 +539,6 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
-    | '/settings/orgs'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -565,8 +565,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  OrgsRoute: typeof OrgsRoute
   ProfileRoute: typeof ProfileRoute
-  SettingsRoute: typeof SettingsRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
   CloudByocRoute: typeof CloudByocRoute
   CloudCostRoute: typeof CloudCostRoute
   CloudFlagsRoute: typeof CloudFlagsRoute
@@ -617,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orgs': {
+      id: '/orgs'
+      path: '/orgs'
+      fullPath: '/orgs'
+      preLoaderRoute: typeof OrgsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -758,13 +766,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/settings/orgs': {
-      id: '/settings/orgs'
-      path: '/orgs'
-      fullPath: '/settings/orgs'
-      preLoaderRoute: typeof SettingsOrgsRouteImport
-      parentRoute: typeof SettingsRoute
     }
     '/system/api': {
       id: '/system/api'
@@ -909,18 +910,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface SettingsRouteChildren {
-  SettingsOrgsRoute: typeof SettingsOrgsRoute
-}
-
-const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsOrgsRoute: SettingsOrgsRoute,
-}
-
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
-
 interface CloudStacksNewRouteChildren {
   CloudStacksNewAwsRoute: typeof CloudStacksNewAwsRoute
   CloudStacksNewBiznetRoute: typeof CloudStacksNewBiznetRoute
@@ -957,8 +946,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  OrgsRoute: OrgsRoute,
   ProfileRoute: ProfileRoute,
-  SettingsRoute: SettingsRouteWithChildren,
+  SettingsRoute: SettingsRoute,
   CloudByocRoute: CloudByocRoute,
   CloudCostRoute: CloudCostRoute,
   CloudFlagsRoute: CloudFlagsRoute,

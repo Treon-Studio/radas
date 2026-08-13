@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
-export const Route = createFileRoute("/settings/orgs")({ component: OrgsPage });
+export const Route = createFileRoute("/orgs")({ component: OrgsPage });
 
 type Org = { id: string; name: string; role: string };
 type Member = { user_id: string; role: string; username: string | null; email: string | null };
