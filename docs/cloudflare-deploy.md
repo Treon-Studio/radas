@@ -157,3 +157,26 @@ cd apps/radas-console && npx wrangler pages deploy dist --project-name radas-con
 ```
 
 Aktif: **https://radas-console.pages.dev** → API **https://api-radas.treonstudio.com**
+
+## VPS cleanup (hapus aplikasi lain, khusus radas)
+
+```bash
+# Systemd services non-radas
+for svc in haro-relay mcp-haro cloudflared cloudflared-tunnel; do
+  systemctl stop $svc && systemctl disable $svc
+done
+rm -f /etc/systemd/system/{haro-relay,mcp-haro,cloudflared,cloudflared-tunnel}.service
+
+# Docker containers non-radas
+docker rm -f haro-minio-init haro-minio haro-redis haro-postgres 9router mem0-selfhost-postgres-1
+
+# App & tunnel credentials lama
+rm -rf /opt/haro
+rm -f /root/.cloudflared/99a53745*.json /root/.cloudflared/config.yml /root/.cloudflared/api-token
+
+# Tunnel haro-proxy dari Cloudflare (dari Mac dengan cert.pem)
+cloudflared tunnel delete 99a53745-fd3e-416b-a107-099c6057d0af
+```
+
+Hasil: VPS hanya berisi radas-server + radas-worker + radas-tunnel (named
+`radas-api`). Docker tersisa hanya `radas-tunnel`.
