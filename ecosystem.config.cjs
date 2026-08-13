@@ -22,6 +22,20 @@ const SERVER_PORT = process.env.OPEN_SERVER_PORT || "5001";
 // Dev-only secrets — never use these outside local development.
 const SECRET = "dev-only-change-me-0123456789abcdef";
 
+// Load optional .env (gitignored) so DATABASE_URL / GITHUB_OAUTH_* etc. can be
+// provided without editing this file. Simple parser — no dotenv dependency.
+const fs = require("fs");
+const path = require("path");
+const ENV_FILE = path.join(__dirname, ".env");
+if (fs.existsSync(ENV_FILE)) {
+  for (const line of fs.readFileSync(ENV_FILE, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m && !(m[1] in process.env)) {
+      process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
 module.exports = {
   apps: [
     {

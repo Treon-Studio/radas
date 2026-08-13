@@ -27,6 +27,13 @@ _PLACEHOLDER_RE = re.compile(r"(\?)|('[^']*')")
 
 
 def _translate(sql: str) -> str:
+    """Translate SQLite-isms to Postgres: `?` -> `%s`, `INSERT OR IGNORE` ->
+    `INSERT ... ON CONFLICT DO NOTHING`. Never touch quoted string literals."""
+    # INSERT OR IGNORE INTO ... -> INSERT INTO ... ON CONFLICT DO NOTHING
+    upper = sql.lstrip().upper()
+    if upper.startswith("INSERT OR IGNORE INTO"):
+        sql = re.sub(r"(?i)^\s*INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1)
+        sql = sql.rstrip() + " ON CONFLICT DO NOTHING"
     out: List[str] = []
     in_str = False
     for ch in sql:
