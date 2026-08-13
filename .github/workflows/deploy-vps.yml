@@ -33,9 +33,18 @@ jobs:
             git pull origin main
             cd apps/opensible-server
             .venv/bin/pip install -q -r requirements.txt
+            test -n "$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)" || { echo 'DATABASE_URL is required in /opt/radas/.env'; exit 1; }
+            test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
+            test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
             if [ -n "${ADMIN_RESET_PASSWORD:-}" ]; then
+              set -a
+              . /opt/radas/.env
+              set +a
               .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
             fi
+            if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
+            if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
+            if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
             test -n "$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)" || { echo 'DATABASE_URL is required in /opt/radas/.env'; exit 1; }
             test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
             test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
