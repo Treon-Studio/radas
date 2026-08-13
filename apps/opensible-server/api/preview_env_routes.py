@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -22,13 +22,13 @@ def _pid():
 
 
 @bp.route('/api/preview-envs', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_previews():
     return jsonify({"previews": list_previews(_pid())})
 
 
 @bp.route('/api/preview-envs', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_preview():
     data = request.get_json(silent=True) or {}
     base = (data.get("base_stack") or "").strip()
@@ -46,7 +46,7 @@ def api_create_preview():
 
 
 @bp.route('/api/preview-envs/<name>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_teardown_preview(name):
     force = request.args.get("force") in ("1", "true", "yes")
     try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -22,7 +22,7 @@ def _pid():
 
 
 @bp.route('/api/tests/catalog', methods=['GET'])
-@require_auth
+@require_project_access
 def api_test_catalog():
     return jsonify({"assertions": [
         {"id": k, "name": v["name"], "desc": v["desc"], "severity": v["severity"]}
@@ -31,13 +31,13 @@ def api_test_catalog():
 
 
 @bp.route('/api/tests', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_tests():
     return jsonify({"test_cases": list_test_cases()})
 
 
 @bp.route('/api/tests', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_test():
     data = request.get_json(silent=True) or {}
     try:
@@ -48,7 +48,7 @@ def api_create_test():
 
 
 @bp.route('/api/tests/<test_id>', methods=['PATCH'])
-@require_auth
+@require_project_access
 def api_update_test(test_id):
     tc = update_test_case(test_id, request.get_json(silent=True) or {})
     if not tc:
@@ -57,7 +57,7 @@ def api_update_test(test_id):
 
 
 @bp.route('/api/tests/<test_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_test(test_id):
     if not delete_test_case(test_id):
         return jsonify({"error": "not found"}), 404
@@ -65,7 +65,7 @@ def api_delete_test(test_id):
 
 
 @bp.route('/api/tests/<test_id>/run', methods=['POST'])
-@require_auth
+@require_project_access
 def api_run_test(test_id):
     try:
         result = run_test_case(_pid(), test_id)
@@ -75,7 +75,7 @@ def api_run_test(test_id):
 
 
 @bp.route('/api/tests/<test_id>/tofu-test', methods=['POST'])
-@require_auth
+@require_project_access
 def api_run_tofu_test(test_id):
     from services.test_cases import run_tofu_test
     try:
@@ -86,7 +86,7 @@ def api_run_tofu_test(test_id):
 
 
 @bp.route('/api/tests/results', methods=['GET'])
-@require_auth
+@require_project_access
 def api_test_results():
     try:
         limit = max(1, min(500, int(request.args.get("limit") or 100)))

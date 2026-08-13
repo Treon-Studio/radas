@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -19,13 +19,13 @@ def _pid():
 
 
 @bp.route('/api/ai/status', methods=['GET'])
-@require_auth
+@require_project_access
 def api_ai_status():
     return jsonify({"configured": is_configured()})
 
 
 @bp.route('/api/ai/chat', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ai_chat():
     data = request.get_json(silent=True) or {}
     msg = (data.get("message") or "").strip()
@@ -41,7 +41,7 @@ def api_ai_chat():
 
 
 @bp.route('/api/ai/review-plan', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ai_review_plan():
     data = request.get_json(silent=True) or {}
     plan = data.get("plan_text") or ""
@@ -51,7 +51,7 @@ def api_ai_review_plan():
 
 
 @bp.route('/api/ai/playbook-draft', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ai_playbook_draft():
     data = request.get_json(silent=True) or {}
     prompt = (data.get("prompt") or "").strip()
@@ -61,7 +61,7 @@ def api_ai_playbook_draft():
 
 
 @bp.route('/api/ai/stack-docs', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ai_stack_docs():
     data = request.get_json(silent=True) or {}
     stack = (data.get("stack") or "").strip()

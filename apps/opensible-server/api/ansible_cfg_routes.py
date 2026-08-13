@@ -11,7 +11,7 @@ from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -63,7 +63,7 @@ def _get_project_id_from_request():
 
 
 @bp.route('/api/ansible_config/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_ansible_config_files():
     """ .cfg Project Storage"""
     try:
@@ -111,7 +111,7 @@ def list_ansible_config_files():
 
 
 @bp.route('/api/ansible_config/get', methods=['GET'])
-@require_auth
+@require_project_access
 def get_ansible_config():
     """ ansible config Project Storage"""
     try:
@@ -133,7 +133,7 @@ def get_ansible_config():
 
 
 @bp.route('/api/ansible_config/save', methods=['POST'])
-@require_auth
+@require_project_access
 def save_ansible_config():
     """ ansible config Project Storage"""
     try:
@@ -172,7 +172,7 @@ def save_ansible_config():
 
 
 @bp.route('/api/ansible_config/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_ansible_config():
     """ ansible config Project Storage"""
     try:
@@ -197,7 +197,7 @@ def download_ansible_config():
 
 
 @bp.route('/api/ansible_config/delete', methods=['POST'])
-@require_auth
+@require_project_access
 def delete_ansible_config():
     """ ansible config Project Storage"""
     try:
@@ -248,7 +248,7 @@ def delete_ansible_config():
 
 
 @bp.route('/api/ansible_config/select', methods=['POST'])
-@require_auth
+@require_project_access
 def select_ansible_config():
     """ ansible config """
     try:

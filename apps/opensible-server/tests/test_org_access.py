@@ -94,3 +94,107 @@ def test_project_access_allows_member_denies_outsider(pg_db):
         "Authorization": f"Bearer {_token('u2', 'bob')}",
     })
     assert r.status_code == 403, r.data
+
+
+def test_unknown_project_id_rejected(pg_db):
+    """Project id provided but not in DB -> 403 (not silently allowed)."""
+    _seed()
+    import flask
+    from auth import middleware as mw
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+
+    @app.route("/x")
+    @mw.require_project_access
+    def view():
+        return ("ok", 200)
+
+    client = app.test_client()
+    r = client.get("/x", headers={
+        "X-Project-Id": "totally-unknown-project",
+        "Authorization": f"Bearer {_token('u1', 'alice')}",
+    })
+    assert r.status_code == 403, r.data
+    assert "not found" in r.get_json()["error"].lower()
+
+
+def test_path_project_param_gated(pg_db):
+    """Route dengan <project_id> di path juga di-gate membership."""
+    _seed()
+    import flask
+    from auth import middleware as mw
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+
+    @app.route("/api/bastion/<project_id>")
+    @mw.require_project_access
+    def view(project_id):
+        return ("ok", 200)
+
+    client = app.test_client()
+    # u2 (bukan member org pemilik proj-a) -> 403
+    r = client.get("/api/bastion/proj-a", headers={
+        "Authorization": f"Bearer {_token('u2', 'bob')}",
+    })
+    assert r.status_code == 403, r.data
+    # u1 (owner) -> 200
+    r = client.get("/api/bastion/proj-a", headers={
+        "Authorization": f"Bearer {_token('u1', 'alice')}",
+    })
+    assert r.status_code == 200, r.data
+
+
+def test_queue_route_requires_project_membership(pg_db):
+    """Queue cannot be queried without a project or from another org."""
+    _seed()
+    import flask
+    from api import queue_search_routes
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(queue_search_routes.bp)
+    client = app.test_client()
+
+    missing_project = client.get(
+        "/api/queue",
+        headers={"Authorization": f"Bearer {_token('u1', 'alice')}"},
+    )
+    assert missing_project.status_code == 400, missing_project.data
+
+    outsider = client.get(
+        "/api/queue?project_id=proj-a",
+        headers={"Authorization": f"Bearer {_token('u2', 'bob')}"},
+    )
+    assert outsider.status_code == 403, outsider.data
+
+
+def test_search_filters_requested_projects_to_memberships(pg_db, monkeypatch):
+    """Search never passes projects outside the user's organizations downstream."""
+    org_a, org_b = _seed()
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("proj-b", org_b["id"], "u2", "ProjB", "", "now"),
+    )
+
+    import flask
+    from api import queue_search_routes
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(queue_search_routes.bp)
+    seen = {}
+
+    def fake_search(query, entity_types=None, project_ids=None, limit=50):
+        seen["project_ids"] = project_ids
+        return {"projects": [], "hosts": [], "groups": [], "roles": [],
+                "playbooks": [], "variables": [], "executions": [], "drafts": []}
+
+    monkeypatch.setattr(queue_search_routes, "_search_global", fake_search)
+    response = app.test_client().post(
+        "/api/search",
+        json={"query": "needle", "project_ids": ["proj-a", "proj-b"]},
+        headers={"Authorization": f"Bearer {_token('u1', 'alice')}"},
+    )
+    assert response.status_code == 200, response.data
+    assert seen["project_ids"] == ["proj-a"]

@@ -104,3 +104,16 @@ def org_projects(org_id: str) -> List[Dict[str, Any]]:
         "SELECT id, name, description, owner_id, is_archived, created_at, updated_at "
         "FROM projects WHERE org_id = %s ORDER BY name", (org_id,))
     return [dict(r) for r in rows]
+
+
+def accessible_project_ids(user_id: str) -> List[str]:
+    """Project ids the user may access, across every org they belong to.
+
+    Drives tenant scoping for search/queue endpoints that otherwise fall back
+    to "all projects" when no project context is supplied.
+    """
+    rows = pg.query_all(
+        "SELECT p.id FROM org_members m "
+        "JOIN projects p ON p.org_id = m.org_id "
+        "WHERE m.user_id = %s ORDER BY p.id", (user_id,))
+    return [r["id"] for r in rows]

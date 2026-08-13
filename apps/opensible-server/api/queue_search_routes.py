@@ -79,48 +79,27 @@ for _name in _APP_NAMES:
 
 
 @bp.route('/api/queue', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_queue():
     """API: runs (QUEUED)"""
     try:
-        project_id = request.args.get('project_id')
+        project_id = request.args.get('project_id') or request.headers.get('X-Project-Id')
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
         playbook_id = request.args.get('playbook_id')
         limit = request.args.get('limit', 100, type=int)
-        
+
         # QUEUED executions
-        if project_id:
-            executions = list_executions(
-                limit=limit,
-                playbook_id=playbook_id,
-                project_id=project_id
-            )
-            queued = [e for e in executions if e.get('status') == 'QUEUED']
-        else:
-            # project_id , ( : history/executions/)
-            queued = []
-            for proj_dir in PROJECTS_DIR.iterdir():
-                if not proj_dir.is_dir():
-                    continue
-                project_id_from_dir = proj_dir.name
-                # executions ( )
-                executions_dir = proj_dir / 'history' / 'executions'
-                if not executions_dir.exists():
-                    executions_dir = proj_dir / 'executions'
-                if not executions_dir.exists():
-                    continue
-                try:
-                    execs = list_executions(
-                        limit=limit,
-                        playbook_id=playbook_id,
-                        project_id=project_id_from_dir
-                    )
-                    queued.extend([e for e in execs if e.get('status') == 'QUEUED'])
-                except:
-                    pass
-        
+        executions = list_executions(
+            limit=limit,
+            playbook_id=playbook_id,
+            project_id=project_id
+        )
+        queued = [e for e in executions if e.get('status') == 'QUEUED']
+
         # queuedAt ( )
         queued.sort(key=lambda x: x.get('queuedAt', x.get('createdAt', 0)))
-        
+
         return jsonify({
             'success': True,
             'queued': queued[:limit],
@@ -163,7 +142,7 @@ def _search_global(query, entity_types=None, project_ids=None, limit=50):
     if not query_lower:
         return results
     
-    search_project_ids = project_ids if project_ids else [p.get('id') for p in load_projects()]
+    search_project_ids = project_ids if project_ids else []
     
     # , 
     if entity_types is None:
@@ -328,7 +307,17 @@ def api_global_search():
         entity_types = data.get('entity_types')
         project_ids = data.get('project_ids')  # ID 
         limit = data.get('limit', 50)
-        
+
+        # Tenant scoping: never search projects the user cannot access.
+        from services.org_service import accessible_project_ids
+        cu = getattr(request, 'current_user', {}) or {}
+        user_id = cu.get('user_id')
+        accessible = accessible_project_ids(user_id) if user_id else []
+        if project_ids:
+            project_ids = [pid for pid in project_ids if pid in accessible]
+        else:
+            project_ids = accessible
+
         if not query:
             return jsonify({
                 'success': True,
@@ -344,18 +333,18 @@ def api_global_search():
                 },
                 'total': 0
             })
-        
+
         results = _search_global(query, entity_types, project_ids, limit)
-        
+
         total = sum(len(v) for v in results.values())
-        
+
         return jsonify({
             'success': True,
             'results': results,
             'total': total,
             'query': query
         })
-    
+
     except Exception as e:
         app_logger.error(f"Error in global search: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

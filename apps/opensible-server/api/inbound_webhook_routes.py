@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -17,7 +17,7 @@ ACTIONS = ("plan", "apply", "destroy", "refresh", "validate", "fmt")
 
 
 @bp.route('/api/inbound-webhooks', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_inbound():
     items = []
     for w in load():
@@ -28,7 +28,7 @@ def api_list_inbound():
 
 
 @bp.route('/api/inbound-webhooks', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_inbound():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -46,7 +46,7 @@ def api_create_inbound():
 
 
 @bp.route('/api/inbound-webhooks/<webhook_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_inbound(webhook_id):
     if not delete(webhook_id):
         return jsonify({"error": "not found"}), 404

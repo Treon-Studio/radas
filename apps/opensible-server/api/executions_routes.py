@@ -24,7 +24,7 @@ from flask import Blueprint, Response, jsonify, request, stream_with_context
 try:
     from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
-    from ..auth.middleware import require_auth
+    from ..auth.middleware import require_auth, require_project_access
 
 from utils.backup_settings import load_execution_settings, save_execution_settings
 from utils.request_ctx import get_project_id_from_request as _get_pid_raw
@@ -104,7 +104,7 @@ def _extract_execution_result(execution, execution_type, project_id):
 # Routes
 # ---------------------------------------------------------------------------
 @bp.route('/api/executions', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_executions():
     try:
         project_id = get_project_id_from_request()
@@ -127,7 +127,7 @@ def api_list_executions():
 
 
 @bp.route('/api/executions', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_execution():
     try:
         project_id = get_project_id_from_request()
@@ -149,16 +149,15 @@ def api_create_execution():
 
 
 @bp.route('/api/executions/<execution_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_execution(execution_id):
     try:
         a = _app_module()
         project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
 
-        if project_id:
-            execution = a.get_execution(execution_id, project_id=project_id)
-        else:
-            execution = a.get_execution(execution_id)
+        execution = a.get_execution(execution_id, project_id=project_id)
 
         if not execution:
             return jsonify({'success': False, 'error': 'Execution not found'}), 404
@@ -174,10 +173,12 @@ def api_get_execution(execution_id):
 
 
 @bp.route('/api/executions/<execution_id>', methods=['PATCH'])
-@require_auth
+@require_project_access
 def api_update_execution(execution_id):
     try:
         project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
         data = request.json or {}
         if _app_module().update_execution_record(execution_id, data, project_id=project_id):
             return jsonify({'success': True})
@@ -305,12 +306,14 @@ def api_stop_execution(project_id, execution_id):
 
 
 @bp.route('/api/executions/<execution_id>/logs', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_execution_logs(execution_id):
     """Return parsed log lines with optional inventory/host/playbook filters."""
     try:
         a = _app_module()
         project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
 
         inventory_filter = request.args.get('inventory', '').strip()
         host_filter = request.args.get('host', '').strip()
@@ -424,7 +427,7 @@ def api_get_execution_logs(execution_id):
 
 
 @bp.route('/api/executions/<execution_id>/log', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_execution_log_incremental(execution_id):
     """Incremental log fetch (Jenkins-style offset/limit chunking)."""
     try:
@@ -458,7 +461,7 @@ def api_get_execution_log_incremental(execution_id):
 
 
 @bp.route('/api/executions/<execution_id>/log/stream', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_execution_log_stream(execution_id):
     """SSE stream of execution logs (GitLab/Jenkins style tail -f)."""
 
@@ -549,10 +552,12 @@ def api_get_execution_log_stream(execution_id):
 
 
 @bp.route('/api/executions/<execution_id>/logs', methods=['POST'])
-@require_auth
+@require_project_access
 def api_append_execution_logs(execution_id):
     try:
         project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
         data = request.json or {}
         text = data.get('text', '')
         if _app_module().append_execution_log(execution_id, text, project_id=project_id):
@@ -563,20 +568,26 @@ def api_append_execution_logs(execution_id):
 
 
 @bp.route('/api/executions/clear', methods=['POST'])
-@require_auth
+@require_project_access
 def api_clear_executions():
     try:
-        deleted_count = _app_module().clear_all_executions()
+        project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
+        deleted_count = _app_module().clear_all_executions(project_id=project_id)
         return jsonify({'success': True, 'deletedCount': deleted_count})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/executions/stats', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_execution_stats():
     try:
-        stats = _app_module().get_execution_stats()
+        project_id = get_project_id_from_request()
+        if not project_id:
+            return jsonify({'success': False, 'error': 'Project ID is required'}), 400
+        stats = _app_module().get_execution_stats(project_id=project_id)
         return jsonify({'success': True, 'stats': stats})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -651,7 +662,7 @@ _TERMINAL_STATUSES = ("SUCCESS", "FAILED", "ERROR", "CANCELED", "CANCELLED", "CO
 
 
 @bp.route('/api/executions/stream', methods=['GET'])
-@require_auth
+@require_project_access
 def api_execution_stream():
     """Server-Sent Events stream for one execution's log lines.
 
@@ -668,6 +679,9 @@ def api_execution_stream():
     if not project_id:
         return jsonify({'error': 'Project required',
                         'message': 'X-Project-Id header or project_id query param required'}), 400
+    from storage.executions_store import get_execution
+    if not get_execution(execution_id, project_id=project_id):
+        return jsonify({'error': 'Execution not found'}), 404
 
     from utils.project_paths import get_project_logs_dir, get_project_executions_dir
 
@@ -720,10 +734,15 @@ def api_execution_stream():
 
 
 @bp.route('/api/executions/<execution_id>/retry', methods=['POST'])
-@require_auth
+@require_project_access
 def api_retry_execution(execution_id):
     """Re-queue a finished execution as a new run (Fase 5 — UC 82)."""
     project_id = get_project_id_from_request() or request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'Project required', 'message': 'Project ID is required'}), 400
+    from storage.executions_store import get_execution
+    if not get_execution(execution_id, project_id=project_id):
+        return jsonify({'error': 'Execution not found'}), 404
     from services.execution_retry import retry_execution
     new_id = retry_execution(execution_id, project_id=project_id)
     if not new_id:

@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -20,30 +20,30 @@ def _pid():
 
 
 @bp.route('/api/cost/monthly', methods=['GET'])
-@require_auth
+@require_project_access
 def api_cost_monthly():
     return jsonify({"monthly": monthly(_pid() or "")})
 
 
 @bp.route('/api/cost/forecast', methods=['GET'])
-@require_auth
+@require_project_access
 def api_cost_forecast():
     return jsonify(forecast(_pid() or ""))
 
 
 @bp.route('/api/cost/breakdown', methods=['GET'])
-@require_auth
+@require_project_access
 def api_cost_breakdown():
     return jsonify({"breakdown": breakdown(_pid() or "", request.args.get("by") or "provider")})
 
 
 @bp.route('/api/cost/rollup', methods=['GET'])
-@require_auth
+@require_project_access
 def api_cost_rollup():
     return jsonify(rollup())
 
 
 @bp.route('/api/cost/rightsizing', methods=['GET'])
-@require_auth
+@require_project_access
 def api_cost_rightsizing():
     return jsonify({"recommendations": recommendations(_pid() or "")})

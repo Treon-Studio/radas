@@ -22,7 +22,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -59,7 +59,7 @@ def _logger():
 # Routes
 # ---------------------------------------------------------------------------
 @bp.route('/api/backups/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_backups():
     """List backups for a project."""
     try:
@@ -156,7 +156,7 @@ def list_backups():
 
 
 @bp.route('/api/backups/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_backup():
     """Download a backup file."""
     try:
@@ -226,7 +226,7 @@ def download_backup():
 
 
 @bp.route('/api/backups/restore', methods=['POST'])
-@require_auth
+@require_project_access
 def restore_backup():
     """Restore a specific backup file back into the project."""
     try:
@@ -326,7 +326,7 @@ def restore_backup():
 
 
 @bp.route('/api/backup-settings', methods=['GET'])
-@require_auth
+@require_project_access
 def get_backup_settings():
     try:
         settings = load_backup_settings()
@@ -337,7 +337,7 @@ def get_backup_settings():
 
 
 @bp.route('/api/backup-settings', methods=['PUT'])
-@require_auth
+@require_project_access
 def update_backup_settings():
     try:
         data = request.json or {}
@@ -373,7 +373,7 @@ def update_backup_settings():
 
 
 @bp.route('/api/backups/create', methods=['POST'])
-@require_auth
+@require_project_access
 def create_project_backup():
     """Create a full tar.gz archive of a project's directory."""
     try:
@@ -428,7 +428,7 @@ def create_project_backup():
 
 
 @bp.route('/api/backups/archives/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_project_archives():
     """List tar.gz archives available for restore for a project."""
     try:
@@ -459,7 +459,7 @@ def list_project_archives():
 
 
 @bp.route('/api/backups/archives/restore', methods=['POST'])
-@require_auth
+@require_project_access
 def restore_project_archive():
     """Restore a project from a tar.gz archive."""
     try:
@@ -493,7 +493,7 @@ def restore_project_archive():
 
 
 @bp.route('/api/backups/archives/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_project_archive():
     """Download a project archive tar.gz."""
     try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -15,7 +15,7 @@ bp = Blueprint("compliance_api", __name__)
 
 
 @bp.route('/api/compliance/scorecard', methods=['GET'])
-@require_auth
+@require_project_access
 def api_compliance_scorecard():
     pid = request.args.get("project_id") or _get_pid_raw(lambda: None)
     if not pid:
@@ -24,7 +24,7 @@ def api_compliance_scorecard():
 
 
 @bp.route('/api/compliance/report', methods=['GET'])
-@require_auth
+@require_project_access
 def api_compliance_report():
     pid = request.args.get("project_id") or _get_pid_raw(lambda: None)
     if not pid:

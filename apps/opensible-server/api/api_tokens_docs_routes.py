@@ -72,6 +72,14 @@ def api_create_api_token():
         if scope not in ('global', 'project'):
             scope = 'global'
         project_id = data.get('projectId') if scope == 'project' else None
+        if scope == 'project':
+            if not project_id:
+                return jsonify({'success': False, 'error': 'Project ID is required for project-scoped tokens'}), 400
+            from auth.middleware import _org_id_of_project
+            from services.org_service import is_member
+            org_id = _org_id_of_project(project_id)
+            if not org_id or not is_member(org_id, user_id):
+                return jsonify({'success': False, 'error': 'Project not found or access denied'}), 403
         expires_days = data.get('expiresDays')
         if expires_days is not None:
             try:

@@ -21,7 +21,7 @@ from flask import Blueprint, jsonify, request
 try:
     from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
-    from ..auth.middleware import require_auth
+    from ..auth.middleware import require_auth, require_project_access
 
 try:
     from utils.request_ctx import require_project_id_from_request
@@ -1269,7 +1269,7 @@ def api_sync_project_source(project_id):
 
 
 @bp.route('/api/inventory/ensure-dirs', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ensure_inventory_dirs():
     """API: inventory group_vars/host_vars """
     try:

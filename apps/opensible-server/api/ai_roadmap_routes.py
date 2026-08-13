@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -14,7 +14,7 @@ bp = Blueprint("ai_roadmap_api", __name__)
 
 
 @bp.route('/api/ai/roadmap', methods=['POST'])
-@require_auth
+@require_project_access
 def api_ai_roadmap():
     pid = request.get_json(silent=True) or {}
     project_id = pid.get("project_id") or _get_pid_raw(lambda: None)
