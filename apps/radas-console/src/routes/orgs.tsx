@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RiTeamLine as Team, RiAddLine as Plus, RiUserAddLine as UserAdd, RiDeleteBinLine as Trash, RiPencilLine as Pencil } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
@@ -28,6 +28,12 @@ function OrgsPage() {
 
   const orgs = data?.orgs ?? [];
   const active = selectedOrg || orgs[0]?.id || "";
+
+  useEffect(() => {
+    if (orgs.length && !orgs.some((org) => org.id === selectedOrg)) {
+      setSelectedOrg(orgs[0]?.id ?? "");
+    }
+  }, [orgs, selectedOrg]);
 
   const { data: members } = useQuery({
     queryKey: ["org-members", active],
