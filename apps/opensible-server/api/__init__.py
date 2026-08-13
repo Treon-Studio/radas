@@ -89,6 +89,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.feature_flag_routes",
         "api.test_case_routes",
         "api.github_actions_routes",
+        "api.github_oauth_routes",
         "api.byoc_routes",
         "api.org_routes",
         "api.code_registry_routes",
