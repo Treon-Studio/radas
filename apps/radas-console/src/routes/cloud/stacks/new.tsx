@@ -120,6 +120,14 @@ function renderSection(title: string, items: Provider[], pick: (p: Provider) => 
           <Card
             key={p.id}
             onClick={() => pick(p)}
+            role="button"
+            tabIndex={p.enabled === false ? -1 : 0}
+            onKeyDown={(event) => {
+              if (p.enabled !== false && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault();
+                pick(p);
+              }
+            }}
             className={`p-4 text-center h-full flex flex-col items-center justify-center gap-2 relative transition-colors ${
               p.enabled === false ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--color-primary)] cursor-pointer"
             }`}
