@@ -117,18 +117,18 @@ function renderSection(title: string, items: Provider[], pick: (p: Provider) => 
           const descKey = PROVIDER_DESC_KEYS[p.id];
           const desc = descKey ? t(descKey) : (p.description || "");
           return (
-          <Card
+          <button
             key={p.id}
+            type="button"
             onClick={() => pick(p)}
-            role="button"
-            tabIndex={p.enabled === false ? -1 : 0}
+            disabled={p.enabled === false}
             onKeyDown={(event) => {
               if (p.enabled !== false && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 pick(p);
               }
             }}
-            className={`p-4 text-center h-full flex flex-col items-center justify-center gap-2 relative transition-colors ${
+            className={`rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-card-foreground)] shadow-[var(--shadow-card)] p-4 text-center h-full flex flex-col items-center justify-center gap-2 relative transition-colors ${
               p.enabled === false ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--color-primary)] cursor-pointer"
             }`}
           >
@@ -146,7 +146,7 @@ function renderSection(title: string, items: Provider[], pick: (p: Provider) => 
             )}
             <div className="font-semibold text-sm">{p.label}</div>
             <p className="text-xs text-[var(--color-muted-foreground)] leading-snug">{desc}</p>
-          </Card>
+          </button>
           );
         })}
       </div>
