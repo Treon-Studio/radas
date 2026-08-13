@@ -123,3 +123,37 @@ pm2 start ecosystem.config.cjs
   ```
 - Quick tunnel URL berubah tiap restart — untuk produksi gunakan named
   tunnel + custom domain (route DNS di dashboard Cloudflare).
+
+## Named tunnel + custom domain (produksi, permanen)
+
+Quick tunnel URL berubah tiap restart — untuk produksi gunakan named tunnel:
+
+```bash
+# Di Mac (sekali, sudah login): buat tunnel + route DNS
+cloudflared tunnel create radas-api
+cloudflared tunnel route dns radas-api api-radas.treonstudio.com
+
+# Copy credentials ke VPS
+scp ~/.cloudflared/<tunnel-id>.json root@VPS:/root/.cloudflared/
+
+# Di VPS: config ingress (/root/.cloudflared/radas-api.yml)
+#   tunnel: <tunnel-id>
+#   credentials-file: /etc/cloudflared/<tunnel-id>.json
+#   ingress:
+#     - hostname: api-radas.treonstudio.com
+#       service: http://127.0.0.1:5001
+#     - service: http_status:404
+
+# Jalankan di Docker (--network host + --user 0:0 agar baca config di /root)
+docker run -d --name radas-tunnel --restart=always --network host --user 0:0 \
+  -v /root/.cloudflared:/etc/cloudflared \
+  cloudflare/cloudflared:latest tunnel --config /etc/cloudflared/radas-api.yml run <tunnel-id>
+```
+
+Build console dengan domain permanen:
+```bash
+VITE_API_BASE=https://api-radas.treonstudio.com pnpm --filter @radas/console build
+cd apps/radas-console && npx wrangler pages deploy dist --project-name radas-console
+```
+
+Aktif: **https://radas-console.pages.dev** → API **https://api-radas.treonstudio.com**
