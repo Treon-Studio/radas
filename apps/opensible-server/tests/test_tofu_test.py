@@ -21,5 +21,6 @@ def test_tofu_test_queues_execution(data_dir, monkeypatch):
     from services.test_cases import create_test_case, run_tofu_test
     tc = create_test_case({"name": "t", "stack": "demo", "kind": "tofu_test", "assertions": []})
     out = run_tofu_test(None, tc["id"])
-    assert out["passed"] is True
+    assert out["passed"] is False
+    assert out["status"] == "queued"
     assert out["queued"] is True

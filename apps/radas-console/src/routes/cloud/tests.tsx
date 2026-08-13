@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   RiFlaskLine as Flask, RiAddLine as Plus, RiDeleteBinLine as Trash,
   RiPlayLine as Play, RiRefreshLine as Refresh,
@@ -19,12 +20,12 @@ export const Route = createFileRoute("/cloud/tests")({ component: TestsPage });
 
 type Assertion = { id: string; name: string; desc: string; severity: string };
 type TestCase = {
-  id: string; name: string; stack: string; kind: string; assertions: string[];
-  severity: string; enabled: boolean; tags: string[]; created_at: number;
+  id: string; name: string; description?: string; stack: string; kind: string; assertions: string[];
+  severity: string; enabled: boolean; tags: string[]; schedule?: string; created_at: number;
 };
 type TestResult = {
   id: string; test_id: string; name: string; stack: string; kind: string;
-  severity: string; passed: boolean; findings: { assertion: string; name: string; severity: string; source: string; detail: string }[];
+  severity: string; passed: boolean; status?: string; queued?: boolean; findings: { assertion: string; name: string; severity: string; source: string; detail: string }[];
   ran_at: number;
 };
 
@@ -33,6 +34,7 @@ const SEVERITIES = ["blocker", "warning", "info"];
 
 function TestsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data } = useQuery({ queryKey: ["tests"], queryFn: () => api<{ test_cases: TestCase[] }>("GET", "/api/tests") });
   const { data: catalog } = useQuery({ queryKey: ["tests-catalog"], queryFn: () => api<{ assertions: Assertion[] }>("GET", "/api/tests/catalog") });
   const { data: stacks } = useQuery({ queryKey: ["stacks"], queryFn: () => api<{ stacks: { name: string }[] }>("GET", "/api/cloud/stacks") });
@@ -45,6 +47,14 @@ function TestsPage() {
   const [severity, setSeverity] = useState("warning");
   const [assertions, setAssertions] = useState<string[]>([]);
   const [enabled, setEnabled] = useState(true);
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState("");
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [stackFilter, setStackFilter] = useState("");
+  const [editing, setEditing] = useState<TestCase | null>(null);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tests"] });
@@ -52,8 +62,8 @@ function TestsPage() {
   };
 
   const createMut = useMutation({
-    mutationFn: () => api("POST", "/api/tests", { name, stack, kind, severity, assertions, enabled }),
-    onSuccess: () => { toast.success("Test case dibuat"); setShowForm(false); setName(""); setStack(""); setAssertions([]); invalidate(); },
+    mutationFn: () => api("POST", "/api/tests", { name, description, stack, kind, severity, assertions, enabled, tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean) }),
+    onSuccess: () => { toast.success("Test case dibuat"); setShowForm(false); setName(""); setDescription(""); setStack(""); setTags(""); setAssertions([]); invalidate(); },
     onError: (e: any) => toast.error(e?.message || "Gagal membuat test"),
   });
 
@@ -65,6 +75,18 @@ function TestsPage() {
   const toggleMut = useMutation({
     mutationFn: ({ id, val }: { id: string; val: boolean }) => api("PATCH", `/api/tests/${id}`, { enabled: val }),
     onSuccess: () => { invalidate(); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<TestCase> }) => api("PATCH", `/api/tests/${id}`, patch),
+    onSuccess: () => { invalidate(); setEditing(null); toast.success("Test case updated"); },
+    onError: (e: any) => toast.error(e?.message || "Failed to update test"),
+  });
+
+  const batchMut = useMutation({
+    mutationFn: (selectedStack: string) => api("POST", "/api/tests/batch-run", { stack: selectedStack }),
+    onSuccess: (data: any) => { invalidate(); toast.success(`${data.count ?? 0} test(s) executed`); },
+    onError: (e: any) => toast.error(e?.message || "Batch run failed"),
   });
 
   const runMut = useMutation({
@@ -86,6 +108,14 @@ function TestsPage() {
     ? Math.round((totalResults.filter((r) => r.passed).length / totalResults.length) * 100) : 0;
 
   const stackNames = useMemo(() => (stacks?.stacks ?? []).map((s) => s.name), [stacks]);
+  const visibleCases = (data?.test_cases ?? []).filter((test) =>
+    (!search || `${test.name} ${test.description ?? ""} ${test.tags.join(" ")}`.toLowerCase().includes(search.toLowerCase())) &&
+    (!tagFilter || test.tags.includes(tagFilter)) &&
+    (!severityFilter || test.severity === severityFilter) &&
+    (!kindFilter || test.kind === kindFilter) &&
+    (!stackFilter || test.stack === stackFilter)
+  );
+  const allTags = [...new Set((data?.test_cases ?? []).flatMap((test) => test.tags))].sort();
 
   return (
     <div className="space-y-4">
@@ -121,6 +151,10 @@ function TestsPage() {
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Security scan prod" />
             </div>
             <div className="space-y-1">
+              <div className="text-xs text-[var(--color-muted-foreground)]">Description</div>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this test protect?" />
+            </div>
+            <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Stack</div>
               <Select value={stack} onChange={setStack} placeholder="Pilih stack…"
                 options={stackNames.map((s) => ({ value: s, label: s }))} />
@@ -138,6 +172,10 @@ function TestsPage() {
             <label className="flex items-center gap-2 text-sm md:col-span-2">
               <CheckboxInput checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled
             </label>
+            <div className="md:col-span-3">
+              <div className="text-xs text-[var(--color-muted-foreground)] mb-2">Tags (comma-separated)</div>
+              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="security, compliance" />
+            </div>
             <div className="md:col-span-3">
               <div className="text-xs text-[var(--color-muted-foreground)] mb-2">Assertions (library bawaan)</div>
               <div className="grid gap-1.5 md:grid-cols-2 max-h-56 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
@@ -163,12 +201,27 @@ function TestsPage() {
 
       {(data?.test_cases ?? []).length === 0 && (
         <div className="text-sm text-[var(--color-muted-foreground)]">
-          Belum ada test case. Buat test dengan assertion bawaan (CIDR publik, secret di tfvars, dsb).
+          {stackNames.length === 0 ? "Create a stack before defining project tests." : "Belum ada test case. Buat test dengan assertion bawaan."}
         </div>
       )}
 
+      {(data?.test_cases ?? []).length > 0 && (
+        <Card>
+          <CardContent className="py-3 flex flex-wrap gap-2 items-center">
+            <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tests…" />
+            <Select value={stackFilter} onChange={setStackFilter} placeholder="All stacks" options={stackNames.map((s) => ({ value: s, label: s }))} className="w-40" />
+            <Select value={kindFilter} onChange={setKindFilter} placeholder="All kinds" options={KINDS.map((k) => ({ value: k, label: k }))} className="w-36" />
+            <Select value={severityFilter} onChange={setSeverityFilter} placeholder="All severity" options={SEVERITIES.map((s) => ({ value: s, label: s }))} className="w-36" />
+            <Select value={tagFilter} onChange={setTagFilter} placeholder="All tags" options={allTags.map((tag) => ({ value: tag, label: tag }))} className="w-36" />
+            <Button size="sm" variant="outline" disabled={!stackFilter || batchMut.isPending} onClick={() => batchMut.mutate(stackFilter)}>
+              <Play className="h-3.5 w-3.5" /> Run all
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-3 md:grid-cols-2">
-        {(data?.test_cases ?? []).map((t) => (
+        {visibleCases.map((t) => (
           <Card key={t.id}>
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -181,7 +234,9 @@ function TestsPage() {
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-muted-foreground)]">
                 <span className="font-mono">{t.stack}</span> · <span>{t.kind}</span>
                 {t.assertions.length > 0 && <span>· {t.assertions.length} assertion(s)</span>}
+                {t.schedule && <span>· cron: {t.schedule}</span>}
               </div>
+              {t.description && <p className="text-xs text-[var(--color-muted-foreground)]">{t.description}</p>}
               {t.assertions.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {t.assertions.map((a) => (
@@ -196,6 +251,7 @@ function TestsPage() {
                 <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ id: t.id, val: !t.enabled })}>
                   {t.enabled ? "Disable" : "Enable"}
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(t)}>Edit</Button>
                 <Button size="sm" variant="ghost" className="text-[var(--color-destructive)]" onClick={() => deleteMut.mutate(t.id)}>
                   <Trash className="h-3.5 w-3.5" />
                 </Button>
@@ -235,6 +291,54 @@ function TestsPage() {
           )}
         </CardContent>
       </Card>
+
+      {editing && (
+        <EditTestDialog
+          test={editing}
+          stacks={stackNames}
+          onClose={() => setEditing(null)}
+          onSave={(patch) => updateMut.mutate({ id: editing.id, patch })}
+          saving={updateMut.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditTestDialog({
+  test,
+  stacks,
+  onClose,
+  onSave,
+  saving,
+}: {
+  test: TestCase;
+  stacks: string[];
+  onClose: () => void;
+  onSave: (patch: Partial<TestCase>) => void;
+  saving: boolean;
+}) {
+  const [name, setName] = useState(test.name);
+  const [description, setDescription] = useState(test.description ?? "");
+  const [stack, setStack] = useState(test.stack);
+  const [tags, setTags] = useState(test.tags.join(", "));
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-5" onClick={(event) => event.stopPropagation()}>
+        <h2 className="text-base font-semibold">Edit test case</h2>
+        <div className="mt-4 space-y-3">
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" />
+          <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
+          <Select value={stack} onChange={setStack} options={stacks.map((item) => ({ value: item, label: item }))} />
+          <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Tags, comma-separated" />
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={saving || !name.trim() || !stack} onClick={() => onSave({ name: name.trim(), description, stack, tags: tags.split(",").map((item) => item.trim()).filter(Boolean) })}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

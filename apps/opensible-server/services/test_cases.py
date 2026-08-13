@@ -29,21 +29,23 @@ def _store_path(name: str) -> Path:
         return Path("data") / name
 
 
-def _load(name: str) -> List[Dict[str, Any]]:
+def _scope(name: str, project_id: Optional[str]) -> str:
+    base = name.replace(".json", "")
+    return f"{base}:{project_id or 'unscoped'}"
+
+
+def _load(name: str, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
     try:
         from storage import kv
-        scope = name.replace(".json", "")
-        v = kv.kv_load(scope)
+        v = kv.kv_load(_scope(name, project_id))
         return v if isinstance(v, list) else []
     except Exception:
-        pass
-    return []
+        return []
 
 
-def _save(name: str, items: List[Dict[str, Any]]) -> None:
+def _save(name: str, items: List[Dict[str, Any]], project_id: Optional[str] = None) -> None:
     from storage import kv
-    scope = name.replace(".json", "")
-    kv.kv_save(scope, items)
+    kv.kv_save(_scope(name, project_id), items)
 
 
 # --------------------------------------------------------------------------
@@ -112,20 +114,23 @@ def _assertion_ids() -> List[str]:
     return sorted(ASSERTIONS)
 
 
-def list_test_cases() -> List[Dict[str, Any]]:
-    return _load("test_cases.json")
+def list_test_cases(project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    return _load("test_cases.json", project_id)
 
 
-def get_test_case(test_id: str) -> Optional[Dict[str, Any]]:
-    return next((t for t in list_test_cases() if t["id"] == test_id), None)
+def get_test_case(test_id: str, project_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    return next((t for t in list_test_cases(project_id) if t["id"] == test_id), None)
 
 
-def create_test_case(data: Dict[str, Any]) -> Dict[str, Any]:
+def create_test_case(data: Dict[str, Any], project_id: Optional[str] = None) -> Dict[str, Any]:
     name = (data.get("name") or "").strip()
     if not name:
         raise ValueError("name required")
     tc = {
         "id": str(uuid.uuid4()),
+        "project_id": project_id,
+        "description": (data.get("description") or "").strip(),
+        "parameters": data.get("parameters") if isinstance(data.get("parameters"), dict) else {},
         "name": name,
         "stack": (data.get("stack") or "").strip(),
         "kind": (data.get("kind") or "assertion").strip(),
@@ -143,20 +148,22 @@ def create_test_case(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"severity must be one of {SEVERITIES}")
     if tc["kind"] == "assertion" and not tc["assertions"]:
         raise ValueError("assertion kind requires at least one assertion")
-    items = list_test_cases()
+    items = list_test_cases(project_id)
     items.append(tc)
-    _save("test_cases.json", items)
+    _save("test_cases.json", items, project_id)
     return tc
 
 
-def update_test_case(test_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    items = list_test_cases()
+def update_test_case(test_id: str, patch: Dict[str, Any], project_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    items = list_test_cases(project_id)
     tc = next((t for t in items if t["id"] == test_id), None)
     if not tc:
         return None
-    for field in ("name", "stack", "kind", "severity", "schedule"):
+    for field in ("name", "stack", "kind", "severity", "schedule", "description"):
         if field in patch:
             tc[field] = (patch[field] or "").strip() if isinstance(patch[field], str) else patch[field]
+    if "parameters" in patch:
+        tc["parameters"] = patch["parameters"] if isinstance(patch["parameters"], dict) else {}
     if "assertions" in patch:
         tc["assertions"] = [a for a in patch["assertions"] if a in ASSERTIONS]
     if "tags" in patch:
@@ -164,16 +171,16 @@ def update_test_case(test_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, 
     if "enabled" in patch:
         tc["enabled"] = bool(patch["enabled"])
     tc["updated_at"] = int(time.time())
-    _save("test_cases.json", items)
+    _save("test_cases.json", items, project_id)
     return tc
 
 
-def delete_test_case(test_id: str) -> bool:
-    items = list_test_cases()
+def delete_test_case(test_id: str, project_id: Optional[str] = None) -> bool:
+    items = list_test_cases(project_id)
     nxt = [t for t in items if t["id"] != test_id]
     if len(nxt) == len(items):
         return False
-    _save("test_cases.json", nxt)
+    _save("test_cases.json", nxt, project_id)
     return True
 
 
@@ -217,9 +224,11 @@ def _stack_texts(project_id: Optional[str], stack: str) -> Dict[str, str]:
 
 
 def run_test_case(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
-    tc = get_test_case(test_id)
+    tc = get_test_case(test_id, project_id)
     if not tc:
         raise ValueError("test case not found")
+    if not tc.get("enabled", True):
+        raise ValueError("test case is disabled")
     if not tc.get("stack"):
         raise ValueError("test case has no stack; set stack first")
     texts = _stack_texts(project_id, tc["stack"])
@@ -269,17 +278,20 @@ def run_test_case(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
         "findings": findings,
         "ran_at": int(time.time()),
         "project_id": project_id,
+        "status": "passed" if passed else "failed",
     }
-    history = _load("test_results.json")
+    history = _load("test_results.json", project_id)
     history.append(result)
-    _save("test_results.json", history[-500:])
+    _save("test_results.json", history[-500:], project_id)
     return result
 
 
 def run_tofu_test(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
-    tc = get_test_case(test_id)
+    tc = get_test_case(test_id, project_id)
     if not tc:
         raise ValueError("test case not found")
+    if not tc.get("enabled", True):
+        raise ValueError("test case is disabled")
     stack = tc.get("stack") or ""
     if not stack:
         raise ValueError("test case has no stack; set stack first")
@@ -290,25 +302,28 @@ def run_tofu_test(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
     result = {
         "id": str(uuid.uuid4()), "test_id": test_id, "name": tc["name"],
         "stack": stack, "kind": "tofu_test", "severity": tc.get("severity") or "warning",
-        "passed": True, "queued": True, "execution_id": eid,
+        "passed": False, "queued": True, "status": "queued", "execution_id": eid,
         "findings": [{"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",
                       "severity": "info", "source": "plan",
                       "detail": f"tofu test queued (execution {eid})." }],
         "ran_at": int(time.time()), "project_id": project_id,
     }
-    history = _load("test_results.json")
+    history = _load("test_results.json", project_id)
     history.append(result)
-    _save("test_results.json", history[-500:])
+    _save("test_results.json", history[-500:], project_id)
     return result
 
 
-def list_test_results(limit: int = 100) -> List[Dict[str, Any]]:
-    return _load("test_results.json")[-limit:][::-1]
+def list_test_results(limit: int = 100, project_id: Optional[str] = None, test_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    rows = _load("test_results.json", project_id)
+    if test_id:
+        rows = [row for row in rows if row.get("test_id") == test_id]
+    return rows[-limit:][::-1]
 
 
 def latest_failed_blocker(project_id: Optional[str], stack: str) -> Optional[Dict[str, Any]]:
     """Return latest blocker-failed test for a stack (used by apply gate)."""
-    for r in list_test_results():
+    for r in list_test_results(project_id=project_id):
         if r.get("stack") != stack or r.get("severity") != "blocker":
             continue
         if r.get("passed"):

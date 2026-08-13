@@ -1083,11 +1083,15 @@ def stacks_action(name):
         try:
             from services.test_cases import latest_failed_blocker
             bad = latest_failed_blocker(pid, name)
-            if bad:
-                return jsonify({"error": f"Blocker test '{bad.get('name')}' failed. "
-                                         f"Run tests and fix findings before {action}."}), 409
-        except Exception:
-            pass
+        except Exception as exc:
+            current_app.logger.exception("Test-case blocker evaluation failed for project=%s stack=%s", pid, name)
+            return jsonify({
+                "error": "Unable to verify blocker tests; action refused for safety.",
+                "detail": str(exc),
+            }), 503
+        if bad:
+            return jsonify({"error": f"Blocker test '{bad.get('name')}' failed. "
+                                     f"Run tests and fix findings before {action}."}), 409
 
     # Approval gate (Fase 2 — UC 50/68): mutating actions on stacks with
     # approval_required must have an approved approval record.
