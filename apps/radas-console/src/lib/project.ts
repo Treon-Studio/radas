@@ -7,7 +7,7 @@ import {
   createContext, createElement, useCallback, useContext, useEffect, useMemo,
   useState, type ReactNode,
 } from "react";
-import { api } from "./api";
+import { api, getToken } from "./api";
 import { queryClient } from "./query";
 
 const KEY = "current_project_id";
@@ -51,6 +51,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
 
   const reload = useCallback(async () => {
+    if (!getToken()) {
+      setProjects([]);
+      setCurrentIdState(null);
+      setCurrentProjectId(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const r = await api<{ projects?: Project[] } | Project[]>("GET", "/api/projects");
@@ -68,7 +75,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    const handleAuthChanged = () => { void reload(); };
+    window.addEventListener("radas-auth-changed", handleAuthChanged);
+    void reload();
+    return () => window.removeEventListener("radas-auth-changed", handleAuthChanged);
+  }, [reload]);
 
   const setCurrent = useCallback(async (id: string | null) => {
     setCurrentProjectId(id);

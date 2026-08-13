@@ -9,6 +9,13 @@
 const TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 const USER_KEY = "user_data";
+const AUTH_CHANGED_EVENT = "radas-auth-changed";
+
+function notifyAuthChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -19,6 +26,7 @@ export function setToken(token: string | null, refreshToken?: string | null) {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+  notifyAuthChanged();
   if (refreshToken !== undefined) {
     if (refreshToken) window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     else window.localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -30,6 +38,7 @@ export function clearSession() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
+  notifyAuthChanged();
 }
 
 export function saveUser(user: unknown) {
@@ -80,20 +89,30 @@ export async function api<T = unknown>(
     credentials: "include",
     ...init,
   });
+  const text = await res.text();
+  const data = text ? safeJson(text) : null;
   if (res.status === 401) {
     setToken(null);
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
       window.location.assign("/login");
     }
-    throw new ApiError(401, "Unauthorized");
+    const message = getErrorMessage(data, "Unauthorized");
+    throw new ApiError(401, message, data);
   }
-  const text = await res.text();
-  const data = text ? safeJson(text) : null;
+
   if (!res.ok) {
-    const msg = (data && typeof data === "object" && ((data as any).error || (data as any).message)) || res.statusText;
-    throw new ApiError(res.status, msg, data);
+    throw new ApiError(res.status, getErrorMessage(data, res.statusText), data);
   }
   return data as T;
+}
+
+function getErrorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (typeof record.error === "string") return record.error;
+    if (typeof record.message === "string") return record.message;
+  }
+  return fallback;
 }
 
 function safeJson(text: string): unknown {

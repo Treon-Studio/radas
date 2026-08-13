@@ -16,7 +16,6 @@ bp = Blueprint("oidc_api", __name__)
 
 
 @bp.route('/api/oidc/config', methods=['GET'])
-@require_auth
 def api_get_oidc():
     c = get_config()
     c.pop("client_secret", None)

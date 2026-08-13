@@ -19,7 +19,7 @@
  * below in vite.config.ts).
  */
 const SERVER_PORT = process.env.OPEN_SERVER_PORT || "5001";
-// Dev-only secrets — never use these outside local development.
+// Local-development fallback only. Production values must come from .env.
 const SECRET = "dev-only-change-me-0123456789abcdef";
 
 // Load optional .env (gitignored) so DATABASE_URL / GITHUB_OAUTH_* etc. can be
@@ -45,16 +45,17 @@ module.exports = {
       args: "app.py",
       interpreter: "none",
       env: {
+        ...process.env,
         PORT: SERVER_PORT,
-        DATA_DIR: "./data",
-        FLASK_ENV: "development",
-        FLASK_DEBUG: "1",
-        JWT_SECRET_KEY: SECRET,
-        INTERNAL_CALL_SECRET: SECRET,
-        GLOBAL_SECRETS_ENCRYPTION_KEY: SECRET,
-        WORKER_REGISTRATION_SECRET: SECRET,
-        ADMIN_INITIAL_PASSWORD: "admin12345",
-        CORS_ALLOWED_ORIGINS: "http://localhost:8080",
+        DATA_DIR: process.env.DATA_DIR || "./data",
+        FLASK_ENV: process.env.FLASK_ENV || "development",
+        FLASK_DEBUG: process.env.FLASK_DEBUG || "1",
+        JWT_SECRET_KEY: process.env.JWT_SECRET_KEY || SECRET,
+        INTERNAL_CALL_SECRET: process.env.INTERNAL_CALL_SECRET || SECRET,
+        GLOBAL_SECRETS_ENCRYPTION_KEY: process.env.GLOBAL_SECRETS_ENCRYPTION_KEY || SECRET,
+        WORKER_REGISTRATION_SECRET: process.env.WORKER_REGISTRATION_SECRET || SECRET,
+        ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
+        CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || "http://localhost:8080",
         DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
         TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || "postgresql://localhost/radas_test",
       },
