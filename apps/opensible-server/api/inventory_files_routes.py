@@ -21,7 +21,7 @@ import yaml
 from flask import Blueprint, jsonify, request, current_app, send_file
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -102,7 +102,7 @@ app_logger = _AppLogger()
 
 
 @bp.route('/api/inventory/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_inventory_files():
     """ inventory inventories.
     
@@ -159,7 +159,7 @@ def list_inventory_files():
 
 
 @bp.route('/api/inventory/get', methods=['GET'])
-@require_auth
+@require_project_access
 def get_inventory():
     """ inventory Project Storage
     
@@ -245,7 +245,7 @@ def get_inventory():
 
 
 @bp.route('/api/inventory/save', methods=['POST'])
-@require_auth
+@require_project_access
 def save_inventory():
     """ inventory 
     
@@ -337,7 +337,7 @@ def save_inventory():
 
 
 @bp.route('/api/inventory/create-folder', methods=['POST'])
-@require_auth
+@require_project_access
 def create_inventory_folder():
     """ inventories 
     
@@ -382,7 +382,7 @@ def create_inventory_folder():
 
 
 @bp.route('/api/inventory/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_inventory():
     """ inventory 
     
@@ -436,7 +436,7 @@ def download_inventory():
 
 
 @bp.route('/api/inventory/environments', methods=['GET'])
-@require_auth
+@require_project_access
 def list_inventory_environments():
     """ inventories, ().
     
@@ -470,7 +470,7 @@ def list_inventory_environments():
 
 
 @bp.route('/api/inventory/export', methods=['GET'])
-@require_auth
+@require_project_access
 def export_inventory():
     """ inventory ZIP 
     
@@ -518,7 +518,7 @@ def export_inventory():
 
 
 @bp.route('/api/inventory/add_host', methods=['POST'])
-@require_auth
+@require_project_access
 def add_host_to_inventory():
     """ inventory """
     try:
@@ -671,7 +671,7 @@ def add_host_to_inventory():
 
 
 @bp.route('/api/inventory/import', methods=['POST'])
-@require_auth
+@require_project_access
 def import_inventory():
     """ inventory () ZIP """
     try:
@@ -857,7 +857,7 @@ def update_hosts_vars_file(group_data, updated=False):
 
 
 @bp.route('/api/inventory/auto_update_vars_file', methods=['POST'])
-@require_auth
+@require_project_access
 def auto_update_inventory_vars_file():
     """ vars_file inventory """
     try:
@@ -932,7 +932,7 @@ def auto_update_inventory_vars_file():
 
 
 @bp.route('/api/inventory/delete', methods=['POST'])
-@require_auth
+@require_project_access
 def delete_inventory():
     """ inventory """
     try:

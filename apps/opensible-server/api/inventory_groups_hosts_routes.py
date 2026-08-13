@@ -17,7 +17,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, current_app
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -91,7 +91,7 @@ app_logger = _AppLogger()
 
 
 @bp.route('/api/hosts/<host_name>/connection-secret/resolve', methods=['GET'])
-@require_auth
+@require_project_access
 def api_resolve_host_connection_secret(host_name):
     """API: connection secret ( host_vars, group_vars)"""
     try:
@@ -337,7 +337,7 @@ def api_resolve_host_connection_secret(host_name):
 
 
 @bp.route('/api/inventory/group-vars/<group_name>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_group_vars(group_name):
     """API: group_vars """
     try:
@@ -374,7 +374,7 @@ def api_get_group_vars(group_name):
 
 
 @bp.route('/api/hosts/<host_name>/connection-secret', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_set_host_connection_secret(host_name):
     """API: connection secret ( Ansible host_vars)"""
     try:
@@ -492,7 +492,7 @@ def api_set_host_connection_secret(host_name):
 
 
 @bp.route('/api/groups/<group_name>/connection-secret', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_set_group_connection_secret(group_name):
     """API: connection secret ( group_vars)"""
     try:
@@ -543,7 +543,7 @@ def api_set_group_connection_secret(group_name):
 
 
 @bp.route('/api/inventory/groups', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_inventory_groups():
     """API: inventory
     
@@ -624,7 +624,7 @@ def api_get_inventory_groups():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bp.route('/api/inventory/groups', methods=['POST'])
-@require_auth
+@require_project_access
 def api_add_inventory_group():
     """API: inventory"""
     try:
@@ -726,7 +726,7 @@ def api_add_inventory_group():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bp.route('/api/inventory/groups/<group_name>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_inventory_group(group_name):
     """API: delete group from whichever inventory file contains it."""
     try:
@@ -887,7 +887,7 @@ def _find_group_recursive(children, name):
 
 
 @bp.route('/api/inventory/hosts/<host_name>/groups', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_host_groups(host_name):
     """Update the set of groups a host belongs to.
 
@@ -1003,7 +1003,7 @@ def api_update_host_groups(host_name):
 
 
 @bp.route('/api/inventory/groups/<group_name>/hosts', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_group_hosts(group_name):
     """Replace the hosts list of a group. Searches all inventory files and
     walks nested children to locate the group."""

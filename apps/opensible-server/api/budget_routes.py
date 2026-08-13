@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -16,7 +16,7 @@ bp = Blueprint("budget_api", __name__)
 
 
 @bp.route('/api/budget/<project_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_budget(project_id):
     b = get_budget(project_id)
     if not b:
@@ -25,7 +25,7 @@ def api_get_budget(project_id):
 
 
 @bp.route('/api/budget/<project_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_put_budget(project_id):
     data = request.get_json(silent=True) or {}
     try:
@@ -40,7 +40,7 @@ def api_put_budget(project_id):
 
 
 @bp.route('/api/budget/<project_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_budget(project_id):
     if not delete_budget(project_id):
         return jsonify({"error": "not found", "message": "no budget configured"}), 404
@@ -48,6 +48,6 @@ def api_delete_budget(project_id):
 
 
 @bp.route('/api/budget/<project_id>/check', methods=['POST'])
-@require_auth
+@require_project_access
 def api_check_budget(project_id):
     return jsonify(check_budget(project_id))

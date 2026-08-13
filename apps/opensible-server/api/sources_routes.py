@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -103,7 +103,7 @@ del _n
 # Routes (verbatim from app.py, @app.route -> @bp.route)
 # ---------------------------------------------------------------------------
 @bp.route('/api/projects/<project_id>/sources/status', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_project_sources_status(project_id):
     """API: Get health status of all project sources"""
     try:
@@ -251,7 +251,7 @@ def api_get_project_sources_status(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources/revert', methods=['POST'])
-@require_auth
+@require_project_access
 def api_revert_source_to_defaults(project_id):
     """API: Revert a source to legacy local defaults"""
     try:
@@ -291,7 +291,7 @@ def api_revert_source_to_defaults(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_project_sources(project_id):
     """API: sources """
     try:
@@ -363,7 +363,7 @@ def api_get_project_sources(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources/analyze', methods=['POST'])
-@require_auth
+@require_project_access
 def api_analyze_source_impact(project_id):
     """API: Analyze impact of source configuration change"""
     try:
@@ -588,7 +588,7 @@ def api_analyze_source_impact(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_project_sources(project_id):
     """API: sources """
     try:
@@ -726,7 +726,7 @@ def api_update_project_sources(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources/test', methods=['POST'])
-@require_auth
+@require_project_access
 def api_test_project_source(project_id):
     """API: Test a source configuration (Local or Git)"""
     try:
@@ -938,7 +938,7 @@ def api_test_project_source(project_id):
         }), 500
 
 @bp.route('/api/projects/<project_id>/sources/<source_key>/sync', methods=['POST'])
-@require_auth
+@require_project_access
 def api_sync_project_source_bidirectional(project_id, source_key):
     """
     API: Start async bidirectional sync operation (Push/Pull/Both)
@@ -1022,7 +1022,7 @@ def api_sync_project_source_bidirectional(project_id, source_key):
 
 
 @bp.route('/api/projects/<project_id>/sources/<source_key>/sync/state', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_sync_state(project_id, source_key):
     """
     API: Get sync state for a source
@@ -1067,7 +1067,7 @@ def api_get_sync_state(project_id, source_key):
 
 
 @bp.route('/api/projects/<project_id>/sources/<source_key>/sync/check-conflict', methods=['GET'])
-@require_auth
+@require_project_access
 def api_check_sync_conflict(project_id, source_key):
     """
     API: Check for sync conflicts without performing sync
@@ -1126,7 +1126,7 @@ def api_check_sync_conflict(project_id, source_key):
 
 
 @bp.route('/api/projects/<project_id>/sources/sync', methods=['POST'])
-@require_auth
+@require_project_access
 def api_sync_project_source(project_id):
     """API: Sync a git source (fetch/clone and checkout) - Legacy endpoint for backward compatibility"""
     try:
@@ -1289,7 +1289,7 @@ def api_ensure_inventory_dirs():
 
 
 @bp.route('/api/projects/<project_id>/autosync', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_autosync_config(project_id):
     """
     API: Get autosync configuration for a project
@@ -1350,7 +1350,7 @@ def api_get_autosync_config(project_id):
 
 
 @bp.route('/api/projects/<project_id>/autosync', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_autosync_config(project_id):
     """
     API: Update autosync configuration for a project
@@ -1451,7 +1451,7 @@ def api_update_autosync_config(project_id):
 
 
 @bp.route('/api/projects/<project_id>/sources/resolve', methods=['POST'])
-@require_auth
+@require_project_access
 def api_resolve_source_path(project_id):
     """API: Resolve path for a git source (INTERNAL USE ONLY - for sync operations)
     

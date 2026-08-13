@@ -15,7 +15,7 @@ Security notes
 """
 from functools import wraps
 from flask import request, jsonify
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 from pathlib import Path
 import logging
 import os
@@ -291,13 +291,21 @@ def require_all_roles(*role_names: str):
     return decorator
 
 
-def _resolve_project_id() -> Optional[str]:
-    """Resolve project id from header/query/body (no default fallback)."""
+def _resolve_project_id(*view_args: Any) -> Optional[str]:
+    """Resolve project id from header/query/body, then path params
+    (<project_id> view arg). No default fallback."""
     from utils.request_ctx import project_id_from_request_sources
     try:
-        return project_id_from_request_sources()
+        pid = project_id_from_request_sources()
+        if pid:
+            return pid
     except Exception:
-        return None
+        pass
+    for v in view_args:
+        if isinstance(v, str) and v and "/" not in v and "\\" not in v:
+            # Most project ids are uuid4/hex; treat bare path segment as project id.
+            return v
+    return None
 
 
 def _org_id_of_project(project_id: str) -> Optional[str]:
@@ -311,9 +319,10 @@ def _org_id_of_project(project_id: str) -> Optional[str]:
 
 def require_project_access(f: Callable) -> Callable:
     """Require the user to be a member of the org that owns the resolved
-    project (X-Project-Id header / query / body). Closes the cross-tenant
-    traversal gap: a user in org A cannot access org B's project by setting
-    an arbitrary project id. Internal calls bypass (already admin).
+    project (X-Project-Id header / query / body / path <project_id>).
+    Closes the cross-tenant traversal gap: a user in org A cannot access
+    org B's project by setting an arbitrary project id. Internal calls
+    bypass (already admin).
     """
     @wraps(f)
     @require_auth
@@ -321,14 +330,29 @@ def require_project_access(f: Callable) -> Callable:
         cu = getattr(request, "current_user", {}) or {}
         if cu.get("user_id") == "__internal__":
             return f(*args, **kwargs)
-        pid = _resolve_project_id()
+        # Merge: view kwargs first (path params), then request sources.
+        pid = None
+        for key, val in (kwargs or {}).items():
+            if key in ("project_id", "pid") and isinstance(val, str):
+                pid = val
+                break
+        if not pid:
+            pid = _resolve_project_id(*args)
         if not pid:
             # No project context -> allow (non-project-scoped endpoints).
             return f(*args, **kwargs)
         org_id = _org_id_of_project(pid)
         if not org_id:
-            # Project not org-bound yet (legacy) -> allow, keep backward compat.
-            return f(*args, **kwargs)
+            # Project id provided but unknown/not org-bound. In a multi-tenant
+            # setup an unknown project must not be silently allowed (that would
+            # let users probe arbitrary ids); reject unless it is the legacy
+            # "default" project (pre-org stacks).
+            if pid in ("default", "legacy", "_template"):
+                return f(*args, **kwargs)
+            return jsonify({
+                'error': 'Project not found or not tenant-bound',
+                'message': 'The project you tried to access does not exist or is not bound to an organization.',
+            }), 403
         uid = cu.get("user_id")
         try:
             from services.org_service import is_member

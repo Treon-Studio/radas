@@ -8,7 +8,7 @@ import time
 import uuid
 from flask import Blueprint, current_app, jsonify, request
 
-from auth.middleware import require_auth
+from auth.middleware import require_auth, require_project_access
 from utils.host_status import HOST_STATUS_TTL_DEFAULT, get_host_check_status
 
 bp = Blueprint("projects_api", __name__)
@@ -253,7 +253,7 @@ def api_create_project():
 
 
 @bp.route('/api/projects/<project_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_project(project_id):
     """API: ID"""
     try:
@@ -270,7 +270,7 @@ def api_get_project(project_id):
 
 
 @bp.route('/api/projects/<project_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_project(project_id):
     """API: """
     try:
@@ -311,7 +311,7 @@ def api_update_project(project_id):
 
 
 @bp.route('/api/projects/<project_id>/hosts_status', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_project_hosts_status(project_id):
     """ API ( get_all_data)."""
     try:
@@ -334,7 +334,7 @@ def api_get_project_hosts_status(project_id):
 
 
 @bp.route('/api/projects/<project_id>/host_settings', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_project_host_settings(project_id):
     """API: (TTL, -)."""
     try:
@@ -358,7 +358,7 @@ def api_get_project_host_settings(project_id):
 
 
 @bp.route('/api/projects/<project_id>/host_settings', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_project_host_settings(project_id):
     """API: (TTL, -)."""
     try:
@@ -394,7 +394,7 @@ def api_update_project_host_settings(project_id):
 
 
 @bp.route('/api/projects/<project_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_project(project_id):
     """API: (hard delete)"""
     try:
@@ -429,7 +429,7 @@ def api_delete_project(project_id):
 
 
 @bp.route('/api/projects/<project_id>/restore', methods=['POST'])
-@require_auth
+@require_project_access
 def api_restore_project(project_id):
     """API: """
     try:
@@ -455,7 +455,7 @@ def api_restore_project(project_id):
 
 
 @bp.route('/api/projects/<project_id>/switch', methods=['POST'])
-@require_auth
+@require_project_access
 def api_switch_project(project_id):
     """API: ( )"""
     try:

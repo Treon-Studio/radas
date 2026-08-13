@@ -6,7 +6,7 @@ import json
 import sys
 from flask import Blueprint, current_app, jsonify, request
 
-from auth.middleware import require_auth
+from auth.middleware import require_auth, require_project_access
 from utils.project_paths import get_project_dir, get_project_inventory_file
 from utils.yaml_io import parse_yaml_with_comments
 
@@ -434,7 +434,7 @@ def api_capabilities():
 
 
 @bp.route('/api/projects/<project_id>/queue-stats', methods=['GET'])
-@require_auth
+@require_project_access
 def api_project_queue_stats(project_id):
     """API: """
     try:

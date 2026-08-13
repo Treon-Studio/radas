@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -19,13 +19,13 @@ def _pid():
 
 
 @bp.route('/api/registry', methods=['GET'])
-@require_auth
+@require_project_access
 def api_registry_catalog():
     return jsonify({"items": catalog()})
 
 
 @bp.route('/api/registry/<name>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_registry_item(name):
     it = get_item(name)
     if not it:
@@ -34,7 +34,7 @@ def api_registry_item(name):
 
 
 @bp.route('/api/registry/<name>/install', methods=['POST'])
-@require_auth
+@require_project_access
 def api_registry_install(name):
     data = request.get_json(silent=True) or {}
     stack = (data.get("stack") or "").strip()
@@ -48,7 +48,7 @@ def api_registry_install(name):
 
 
 @bp.route('/api/registry/<name>/uninstall', methods=['POST'])
-@require_auth
+@require_project_access
 def api_registry_uninstall(name):
     data = request.get_json(silent=True) or {}
     stack = (data.get("stack") or "").strip()
@@ -62,7 +62,7 @@ def api_registry_uninstall(name):
 
 
 @bp.route('/api/registry/installed', methods=['GET'])
-@require_auth
+@require_project_access
 def api_registry_installed():
     stack = (request.args.get("stack") or "").strip()
     if not stack:

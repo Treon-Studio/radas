@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -16,7 +16,7 @@ bp = Blueprint("secret_rotation_api", __name__)
 
 
 @bp.route('/api/cloud/stacks/<name>/secrets/rotate', methods=['POST'])
-@require_auth
+@require_project_access
 def api_rotate_secrets(name):
     pid = _get_pid_raw(lambda: None)
     if not pid or not _stack_dir(pid, name).exists():

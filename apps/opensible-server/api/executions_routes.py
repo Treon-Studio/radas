@@ -22,7 +22,7 @@ import time
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -187,7 +187,7 @@ def api_update_execution(execution_id):
 
 
 @bp.route('/api/projects/<project_id>/executions/<execution_id>/cancel', methods=['POST'])
-@require_auth
+@require_project_access
 def api_cancel_execution(project_id, execution_id):
     """Cancel a QUEUED execution (QUEUED → CANCELED, atomic under fcntl)."""
     try:
@@ -245,7 +245,7 @@ def api_cancel_execution(project_id, execution_id):
 
 
 @bp.route('/api/projects/<project_id>/executions/<execution_id>/stop', methods=['POST'])
-@require_auth
+@require_project_access
 def api_stop_execution(project_id, execution_id):
     """Stop a RUNNING execution (RUNNING → CANCELING)."""
     try:

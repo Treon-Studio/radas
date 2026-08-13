@@ -20,7 +20,7 @@ import threading
 import yaml
 from flask import Blueprint, current_app, jsonify, request
 
-from auth.middleware import require_auth
+from auth.middleware import require_auth, require_project_access
 
 bp = Blueprint("ansible_run_api", __name__)
 
@@ -102,7 +102,7 @@ for _name in _APP_NAMES:
 
 
 @bp.route('/api/run_ansible', methods=['POST'])
-@require_auth
+@require_project_access
 def run_ansible():
     """ Ansible playbook"""
     ansible_output = _app_module().ansible_output
@@ -512,7 +512,7 @@ def run_ansible():
 
 
 @bp.route('/api/ansible_status', methods=['GET'])
-@require_auth
+@require_project_access
 def get_ansible_status():
     """ Ansible"""
     ansible_output = _app_module().ansible_output
@@ -534,7 +534,7 @@ def get_ansible_status():
 
 
 @bp.route('/api/stop_ansible', methods=['POST'])
-@require_auth
+@require_project_access
 def stop_ansible():
     """ Ansible"""
     ansible_output = _app_module().ansible_output
@@ -559,7 +559,7 @@ def stop_ansible():
 
 # ==== Group vars / host vars routes moved to api/group_host_vars_routes.py ====
 @bp.route('/api/hosts/<host_name>/facts', methods=['POST'])
-@require_auth
+@require_project_access
 def get_host_facts(host_name):
     """ Ansible facts gather_facts"""
     try:

@@ -22,7 +22,7 @@ import yaml
 from flask import Blueprint, jsonify, request, current_app
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -101,7 +101,7 @@ app_logger = _AppLogger()
 
 
 @bp.route('/api/check_host', methods=['POST'])
-@require_auth
+@require_project_access
 def check_host():
     """ Ansible ping"""
     try:
@@ -990,7 +990,7 @@ def _build_one_host_check_entry(project_id, host, connection_secret_name, select
 
 
 @bp.route('/api/check_hosts', methods=['POST'])
-@require_auth
+@require_project_access
 def check_hosts():
     """ ( execution)."""
     try:

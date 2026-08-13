@@ -5,7 +5,7 @@ import sys
 from flask import Blueprint, jsonify, request, send_file
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -65,7 +65,7 @@ app_logger = _AppLoggerProxy()
 
 
 @bp.route('/api/group_vars/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_group_vars_files():
     """ group_vars Project Storage inventory
     
@@ -230,7 +230,7 @@ def list_group_vars_files():
 
 
 @bp.route('/api/group_vars/get', methods=['GET'])
-@require_auth
+@require_project_access
 def get_group_vars():
     """ group_vars """
     try:
@@ -298,7 +298,7 @@ def get_group_vars():
 
 
 @bp.route('/api/group_vars/save', methods=['POST'])
-@require_auth
+@require_project_access
 def save_group_vars():
     """ group_vars """
     try:
@@ -412,7 +412,7 @@ def save_group_vars():
 
 
 @bp.route('/api/group_vars/update_var', methods=['POST'])
-@require_auth
+@require_project_access
 def update_group_var():
     """ group_vars (merge)"""
     try:
@@ -501,7 +501,7 @@ def update_group_var():
 
 
 @bp.route('/api/host_vars/update_var', methods=['POST'])
-@require_auth
+@require_project_access
 def update_host_var():
     """ host_vars (merge) Project Storage"""
     try:
@@ -619,7 +619,7 @@ def update_host_var():
 
 
 @bp.route('/api/group_vars/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_group_vars():
     """ group_vars Project Storage"""
     try:
@@ -646,7 +646,7 @@ def download_group_vars():
 
 
 @bp.route('/api/group_vars/delete', methods=['POST'])
-@require_auth
+@require_project_access
 def delete_group_vars():
     """Delete a group_vars file (Project Storage or inventory-scoped)."""
     try:
@@ -700,7 +700,7 @@ def delete_group_vars():
 
 
 @bp.route('/api/host_vars/list', methods=['GET'])
-@require_auth
+@require_project_access
 def list_host_vars_files():
     """ host_vars Project Storage.
     host_vars inventory ( INI).
@@ -830,7 +830,7 @@ def list_host_vars_files():
 
 
 @bp.route('/api/host_vars/get', methods=['GET'])
-@require_auth
+@require_project_access
 def get_host_vars():
     """ host_vars Project Storage"""
     try:
@@ -920,7 +920,7 @@ def get_host_vars():
 
 
 @bp.route('/api/host_vars/save', methods=['POST'])
-@require_auth
+@require_project_access
 def save_host_vars():
     """ host_vars """
     try:
@@ -1042,7 +1042,7 @@ def save_host_vars():
 
 
 @bp.route('/api/host_vars/download', methods=['GET'])
-@require_auth
+@require_project_access
 def download_host_vars():
     """ host_vars Project Storage"""
     try:
@@ -1072,7 +1072,7 @@ def download_host_vars():
 
 
 @bp.route('/api/host_vars/delete', methods=['POST'])
-@require_auth
+@require_project_access
 def delete_host_vars():
     """Delete a host_vars file (Project Storage or inventory-scoped)."""
     try:
@@ -1122,7 +1122,7 @@ def delete_host_vars():
 
 
 @bp.route('/api/host_vars/create', methods=['POST'])
-@require_auth
+@require_project_access
 def create_host_vars():
     """ host_vars Project Storage"""
     try:

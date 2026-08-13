@@ -7,7 +7,7 @@ import json
 from flask import Blueprint, Response, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -42,7 +42,7 @@ def _respond(data, fmt, filename):
 
 
 @bp.route('/api/export/stacks', methods=['GET'])
-@require_auth
+@require_project_access
 def api_export_stacks():
     pid = _project_id()
     if not pid:
@@ -75,7 +75,7 @@ def api_export_stacks():
 
 
 @bp.route('/api/export/executions', methods=['GET'])
-@require_auth
+@require_project_access
 def api_export_executions():
     pid = _project_id()
     if not pid:
@@ -100,7 +100,7 @@ def api_export_executions():
 
 
 @bp.route('/api/export/cost', methods=['GET'])
-@require_auth
+@require_project_access
 def api_export_cost():
     pid = _project_id()
     if not pid:

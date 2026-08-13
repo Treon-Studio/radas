@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -14,13 +14,13 @@ bp = Blueprint("retry_policy_api", __name__)
 
 
 @bp.route('/api/retry-policy/<project_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_retry_policy(project_id):
     return jsonify({"retry_policy": get_policy(project_id)})
 
 
 @bp.route('/api/retry-policy/<project_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_put_retry_policy(project_id):
     data = request.get_json(silent=True) or {}
     try:

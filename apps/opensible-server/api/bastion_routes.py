@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -14,13 +14,13 @@ bp = Blueprint("bastion_api", __name__)
 
 
 @bp.route('/api/bastion/<project_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_bastion(project_id):
     return jsonify({"configured": bool(get_bastion(project_id)), "bastion": get_bastion(project_id)})
 
 
 @bp.route('/api/bastion/<project_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_put_bastion(project_id):
     data = request.get_json(silent=True) or {}
     try:
@@ -32,7 +32,7 @@ def api_put_bastion(project_id):
 
 
 @bp.route('/api/bastion/<project_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_bastion(project_id):
     if not delete_bastion(project_id):
         return jsonify({"error": "not found"}), 404

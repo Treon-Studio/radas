@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:
     from ..auth.middleware import require_auth
 
@@ -24,7 +24,7 @@ def _who():
 
 
 @bp.route('/api/approvals', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_approvals():
     pid = request.args.get("project_id") or _get_pid_raw(lambda: None)
     status = request.args.get("status")
@@ -32,7 +32,7 @@ def api_list_approvals():
 
 
 @bp.route('/api/approvals', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_approval():
     data = request.get_json(silent=True) or {}
     stack = (data.get("stack") or "").strip()
@@ -49,7 +49,7 @@ def api_create_approval():
 
 
 @bp.route('/api/approvals/<approval_id>/approve', methods=['POST'])
-@require_auth
+@require_project_access
 def api_approve(approval_id):
     rec = decide(approval_id, "approved", decided_by=_who())
     if not rec:
@@ -58,7 +58,7 @@ def api_approve(approval_id):
 
 
 @bp.route('/api/approvals/<approval_id>/reject', methods=['POST'])
-@require_auth
+@require_project_access
 def api_reject(approval_id):
     rec = decide(approval_id, "rejected", decided_by=_who())
     if not rec:
@@ -67,7 +67,7 @@ def api_reject(approval_id):
 
 
 @bp.route('/api/approvals/check', methods=['GET'])
-@require_auth
+@require_project_access
 def api_check_approval():
     pid = request.args.get("project_id") or _get_pid_raw(lambda: None)
     stack = request.args.get("stack") or ""

@@ -31,7 +31,7 @@ from ruamel.yaml import YAML
 from flask import Blueprint, jsonify, request, Response, stream_with_context, send_file
 
 try:
-    from auth.middleware import require_auth
+    from auth.middleware import require_auth, require_project_access
 except ImportError:  # pragma: no cover
     from ..auth.middleware import require_auth
 
@@ -244,7 +244,7 @@ del _n
 # Routes (verbatim from app.py, @app.route -> @bp.route)
 # ---------------------------------------------------------------------------
 @bp.route('/api/projects/<project_id>/playbooks', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_playbooks(project_id):
     """API: playbooks """
     try:
@@ -323,7 +323,7 @@ def api_list_playbooks(project_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks', methods=['POST'])
-@require_auth
+@require_project_access
 def api_create_playbook(project_id):
     """API: playbook"""
     try:
@@ -355,7 +355,7 @@ def api_create_playbook(project_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_playbook(project_id, playbook_id):
     """API: playbook ID"""
     try:
@@ -371,7 +371,7 @@ def api_get_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_playbook(project_id, playbook_id):
     """API: playbook"""
     try:
@@ -427,7 +427,7 @@ def api_update_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_playbook(project_id, playbook_id):
     """API: playbook"""
     try:
@@ -448,7 +448,7 @@ def api_delete_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/upload', methods=['POST'])
-@require_auth
+@require_project_access
 def api_upload_playbook(project_id):
     """API: YAML playbook """
     try:
@@ -543,7 +543,7 @@ def api_upload_playbook(project_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/clone', methods=['POST'])
-@require_auth
+@require_project_access
 def api_clone_playbook(project_id, playbook_id):
     """API: playbook"""
     try:
@@ -570,7 +570,7 @@ def api_clone_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/download', methods=['GET'])
-@require_auth
+@require_project_access
 def api_download_playbook(project_id, playbook_id):
     """API: playbook YAML"""
     try:
@@ -602,7 +602,7 @@ def api_download_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/validate', methods=['POST'])
-@require_auth
+@require_project_access
 def api_validate_playbook(project_id, playbook_id):
     """API: playbook"""
     try:
@@ -637,7 +637,7 @@ def api_validate_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/preview', methods=['POST'])
-@require_auth
+@require_project_access
 def api_preview_playbook(project_id, playbook_id):
     """API: YAML playbook"""
     try:
@@ -661,7 +661,7 @@ def api_preview_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/yaml', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_update_playbook_yaml(project_id, playbook_id):
     """Replace the playbook's plays by parsing a raw YAML body."""
     try:
@@ -690,7 +690,7 @@ def api_update_playbook_yaml(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/reorder', methods=['POST'])
-@require_auth
+@require_project_access
 def api_reorder_playbooks(project_id):
     """API: playbooks"""
     try:
@@ -734,7 +734,7 @@ def api_reorder_playbooks(project_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/run', methods=['POST'])
-@require_auth
+@require_project_access
 def api_run_playbook(project_id, playbook_id):
     """API: playbook - QUEUED run"""
     try:
@@ -1045,7 +1045,7 @@ def api_run_playbook(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/schedule', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_playbook_schedule(project_id, playbook_id):
     """API: schedule playbook"""
     try:
@@ -1080,7 +1080,7 @@ def api_get_playbook_schedule(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/schedule', methods=['PUT'])
-@require_auth
+@require_project_access
 def api_save_playbook_schedule(project_id, playbook_id):
     """API: schedule playbook"""
     try:
@@ -1146,7 +1146,7 @@ def api_save_playbook_schedule(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/schedule/next-run', methods=['GET'])
-@require_auth
+@require_project_access
 def api_get_next_run_time(project_id, playbook_id):
     """API: schedule"""
     try:
@@ -1215,7 +1215,7 @@ def api_get_next_run_time(project_id, playbook_id):
 
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/schedule', methods=['DELETE'])
-@require_auth
+@require_project_access
 def api_delete_playbook_schedule(project_id, playbook_id):
     """API: schedule playbook ()"""
     try:
@@ -1249,7 +1249,7 @@ def api_delete_playbook_schedule(project_id, playbook_id):
 # ============================================================================
 
 @bp.route('/api/projects/<project_id>/playbooks/<playbook_id>/runs', methods=['GET'])
-@require_auth
+@require_project_access
 def api_list_playbook_runs(project_id, playbook_id):
     """API: runs playbook"""
     try:
