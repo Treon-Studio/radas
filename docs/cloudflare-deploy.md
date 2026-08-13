@@ -104,3 +104,22 @@ pm2 start ecosystem.config.cjs
 
 - Console: `npx wrangler pages deploy dist --project-name radas-console` (lagi)
 - Tunnel: `systemctl restart cloudflared`
+
+## Catatan lapangan (VPS dengan UFW + Docker)
+
+- **UFW `INPUT policy DROP` memblokir cloudflared container** ke origin.
+  Wajib izinkan bridge:
+  ```bash
+  ufw allow from 10.0.0.0/24 to any port 5001 proto tcp
+  ufw allow from 127.0.0.1 to any port 5001 proto tcp
+  ```
+- Jika host punya banyak container/iptables, jalankan cloudflared **dalam
+  Docker** (jaringan bersih):
+  ```bash
+  docker run -d --name radas-tunnel --restart=always \
+    cloudflare/cloudflared:latest tunnel --url http://10.0.0.1:5001
+  # gateway Docker: ip -4 addr show docker0 | grep inet
+  # log: docker logs radas-tunnel | grep trycloudflare
+  ```
+- Quick tunnel URL berubah tiap restart — untuk produksi gunakan named
+  tunnel + custom domain (route DNS di dashboard Cloudflare).
