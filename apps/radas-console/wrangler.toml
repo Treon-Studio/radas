@@ -13,6 +13,7 @@
 
 name = "radas-console"
 compatibility_date = "2025-08-13"
+pages_build_output_dir = "./dist"
 
 [env.production]
 # Placeholder — override dengan project yang sudah dibuat:
