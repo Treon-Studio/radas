@@ -12,7 +12,7 @@ const buttonVariants = cva(
         secondary: "bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] hover:opacity-90",
         outline: "border border-[var(--color-border)] bg-transparent text-[var(--color-charcoal)] hover:bg-[var(--color-muted)]",
         ghost: "hover:bg-[var(--color-muted)]",
-        destructive: "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90",
+        destructive: "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:opacity-90",
       },
       size: {
         default: "h-9 px-4",

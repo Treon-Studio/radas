@@ -78,26 +78,62 @@ function auditOpLabel(operation: string): string {
 }
 
 function auditActor(entry: any): string {
-  return entry?.actor_name || entry?.actor || entry?.changes?.actor || "Sistem";
+  const actor = entry?.actor_name || entry?.actor || entry?.changes?.actor;
+  return !actor || String(actor).toLowerCase() === "system" ? "Sistem" : String(actor);
 }
 
 function statusLabel(flag: Pick<FlagType, "enabled" | "kill_switch">): string {
   return flag.kill_switch ? "Dihentikan paksa" : flag.enabled ? "Aktif" : "Nonaktif";
 }
 
+const EVALUATION_REASONS: Record<string, string> = {
+  kill_switch: "Dihentikan paksa",
+  globally_disabled: "Dinonaktifkan secara global",
+  parent_disabled: "Flag induk nonaktif",
+  missing_prerequisite: "Prasyarat belum terpenuhi",
+  blacklisted: "User masuk daftar blokir",
+  zero_rollout: "Rollout 0%",
+  full_rollout: "Rollout penuh",
+  rollout: "Rollout bertahap",
+  whitelisted: "User masuk daftar izin",
+};
+
+function evaluationReasonLabel(reason: unknown): string {
+  const normalized = String(reason ?? "");
+  if (EVALUATION_REASONS[normalized]) return EVALUATION_REASONS[normalized];
+  if (normalized.startsWith("disabled_in_")) return `Dinonaktifkan di environment ${normalized.slice("disabled_in_".length)}`;
+  return "Status evaluasi tersedia";
+}
+
+function evaluationReasonExplanation(reason: unknown): string | null {
+  return String(reason ?? "") === "kill_switch"
+    ? "Kill switch mengesampingkan pengaturan Aktif, environment, dan rollout lainnya."
+    : null;
+}
+
+function evaluationStatusLabel(result: { enabled?: boolean; reason?: unknown }): string {
+  return result.reason === "kill_switch" ? "Dihentikan paksa" : result.enabled ? "Aktif" : "Nonaktif";
+}
+
 function scopeLabel(scopeType?: string, scopeId?: string, scopeName?: string, projectName?: string, organizationName?: string): string {
-  const normalized = (scopeType || "global").toLowerCase().replace(/_id$/, "");
+  const scopeParts = String(scopeType || "global").split(":");
+  const rawType = scopeParts[0] === "flags" ? scopeParts[1] : scopeParts[0];
+  const parsedId = scopeParts[0] === "flags" ? scopeParts[2] : undefined;
+  const normalized = (rawType || "global").toLowerCase().replace(/_id$/, "");
+  scopeId = scopeId || parsedId;
   const label = normalized === "project" ? "Project" : normalized === "organization" || normalized === "org" ? "Organization" : "Global";
   const friendlyName = scopeName || (normalized === "project" ? projectName : normalized === "organization" || normalized === "org" ? organizationName : undefined);
-  if (friendlyName) return `${label}: ${friendlyName}`;
+  if (friendlyName) return `${label} · ${friendlyName}`;
+  if (label === "Global" && (!scopeId || scopeId === "default")) return label;
   return scopeId ? `${label} · ${shortId(scopeId)}` : label;
 }
 
 function readableScopeValue(value: unknown): string {
   const raw = String(value ?? "—");
-  const [kind, id] = raw.split(":", 2);
-  if (!id) return readableSource(raw);
-  return scopeLabel(kind, id);
+  const parts = raw.split(":");
+  if (parts[0] === "flags") return scopeLabel(parts[1], parts[2]);
+  if (parts.length >= 2) return scopeLabel(parts[0], parts[1]);
+  return readableSource(raw);
 }
 
 function readableSource(value: unknown): string {
@@ -160,8 +196,8 @@ function DiffChips({ changes }: { changes: Record<string, unknown> }) {
   );
 }
 
-function AuditTimeline({ entries }: { entries: any[] }) {
-  if (!entries.length) return <p className="text-sm text-[var(--color-muted-foreground)] pt-3">Belum ada riwayat perubahan untuk flag ini.</p>;
+function AuditTimeline({ entries, emptyCopy }: { entries: any[]; emptyCopy: string }) {
+  if (!entries.length) return <p className="text-sm text-[var(--color-muted-foreground)] pt-3">{emptyCopy}</p>;
   const groups: { label: string; items: any[] }[] = [];
   for (const e of entries) {
     const label = auditDay(Number(e?.at ?? e?.changes?.at ?? 0));
@@ -239,18 +275,20 @@ function FlagsPage() {
     onMutate: async ({ k, patch }) => {
       await qc.cancelQueries({ queryKey: ["flags"] });
       const prev = qc.getQueryData<{ flags: FlagType[] }>(["flags"]);
+      const previousSelected = selected?.key === k ? selected : null;
       // Optimistically apply the change to the list cache and the open drawer
       // so the UI updates instantly; roll back if the request fails.
       qc.setQueryData<{ flags: FlagType[] }>(["flags"], (old) => old
         ? { flags: old.flags.map((f) => (f.key === k ? { ...f, ...patch } : f)) }
         : old);
       setSelected((prevSel) => (prevSel && prevSel.key === k ? { ...prevSel, ...patch } : prevSel));
-      return { prev };
+      return { prev, previousSelected };
     },
     onSuccess: () => toast.success("Flag diperbarui"),
     onError: (e: any, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
-      toast.error(e?.message || "Gagal update flag");
+      if (ctx?.previousSelected) setSelected(ctx.previousSelected);
+      toast.error(e?.message || "Gagal memperbarui flag");
     },
     onSettled: () => invalidate(),
   });
@@ -268,7 +306,7 @@ function FlagsPage() {
     onSuccess: () => { setDeleteKey(null); if (selected?.key === deleteKey) setSelected(null); toast.success("Flag dihapus"); },
     onError: (e: any, _k, ctx) => {
       if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
-      toast.error(e?.message || "Gagal hapus flag");
+      toast.error(e?.message || "Gagal menghapus flag");
     },
     onSettled: () => invalidate(),
   });
@@ -290,7 +328,7 @@ function FlagsPage() {
     (!search || `${flag.key} ${flag.name} ${flag.description}`.toLowerCase().includes(search.toLowerCase())) &&
     (!tagFilter || flag.tags.includes(tagFilter)) &&
     (!envFilter || flag.environments?.[envFilter] === true) &&
-    (!statusFilter || (statusFilter === "on" ? flag.enabled && !flag.kill_switch : statusFilter === "killed" ? flag.kill_switch : !flag.enabled))
+    (!statusFilter || (statusFilter === "on" ? flag.enabled && !flag.kill_switch : statusFilter === "killed" ? flag.kill_switch : !flag.enabled && !flag.kill_switch))
   );
   const namespaces = [...new Set(visibleFlags.map((flag) => flag.namespace || "default"))];
   const auditQuery = useQuery({ queryKey: ["flags-audit"], queryFn: () => api<{ audit: any[] }>("GET", "/api/flags/audit?limit=100"), enabled: auditOpen });
@@ -391,7 +429,14 @@ function FlagsPage() {
       {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Memuat feature flag…</div>}
       {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Feature flag tidak dapat dimuat. Periksa akses API lalu coba lagi.</div>}
       {auditOpen && (
-        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Riwayat perubahan</CardTitle></CardHeader><CardContent className="pt-0"><AuditTimeline entries={auditQuery.data?.audit ?? []} /></CardContent></Card>
+        <Card>
+          <CardHeader className="py-3"><CardTitle className="text-sm">Riwayat perubahan</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            {auditQuery.isLoading && <p className="pt-3 text-sm text-[var(--color-muted-foreground)]">Memuat riwayat perubahan…</p>}
+            {auditQuery.isError && <p className="pt-3 text-sm text-[var(--color-destructive)]">Riwayat perubahan tidak dapat dimuat. Coba lagi.</p>}
+            {!auditQuery.isLoading && !auditQuery.isError && <AuditTimeline entries={auditQuery.data?.audit ?? []} emptyCopy="Belum ada riwayat perubahan." />}
+          </CardContent>
+        </Card>
       )}
       <Card>
         <CardContent className="py-3 flex flex-wrap items-center gap-2">
@@ -427,40 +472,28 @@ function FlagsPage() {
           <div key={namespace} className="contents">
             <div className="md:col-span-2 text-xs font-mono uppercase tracking-wider text-[var(--color-muted-foreground)]">{namespace}</div>
             {visibleFlags.filter((flag) => (flag.namespace || "default") === namespace).map((f) => (
-          <Card
-            key={f.id}
-            className="cursor-pointer transition-colors hover:border-[var(--color-primary)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/30"
-            role="button"
-            tabIndex={0}
-            aria-label={`Lihat konfigurasi ${f.key}`}
-            onClick={() => openFlag(f)}
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openFlag(f);
-              }
-            }}
-          >
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Flag className="h-4 w-4" /> <code className="font-mono">{f.key}</code>
-                <Badge variant={statusLabel(f) === "Aktif" ? "success" : "destructive"}>
-                  {statusLabel(f)}
-                </Badge>
-                {f.rollout_percent < 100 && <Badge variant="warning">{f.rollout_percent}%</Badge>}
-                <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={f.enabled && !f.kill_switch}
-                    aria-label={`Ubah status ${f.key}`}
-                    onChange={(v) => toggleMut.mutate({ k: f.key, patch: { enabled: v } })}
-                  />
-                </span>
-              </CardTitle>
+          <Card key={f.id} className="transition-colors hover:border-[var(--color-primary)]/50">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <button type="button" className="inline-flex min-w-0 items-center gap-2 text-left" onClick={() => openFlag(f)} aria-label={`Lihat konfigurasi ${f.key}`}>
+                    <Flag className="h-4 w-4" /> <code className="font-mono">{f.key}</code>
+                    <Badge variant={statusLabel(f) === "Aktif" ? "success" : "destructive"}>{statusLabel(f)}</Badge>
+                    {f.rollout_percent < 100 && <Badge variant="warning">{f.rollout_percent}%</Badge>}
+                  </button>
+                  <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={f.enabled}
+                      disabled={f.kill_switch}
+                      title={f.kill_switch ? "Kill switch aktif dan mengesampingkan status ini. Matikan kill switch di konfigurasi flag." : undefined}
+                      aria-label={`Ubah status ${f.key}`}
+                      onChange={(v) => toggleMut.mutate({ k: f.key, patch: { enabled: v } })}
+                    />
+                  </span>
+                </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-sm">
               <div className="text-[var(--color-muted-foreground)]">{f.description || "—"}</div>
-              <div className="flex flex-wrap items-center gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{scopeLabel(f.scope_type, f.scope_id, f.scope_name, f.project_name, f.organization_name)}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{f.reason}</span>}<span className="ml-auto inline-flex items-center gap-1 font-medium text-[var(--color-primary)]">Lihat konfigurasi <ChevronRight className="h-3.5 w-3.5" /></span></div>
+              <div className="flex flex-wrap items-center gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{scopeLabel(f.scope_type, f.scope_id, f.scope_name, f.project_name, f.organization_name)}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{evaluationReasonLabel(f.reason)}</span>}<button type="button" className="ml-auto inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline" onClick={() => openFlag(f)}>Lihat konfigurasi <ChevronRight className="h-3.5 w-3.5" /></button></div>
               <div className="flex flex-wrap gap-1">
                 {ENVS.map((e) => (
                   <span key={e} className={`rounded-full border px-2 py-0.5 text-[11px] ${f.environments[e] ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/40" : "opacity-40"}`}>
@@ -479,11 +512,12 @@ function FlagsPage() {
       <Drawer
         open={!!selected}
         onClose={() => setSelected(null)}
+        ariaLabel={selected ? `Konfigurasi ${selected.key}` : "Konfigurasi feature flag"}
         title={selected ? <span className="flex items-center gap-2"><code className="font-mono">{selected.key}</code><Badge variant={statusLabel(selected) === "Aktif" ? "success" : "destructive"}>{statusLabel(selected)}</Badge></span> : "Konfigurasi"}
         footer={selected && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={selected.enabled && !selected.kill_switch} aria-label={`Ubah status ${selected.key}`} onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { enabled: v } })} />
+              <Switch checked={selected.enabled} disabled={selected.kill_switch} title={selected.kill_switch ? "Kill switch aktif dan mengesampingkan status ini. Matikan kill switch untuk mengubah status Aktif." : undefined} aria-label={`Ubah status ${selected.key}`} onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { enabled: v } })} />
               {statusLabel(selected)}
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -505,7 +539,7 @@ function FlagsPage() {
             <div className="flex flex-wrap gap-1">
               <Badge>{selected.type || "release"}</Badge>
               <Badge>{scopeLabel(selected.scope_type, selected.scope_id, selected.scope_name, selected.project_name, selected.organization_name)}</Badge>
-              {selected.reason && <span className="text-xs text-[var(--color-muted-foreground)]">{selected.reason}</span>}
+              {selected.reason && <span className="text-xs text-[var(--color-muted-foreground)]">{evaluationReasonLabel(selected.reason)}</span>}
             </div>
             <p className="rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 p-2 text-xs text-[var(--color-muted-foreground)]">
               Hentikan paksa akan mengesampingkan status Aktif dan pengaturan environment, sehingga flag selalu Nonaktif.
@@ -557,7 +591,9 @@ function FlagsPage() {
             {panelTab === "audit" && (
               <div>
                 <h4 className="pt-3 text-sm font-medium">Riwayat perubahan</h4>
-                <AuditTimeline entries={selectedAudit} />
+                {flagAuditQuery.isLoading && <p className="pt-3 text-sm text-[var(--color-muted-foreground)]">Memuat riwayat perubahan flag…</p>}
+                {flagAuditQuery.isError && <p className="pt-3 text-sm text-[var(--color-destructive)]">Riwayat perubahan flag tidak dapat dimuat. Coba lagi.</p>}
+                {!flagAuditQuery.isLoading && !flagAuditQuery.isError && <AuditTimeline entries={selectedAudit} emptyCopy="Belum ada riwayat perubahan untuk flag ini." />}
               </div>
             )}
 
@@ -574,9 +610,10 @@ function FlagsPage() {
                 {previewResult && (
                   <div className="rounded-md border border-[var(--color-border)] p-3 space-y-1">
                     <div className="flex items-center gap-2">
-                      <Badge variant={previewResult.enabled ? "success" : "destructive"}>{previewResult.enabled ? "Aktif" : "Nonaktif"}</Badge>
-                      <span className="text-sm font-medium">{previewResult.reason || "Hasil evaluasi tersedia"}</span>
+                      <Badge variant={evaluationStatusLabel(previewResult) === "Aktif" ? "success" : "destructive"}>{evaluationStatusLabel(previewResult)}</Badge>
+                      <span className="text-sm font-medium">{evaluationReasonLabel(previewResult.reason)}</span>
                     </div>
+                    {evaluationReasonExplanation(previewResult.reason) && <div className="text-xs text-[var(--color-warning)]">{evaluationReasonExplanation(previewResult.reason)}</div>}
                     <div className="text-xs text-[var(--color-muted-foreground)]">Sumber: {readableSource(previewResult.source)} · Cakupan yang cocok: {readableScopeValue(previewResult.matched_scope)}</div>
                     {previewResult.requires && <div className="text-xs text-[var(--color-warning)]">Prasyarat: {previewResult.requires}</div>}
                   </div>

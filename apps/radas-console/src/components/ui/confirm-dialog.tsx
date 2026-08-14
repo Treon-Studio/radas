@@ -42,8 +42,8 @@ export function ConfirmDialog({
         </div>
         <div className="p-4 border-t border-[var(--color-border)] flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
-          <Button variant="default" onClick={onConfirm} disabled={busy}>
-            {busy ? "Working…" : confirmLabel}
+          <Button variant={variant === "destructive" ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
+            {busy ? "Memproses…" : confirmLabel}
           </Button>
         </div>
       </div>
