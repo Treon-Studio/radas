@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   RiFlagLine as Flag, RiAddLine as Plus, RiDeleteBinLine as Trash,
   RiShieldFlashLine as Shield, RiRefreshLine as Refresh, RiCloseLine,
+  RiArrowRightSLine as ChevronRight,
 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
@@ -38,6 +39,9 @@ type FlagType = {
   type?: string;
   scope_type?: string;
   scope_id?: string;
+  scope_name?: string;
+  project_name?: string;
+  organization_name?: string;
   parent_key?: string;
   prerequisites?: string[];
   reason?: string;
@@ -69,8 +73,36 @@ function auditOp(entry: any): string {
   return entry?.operation || entry?.changes?.operation || "change";
 }
 
+function auditOpLabel(operation: string): string {
+  return ({ create: "Dibuat", update: "Diubah", delete: "Dihapus", rollback: "Dipulihkan" } as Record<string, string>)[operation] || "Perubahan";
+}
+
 function auditActor(entry: any): string {
-  return entry?.actor_name || entry?.actor || entry?.changes?.actor || "system";
+  return entry?.actor_name || entry?.actor || entry?.changes?.actor || "Sistem";
+}
+
+function statusLabel(flag: Pick<FlagType, "enabled" | "kill_switch">): string {
+  return flag.kill_switch ? "Dihentikan paksa" : flag.enabled ? "Aktif" : "Nonaktif";
+}
+
+function scopeLabel(scopeType?: string, scopeId?: string, scopeName?: string, projectName?: string, organizationName?: string): string {
+  const normalized = (scopeType || "global").toLowerCase().replace(/_id$/, "");
+  const label = normalized === "project" ? "Project" : normalized === "organization" || normalized === "org" ? "Organization" : "Global";
+  const friendlyName = scopeName || (normalized === "project" ? projectName : normalized === "organization" || normalized === "org" ? organizationName : undefined);
+  if (friendlyName) return `${label}: ${friendlyName}`;
+  return scopeId ? `${label} · ${shortId(scopeId)}` : label;
+}
+
+function readableScopeValue(value: unknown): string {
+  const raw = String(value ?? "—");
+  const [kind, id] = raw.split(":", 2);
+  if (!id) return readableSource(raw);
+  return scopeLabel(kind, id);
+}
+
+function readableSource(value: unknown): string {
+  const source = String(value ?? "—");
+  return ({ global: "Global", project: "Project", organization: "Organization", org: "Organization", environment: "Environment" } as Record<string, string>)[source.toLowerCase()] || source;
 }
 
 function auditTime(entry: any): string {
@@ -92,9 +124,9 @@ function shortId(id: unknown): string {
   return typeof id === "string" && id.length > 8 ? id.slice(0, 8) : String(id ?? "");
 }
 
-function formatVal(v: unknown): string {
+function formatVal(v: unknown, field?: string): string {
   if (v === undefined || v === null) return "—";
-  if (typeof v === "boolean") return v ? "ON" : "OFF";
+  if (typeof v === "boolean") return field === "kill_switch" && v ? "Dihentikan paksa" : v ? "Aktif" : "Nonaktif";
   if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
@@ -119,9 +151,9 @@ function DiffChips({ changes }: { changes: Record<string, unknown> }) {
     <div className="mt-1.5 flex flex-wrap gap-1">
       {items.map((it) => (
         <span key={it.label} className="rounded border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-1.5 py-0.5 font-mono text-[11px]">
-          {it.label}: <span className="text-[var(--color-muted-foreground)] line-through decoration-[var(--color-destructive)]/60">{formatVal(it.before)}</span>
+          {it.label}: <span className="text-[var(--color-muted-foreground)] line-through decoration-[var(--color-destructive)]/60">{formatVal(it.before, it.label)}</span>
           {" → "}
-          <span className="text-[var(--color-foreground)]">{formatVal(it.after)}</span>
+          <span className="text-[var(--color-foreground)]">{formatVal(it.after, it.label)}</span>
         </span>
       ))}
     </div>
@@ -129,7 +161,7 @@ function DiffChips({ changes }: { changes: Record<string, unknown> }) {
 }
 
 function AuditTimeline({ entries }: { entries: any[] }) {
-  if (!entries.length) return <p className="text-sm text-[var(--color-muted-foreground)] pt-3">No changes recorded.</p>;
+  if (!entries.length) return <p className="text-sm text-[var(--color-muted-foreground)] pt-3">Belum ada riwayat perubahan untuk flag ini.</p>;
   const groups: { label: string; items: any[] }[] = [];
   for (const e of entries) {
     const label = auditDay(Number(e?.at ?? e?.changes?.at ?? 0));
@@ -148,10 +180,10 @@ function AuditTimeline({ entries }: { entries: any[] }) {
                 <span className={`absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full ${OP_COLOR[auditOp(entry)] ?? "bg-[var(--color-muted-foreground)]"}`} />
                 <div className="rounded-md border border-[var(--color-border)] p-2 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={OP_VARIANT[auditOp(entry)] ?? "default"}>{auditOp(entry)}</Badge>
+                    <Badge variant={OP_VARIANT[auditOp(entry)] ?? "default"}>{auditOpLabel(auditOp(entry))}</Badge>
                     <code className="font-mono text-[var(--color-muted-foreground)]">{entry.key}</code>
                     <span className="font-medium">{auditActor(entry)}</span>
-                    {entry.scope_type && <Badge>{entry.scope_type}{entry.scope_id ? `:${shortId(entry.scope_id)}` : ""}</Badge>}
+                    {entry.scope_type && <Badge>{scopeLabel(entry.scope_type, entry.scope_id, entry.scope_name, entry.project_name, entry.organization_name)}</Badge>}
                     <span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span>
                   </div>
                   <DiffChips changes={entry.changes} />
@@ -215,7 +247,7 @@ function FlagsPage() {
       setSelected((prevSel) => (prevSel && prevSel.key === k ? { ...prevSel, ...patch } : prevSel));
       return { prev };
     },
-    onSuccess: () => toast.success("Flag di-update"),
+    onSuccess: () => toast.success("Flag diperbarui"),
     onError: (e: any, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
       toast.error(e?.message || "Gagal update flag");
@@ -243,14 +275,14 @@ function FlagsPage() {
 
   const rollbackMut = useMutation({
     mutationFn: (k: string) => api("POST", `/api/flags/${encodeURIComponent(k)}/rollback`),
-    onSuccess: () => { invalidate(); setRollbackKey(null); setSelected(null); toast.success("Flag di-rollback"); },
-    onError: (e: any) => toast.error(e?.message || "Gagal rollback flag"),
+    onSuccess: () => { invalidate(); setRollbackKey(null); setSelected(null); toast.success("Flag dipulihkan"); },
+    onError: (e: any) => toast.error(e?.message || "Gagal memulihkan flag"),
   });
 
   const previewMut = useMutation({
     mutationFn: (input: { key: string; env: string; user: string }) => api("POST", "/api/flags/evaluate", input),
     onSuccess: (result) => setPreviewResult(result),
-    onError: (e: any) => toast.error(e?.message || "Gagal evaluate flag"),
+    onError: (e: any) => toast.error(e?.message || "Gagal mengevaluasi flag"),
   });
 
   const flags = data?.flags ?? [];
@@ -287,13 +319,13 @@ function FlagsPage() {
             <Flag className="h-5 w-5" /> Feature Flags
           </h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
-            Progressive delivery & kill-switch untuk operasi infrastruktur (block_apply, block_destroy, rollout per env).
+            Atur peluncuran bertahap per environment dan hentikan flag segera saat terjadi kondisi darurat.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setAuditOpen((v) => !v)}>Audit</Button>
+          <Button size="sm" variant="outline" onClick={() => setAuditOpen((v) => !v)}>Riwayat audit</Button>
           <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            <Plus className="h-4 w-4" /> {showForm ? "Close" : "New flag"}
+            <Plus className="h-4 w-4" /> {showForm ? "Tutup" : "Buat flag"}
           </Button>
         </div>
       </div>
@@ -303,50 +335,52 @@ function FlagsPage() {
           <VaulDrawer.Portal>
             <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
             <VaulDrawer.Content className="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col bg-[var(--color-card)] border-l border-[var(--color-border)] shadow-[var(--shadow-popover)]">
-              <VaulDrawer.Title className="sr-only">New flag</VaulDrawer.Title>
-              <VaulDrawer.Description className="sr-only">Create a new feature flag</VaulDrawer.Description>
+              <VaulDrawer.Title className="sr-only">Buat feature flag</VaulDrawer.Title>
+              <VaulDrawer.Description className="sr-only">Buat feature flag baru untuk mengatur peluncuran bertahap atau menghentikannya saat darurat.</VaulDrawer.Description>
               <header className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
-                <span className="text-sm font-semibold">New flag</span>
-                <button type="button" onClick={() => setShowForm(false)} aria-label="Close" className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]">
+                <span className="text-sm font-semibold">Buat feature flag</span>
+                <button type="button" onClick={() => setShowForm(false)} aria-label="Tutup" className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]">
                   <RiCloseLine className="h-4 w-4" />
                 </button>
               </header>
               <div className="flex-1 overflow-y-auto px-5 py-4 grid gap-3">
-            <div className="space-y-1">
+              <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Key (contoh: block_apply)</div>
               <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="block_apply" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Name</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Block all applies" />
+              <div className="text-xs text-[var(--color-muted-foreground)]">Nama</div>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Blokir semua apply" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Description</div>
-              <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="h-16" placeholder="Kill-switch untuk semua operasi apply" />
+              <div className="text-xs text-[var(--color-muted-foreground)]">Deskripsi</div>
+              <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="h-16" placeholder="Hentikan semua operasi apply saat darurat" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Rollout %</div>
+              <div className="text-xs text-[var(--color-muted-foreground)]">Persentase rollout</div>
+              <p className="text-[11px] text-[var(--color-muted-foreground)]">Tentukan persentase pengguna yang menerima flag ini secara bertahap.</p>
               <Input type="number" min={0} max={100} value={rollout} onChange={(e) => setRollout(Number(e.target.value))} />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Tags (comma)</div>
+              <div className="text-xs text-[var(--color-muted-foreground)]">Tag (pisahkan dengan koma)</div>
               <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="safety, gate" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Users whitelist (comma)</div>
+              <div className="text-xs text-[var(--color-muted-foreground)]">User yang selalu diizinkan</div>
+              <p className="text-[11px] text-[var(--color-muted-foreground)]">Daftar user ini tetap menerima flag meski rollout tidak mencakup mereka.</p>
               <Input value={whitelist} onChange={(e) => setWhitelist(e.target.value)} placeholder="admin, devops" />
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <CheckboxInput checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled
+              <CheckboxInput checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Aktif
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <CheckboxInput checked={kill} onChange={(e) => setKill(e.target.checked)} /> Kill-switch (paksa off)
+              <CheckboxInput checked={kill} onChange={(e) => setKill(e.target.checked)} /> Hentikan paksa (kill switch)
             </label>
               </div>
               <footer className="border-t border-[var(--color-border)] px-5 py-3 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>Batal</Button>
                 <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending || key.trim().length < 2}>
-                  Create flag
+                  Buat flag
                 </Button>
               </footer>
             </VaulDrawer.Content>
@@ -354,30 +388,37 @@ function FlagsPage() {
         </VaulDrawer.Root>
       )}
 
-      {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading flags…</div>}
-      {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Unable to load feature flags. Check API access and try again.</div>}
+      {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Memuat feature flag…</div>}
+      {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Feature flag tidak dapat dimuat. Periksa akses API lalu coba lagi.</div>}
       {auditOpen && (
-        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0"><AuditTimeline entries={auditQuery.data?.audit ?? []} /></CardContent></Card>
+        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Riwayat perubahan</CardTitle></CardHeader><CardContent className="pt-0"><AuditTimeline entries={auditQuery.data?.audit ?? []} /></CardContent></Card>
       )}
       <Card>
-        <CardContent className="py-3 flex flex-wrap gap-2">
-          <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search flags…" />
+        <CardContent className="py-3 flex flex-wrap items-center gap-2">
+          <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari berdasarkan key, nama, atau deskripsi…" />
           <select className="rounded-md border bg-transparent px-2 text-sm" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
-            <option value="">All tags</option>
+            <option value="">Semua tag</option>
             {[...new Set(flags.flatMap((flag) => flag.tags))].map((tag) => <option key={tag} value={tag}>{tag}</option>)}
           </select>
           <select className="rounded-md border bg-transparent px-2 text-sm" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
-            <option value="">All environments</option>
+            <option value="">Semua environment</option>
             {ENVS.map((env) => <option key={env} value={env}>{env}</option>)}
           </select>
           <select className="rounded-md border bg-transparent px-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All status</option><option value="on">ON</option><option value="off">OFF</option><option value="killed">KILLED</option>
+            <option value="">Semua status</option><option value="on">Aktif</option><option value="off">Nonaktif</option><option value="killed">Dihentikan paksa</option>
           </select>
+          <span className="text-xs text-[var(--color-muted-foreground)]">Menampilkan {visibleFlags.length} dari {flags.length} flag</span>
+          {(search || tagFilter || envFilter || statusFilter) && <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTagFilter(""); setEnvFilter(""); setStatusFilter(""); }}>Reset filter</Button>}
         </CardContent>
       </Card>
+      {flags.length > 0 && visibleFlags.length === 0 && (
+        <div className="rounded-md border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted-foreground)]">
+          Tidak ada feature flag yang cocok dengan filter saat ini.
+        </div>
+      )}
       {flags.length === 0 && !isLoading && !isError && (
         <div className="text-sm text-[var(--color-muted-foreground)]">
-          Belum ada flag. Buat flag pertama, misal <code className="font-mono">block_apply</code> untuk kill-switch apply.
+          Belum ada feature flag. Buat flag pertama, misalnya <code className="font-mono">block_apply</code> untuk menghentikan operasi apply saat darurat.
         </div>
       )}
 
@@ -386,18 +427,32 @@ function FlagsPage() {
           <div key={namespace} className="contents">
             <div className="md:col-span-2 text-xs font-mono uppercase tracking-wider text-[var(--color-muted-foreground)]">{namespace}</div>
             {visibleFlags.filter((flag) => (flag.namespace || "default") === namespace).map((f) => (
-          <Card key={f.id} className="cursor-pointer hover:border-[var(--color-primary)]/50 transition-colors" onClick={() => openFlag(f)}>
+          <Card
+            key={f.id}
+            className="cursor-pointer transition-colors hover:border-[var(--color-primary)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/30"
+            role="button"
+            tabIndex={0}
+            aria-label={`Lihat konfigurasi ${f.key}`}
+            onClick={() => openFlag(f)}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openFlag(f);
+              }
+            }}
+          >
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Flag className="h-4 w-4" /> <code className="font-mono">{f.key}</code>
-                <Badge variant={f.enabled && !f.kill_switch ? "success" : "destructive"}>
-                  {f.kill_switch ? "KILLED" : f.enabled ? "ON" : "OFF"}
+                <Badge variant={statusLabel(f) === "Aktif" ? "success" : "destructive"}>
+                  {statusLabel(f)}
                 </Badge>
                 {f.rollout_percent < 100 && <Badge variant="warning">{f.rollout_percent}%</Badge>}
                 <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={f.enabled && !f.kill_switch}
-                    aria-label={`Toggle ${f.key}`}
+                    aria-label={`Ubah status ${f.key}`}
                     onChange={(v) => toggleMut.mutate({ k: f.key, patch: { enabled: v } })}
                   />
                 </span>
@@ -405,7 +460,7 @@ function FlagsPage() {
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-sm">
               <div className="text-[var(--color-muted-foreground)]">{f.description || "—"}</div>
-              <div className="flex flex-wrap gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{f.scope_type || "global"}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{f.reason}</span>}</div>
+              <div className="flex flex-wrap items-center gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{scopeLabel(f.scope_type, f.scope_id, f.scope_name, f.project_name, f.organization_name)}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{f.reason}</span>}<span className="ml-auto inline-flex items-center gap-1 font-medium text-[var(--color-primary)]">Lihat konfigurasi <ChevronRight className="h-3.5 w-3.5" /></span></div>
               <div className="flex flex-wrap gap-1">
                 {ENVS.map((e) => (
                   <span key={e} className={`rounded-full border px-2 py-0.5 text-[11px] ${f.environments[e] ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/40" : "opacity-40"}`}>
@@ -424,22 +479,22 @@ function FlagsPage() {
       <Drawer
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={selected ? <span className="flex items-center gap-2"><code className="font-mono">{selected.key}</code><Badge variant={selected.enabled && !selected.kill_switch ? "success" : "destructive"}>{selected.kill_switch ? "KILLED" : selected.enabled ? "ON" : "OFF"}</Badge></span> : "Details"}
+        title={selected ? <span className="flex items-center gap-2"><code className="font-mono">{selected.key}</code><Badge variant={statusLabel(selected) === "Aktif" ? "success" : "destructive"}>{statusLabel(selected)}</Badge></span> : "Konfigurasi"}
         footer={selected && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={selected.enabled && !selected.kill_switch} aria-label={`Toggle ${selected.key}`} onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { enabled: v } })} />
-              {selected.enabled && !selected.kill_switch ? "Enabled" : "Disabled"}
+              <Switch checked={selected.enabled && !selected.kill_switch} aria-label={`Ubah status ${selected.key}`} onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { enabled: v } })} />
+              {statusLabel(selected)}
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={selected.kill_switch} aria-label="Kill switch" onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { kill_switch: v } })} />
-              Kill switch
+              <Switch checked={selected.kill_switch} aria-label="Hentikan flag secara paksa" onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { kill_switch: v } })} />
+              Hentikan paksa
             </label>
             <Button size="sm" variant="outline" onClick={() => setRollbackKey(selected.key)} disabled={rollbackMut.isPending}>
-              <Refresh className="h-3.5 w-3.5" /> Rollback
+              <Refresh className="h-3.5 w-3.5" /> Pulihkan konfigurasi
             </Button>
             <Button size="sm" variant="ghost" className="text-[var(--color-destructive)] ml-auto" onClick={() => setDeleteKey(selected.key)}>
-              <Trash className="h-3.5 w-3.5" /> Delete
+              <Trash className="h-3.5 w-3.5" /> Hapus
             </Button>
           </div>
         )}
@@ -449,15 +504,18 @@ function FlagsPage() {
             <p className="text-sm text-[var(--color-muted-foreground)]">{selected.description || "—"}</p>
             <div className="flex flex-wrap gap-1">
               <Badge>{selected.type || "release"}</Badge>
-              <Badge>{selected.scope_type || "global"}{selected.scope_id ? `:${selected.scope_id}` : ""}</Badge>
+              <Badge>{scopeLabel(selected.scope_type, selected.scope_id, selected.scope_name, selected.project_name, selected.organization_name)}</Badge>
               {selected.reason && <span className="text-xs text-[var(--color-muted-foreground)]">{selected.reason}</span>}
             </div>
+            <p className="rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 p-2 text-xs text-[var(--color-muted-foreground)]">
+              Hentikan paksa akan mengesampingkan status Aktif dan pengaturan environment, sehingga flag selalu Nonaktif.
+            </p>
 
             <Tabs<PanelTab>
               tabs={[
-                { id: "details", label: "Details" },
-                { id: "audit", label: "Audit" },
-                { id: "preview", label: "Preview" },
+                { id: "details", label: "Konfigurasi" },
+                { id: "audit", label: "Riwayat perubahan" },
+                { id: "preview", label: "Evaluasi" },
               ]}
               active={panelTab}
               onChange={setPanelTab}
@@ -466,7 +524,8 @@ function FlagsPage() {
             {panelTab === "details" && (
               <div className="space-y-4 pt-3">
                 <div>
-                  <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Environments</div>
+                  <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Environment</div>
+                  <p className="mb-2 text-[11px] text-[var(--color-muted-foreground)]">Pilih environment tempat flag ini aktif. Hentikan paksa tetap mengesampingkan pilihan ini.</p>
                   <div className="grid gap-1.5">
                     {ENVS.map((env) => (
                       <div
@@ -476,46 +535,50 @@ function FlagsPage() {
                         <span>{env}</span>
                         <Switch
                           checked={selected.environments[env] === true}
-                          aria-label={`Toggle ${env}`}
+                          aria-label={`Ubah environment ${env}`}
                           onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { environments: { ...selected.environments, [env]: v } } })}
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <Field label="Rollout %">
+                <Field label="Persentase rollout" help="Persentase pengguna yang menerima flag secara bertahap.">
                   <Input type="number" min={0} max={100} value={selected.rollout_percent} onChange={(e) => toggleMut.mutate({ k: selected.key, patch: { rollout_percent: Number(e.target.value) } })} />
                 </Field>
-                <Field label="TTL seconds">{selected.ttl_seconds ?? "—"}</Field>
-                <Field label="Scheduled expiry">{selected.scheduled_expire_at ? new Date(selected.scheduled_expire_at * 1000).toLocaleString() : "—"}</Field>
-                <Field label="Whitelist">{selected.users_whitelist.length ? selected.users_whitelist.join(", ") : "—"}</Field>
-                <Field label="Blacklist">{selected.users_blacklist.length ? selected.users_blacklist.join(", ") : "—"}</Field>
-                <Field label="Prerequisites">{selected.prerequisites?.length ? selected.prerequisites.join(", ") : "—"}</Field>
-                <Field label="Parent">{selected.parent_key || "—"}</Field>
+                <Field label="Masa berlaku (detik)" help="Durasi sebelum flag tidak lagi berlaku, jika diatur.">{selected.ttl_seconds ?? "—"}</Field>
+                <Field label="Berakhir otomatis pada" help="Flag akan kedaluwarsa otomatis pada waktu ini.">{selected.scheduled_expire_at ? new Date(selected.scheduled_expire_at * 1000).toLocaleString("id-ID") : "—"}</Field>
+                <Field label="User yang selalu diizinkan" help="User ini tetap menerima flag terlepas dari persentase rollout.">{selected.users_whitelist.length ? selected.users_whitelist.join(", ") : "—"}</Field>
+                <Field label="User yang selalu diblokir" help="User ini tidak akan menerima flag meskipun statusnya Aktif.">{selected.users_blacklist.length ? selected.users_blacklist.join(", ") : "—"}</Field>
+                <Field label="Prasyarat" help="Flag yang harus terpenuhi sebelum flag ini dievaluasi.">{selected.prerequisites?.length ? selected.prerequisites.join(", ") : "—"}</Field>
+                <Field label="Flag induk" help="Flag induk yang menjadi dasar evaluasi flag ini.">{selected.parent_key || "—"}</Field>
               </div>
             )}
 
             {panelTab === "audit" && (
-              <AuditTimeline entries={selectedAudit} />
+              <div>
+                <h4 className="pt-3 text-sm font-medium">Riwayat perubahan</h4>
+                <AuditTimeline entries={selectedAudit} />
+              </div>
             )}
 
             {panelTab === "preview" && (
               <div className="pt-3 space-y-3">
+                <p className="text-sm text-[var(--color-muted-foreground)]">Evaluasi hasil flag untuk environment dan user tertentu.</p>
                 <div className="flex gap-2">
-                  <Input value={previewEnv} onChange={(e) => setPreviewEnv(e.target.value)} placeholder="Environment" />
-                  <Input value={previewUser} onChange={(e) => setPreviewUser(e.target.value)} placeholder="User" />
+                  <Input value={previewEnv} onChange={(e) => setPreviewEnv(e.target.value)} placeholder="Masukkan environment, mis. prod" aria-label="Environment evaluasi" />
+                  <Input value={previewUser} onChange={(e) => setPreviewUser(e.target.value)} placeholder="Masukkan user" aria-label="User evaluasi" />
                 </div>
-                <Button size="sm" onClick={() => previewMut.mutate({ key: selected.key, env: previewEnv, user: previewUser })} disabled={previewMut.isPending}>
-                  Evaluate
+                <Button size="sm" onClick={() => previewMut.mutate({ key: selected.key, env: previewEnv, user: previewUser })} disabled={previewMut.isPending || !previewEnv.trim()}>
+                  Evaluasi
                 </Button>
                 {previewResult && (
                   <div className="rounded-md border border-[var(--color-border)] p-3 space-y-1">
                     <div className="flex items-center gap-2">
-                      <Badge variant={previewResult.enabled ? "success" : "destructive"}>{previewResult.enabled ? "ENABLED" : "DISABLED"}</Badge>
-                      <span className="text-sm font-medium">{previewResult.reason}</span>
+                      <Badge variant={previewResult.enabled ? "success" : "destructive"}>{previewResult.enabled ? "Aktif" : "Nonaktif"}</Badge>
+                      <span className="text-sm font-medium">{previewResult.reason || "Hasil evaluasi tersedia"}</span>
                     </div>
-                    <div className="text-xs text-[var(--color-muted-foreground)]">source: {previewResult.source} · matched: {previewResult.matched_scope}</div>
-                    {previewResult.requires && <div className="text-xs text-[var(--color-warning)]">requires: {previewResult.requires}</div>}
+                    <div className="text-xs text-[var(--color-muted-foreground)]">Sumber: {readableSource(previewResult.source)} · Cakupan yang cocok: {readableScopeValue(previewResult.matched_scope)}</div>
+                    {previewResult.requires && <div className="text-xs text-[var(--color-warning)]">Prasyarat: {previewResult.requires}</div>}
                   </div>
                 )}
               </div>
@@ -526,9 +589,10 @@ function FlagsPage() {
 
       <ConfirmDialog
         open={!!deleteKey}
-        title="Delete flag"
-        description={`Delete flag "${deleteKey}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title="Hapus feature flag secara permanen?"
+        description={`Flag "${deleteKey}" dan seluruh konfigurasi terkait akan dihapus. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Hapus permanen"
+        cancelLabel="Batal"
         variant="destructive"
         busy={deleteMut.isPending}
         onConfirm={() => deleteKey && deleteMut.mutate(deleteKey)}
@@ -536,9 +600,10 @@ function FlagsPage() {
       />
       <ConfirmDialog
         open={!!rollbackKey}
-        title="Rollback flag"
-        description={`Restore the previous version of "${rollbackKey}" from the audit trail?`}
-        confirmLabel="Rollback"
+        title="Pulihkan konfigurasi sebelumnya?"
+        description={`Konfigurasi flag "${rollbackKey}" akan dikembalikan ke versi sebelumnya. Tindakan ini membuat entri baru di riwayat audit.`}
+        confirmLabel="Pulihkan konfigurasi"
+        cancelLabel="Batal"
         busy={rollbackMut.isPending}
         onConfirm={() => rollbackKey && rollbackMut.mutate(rollbackKey)}
         onCancel={() => setRollbackKey(null)}
@@ -547,10 +612,11 @@ function FlagsPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1">{label}</div>
+      {help && <p className="mb-1 text-[11px] text-[var(--color-muted-foreground)]">{help}</p>}
       <div className="text-sm">{children}</div>
     </div>
   );
