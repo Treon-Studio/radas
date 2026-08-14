@@ -112,25 +112,41 @@ function FlagsPage() {
 
   const toggleMut = useMutation({
     mutationFn: ({ k, patch }: { k: string; patch: Partial<FlagType> }) => api<{ success: boolean; flag: FlagType }>("PATCH", `/api/flags/${encodeURIComponent(k)}`, patch),
-    onSuccess: (res, vars) => {
-      invalidate();
-      // Auto-update UI instantly: refresh the list cache and the open drawer
-      // in place, so the change appears without reopening the panel.
-      if (res?.flag) {
-        qc.setQueryData<{ flags: FlagType[] }>(["flags"], (old) => old
-          ? { flags: old.flags.map((f) => (f.key === vars.k ? res.flag : f)) }
-          : old);
-        setSelected((prev) => (prev && prev.key === vars.k ? res.flag : prev));
-      }
-      toast.success("Flag di-update");
+    onMutate: async ({ k, patch }) => {
+      await qc.cancelQueries({ queryKey: ["flags"] });
+      const prev = qc.getQueryData<{ flags: FlagType[] }>(["flags"]);
+      // Optimistically apply the change to the list cache and the open drawer
+      // so the UI updates instantly; roll back if the request fails.
+      qc.setQueryData<{ flags: FlagType[] }>(["flags"], (old) => old
+        ? { flags: old.flags.map((f) => (f.key === k ? { ...f, ...patch } : f)) }
+        : old);
+      setSelected((prevSel) => (prevSel && prevSel.key === k ? { ...prevSel, ...patch } : prevSel));
+      return { prev };
     },
-    onError: (e: any) => toast.error(e?.message || "Gagal update flag"),
+    onSuccess: () => toast.success("Flag di-update"),
+    onError: (e: any, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
+      toast.error(e?.message || "Gagal update flag");
+    },
+    onSettled: () => invalidate(),
   });
 
   const deleteMut = useMutation({
     mutationFn: (k: string) => api("DELETE", `/api/flags/${encodeURIComponent(k)}`),
-    onSuccess: () => { invalidate(); setDeleteKey(null); if (selected?.key === deleteKey) setSelected(null); toast.success("Flag dihapus"); },
-    onError: (e: any) => toast.error(e?.message || "Gagal hapus flag"),
+    onMutate: async (k) => {
+      await qc.cancelQueries({ queryKey: ["flags"] });
+      const prev = qc.getQueryData<{ flags: FlagType[] }>(["flags"]);
+      qc.setQueryData<{ flags: FlagType[] }>(["flags"], (old) => old
+        ? { flags: old.flags.filter((f) => f.key !== k) }
+        : old);
+      return { prev };
+    },
+    onSuccess: () => { setDeleteKey(null); if (selected?.key === deleteKey) setSelected(null); toast.success("Flag dihapus"); },
+    onError: (e: any, _k, ctx) => {
+      if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
+      toast.error(e?.message || "Gagal hapus flag");
+    },
+    onSettled: () => invalidate(),
   });
 
   const rollbackMut = useMutation({
