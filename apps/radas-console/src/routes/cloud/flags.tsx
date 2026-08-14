@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   RiFlagLine as Flag, RiAddLine as Plus, RiDeleteBinLine as Trash,
-  RiShieldFlashLine as Shield, RiRefreshLine as Refresh,
+  RiShieldFlashLine as Shield, RiRefreshLine as Refresh, RiCloseLine,
 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckboxInput } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Drawer as VaulDrawer } from "vaul";
 import { Drawer } from "@/components/ui/drawer";
 import { Tabs } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -156,9 +157,19 @@ function FlagsPage() {
       </div>
 
       {showForm && (
-        <Card>
-          <CardHeader className="py-3"><CardTitle className="text-sm">New flag</CardTitle></CardHeader>
-          <CardContent className="pt-0 grid gap-3 md:grid-cols-2">
+        <VaulDrawer.Root open={showForm} onOpenChange={setShowForm} direction="right">
+          <VaulDrawer.Portal>
+            <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
+            <VaulDrawer.Content className="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col bg-[var(--color-card)] border-l border-[var(--color-border)] shadow-[var(--shadow-popover)]">
+              <VaulDrawer.Title className="sr-only">New flag</VaulDrawer.Title>
+              <VaulDrawer.Description className="sr-only">Create a new feature flag</VaulDrawer.Description>
+              <header className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
+                <span className="text-sm font-semibold">New flag</span>
+                <button type="button" onClick={() => setShowForm(false)} aria-label="Close" className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]">
+                  <RiCloseLine className="h-4 w-4" />
+                </button>
+              </header>
+              <div className="flex-1 overflow-y-auto px-5 py-4 grid gap-3">
             <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Key (contoh: block_apply)</div>
               <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="block_apply" />
@@ -167,7 +178,7 @@ function FlagsPage() {
               <div className="text-xs text-[var(--color-muted-foreground)]">Name</div>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Block all applies" />
             </div>
-            <div className="space-y-1 md:col-span-2">
+            <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Description</div>
               <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="h-16" placeholder="Kill-switch untuk semua operasi apply" />
             </div>
@@ -179,7 +190,7 @@ function FlagsPage() {
               <div className="text-xs text-[var(--color-muted-foreground)]">Tags (comma)</div>
               <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="safety, gate" />
             </div>
-            <div className="space-y-1 md:col-span-2">
+            <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Users whitelist (comma)</div>
               <Input value={whitelist} onChange={(e) => setWhitelist(e.target.value)} placeholder="admin, devops" />
             </div>
@@ -189,13 +200,16 @@ function FlagsPage() {
             <label className="flex items-center gap-2 text-sm">
               <CheckboxInput checked={kill} onChange={(e) => setKill(e.target.checked)} /> Kill-switch (paksa off)
             </label>
-            <div className="md:col-span-2">
-              <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending || key.trim().length < 2}>
-                Create flag
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+              <footer className="border-t border-[var(--color-border)] px-5 py-3 flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending || key.trim().length < 2}>
+                  Create flag
+                </Button>
+              </footer>
+            </VaulDrawer.Content>
+          </VaulDrawer.Portal>
+        </VaulDrawer.Root>
       )}
 
       {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading flags…</div>}
