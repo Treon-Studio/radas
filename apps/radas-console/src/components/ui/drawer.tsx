@@ -9,10 +9,11 @@ type DrawerProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   widthClass?: string;
+  ariaLabel?: string;
 };
 
 /** Right-anchored slide-over panel (master-detail detail pane). */
-export function Drawer({ open, onClose, title, children, footer, widthClass = "max-w-md" }: DrawerProps) {
+export function Drawer({ open, onClose, title, children, footer, widthClass = "max-w-md", ariaLabel }: DrawerProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -27,7 +28,7 @@ export function Drawer({ open, onClose, title, children, footer, widthClass = "m
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
       <aside
         role="dialog"
-        aria-label={typeof title === "string" ? title : "Details"}
+        aria-label={ariaLabel ?? (typeof title === "string" ? title : "Detail")}
         className={cn(
           "absolute inset-y-0 right-0 w-full flex flex-col bg-[var(--color-card)] border-l border-[var(--color-border)] shadow-[var(--shadow-popover)]",
           widthClass,
@@ -35,7 +36,7 @@ export function Drawer({ open, onClose, title, children, footer, widthClass = "m
       >
         <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
           <div className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</div>
-          <button type="button" onClick={onClose} aria-label="Close" className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]">
+          <button type="button" onClick={onClose} aria-label="Tutup" className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]">
             <X className="h-4 w-4" />
           </button>
         </header>

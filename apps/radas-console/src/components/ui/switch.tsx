@@ -4,17 +4,19 @@ type SwitchProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  title?: string;
   "aria-label"?: string;
 };
 
 /** Minimal accessible switch used for immediate on/off toggles. */
-export function Switch({ checked, onChange, disabled, "aria-label": ariaLabel }: SwitchProps) {
+export function Switch({ checked, onChange, disabled, title, "aria-label": ariaLabel }: SwitchProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
+      title={title}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
