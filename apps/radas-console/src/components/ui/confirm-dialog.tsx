@@ -10,13 +10,14 @@ type Props = {
   cancelLabel?: string;
   variant?: "default" | "destructive";
   busy?: boolean;
+  busyLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
 export function ConfirmDialog({
   open, title, description, confirmLabel = "Confirm", cancelLabel = "Cancel",
-  variant = "default", busy, onConfirm, onCancel,
+  variant = "default", busy, busyLabel = "Working…", onConfirm, onCancel,
 }: Props) {
   if (!open) return null;
   return (
@@ -43,7 +44,7 @@ export function ConfirmDialog({
         <div className="p-4 border-t border-[var(--color-border)] flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
           <Button variant={variant === "destructive" ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
-            {busy ? "Memproses…" : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </Button>
         </div>
       </div>

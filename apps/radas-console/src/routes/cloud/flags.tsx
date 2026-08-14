@@ -96,7 +96,27 @@ const EVALUATION_REASONS: Record<string, string> = {
   full_rollout: "Rollout penuh",
   rollout: "Rollout bertahap",
   whitelisted: "User masuk daftar izin",
+  unknown_flag: "Flag tidak ditemukan",
 };
+
+function localizedMutationError(error: unknown, fallback: string): string {
+  const message = typeof error === "string"
+    ? error
+    : typeof (error as { message?: unknown } | null)?.message === "string"
+      ? (error as { message: string }).message
+      : "";
+  if (!message) return fallback;
+
+  const normalized = message.toLowerCase();
+  if (normalized.includes("not found")) return "Flag tidak ditemukan";
+  if (normalized.includes("no previous version")) return "Tidak ada versi sebelumnya";
+  if (normalized.includes("key required")) return "Key wajib diisi";
+  if (normalized.includes("already exists")) return "Flag sudah ada";
+  if (normalized.includes("invalid")) return "Data flag tidak valid";
+  if (normalized.includes("unauthorized")) return "Anda tidak berwenang melakukan tindakan ini";
+  if (normalized.includes("forbidden")) return "Akses ditolak";
+  return message;
+}
 
 function evaluationReasonLabel(reason: unknown): string {
   const normalized = String(reason ?? "");
@@ -267,7 +287,7 @@ function FlagsPage() {
       users_whitelist: whitelist.split(",").map((t) => t.trim()).filter(Boolean),
     }),
     onSuccess: () => { toast.success(`Flag ${key} dibuat`); setShowForm(false); setKey(""); setName(""); setDesc(""); setTags(""); setWhitelist(""); setRollout(100); setEnabled(true); setKill(false); invalidate(); },
-    onError: (e: any) => toast.error(e?.message || "Gagal membuat flag"),
+    onError: (e: any) => toast.error(localizedMutationError(e, "Gagal membuat flag")),
   });
 
   const toggleMut = useMutation({
@@ -288,7 +308,7 @@ function FlagsPage() {
     onError: (e: any, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
       if (ctx?.previousSelected) setSelected(ctx.previousSelected);
-      toast.error(e?.message || "Gagal memperbarui flag");
+      toast.error(localizedMutationError(e, "Gagal memperbarui flag"));
     },
     onSettled: () => invalidate(),
   });
@@ -306,7 +326,7 @@ function FlagsPage() {
     onSuccess: () => { setDeleteKey(null); if (selected?.key === deleteKey) setSelected(null); toast.success("Flag dihapus"); },
     onError: (e: any, _k, ctx) => {
       if (ctx?.prev) qc.setQueryData<{ flags: FlagType[] }>(["flags"], ctx.prev);
-      toast.error(e?.message || "Gagal menghapus flag");
+      toast.error(localizedMutationError(e, "Gagal menghapus flag"));
     },
     onSettled: () => invalidate(),
   });
@@ -314,13 +334,13 @@ function FlagsPage() {
   const rollbackMut = useMutation({
     mutationFn: (k: string) => api("POST", `/api/flags/${encodeURIComponent(k)}/rollback`),
     onSuccess: () => { invalidate(); setRollbackKey(null); setSelected(null); toast.success("Flag dipulihkan"); },
-    onError: (e: any) => toast.error(e?.message || "Gagal memulihkan flag"),
+    onError: (e: any) => toast.error(localizedMutationError(e, "Gagal memulihkan flag")),
   });
 
   const previewMut = useMutation({
     mutationFn: (input: { key: string; env: string; user: string }) => api("POST", "/api/flags/evaluate", input),
     onSuccess: (result) => setPreviewResult(result),
-    onError: (e: any) => toast.error(e?.message || "Gagal mengevaluasi flag"),
+    onError: (e: any) => toast.error(localizedMutationError(e, "Gagal mengevaluasi flag")),
   });
 
   const flags = data?.flags ?? [];
@@ -383,30 +403,30 @@ function FlagsPage() {
               </header>
               <div className="flex-1 overflow-y-auto px-5 py-4 grid gap-3">
               <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Key (contoh: block_apply)</div>
-              <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="block_apply" />
+              <label htmlFor="flag-key" className="text-xs text-[var(--color-muted-foreground)]">Key (contoh: block_apply)</label>
+              <Input id="flag-key" value={key} onChange={(e) => setKey(e.target.value)} placeholder="block_apply" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Nama</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Blokir semua apply" />
+              <label htmlFor="flag-name" className="text-xs text-[var(--color-muted-foreground)]">Nama</label>
+              <Input id="flag-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Blokir semua apply" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Deskripsi</div>
-              <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="h-16" placeholder="Hentikan semua operasi apply saat darurat" />
+              <label htmlFor="flag-description" className="text-xs text-[var(--color-muted-foreground)]">Deskripsi</label>
+              <Textarea id="flag-description" value={desc} onChange={(e) => setDesc(e.target.value)} className="h-16" placeholder="Hentikan semua operasi apply saat darurat" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Persentase rollout</div>
+              <label htmlFor="flag-rollout" className="text-xs text-[var(--color-muted-foreground)]">Persentase rollout</label>
               <p className="text-[11px] text-[var(--color-muted-foreground)]">Tentukan persentase pengguna yang menerima flag ini secara bertahap.</p>
-              <Input type="number" min={0} max={100} value={rollout} onChange={(e) => setRollout(Number(e.target.value))} />
+              <Input id="flag-rollout" type="number" min={0} max={100} value={rollout} onChange={(e) => setRollout(Number(e.target.value))} />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">Tag (pisahkan dengan koma)</div>
-              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="safety, gate" />
+              <label htmlFor="flag-tags" className="text-xs text-[var(--color-muted-foreground)]">Tag (pisahkan dengan koma)</label>
+              <Input id="flag-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="safety, gate" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-[var(--color-muted-foreground)]">User yang selalu diizinkan</div>
+              <label htmlFor="flag-whitelist" className="text-xs text-[var(--color-muted-foreground)]">User yang selalu diizinkan</label>
               <p className="text-[11px] text-[var(--color-muted-foreground)]">Daftar user ini tetap menerima flag meski rollout tidak mencakup mereka.</p>
-              <Input value={whitelist} onChange={(e) => setWhitelist(e.target.value)} placeholder="admin, devops" />
+              <Input id="flag-whitelist" value={whitelist} onChange={(e) => setWhitelist(e.target.value)} placeholder="admin, devops" />
             </div>
             <label className="flex items-center gap-2 text-sm">
               <CheckboxInput checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Aktif
@@ -440,16 +460,20 @@ function FlagsPage() {
       )}
       <Card>
         <CardContent className="py-3 flex flex-wrap items-center gap-2">
-          <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari berdasarkan key, nama, atau deskripsi…" />
-          <select className="rounded-md border bg-transparent px-2 text-sm" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+          <label htmlFor="flag-search" className="sr-only">Cari feature flag</label>
+          <Input id="flag-search" className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari berdasarkan key, nama, atau deskripsi…" />
+          <label htmlFor="flag-tag-filter" className="sr-only">Filter berdasarkan tag</label>
+          <select id="flag-tag-filter" className="rounded-md border bg-transparent px-2 text-sm" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
             <option value="">Semua tag</option>
             {[...new Set(flags.flatMap((flag) => flag.tags))].map((tag) => <option key={tag} value={tag}>{tag}</option>)}
           </select>
-          <select className="rounded-md border bg-transparent px-2 text-sm" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
+          <label htmlFor="flag-environment-filter" className="sr-only">Filter berdasarkan environment</label>
+          <select id="flag-environment-filter" className="rounded-md border bg-transparent px-2 text-sm" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
             <option value="">Semua environment</option>
             {ENVS.map((env) => <option key={env} value={env}>{env}</option>)}
           </select>
-          <select className="rounded-md border bg-transparent px-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <label htmlFor="flag-status-filter" className="sr-only">Filter berdasarkan status</label>
+          <select id="flag-status-filter" className="rounded-md border bg-transparent px-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">Semua status</option><option value="on">Aktif</option><option value="off">Nonaktif</option><option value="killed">Dihentikan paksa</option>
           </select>
           <span className="text-xs text-[var(--color-muted-foreground)]">Menampilkan {visibleFlags.length} dari {flags.length} flag</span>
@@ -631,6 +655,7 @@ function FlagsPage() {
         confirmLabel="Hapus permanen"
         cancelLabel="Batal"
         variant="destructive"
+        busyLabel="Memproses…"
         busy={deleteMut.isPending}
         onConfirm={() => deleteKey && deleteMut.mutate(deleteKey)}
         onCancel={() => setDeleteKey(null)}
@@ -641,6 +666,7 @@ function FlagsPage() {
         description={`Konfigurasi flag "${rollbackKey}" akan dikembalikan ke versi sebelumnya. Tindakan ini membuat entri baru di riwayat audit.`}
         confirmLabel="Pulihkan konfigurasi"
         cancelLabel="Batal"
+        busyLabel="Memproses…"
         busy={rollbackMut.isPending}
         onConfirm={() => rollbackKey && rollbackMut.mutate(rollbackKey)}
         onCancel={() => setRollbackKey(null)}
