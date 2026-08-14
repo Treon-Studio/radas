@@ -28,6 +28,16 @@ type FlagType = {
   users_whitelist: string[];
   users_blacklist: string[];
   tags: string[];
+  namespace?: string;
+  domain?: string;
+  type?: string;
+  scope_type?: string;
+  scope_id?: string;
+  parent_key?: string;
+  prerequisites?: string[];
+  reason?: string;
+  ttl_seconds?: number;
+  scheduled_expire_at?: number;
   kill_switch: boolean;
   created_at: number;
   updated_at: number;
@@ -37,7 +47,7 @@ const ENVS = ["dev", "staging", "prod", "preview"];
 
 function FlagsPage() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["flags"], queryFn: () => api<{ flags: FlagType[] }>("GET", "/api/flags") });
+  const { data, isLoading, isError } = useQuery({ queryKey: ["flags"], queryFn: () => api<{ flags: FlagType[] }>("GET", "/api/flags") });
   const [showForm, setShowForm] = useState(false);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
@@ -48,6 +58,13 @@ function FlagsPage() {
   const [tags, setTags] = useState("");
   const [whitelist, setWhitelist] = useState("");
   const [editKey, setEditKey] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [envFilter, setEnvFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [preview, setPreview] = useState<{key: string; env: string; user: string} | null>(null);
+  const [previewResult, setPreviewResult] = useState<any>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["flags"] });
 
@@ -74,6 +91,18 @@ function FlagsPage() {
   });
 
   const flags = data?.flags ?? [];
+  const visibleFlags = flags.filter((flag) =>
+    (!search || `${flag.key} ${flag.name} ${flag.description}`.toLowerCase().includes(search.toLowerCase())) &&
+    (!tagFilter || flag.tags.includes(tagFilter)) &&
+    (!envFilter || flag.environments?.[envFilter] === true) &&
+    (!statusFilter || (statusFilter === "on" ? flag.enabled && !flag.kill_switch : statusFilter === "killed" ? flag.kill_switch : !flag.enabled))
+  );
+  const namespaces = [...new Set(visibleFlags.map((flag) => flag.namespace || "default"))];
+  const auditQuery = useQuery({ queryKey: ["flags-audit"], queryFn: () => api<{ audit: any[] }>("GET", "/api/flags/audit?limit=100"), enabled: auditOpen });
+  const previewMut = useMutation({
+    mutationFn: (input: {key: string; env: string; user: string}) => api("POST", "/api/flags/evaluate", input),
+    onSuccess: (result) => setPreviewResult(result),
+  });
 
   return (
     <div className="space-y-4">
@@ -87,9 +116,12 @@ function FlagsPage() {
             Progressive delivery & kill-switch untuk operasi infrastruktur (block_apply, block_destroy, rollout per env).
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-          <Plus className="h-4 w-4" /> {showForm ? "Close" : "New flag"}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setAuditOpen((v) => !v)}>Audit</Button>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Plus className="h-4 w-4" /> {showForm ? "Close" : "New flag"}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -135,14 +167,38 @@ function FlagsPage() {
         </Card>
       )}
 
-      {flags.length === 0 && (
+      {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading flags…</div>}
+      {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Unable to load feature flags. Check API access and try again.</div>}
+      {auditOpen && (
+        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0 space-y-2">{(auditQuery.data?.audit ?? []).length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No flag changes recorded.</p> : auditQuery.data!.audit.map((entry: any, index: number) => <div key={`${entry.at}-${index}`} className="border-b border-[var(--color-border)] py-2 text-xs"><b>{entry.key}</b> · {entry.actor} · {entry.at}<pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(entry.changes, null, 2)}</pre></div>)}</CardContent></Card>
+      )}
+      <Card>
+        <CardContent className="py-3 flex flex-wrap gap-2">
+          <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search flags…" />
+          <select className="rounded-md border bg-transparent px-2 text-sm" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+            <option value="">All tags</option>
+            {[...new Set(flags.flatMap((flag) => flag.tags))].map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+          </select>
+          <select className="rounded-md border bg-transparent px-2 text-sm" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
+            <option value="">All environments</option>
+            {ENVS.map((env) => <option key={env} value={env}>{env}</option>)}
+          </select>
+          <select className="rounded-md border bg-transparent px-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All status</option><option value="on">ON</option><option value="off">OFF</option><option value="killed">KILLED</option>
+          </select>
+        </CardContent>
+      </Card>
+      {flags.length === 0 && !isLoading && !isError && (
         <div className="text-sm text-[var(--color-muted-foreground)]">
           Belum ada flag. Buat flag pertama, misal <code className="font-mono">block_apply</code> untuk kill-switch apply.
         </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {flags.map((f) => (
+        {namespaces.map((namespace) => (
+          <div key={namespace} className="contents">
+            <div className="md:col-span-2 text-xs font-mono uppercase tracking-wider text-[var(--color-muted-foreground)]">{namespace}</div>
+            {visibleFlags.filter((flag) => (flag.namespace || "default") === namespace).map((f) => (
           <Card key={f.id}>
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -155,6 +211,7 @@ function FlagsPage() {
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-sm">
               <div className="text-[var(--color-muted-foreground)]">{f.description || "—"}</div>
+              <div className="flex flex-wrap gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{f.scope_type || "global"}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{f.reason}</span>}</div>
               <div className="flex flex-wrap gap-1">
                 {ENVS.map((e) => (
                   <button
@@ -178,6 +235,7 @@ function FlagsPage() {
                 <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: f.key, patch: { enabled: !f.enabled } })}>
                   {f.enabled ? "Disable" : "Enable"}
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => { setPreview({ key: f.key, env: "prod", user: "" }); setPreviewResult(null); }}>Preview</Button>
                 <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: f.key, patch: { kill_switch: !f.kill_switch } })}>
                   {f.kill_switch ? "Un-kill" : "Kill switch"}
                 </Button>
@@ -187,8 +245,11 @@ function FlagsPage() {
               </div>
             </CardContent>
           </Card>
+            ))}
+          </div>
         ))}
       </div>
+      {preview && <Card><CardHeader className="py-3"><CardTitle className="text-sm">Evaluation preview · {preview.key}</CardTitle></CardHeader><CardContent className="pt-0 space-y-2"><div className="flex gap-2"><Input value={preview.env} onChange={(e) => setPreview({...preview, env: e.target.value})} placeholder="Environment" /><Input value={preview.user} onChange={(e) => setPreview({...preview, user: e.target.value})} placeholder="User" /><Button size="sm" onClick={() => previewMut.mutate(preview)}>Evaluate</Button><Button size="sm" variant="outline" onClick={() => setPreview(null)}>Close</Button></div>{previewResult && <pre className="rounded bg-[var(--color-muted)] p-3 text-xs">{JSON.stringify(previewResult, null, 2)}</pre>}</CardContent></Card>}
     </div>
   );
 }

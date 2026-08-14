@@ -2885,6 +2885,18 @@ def start_recovery_task():
     except Exception:
         pass
     try:
+        from services.feature_flags import expire_due_flags
+        def _flag_expiry_worker():
+            while True:
+                time.sleep(max(30, int(os.environ.get("FEATURE_FLAG_EXPIRY_INTERVAL", "60"))))
+                try:
+                    expire_due_flags()
+                except Exception as exc:
+                    app.logger.error("Feature flag expiry scheduler failed: %s", exc)
+        threading.Thread(target=_flag_expiry_worker, daemon=True, name="feature-flag-expiry").start()
+    except Exception:
+        app.logger.exception("Unable to start feature flag expiry scheduler")
+    try:
         from services.health import install_redaction
         install_redaction()
     except Exception:

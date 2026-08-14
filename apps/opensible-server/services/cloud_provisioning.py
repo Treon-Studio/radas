@@ -1048,12 +1048,14 @@ def stacks_action(name):
             except Exception:
                 _env = None
             _user = (_cu.get("username") or "")
-            for _fkey in ("block_apply", "block_destroy", f"stack.{name}.block_apply"):
-                _err = _ff_enforcement(_fkey, env=_env or "prod", user=_user)
-                if _err:
-                    return jsonify({"error": _err}), 423
-        except Exception:
-            pass
+            from services.feature_flag_registry import evaluate as _ff_evaluate
+            for _fkey in ("safety.cloud.apply.block", "safety.cloud.destroy.block", "safety.cloud.refresh.block", f"stack.{name}.block_apply"):
+                _ff_result = _ff_evaluate(_fkey, env=_env or "prod", user=_user, project_id=pid)
+                if _ff_result.get("enabled"):
+                    return jsonify({"error": f"Operation blocked by feature flag '{_fkey}' ({_ff_result.get('reason')}).", "flag": _ff_result}), 423
+        except Exception as exc:
+            current_app.logger.exception("Feature flag evaluation failed for stack action")
+            return jsonify({"error": "Unable to verify safety flags; operation refused.", "detail": str(exc)}), 503
 
     # Role-per-environment gate (Fase 5 — UC 67).
     try:
