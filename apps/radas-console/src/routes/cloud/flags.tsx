@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckboxInput } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Drawer as VaulDrawer } from "vaul";
 import { Drawer } from "@/components/ui/drawer";
 import { Tabs } from "@/components/ui/tabs";
@@ -88,8 +89,19 @@ function FlagsPage() {
   });
 
   const toggleMut = useMutation({
-    mutationFn: ({ k, patch }: { k: string; patch: Partial<FlagType> }) => api("PATCH", `/api/flags/${encodeURIComponent(k)}`, patch),
-    onSuccess: () => { invalidate(); toast.success("Flag di-update"); },
+    mutationFn: ({ k, patch }: { k: string; patch: Partial<FlagType> }) => api<{ success: boolean; flag: FlagType }>("PATCH", `/api/flags/${encodeURIComponent(k)}`, patch),
+    onSuccess: (res, vars) => {
+      invalidate();
+      // Auto-update UI instantly: refresh the list cache and the open drawer
+      // in place, so the change appears without reopening the panel.
+      if (res?.flag) {
+        qc.setQueryData<{ flags: FlagType[] }>(["flags"], (old) => old
+          ? { flags: old.flags.map((f) => (f.key === vars.k ? res.flag : f)) }
+          : old);
+        setSelected((prev) => (prev && prev.key === vars.k ? res.flag : prev));
+      }
+      toast.success("Flag di-update");
+    },
     onError: (e: any) => toast.error(e?.message || "Gagal update flag"),
   });
 
@@ -252,6 +264,13 @@ function FlagsPage() {
                   {f.kill_switch ? "KILLED" : f.enabled ? "ON" : "OFF"}
                 </Badge>
                 {f.rollout_percent < 100 && <Badge variant="warning">{f.rollout_percent}%</Badge>}
+                <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={f.enabled && !f.kill_switch}
+                    aria-label={`Toggle ${f.key}`}
+                    onChange={(v) => toggleMut.mutate({ k: f.key, patch: { enabled: v } })}
+                  />
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-sm">
@@ -277,13 +296,15 @@ function FlagsPage() {
         onClose={() => setSelected(null)}
         title={selected ? <span className="flex items-center gap-2"><code className="font-mono">{selected.key}</code><Badge variant={selected.enabled && !selected.kill_switch ? "success" : "destructive"}>{selected.kill_switch ? "KILLED" : selected.enabled ? "ON" : "OFF"}</Badge></span> : "Details"}
         footer={selected && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: selected.key, patch: { enabled: !selected.enabled } })}>
-              {selected.enabled ? "Disable" : "Enable"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: selected.key, patch: { kill_switch: !selected.kill_switch } })}>
-              {selected.kill_switch ? "Un-kill" : "Kill switch"}
-            </Button>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={selected.enabled && !selected.kill_switch} aria-label={`Toggle ${selected.key}`} onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { enabled: v } })} />
+              {selected.enabled && !selected.kill_switch ? "Enabled" : "Disabled"}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={selected.kill_switch} aria-label="Kill switch" onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { kill_switch: v } })} />
+              Kill switch
+            </label>
             <Button size="sm" variant="outline" onClick={() => setRollbackKey(selected.key)} disabled={rollbackMut.isPending}>
               <Refresh className="h-3.5 w-3.5" /> Rollback
             </Button>
@@ -318,15 +339,17 @@ function FlagsPage() {
                   <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Environments</div>
                   <div className="grid gap-1.5">
                     {ENVS.map((env) => (
-                      <button
+                      <div
                         key={env}
-                        type="button"
-                        onClick={() => toggleMut.mutate({ k: selected.key, patch: { environments: { ...selected.environments, [env]: !selected.environments[env] } } })}
-                        className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-muted)]/50"
+                        className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm"
                       >
                         <span>{env}</span>
-                        <Badge variant={selected.environments[env] ? "success" : "default"}>{selected.environments[env] ? "ON" : "OFF"}</Badge>
-                      </button>
+                        <Switch
+                          checked={selected.environments[env] === true}
+                          aria-label={`Toggle ${env}`}
+                          onChange={(v) => toggleMut.mutate({ k: selected.key, patch: { environments: { ...selected.environments, [env]: v } } })}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
