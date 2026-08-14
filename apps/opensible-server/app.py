@@ -2893,6 +2893,11 @@ def start_recovery_task():
                     expire_due_flags()
                 except Exception as exc:
                     app.logger.error("Feature flag expiry scheduler failed: %s", exc)
+                try:
+                    from services.feature_flag_registry import cleanup_audit
+                    cleanup_audit(retention=int(os.environ.get("FEATURE_FLAG_AUDIT_RETENTION", "500")))
+                except Exception as exc:
+                    app.logger.error("Feature flag audit cleanup failed: %s", exc)
         threading.Thread(target=_flag_expiry_worker, daemon=True, name="feature-flag-expiry").start()
     except Exception:
         app.logger.exception("Unable to start feature flag expiry scheduler")

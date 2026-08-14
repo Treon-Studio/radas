@@ -28,6 +28,23 @@ def audit(scope_type: str = "global", scope_id: Optional[str] = None, key: Optio
     return rows[-limit:][::-1]
 
 
+def cleanup_audit(retention: int = 500) -> int:
+    """Trim audit history for every scope to the newest ``retention`` entries.
+
+    Returns the number of scopes pruned. Keeps a bounded, manageable history
+    instead of an ever-growing log.
+    """
+    from storage import kv
+    pruned = 0
+    for scope in kv.kv_list_scopes(prefix="flag_audit:"):
+        rows = kv.kv_get(scope, "entries") or []
+        if not isinstance(rows, list) or len(rows) <= retention:
+            continue
+        kv.kv_set(scope, "entries", rows[-retention:])
+        pruned += 1
+    return pruned
+
+
 def _scope(scope_type: str, scope_id: Optional[str]) -> str:
     return f"flags:{(scope_type or 'global').lower()}:{scope_id or 'default'}"
 

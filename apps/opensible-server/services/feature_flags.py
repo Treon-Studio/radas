@@ -40,25 +40,55 @@ def _audit_store_path() -> Path:
         return Path("data") / "flag_audit.json"
 
 
+def _audit_store_path() -> Path:
+    env_dir = os.environ.get("DATA_DIR")
+    if env_dir:
+        return Path(env_dir) / "flag_audit.json"
+    try:
+        import app as _app
+        return Path(getattr(_app, "DATA_DIR", "data")) / "flag_audit.json"
+    except Exception:
+        return Path("data") / "flag_audit.json"
+
+
+def _migrate_legacy_audit_file() -> int:
+    """One-shot import of the old file-based audit into KV, then remove the file."""
+    path = _audit_store_path()
+    if not path.exists():
+        return 0
+    try:
+        items = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    from services.feature_flag_registry import _append_history
+    if isinstance(items, list):
+        for entry in items:
+            _append_history({"operation": "legacy", "key": entry.get("key", ""),
+                             "actor": entry.get("actor", "system"), "at": entry.get("at", _now()),
+                             "changes": entry.get("changes", {})}, "global", None)
+    try:
+        path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return len(items) if isinstance(items, list) else 0
+
+
 def log_flag_change(key: str, actor: str = "", changes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    entry = {"key": key, "actor": actor or "system", "changes": changes or {},
-             "at": _now()}
-    items = json.loads(_audit_store_path().read_text(encoding="utf-8")) if _audit_store_path().exists() else []
-    if not isinstance(items, list):
-        items = []
-    items.append(entry)
-    items = items[-1000:]
-    _audit_store_path().write_text(json.dumps(items, indent=2), encoding="utf-8")
+    """Record a flag change in the KV audit trail (global scope)."""
+    _migrate_legacy_audit_file()
+    from services.feature_flag_registry import _append_history
+    operation = "change"
+    if isinstance(changes, dict):
+        operation = changes.get("operation") or operation
+    entry = {"operation": operation, "key": key, "actor": actor or "system",
+             "at": _now(), "changes": changes or {}}
+    _append_history(entry, "global", None)
     return entry
 
 
 def flag_audit(limit: int = 100, flag_key: Optional[str] = None) -> List[Dict[str, Any]]:
-    items = json.loads(_audit_store_path().read_text(encoding="utf-8")) if _audit_store_path().exists() else []
-    if not isinstance(items, list):
-        items = []
-    if flag_key:
-        items = [e for e in items if e.get("key") == flag_key]
-    return items[-limit:][::-1]
+    from services.feature_flag_registry import audit as registry_audit
+    return registry_audit("global", None, flag_key, limit)
 
 
 def expire_due_flags(now: Optional[int] = None) -> int:
