@@ -40,17 +40,6 @@ def _audit_store_path() -> Path:
         return Path("data") / "flag_audit.json"
 
 
-def _audit_store_path() -> Path:
-    env_dir = os.environ.get("DATA_DIR")
-    if env_dir:
-        return Path(env_dir) / "flag_audit.json"
-    try:
-        import app as _app
-        return Path(getattr(_app, "DATA_DIR", "data")) / "flag_audit.json"
-    except Exception:
-        return Path("data") / "flag_audit.json"
-
-
 def _migrate_legacy_audit_file() -> int:
     """One-shot import of the old file-based audit into KV, then remove the file."""
     path = _audit_store_path()

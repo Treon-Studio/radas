@@ -51,6 +51,28 @@ type FlagType = {
 const ENVS = ["dev", "staging", "prod", "preview"];
 type PanelTab = "details" | "audit" | "preview";
 
+function auditOp(entry: any): string {
+  return entry?.operation || entry?.changes?.operation || "change";
+}
+
+function auditActor(entry: any): string {
+  return entry?.actor || entry?.changes?.actor || "system";
+}
+
+function auditTime(entry: any): string {
+  const at = entry?.at ?? entry?.changes?.at;
+  if (!at) return "—";
+  return new Date(Number(at) * 1000).toLocaleString();
+}
+
+function auditDiff(entry: any): Record<string, unknown> {
+  if (entry?.changes && typeof entry.changes === "object" && Object.keys(entry.changes).length) return entry.changes;
+  const diff: Record<string, unknown> = {};
+  if (entry?.before !== undefined) diff.before = entry.before;
+  if (entry?.after !== undefined) diff.after = entry.after;
+  return diff;
+}
+
 function FlagsPage() {
   const qc = useQueryClient();
   const { data, isLoading, isError } = useQuery({ queryKey: ["flags"], queryFn: () => api<{ flags: FlagType[] }>("GET", "/api/flags") });
@@ -227,7 +249,12 @@ function FlagsPage() {
       {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading flags…</div>}
       {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Unable to load feature flags. Check API access and try again.</div>}
       {auditOpen && (
-        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0 space-y-2">{(auditQuery.data?.audit ?? []).length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No flag changes recorded.</p> : auditQuery.data!.audit.map((entry: any, index: number) => <div key={`${entry.at}-${index}`} className="border-b border-[var(--color-border)] py-2 text-xs"><b>{entry.key}</b> · {entry.actor} · {entry.at}<pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(entry.changes, null, 2)}</pre></div>)}</CardContent></Card>
+        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0 space-y-2">{(auditQuery.data?.audit ?? []).length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No flag changes recorded.</p> : auditQuery.data!.audit.map((entry: any, index: number) => (
+          <div key={`${entry.at}-${index}`} className="border-b border-[var(--color-border)] py-2 text-xs">
+            <div className="flex items-center gap-2"><b>{entry.key}</b><Badge variant={auditOp(entry) === "delete" ? "destructive" : auditOp(entry) === "create" ? "success" : "default"}>{auditOp(entry)}</Badge><span>{auditActor(entry)}</span><span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span></div>
+            {Object.keys(auditDiff(entry)).length > 0 && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(auditDiff(entry), null, 2)}</pre>}
+          </div>
+        ))}</CardContent></Card>
       )}
       <Card>
         <CardContent className="py-3 flex flex-wrap gap-2">
@@ -369,8 +396,12 @@ function FlagsPage() {
               <div className="pt-3 space-y-2">
                 {selectedAudit.length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No changes recorded for this flag.</p> : selectedAudit.map((entry: any, index: number) => (
                   <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--color-border)] p-2 text-xs">
-                    <div className="flex items-center gap-2"><Badge>{entry.changes?.operation || "change"}</Badge><span>{entry.actor}</span><span className="ml-auto text-[var(--color-muted-foreground)]">{entry.at}</span></div>
-                    {entry.changes && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(entry.changes, null, 2)}</pre>}
+                    <div className="flex items-center gap-2">
+                      <Badge variant={auditOp(entry) === "delete" ? "destructive" : auditOp(entry) === "create" ? "success" : "default"}>{auditOp(entry)}</Badge>
+                      <span>{auditActor(entry)}</span>
+                      <span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span>
+                    </div>
+                    {Object.keys(auditDiff(entry)).length > 0 && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(auditDiff(entry), null, 2)}</pre>}
                   </div>
                 ))}
               </div>
