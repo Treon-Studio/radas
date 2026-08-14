@@ -51,26 +51,118 @@ type FlagType = {
 const ENVS = ["dev", "staging", "prod", "preview"];
 type PanelTab = "details" | "audit" | "preview";
 
+const OP_VARIANT: Record<string, "success" | "destructive" | "default" | "warning"> = {
+  create: "success",
+  delete: "destructive",
+  update: "default",
+  rollback: "warning",
+};
+
+const OP_COLOR: Record<string, string> = {
+  create: "bg-[var(--color-success)]",
+  delete: "bg-[var(--color-destructive)]",
+  update: "bg-[var(--color-primary)]",
+  rollback: "bg-[var(--color-warning)]",
+};
+
 function auditOp(entry: any): string {
   return entry?.operation || entry?.changes?.operation || "change";
 }
 
 function auditActor(entry: any): string {
-  return entry?.actor || entry?.changes?.actor || "system";
+  return entry?.actor_name || entry?.actor || entry?.changes?.actor || "system";
 }
 
 function auditTime(entry: any): string {
   const at = entry?.at ?? entry?.changes?.at;
   if (!at) return "—";
-  return new Date(Number(at) * 1000).toLocaleString();
+  return new Date(Number(at) * 1000).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 
-function auditDiff(entry: any): Record<string, unknown> {
-  if (entry?.changes && typeof entry.changes === "object" && Object.keys(entry.changes).length) return entry.changes;
-  const diff: Record<string, unknown> = {};
-  if (entry?.before !== undefined) diff.before = entry.before;
-  if (entry?.after !== undefined) diff.after = entry.after;
-  return diff;
+function auditDay(ts: number): string {
+  const d = new Date(ts * 1000);
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 864e5);
+  if (d.toDateString() === today.toDateString()) return "Hari ini";
+  if (d.toDateString() === yesterday.toDateString()) return "Kemarin";
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function shortId(id: unknown): string {
+  return typeof id === "string" && id.length > 8 ? id.slice(0, 8) : String(id ?? "");
+}
+
+function formatVal(v: unknown): string {
+  if (v === undefined || v === null) return "—";
+  if (typeof v === "boolean") return v ? "ON" : "OFF";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function DiffChips({ changes }: { changes: Record<string, unknown> }) {
+  const items: { label: string; before: unknown; after: unknown }[] = [];
+  for (const [field, val] of Object.entries(changes ?? {})) {
+    if (!val || typeof val !== "object" || Array.isArray(val)) continue;
+    const rec = val as Record<string, unknown>;
+    if (field === "environments") {
+      for (const [env, ev] of Object.entries(rec)) {
+        const e = (ev ?? {}) as Record<string, unknown>;
+        items.push({ label: `env.${env}`, before: e.before, after: e.after });
+      }
+    } else if ("before" in rec || "after" in rec) {
+      items.push({ label: field, before: rec.before, after: rec.after });
+    }
+  }
+  if (!items.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {items.map((it) => (
+        <span key={it.label} className="rounded border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-1.5 py-0.5 font-mono text-[11px]">
+          {it.label}: <span className="text-[var(--color-muted-foreground)] line-through decoration-[var(--color-destructive)]/60">{formatVal(it.before)}</span>
+          {" → "}
+          <span className="text-[var(--color-foreground)]">{formatVal(it.after)}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AuditTimeline({ entries }: { entries: any[] }) {
+  if (!entries.length) return <p className="text-sm text-[var(--color-muted-foreground)] pt-3">No changes recorded.</p>;
+  const groups: { label: string; items: any[] }[] = [];
+  for (const e of entries) {
+    const label = auditDay(Number(e?.at ?? e?.changes?.at ?? 0));
+    const last = groups[groups.length - 1];
+    if (!last || last.label !== label) groups.push({ label, items: [e] });
+    else last.items.push(e);
+  }
+  return (
+    <div className="pt-3 space-y-5">
+      {groups.map((g) => (
+        <div key={g.label}>
+          <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--color-muted-foreground)] mb-2">{g.label}</div>
+          <ol className="relative ml-2 border-l border-[var(--color-border)] space-y-3">
+            {g.items.map((entry, idx) => (
+              <li key={`${entry.at}-${idx}`} className="relative pl-4">
+                <span className={`absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full ${OP_COLOR[auditOp(entry)] ?? "bg-[var(--color-muted-foreground)]"}`} />
+                <div className="rounded-md border border-[var(--color-border)] p-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={OP_VARIANT[auditOp(entry)] ?? "default"}>{auditOp(entry)}</Badge>
+                    <code className="font-mono text-[var(--color-muted-foreground)]">{entry.key}</code>
+                    <span className="font-medium">{auditActor(entry)}</span>
+                    {entry.scope_type && <Badge>{entry.scope_type}{entry.scope_id ? `:${shortId(entry.scope_id)}` : ""}</Badge>}
+                    <span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span>
+                  </div>
+                  <DiffChips changes={entry.changes} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function FlagsPage() {
@@ -172,7 +264,7 @@ function FlagsPage() {
   const auditQuery = useQuery({ queryKey: ["flags-audit"], queryFn: () => api<{ audit: any[] }>("GET", "/api/flags/audit?limit=100"), enabled: auditOpen });
   const flagAuditQuery = useQuery({
     queryKey: ["flag-audit", selected?.key],
-    queryFn: () => api<{ audit: any[] }>("GET", `/api/flags/audit?limit=50&flag_key=${encodeURIComponent(selected!.key)}`),
+    queryFn: () => api<{ audit: any[] }>("GET", `/api/flags/audit?limit=500&flag_key=${encodeURIComponent(selected!.key)}`),
     enabled: !!selected && panelTab === "audit",
   });
 
@@ -265,12 +357,7 @@ function FlagsPage() {
       {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading flags…</div>}
       {isError && <div className="rounded-md border border-[var(--color-destructive)]/40 p-3 text-sm text-[var(--color-destructive)]">Unable to load feature flags. Check API access and try again.</div>}
       {auditOpen && (
-        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0 space-y-2">{(auditQuery.data?.audit ?? []).length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No flag changes recorded.</p> : auditQuery.data!.audit.map((entry: any, index: number) => (
-          <div key={`${entry.at}-${index}`} className="border-b border-[var(--color-border)] py-2 text-xs">
-            <div className="flex items-center gap-2"><b>{entry.key}</b><Badge variant={auditOp(entry) === "delete" ? "destructive" : auditOp(entry) === "create" ? "success" : "default"}>{auditOp(entry)}</Badge><span>{auditActor(entry)}</span><span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span></div>
-            {Object.keys(auditDiff(entry)).length > 0 && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(auditDiff(entry), null, 2)}</pre>}
-          </div>
-        ))}</CardContent></Card>
+        <Card><CardHeader className="py-3"><CardTitle className="text-sm">Change audit</CardTitle></CardHeader><CardContent className="pt-0"><AuditTimeline entries={auditQuery.data?.audit ?? []} /></CardContent></Card>
       )}
       <Card>
         <CardContent className="py-3 flex flex-wrap gap-2">
@@ -409,18 +496,7 @@ function FlagsPage() {
             )}
 
             {panelTab === "audit" && (
-              <div className="pt-3 space-y-2">
-                {selectedAudit.length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No changes recorded for this flag.</p> : selectedAudit.map((entry: any, index: number) => (
-                  <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--color-border)] p-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={auditOp(entry) === "delete" ? "destructive" : auditOp(entry) === "create" ? "success" : "default"}>{auditOp(entry)}</Badge>
-                      <span>{auditActor(entry)}</span>
-                      <span className="ml-auto text-[var(--color-muted-foreground)]">{auditTime(entry)}</span>
-                    </div>
-                    {Object.keys(auditDiff(entry)).length > 0 && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(auditDiff(entry), null, 2)}</pre>}
-                  </div>
-                ))}
-              </div>
+              <AuditTimeline entries={selectedAudit} />
             )}
 
             {panelTab === "preview" && (

@@ -1,6 +1,7 @@
 """Namespaced and scoped feature-flag registry for the RADAS control plane."""
 from __future__ import annotations
 
+import copy
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -19,13 +20,35 @@ def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[s
     kv.kv_set(_history_key(scope_type, scope_id), "entries", rows)
 
 
-def audit(scope_type: str = "global", scope_id: Optional[str] = None, key: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+def _diff(before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Field-level before/after diff between two flag states (nested envs aware)."""
+    before = before or {}
+    after = after or {}
+    keys = set(before) | set(after)
+    changes: Dict[str, Any] = {}
+    for field in sorted(keys):
+        b, a = before.get(field), after.get(field)
+        if field == "environments" and isinstance(b, dict) and isinstance(a, dict):
+            env_changes: Dict[str, Any] = {}
+            for env in set(b) | set(a):
+                if b.get(env) != a.get(env):
+                    env_changes[env] = {"before": b.get(env), "after": a.get(env)}
+            if env_changes:
+                changes[field] = env_changes
+        elif b != a:
+            changes[field] = {"before": b, "after": a}
+    return changes
+
+
+def audit(scope_type: str = "global", scope_id: Optional[str] = None, key: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
     from storage import kv
     rows = kv.kv_get(_history_key(scope_type, scope_id), "entries") or []
     rows = rows if isinstance(rows, list) else []
     if key:
         rows = [row for row in rows if row.get("key") == key]
-    return rows[-limit:][::-1]
+    end = max(0, len(rows) - offset)
+    start = max(0, end - limit)
+    return rows[start:end][::-1]
 
 
 def cleanup_audit(retention: int = 500) -> int:
@@ -97,7 +120,7 @@ def get_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = Non
     return next((flag for flag in list_flags(scope_type, scope_id) if flag["key"] == key), None)
 
 
-def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "") -> Dict[str, Any]:
+def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "", actor_name: str = "") -> Dict[str, Any]:
     key = (data.get("key") or "").strip().lower().replace(" ", "-")
     if len(key) < 2:
         raise ValueError("Flag key must be at least 2 chars")
@@ -144,14 +167,14 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
     flags = _load(scope_type, scope_id)
     flags.append(flag)
     _save(flags, scope_type, scope_id)
-    _append_history({"operation": "create", "key": key, "actor": actor or "system", "at": now, "after": flag}, scope_type, scope_id)
+    _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": now, "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return _decorate(flag, scope_type, scope_id)
 
 
-def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "", actor_name: str = "", operation: str = "update") -> Optional[Dict[str, Any]]:
     flags = _load(scope_type, scope_id)
     flag = next((item for item in flags if item.get("key") == key), None)
-    before = dict(flag) if flag else None
+    before = copy.deepcopy(flag) if flag else None
     if not flag:
         return None
     for field in ("name", "description", "tags", "parent_key", "prerequisites", "reason", "type"):
@@ -171,17 +194,18 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
             flag[field] = [str(v) for v in patch[field]]
     flag["updated_at"] = int(time.time())
     _save(flags, scope_type, scope_id)
-    _append_history({"operation": "update", "key": key, "actor": "system", "at": int(time.time()), "before": before, "after": flag}, scope_type, scope_id)
+    _append_history({"operation": operation, "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": before, "after": flag, "changes": _diff(before, flag), "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return _decorate(flag, scope_type, scope_id)
 
 
-def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None) -> bool:
+def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "", actor_name: str = "") -> bool:
     flags = _load(scope_type, scope_id)
     remaining = [item for item in flags if item.get("key") != key]
     if len(remaining) == len(flags):
         return False
+    removed = copy.deepcopy(next((item for item in flags if item.get("key") == key), None))
     _save(remaining, scope_type, scope_id)
-    _append_history({"operation": "delete", "key": key, "actor": "system", "at": int(time.time()), "before": next((item for item in flags if item.get("key") == key), None)}, scope_type, scope_id)
+    _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return True
 
 

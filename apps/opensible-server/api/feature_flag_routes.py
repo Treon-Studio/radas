@@ -21,6 +21,11 @@ def _scope(data=None):
     return (("project", project_id) if project_id else ("organization", org_id) if org_id else ("global", None))
 
 
+def _actor():
+    user = getattr(request, "current_user", {}) or {}
+    return (user.get("user_id", ""), user.get("username", ""))
+
+
 @bp.route('/api/flags', methods=['GET'])
 @require_auth
 def api_list_flags():
@@ -36,7 +41,11 @@ def api_flag_audit():
         limit = max(1, min(500, int(request.args.get("limit", "100"))))
     except (TypeError, ValueError):
         limit = 100
-    return jsonify({"audit": audit(scope_type, scope_id, request.args.get("flag_key") or None, limit)})
+    try:
+        offset = max(0, int(request.args.get("offset", "0")))
+    except (TypeError, ValueError):
+        offset = 0
+    return jsonify({"audit": audit(scope_type, scope_id, request.args.get("flag_key") or None, limit, offset)})
 
 
 @bp.route('/api/flags', methods=['POST'])
@@ -44,8 +53,9 @@ def api_flag_audit():
 def api_create_flag():
     data = request.get_json(silent=True) or {}
     scope_type, scope_id = _scope(data)
+    actor_id, actor_name = _actor()
     try:
-        flag = create_flag(data, scope_type, scope_id, actor=(getattr(request, "current_user", {}) or {}).get("user_id", ""))
+        flag = create_flag(data, scope_type, scope_id, actor=actor_id, actor_name=actor_name)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 409
     return jsonify({"success": True, "flag": flag}), 201
@@ -56,7 +66,8 @@ def api_create_flag():
 def api_update_flag(key):
     data = request.get_json(silent=True) or {}
     scope_type, scope_id = _scope(data)
-    flag = update_flag(key, data, scope_type, scope_id)
+    actor_id, actor_name = _actor()
+    flag = update_flag(key, data, scope_type, scope_id, actor=actor_id, actor_name=actor_name)
     if not flag:
         return jsonify({"error": "not found"}), 404
     return jsonify({"success": True, "flag": flag})
@@ -66,7 +77,8 @@ def api_update_flag(key):
 @require_auth
 def api_delete_flag(key):
     scope_type, scope_id = _scope()
-    if not delete_flag(key, scope_type, scope_id):
+    actor_id, actor_name = _actor()
+    if not delete_flag(key, scope_type, scope_id, actor=actor_id, actor_name=actor_name):
         return jsonify({"error": "not found"}), 404
     return jsonify({"success": True})
 
@@ -93,11 +105,12 @@ def api_export_flags():
 def api_import_flags():
     data = request.get_json(silent=True) or {}
     scope_type, scope_id = _scope(data)
+    actor_id, actor_name = _actor()
     imported = data.get("flags") if isinstance(data.get("flags"), list) else []
     created = []
     for flag in imported:
         try:
-            created.append(create_flag(flag, scope_type, scope_id, actor=(getattr(request, "current_user", {}) or {}).get("user_id", "")))
+            created.append(create_flag(flag, scope_type, scope_id, actor=actor_id, actor_name=actor_name))
         except ValueError:
             continue
     return jsonify({"success": True, "imported": len(created), "flags": created}), 201
@@ -118,5 +131,6 @@ def api_flag_rollback(key):
     previous = next((row.get("before") for row in rows if row.get("before")), None)
     if not previous:
         return jsonify({"error": "no previous version"}), 404
-    restored = update_flag(key, previous, scope_type, scope_id)
+    actor_id, actor_name = _actor()
+    restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback")
     return jsonify({"success": True, "flag": restored})

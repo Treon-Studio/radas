@@ -62,7 +62,7 @@ def _migrate_legacy_audit_file() -> int:
     return len(items) if isinstance(items, list) else 0
 
 
-def log_flag_change(key: str, actor: str = "", changes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def log_flag_change(key: str, actor: str = "", changes: Optional[Dict[str, Any]] = None, actor_name: str = "") -> Dict[str, Any]:
     """Record a flag change in the KV audit trail (global scope)."""
     _migrate_legacy_audit_file()
     from services.feature_flag_registry import _append_history
@@ -70,7 +70,8 @@ def log_flag_change(key: str, actor: str = "", changes: Optional[Dict[str, Any]]
     if isinstance(changes, dict):
         operation = changes.get("operation") or operation
     entry = {"operation": operation, "key": key, "actor": actor or "system",
-             "at": _now(), "changes": changes or {}}
+             "actor_name": actor_name or "", "at": _now(), "changes": changes or {},
+             "scope_type": "global", "scope_id": None}
     _append_history(entry, "global", None)
     return entry
 
