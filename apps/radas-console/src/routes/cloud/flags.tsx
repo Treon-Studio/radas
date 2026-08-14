@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   RiFlagLine as Flag, RiAddLine as Plus, RiDeleteBinLine as Trash,
-  RiPencilLine as Pencil, RiShieldFlashLine as Shield,
+  RiShieldFlashLine as Shield, RiRefreshLine as Refresh,
 } from "@remixicon/react";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/app-shell/Breadcrumbs";
@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckboxInput } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Drawer } from "@/components/ui/drawer";
+import { Tabs } from "@/components/ui/tabs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/cloud/flags")({ component: FlagsPage });
@@ -44,6 +47,7 @@ type FlagType = {
 };
 
 const ENVS = ["dev", "staging", "prod", "preview"];
+type PanelTab = "details" | "audit" | "preview";
 
 function FlagsPage() {
   const qc = useQueryClient();
@@ -57,14 +61,18 @@ function FlagsPage() {
   const [rollout, setRollout] = useState(100);
   const [tags, setTags] = useState("");
   const [whitelist, setWhitelist] = useState("");
-  const [editKey, setEditKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [envFilter, setEnvFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [auditOpen, setAuditOpen] = useState(false);
-  const [preview, setPreview] = useState<{key: string; env: string; user: string} | null>(null);
+  const [selected, setSelected] = useState<FlagType | null>(null);
+  const [panelTab, setPanelTab] = useState<PanelTab>("details");
+  const [previewEnv, setPreviewEnv] = useState("prod");
+  const [previewUser, setPreviewUser] = useState("");
   const [previewResult, setPreviewResult] = useState<any>(null);
+  const [deleteKey, setDeleteKey] = useState<string | null>(null);
+  const [rollbackKey, setRollbackKey] = useState<string | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["flags"] });
 
@@ -86,8 +94,20 @@ function FlagsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (k: string) => api("DELETE", `/api/flags/${encodeURIComponent(k)}`),
-    onSuccess: () => { invalidate(); toast.success("Flag dihapus"); },
+    onSuccess: () => { invalidate(); setDeleteKey(null); if (selected?.key === deleteKey) setSelected(null); toast.success("Flag dihapus"); },
     onError: (e: any) => toast.error(e?.message || "Gagal hapus flag"),
+  });
+
+  const rollbackMut = useMutation({
+    mutationFn: (k: string) => api("POST", `/api/flags/${encodeURIComponent(k)}/rollback`),
+    onSuccess: () => { invalidate(); setRollbackKey(null); setSelected(null); toast.success("Flag di-rollback"); },
+    onError: (e: any) => toast.error(e?.message || "Gagal rollback flag"),
+  });
+
+  const previewMut = useMutation({
+    mutationFn: (input: { key: string; env: string; user: string }) => api("POST", "/api/flags/evaluate", input),
+    onSuccess: (result) => setPreviewResult(result),
+    onError: (e: any) => toast.error(e?.message || "Gagal evaluate flag"),
   });
 
   const flags = data?.flags ?? [];
@@ -99,10 +119,21 @@ function FlagsPage() {
   );
   const namespaces = [...new Set(visibleFlags.map((flag) => flag.namespace || "default"))];
   const auditQuery = useQuery({ queryKey: ["flags-audit"], queryFn: () => api<{ audit: any[] }>("GET", "/api/flags/audit?limit=100"), enabled: auditOpen });
-  const previewMut = useMutation({
-    mutationFn: (input: {key: string; env: string; user: string}) => api("POST", "/api/flags/evaluate", input),
-    onSuccess: (result) => setPreviewResult(result),
+  const flagAuditQuery = useQuery({
+    queryKey: ["flag-audit", selected?.key],
+    queryFn: () => api<{ audit: any[] }>("GET", `/api/flags/audit?limit=50&flag_key=${encodeURIComponent(selected!.key)}`),
+    enabled: !!selected && panelTab === "audit",
   });
+
+  const openFlag = (flag: FlagType) => {
+    setSelected(flag);
+    setPanelTab("details");
+    setPreviewEnv("prod");
+    setPreviewUser("");
+    setPreviewResult(null);
+  };
+
+  const selectedAudit = flagAuditQuery.data?.audit ?? [];
 
   return (
     <div className="space-y-4">
@@ -199,7 +230,7 @@ function FlagsPage() {
           <div key={namespace} className="contents">
             <div className="md:col-span-2 text-xs font-mono uppercase tracking-wider text-[var(--color-muted-foreground)]">{namespace}</div>
             {visibleFlags.filter((flag) => (flag.namespace || "default") === namespace).map((f) => (
-          <Card key={f.id}>
+          <Card key={f.id} className="cursor-pointer hover:border-[var(--color-primary)]/50 transition-colors" onClick={() => openFlag(f)}>
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Flag className="h-4 w-4" /> <code className="font-mono">{f.key}</code>
@@ -214,42 +245,153 @@ function FlagsPage() {
               <div className="flex flex-wrap gap-1 text-[11px]"><Badge>{f.type || "release"}</Badge><Badge>{f.scope_type || "global"}</Badge>{f.reason && <span className="text-[var(--color-muted-foreground)]">{f.reason}</span>}</div>
               <div className="flex flex-wrap gap-1">
                 {ENVS.map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => toggleMut.mutate({ k: f.key, patch: { environments: { ...f.environments, [e]: !f.environments[e] } } })}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] ${f.environments[e] ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/40" : "opacity-40"}`}
-                  >
+                  <span key={e} className={`rounded-full border px-2 py-0.5 text-[11px] ${f.environments[e] ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/40" : "opacity-40"}`}>
                     {e}
-                  </button>
+                  </span>
                 ))}
               </div>
-              {f.users_whitelist.length > 0 && (
-                <div className="flex items-center gap-1 text-xs text-[var(--color-muted-foreground)]">
-                  <Shield className="h-3 w-3" /> {f.users_whitelist.join(", ")}
-                </div>
-              )}
-              {f.tags.length > 0 && (
-                <div className="flex gap-1">{f.tags.map((t) => <Badge key={t}>{t}</Badge>)}</div>
-              )}
-              <div className="flex gap-1 pt-1">
-                <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: f.key, patch: { enabled: !f.enabled } })}>
-                  {f.enabled ? "Disable" : "Enable"}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => { setPreview({ key: f.key, env: "prod", user: "" }); setPreviewResult(null); }}>Preview</Button>
-                <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: f.key, patch: { kill_switch: !f.kill_switch } })}>
-                  {f.kill_switch ? "Un-kill" : "Kill switch"}
-                </Button>
-                <Button size="sm" variant="ghost" className="text-[var(--color-destructive)]" onClick={() => deleteMut.mutate(f.key)}>
-                  <Trash className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              {f.tags.length > 0 && <div className="flex gap-1">{f.tags.map((t) => <Badge key={t}>{t}</Badge>)}</div>}
             </CardContent>
           </Card>
             ))}
           </div>
         ))}
       </div>
-      {preview && <Card><CardHeader className="py-3"><CardTitle className="text-sm">Evaluation preview · {preview.key}</CardTitle></CardHeader><CardContent className="pt-0 space-y-2"><div className="flex gap-2"><Input value={preview.env} onChange={(e) => setPreview({...preview, env: e.target.value})} placeholder="Environment" /><Input value={preview.user} onChange={(e) => setPreview({...preview, user: e.target.value})} placeholder="User" /><Button size="sm" onClick={() => previewMut.mutate(preview)}>Evaluate</Button><Button size="sm" variant="outline" onClick={() => setPreview(null)}>Close</Button></div>{previewResult && <pre className="rounded bg-[var(--color-muted)] p-3 text-xs">{JSON.stringify(previewResult, null, 2)}</pre>}</CardContent></Card>}
+
+      <Drawer
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected ? <span className="flex items-center gap-2"><code className="font-mono">{selected.key}</code><Badge variant={selected.enabled && !selected.kill_switch ? "success" : "destructive"}>{selected.kill_switch ? "KILLED" : selected.enabled ? "ON" : "OFF"}</Badge></span> : "Details"}
+        footer={selected && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: selected.key, patch: { enabled: !selected.enabled } })}>
+              {selected.enabled ? "Disable" : "Enable"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ k: selected.key, patch: { kill_switch: !selected.kill_switch } })}>
+              {selected.kill_switch ? "Un-kill" : "Kill switch"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setRollbackKey(selected.key)} disabled={rollbackMut.isPending}>
+              <Refresh className="h-3.5 w-3.5" /> Rollback
+            </Button>
+            <Button size="sm" variant="ghost" className="text-[var(--color-destructive)] ml-auto" onClick={() => setDeleteKey(selected.key)}>
+              <Trash className="h-3.5 w-3.5" /> Delete
+            </Button>
+          </div>
+        )}
+      >
+        {selected && (
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--color-muted-foreground)]">{selected.description || "—"}</p>
+            <div className="flex flex-wrap gap-1">
+              <Badge>{selected.type || "release"}</Badge>
+              <Badge>{selected.scope_type || "global"}{selected.scope_id ? `:${selected.scope_id}` : ""}</Badge>
+              {selected.reason && <span className="text-xs text-[var(--color-muted-foreground)]">{selected.reason}</span>}
+            </div>
+
+            <Tabs<PanelTab>
+              tabs={[
+                { id: "details", label: "Details" },
+                { id: "audit", label: "Audit" },
+                { id: "preview", label: "Preview" },
+              ]}
+              active={panelTab}
+              onChange={setPanelTab}
+            />
+
+            {panelTab === "details" && (
+              <div className="space-y-4 pt-3">
+                <div>
+                  <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Environments</div>
+                  <div className="grid gap-1.5">
+                    {ENVS.map((env) => (
+                      <button
+                        key={env}
+                        type="button"
+                        onClick={() => toggleMut.mutate({ k: selected.key, patch: { environments: { ...selected.environments, [env]: !selected.environments[env] } } })}
+                        className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-muted)]/50"
+                      >
+                        <span>{env}</span>
+                        <Badge variant={selected.environments[env] ? "success" : "default"}>{selected.environments[env] ? "ON" : "OFF"}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Field label="Rollout %">
+                  <Input type="number" min={0} max={100} value={selected.rollout_percent} onChange={(e) => toggleMut.mutate({ k: selected.key, patch: { rollout_percent: Number(e.target.value) } })} />
+                </Field>
+                <Field label="TTL seconds">{selected.ttl_seconds ?? "—"}</Field>
+                <Field label="Scheduled expiry">{selected.scheduled_expire_at ? new Date(selected.scheduled_expire_at * 1000).toLocaleString() : "—"}</Field>
+                <Field label="Whitelist">{selected.users_whitelist.length ? selected.users_whitelist.join(", ") : "—"}</Field>
+                <Field label="Blacklist">{selected.users_blacklist.length ? selected.users_blacklist.join(", ") : "—"}</Field>
+                <Field label="Prerequisites">{selected.prerequisites?.length ? selected.prerequisites.join(", ") : "—"}</Field>
+                <Field label="Parent">{selected.parent_key || "—"}</Field>
+              </div>
+            )}
+
+            {panelTab === "audit" && (
+              <div className="pt-3 space-y-2">
+                {selectedAudit.length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No changes recorded for this flag.</p> : selectedAudit.map((entry: any, index: number) => (
+                  <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--color-border)] p-2 text-xs">
+                    <div className="flex items-center gap-2"><Badge>{entry.changes?.operation || "change"}</Badge><span>{entry.actor}</span><span className="ml-auto text-[var(--color-muted-foreground)]">{entry.at}</span></div>
+                    {entry.changes && <pre className="mt-1 whitespace-pre-wrap text-[var(--color-muted-foreground)]">{JSON.stringify(entry.changes, null, 2)}</pre>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {panelTab === "preview" && (
+              <div className="pt-3 space-y-3">
+                <div className="flex gap-2">
+                  <Input value={previewEnv} onChange={(e) => setPreviewEnv(e.target.value)} placeholder="Environment" />
+                  <Input value={previewUser} onChange={(e) => setPreviewUser(e.target.value)} placeholder="User" />
+                </div>
+                <Button size="sm" onClick={() => previewMut.mutate({ key: selected.key, env: previewEnv, user: previewUser })} disabled={previewMut.isPending}>
+                  Evaluate
+                </Button>
+                {previewResult && (
+                  <div className="rounded-md border border-[var(--color-border)] p-3 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={previewResult.enabled ? "success" : "destructive"}>{previewResult.enabled ? "ENABLED" : "DISABLED"}</Badge>
+                      <span className="text-sm font-medium">{previewResult.reason}</span>
+                    </div>
+                    <div className="text-xs text-[var(--color-muted-foreground)]">source: {previewResult.source} · matched: {previewResult.matched_scope}</div>
+                    {previewResult.requires && <div className="text-xs text-[var(--color-warning)]">requires: {previewResult.requires}</div>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Drawer>
+
+      <ConfirmDialog
+        open={!!deleteKey}
+        title="Delete flag"
+        description={`Delete flag "${deleteKey}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        busy={deleteMut.isPending}
+        onConfirm={() => deleteKey && deleteMut.mutate(deleteKey)}
+        onCancel={() => setDeleteKey(null)}
+      />
+      <ConfirmDialog
+        open={!!rollbackKey}
+        title="Rollback flag"
+        description={`Restore the previous version of "${rollbackKey}" from the audit trail?`}
+        confirmLabel="Rollback"
+        busy={rollbackMut.isPending}
+        onConfirm={() => rollbackKey && rollbackMut.mutate(rollbackKey)}
+        onCancel={() => setRollbackKey(null)}
+      />
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-[var(--color-muted-foreground)] mb-1">{label}</div>
+      <div className="text-sm">{children}</div>
     </div>
   );
 }
