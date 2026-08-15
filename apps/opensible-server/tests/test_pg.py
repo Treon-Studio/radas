@@ -62,10 +62,12 @@ def test_transaction_commits(pg_db):
 
 
 def test_schema_migrate_idempotent(pg_db):
-    # reset_schema applies v1-v4; calling migrate again is safe.
+    # reset_schema applies all current migrations; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
-    assert versions == [{"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}]
+    assert versions == [
+        {"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}, {"version": 5},
+    ]
 
 
 def test_schema_v3_catalog_tables_exist(pg_db):

@@ -243,6 +243,75 @@ _V4_DDL: List[str] = [
        ON service_definitions(org_id, slug) WHERE scope_type = 'organization'""",
 ]
 
+# Version 5 — project-scoped service instances, immutable desired revisions,
+# and idempotent asynchronous service operations.  The fingerprint is kept on
+# the operation row so retries can be compared without persisting a raw
+# request payload (which could contain a secret).
+_V5_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_instances (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        definition_slug TEXT NOT NULL,
+        definition_version TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        runtime_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN (
+            'draft', 'provisioning', 'running', 'degraded', 'stopped',
+            'updating', 'destroying', 'destroyed', 'failed'
+        )),
+        desired_revision_id TEXT,
+        provider_ref JSONB,
+        endpoint_summary JSONB,
+        archived BOOLEAN NOT NULL DEFAULT FALSE,
+        created_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_service_instances_project_environment_name
+            UNIQUE (project_id, environment, name)
+    )""",
+    """CREATE TABLE IF NOT EXISTS service_revisions (
+        id TEXT PRIMARY KEY,
+        instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE,
+        revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+        spec JSONB NOT NULL,
+        redacted_spec JSONB NOT NULL,
+        created_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_service_revisions_instance_number
+            UNIQUE (instance_id, revision_number)
+    )""",
+    """CREATE TABLE IF NOT EXISTS service_operations (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT REFERENCES service_instances(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        payload_fingerprint TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN (
+            'pending', 'queued', 'running', 'succeeded', 'failed', 'canceled'
+        )),
+        requested_by TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        started_at DOUBLE PRECISION,
+        finished_at DOUBLE PRECISION,
+        created_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_service_operations_project_idempotency
+            UNIQUE (project_id, idempotency_key)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_instances_project_environment_status
+       ON service_instances(project_id, environment, status)""",
+    """CREATE INDEX IF NOT EXISTS idx_service_revisions_instance_created
+       ON service_revisions(instance_id, created_at)""",
+    """CREATE INDEX IF NOT EXISTS idx_service_operations_polling
+       ON service_operations(project_id, status, created_at)""",
+    """CREATE INDEX IF NOT EXISTS idx_service_operations_instance_created
+       ON service_operations(instance_id, created_at)""",
+]
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
@@ -404,7 +473,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue
