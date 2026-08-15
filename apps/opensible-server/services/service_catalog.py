@@ -13,6 +13,25 @@ from schemas.service_definition import normalize_manifest, validation_errors
 from storage import pg
 
 
+def _audit_publication(action: str, actor_id: str, definition: Mapping[str, Any]) -> None:
+    """Write publication metadata to the existing append-only audit trail."""
+    try:
+        from auth.middleware import get_data_dir
+        from storage import auth_db
+        auth_db.audit(
+            get_data_dir(), action, target_type="service_definition", target_id=str(definition.get("id")),
+            actor_user_id=actor_id,
+            meta={
+                "slug": definition.get("slug"), "version": definition.get("version"),
+                "scope": definition.get("scope"), "org_id": definition.get("org_id"),
+                "published_at": definition.get("published_at"),
+            },
+        )
+    except Exception:
+        # Existing audit infrastructure is deliberately best effort.
+        return
+
+
 class CatalogValidationError(ValueError):
     def __init__(self, errors: list[dict[str, Any]]):
         super().__init__("service definition manifest is invalid")
@@ -48,6 +67,12 @@ def _public_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
         {key: value for key, value in declaration.items() if key in {"name", "required", "description"}}
         for declaration in result.get("secrets", [])
     ]
+    # Metadata is descriptive catalog information, never a credential bag.
+    if isinstance(result.get("metadata"), dict):
+        result["metadata"] = {
+            key: ("[REDACTED]" if any(token in str(key).lower() for token in ("secret", "password", "token", "key")) else value)
+            for key, value in result["metadata"].items()
+        }
     return result
 
 
@@ -102,10 +127,11 @@ def _row_query(scope: str, org_id: str | None, include_disabled: bool) -> tuple[
 
 
 def list_definitions(org_id: str | None, *, include_disabled: bool = False) -> list[dict[str, Any]]:
-    """List platform definitions plus definitions explicitly scoped to ``org_id``.
+    """List visible definitions with organization definitions taking precedence.
 
-    Passing ``None`` intentionally lists only platform definitions; there is no
-    implicit tenant/default organization fallback.
+    ``org_id`` must already have been authorized by the API layer.  A missing
+    organization is deliberately not treated as a default tenant: it returns
+    only platform definitions.
     """
     rows: list[Mapping[str, Any]] = []
     query, params = _row_query("platform", None, include_disabled)
@@ -113,13 +139,27 @@ def list_definitions(org_id: str | None, *, include_disabled: bool = False) -> l
     if org_id:
         query, params = _row_query("organization", org_id, include_disabled)
         rows.extend(pg.query_all(query, params))
-    return [_row_to_definition(row) for row in rows]
+    by_slug = {str(row["slug"]): row for row in rows}
+    return [_row_to_definition(by_slug[slug]) for slug in sorted(by_slug)]
+
+
+def project_org_id(project_id: str) -> str | None:
+    """Derive an organization's id from a project, never from client metadata."""
+    if not isinstance(project_id, str) or not project_id.strip():
+        return None
+    row = pg.query_one("SELECT org_id FROM projects WHERE id = %s", (project_id,))
+    return row.get("org_id") if row and row.get("org_id") else None
 
 
 def get_definition(
     slug: str, version: str | None = None, *, org_id: str | None = None, include_disabled: bool = False
 ) -> dict[str, Any] | None:
-    """Fetch a platform definition and, when explicitly requested, an org definition."""
+    """Fetch a visible definition with private-org precedence.
+
+    A requested organization is an explicit visibility boundary. If that org
+    has the slug but not the requested version, the lookup returns not found
+    rather than falling through to a platform version.
+    """
     if not slug or not isinstance(slug, str):
         return None
     scopes: list[tuple[str, str | None]] = []
@@ -149,6 +189,11 @@ def get_definition(
         )
         if row:
             return _row_to_definition(row)
+        if org_id and scope == "organization" and pg.query_one(
+            "SELECT 1 AS present FROM service_definitions WHERE slug = %s AND scope_type = %s AND org_id = %s",
+            (slug, scope, scoped_org_id),
+        ):
+            return None
     return None
 
 
@@ -220,6 +265,7 @@ def publish_definition(
     )
     if result is None:
         raise CatalogNotFoundError("published definition could not be read")
+    _audit_publication("catalog.publish", actor_id, result)
     return result
 
 
@@ -246,23 +292,29 @@ def _manifest(
     production_ready: bool, persistence: str, health_port: int, health_path: str = "/",
     outputs: list[str], secrets: list[str] = (), storage: list[dict[str, Any]] = (),
     memory_mb: int = 256, supported_runtimes: list[str] = None,
+    license_policy: str | None = None,
 ) -> dict[str, Any]:
+    metadata = {"license_policy": license_policy} if license_policy else {}
     return {
         "schema_version": 1, "slug": slug, "name": name, "version": "1.0.0",
         "category": category, "summary": summary, "runtime": "container", "image": image,
         "production_ready": production_ready, "persistence": persistence,
         "inputs": [{"name": "memory_mb", "type": "integer", "required": False, "default": memory_mb, "min": 128}],
         "secrets": [{"name": name} for name in secrets], "storage": list(storage),
+        "ports": [{"name": "http", "port": health_port, "protocol": "tcp", "public": True}],
+        "endpoints": [{"name": "endpoint", "port": "http", "path": health_path, "public": True}],
         "healthcheck": {"path": health_path, "port": health_port, "interval_seconds": 30},
-        "outputs": outputs, "supported_runtimes": supported_runtimes or ["docker", "podman", "kubernetes"],
+        "lifecycle": {"start": True, "stop": True, "restart": True, "update": True, "rollback": True, "destroy": True},
+        "dependencies": [], "outputs": outputs, "supported_runtimes": supported_runtimes or ["docker", "podman", "kubernetes"],
         "minimum_resources": {"cpu_millicores": 100, "memory_mb": memory_mb, "storage_gb": storage[0]["size_gb"] if storage else 0},
+        "metadata": metadata,
     }
 
 
 RECOMMENDED_DEFINITIONS: tuple[dict[str, Any], ...] = (
     _manifest("n8n", "n8n", "automation", "Workflow automation and integrations", "n8nio/n8n:1.107.4", production_ready=False, persistence="required", health_port=5678, health_path="/healthz", outputs=["endpoint", "admin_url"], secrets=["encryption_key"], storage=[{"name": "data", "size_gb": 10, "required": True, "mount_path": "/home/node/.n8n"}], memory_mb=1024),
     _manifest("activepieces", "Activepieces", "automation", "Composable workflow automation", "activepieces/activepieces:0.69.0", production_ready=False, persistence="required", health_port=80, outputs=["endpoint", "admin_url"], secrets=["encryption_key"], storage=[{"name": "data", "size_gb": 10, "required": True, "mount_path": "/root/.activepieces"}], memory_mb=1024),
-    _manifest("waha-plus", "WAHA Plus", "messaging", "WhatsApp HTTP API service", "devlikeapro/waha-plus:2025.6.1", production_ready=False, persistence="required", health_port=3000, health_path="/health", outputs=["endpoint", "admin_url"], secrets=["license_key"], storage=[{"name": "sessions", "size_gb": 5, "required": True, "mount_path": "/app/.sessions"}], memory_mb=1024),
+    _manifest("waha-plus", "WAHA Plus", "messaging", "WhatsApp HTTP API service", "devlikeapro/waha-plus:2025.6.1", production_ready=False, persistence="required", health_port=3000, health_path="/health", outputs=["endpoint", "admin_url"], secrets=["license_key"], storage=[{"name": "sessions", "size_gb": 5, "required": True, "mount_path": "/app/.sessions"}], memory_mb=1024, license_policy="requires_valid_waha_license_for_production"),
     _manifest("postgresql", "PostgreSQL", "data", "Relational database for applications", "postgres:16.4-alpine", production_ready=True, persistence="required", health_port=5432, outputs=["endpoint", "connection_string"], secrets=["postgres_password"], storage=[{"name": "data", "size_gb": 20, "required": True, "mount_path": "/var/lib/postgresql/data"}], memory_mb=512),
     _manifest("redis", "Redis", "data", "Cache and queue datastore", "redis:7.4.1-alpine", production_ready=True, persistence="optional", health_port=6379, outputs=["endpoint", "connection_string"], secrets=["redis_password"], storage=[{"name": "data", "size_gb": 5, "required": False, "mount_path": "/data"}], memory_mb=256),
     _manifest("minio", "MinIO", "storage", "S3-compatible object storage", "minio/minio:RELEASE.2024-08-03T04-33-23Z", production_ready=False, persistence="required", health_port=9000, health_path="/minio/health/live", outputs=["endpoint", "admin_url"], secrets=["root_password"], storage=[{"name": "data", "size_gb": 50, "required": True, "mount_path": "/data"}], memory_mb=1024),

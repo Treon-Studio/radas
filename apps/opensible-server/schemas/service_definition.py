@@ -12,11 +12,13 @@ _VERSION_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za
 _IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[^:@\s]+|@sha256:[0-9a-fA-F]{64})$")
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _OUTPUT_RE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
+_PATH_RE = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$")
 
 InputType = Literal["string", "integer", "number", "boolean", "domain", "url", "enum", "port", "secret"]
 PersistenceMode = Literal["stateless", "optional", "required"]
 RuntimeKind = Literal["container", "kubernetes"]
 SupportedRuntime = Literal["docker", "podman", "kubernetes", "opentofu", "ansible"]
+Category = Literal["automation", "messaging", "data", "storage", "observability", "web", "database", "other"]
 
 
 class StrictModel(BaseModel):
@@ -40,6 +42,13 @@ class ServiceInput(StrictModel):
             raise ValueError("must be an environment-safe name")
         return value
 
+    @field_validator("description")
+    @classmethod
+    def valid_description(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or len(value.strip()) > 500):
+            raise ValueError("must be non-empty and at most 500 characters")
+        return value.strip() if value is not None else value
+
     @model_validator(mode="after")
     def validate_range_and_default(self) -> "ServiceInput":
         if self.min is not None and self.max is not None and self.min > self.max:
@@ -59,9 +68,9 @@ class ServiceInput(StrictModel):
                 if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
                     raise ValueError(f"{field} must be an integer")
             if self.type == "port":
-                if self.min is not None and (self.min < 1 or self.min > 65535):
+                if self.min is not None and not 1 <= self.min <= 65535:
                     raise ValueError("port min must be between 1 and 65535")
-                if self.max is not None and (self.max < 1 or self.max > 65535):
+                if self.max is not None and not 1 <= self.max <= 65535:
                     raise ValueError("port max must be between 1 and 65535")
                 if self.default is not None and not 1 <= self.default <= 65535:
                     raise ValueError("port default must be between 1 and 65535")
@@ -73,6 +82,8 @@ class ServiceInput(StrictModel):
             raise ValueError("default must be boolean")
         if self.type in {"string", "domain", "url", "secret"} and self.default is not None and not isinstance(self.default, str):
             raise ValueError("default must be a string")
+        if self.type == "secret" and self.default is not None:
+            raise ValueError("secret inputs cannot have defaults")
         if self.min is not None and self.default is not None and isinstance(self.default, (int, float)):
             if self.default < self.min or (self.max is not None and self.default > self.max):
                 raise ValueError("default is outside the declared range")
@@ -90,6 +101,13 @@ class SecretDeclaration(StrictModel):
         if not _NAME_RE.fullmatch(value):
             raise ValueError("must be an environment-safe name")
         return value
+
+    @field_validator("description")
+    @classmethod
+    def valid_description(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or len(value.strip()) > 500):
+            raise ValueError("must be non-empty and at most 500 characters")
+        return value.strip() if value is not None else value
 
 
 class StorageDeclaration(StrictModel):
@@ -114,6 +132,54 @@ class StorageDeclaration(StrictModel):
         return value
 
 
+class PortDeclaration(StrictModel):
+    name: str
+    port: int = Field(gt=0, le=65535)
+    protocol: Literal["tcp", "udp"] = "tcp"
+    public: bool = False
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        if not _NAME_RE.fullmatch(value):
+            raise ValueError("must be an environment-safe name")
+        return value
+
+
+class EndpointDeclaration(StrictModel):
+    name: str
+    port: int | str
+    path: str = "/"
+    public: bool = False
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        if not _NAME_RE.fullmatch(value):
+            raise ValueError("must be an environment-safe name")
+        return value
+
+    @field_validator("port")
+    @classmethod
+    def valid_port(cls, value: int | str) -> int | str:
+        if isinstance(value, bool):
+            raise ValueError("must be a port number or declared port name")
+        if isinstance(value, int) and not 1 <= value <= 65535:
+            raise ValueError("port must be between 1 and 65535")
+        if isinstance(value, str) and not _NAME_RE.fullmatch(value):
+            raise ValueError("port reference must be an environment-safe name")
+        return value
+
+    @field_validator("path")
+    @classmethod
+    def valid_path(cls, value: str) -> str:
+        if not _PATH_RE.fullmatch(value):
+            raise ValueError("must be an absolute URL path")
+        return value
+
+
 class Healthcheck(StrictModel):
     path: str
     port: int = Field(gt=0, le=65535)
@@ -123,8 +189,31 @@ class Healthcheck(StrictModel):
     @field_validator("path")
     @classmethod
     def valid_path(cls, value: str) -> str:
-        if not value.startswith("/") or ".." in value.split("/"):
+        if not _PATH_RE.fullmatch(value):
             raise ValueError("must be an absolute URL path")
+        return value
+
+
+class LifecycleCapabilities(StrictModel):
+    start: bool = True
+    stop: bool = True
+    restart: bool = True
+    update: bool = True
+    rollback: bool = True
+    destroy: bool = True
+
+
+class DependencyDeclaration(StrictModel):
+    name: str
+    kind: Literal["database", "cache", "storage", "network", "service", "secret", "other"] = "service"
+    required: bool = True
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        if not _NAME_RE.fullmatch(value):
+            raise ValueError("must be an environment-safe name")
         return value
 
 
@@ -139,7 +228,7 @@ class ServiceDefinitionManifest(StrictModel):
     slug: str
     name: str
     version: str
-    category: str
+    category: Category
     summary: str
     runtime: RuntimeKind
     image: str
@@ -148,10 +237,15 @@ class ServiceDefinitionManifest(StrictModel):
     inputs: list[ServiceInput] = Field(default_factory=list)
     secrets: list[SecretDeclaration] = Field(default_factory=list)
     storage: list[StorageDeclaration] = Field(default_factory=list)
+    ports: list[PortDeclaration] = Field(default_factory=list)
+    endpoints: list[EndpointDeclaration] = Field(default_factory=list)
     healthcheck: Healthcheck
+    lifecycle: LifecycleCapabilities = Field(default_factory=LifecycleCapabilities)
+    dependencies: list[DependencyDeclaration] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     supported_runtimes: list[SupportedRuntime]
     minimum_resources: MinimumResources = Field(default_factory=MinimumResources)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("slug")
     @classmethod
@@ -160,11 +254,18 @@ class ServiceDefinitionManifest(StrictModel):
             raise ValueError("must be lowercase kebab-case")
         return value
 
-    @field_validator("name", "category", "summary")
+    @field_validator("name")
     @classmethod
-    def non_empty_text(cls, value: str) -> str:
-        if not value.strip() or len(value.strip()) > 500:
-            raise ValueError("must be non-empty and at most 500 characters")
+    def valid_name(cls, value: str) -> str:
+        if not value.strip() or len(value.strip()) > 100:
+            raise ValueError("must be non-empty and at most 100 characters")
+        return value.strip()
+
+    @field_validator("summary")
+    @classmethod
+    def valid_summary(cls, value: str) -> str:
+        if len(value.strip()) < 10 or len(value.strip()) > 500:
+            raise ValueError("must be between 10 and 500 characters")
         return value.strip()
 
     @field_validator("version")
@@ -202,14 +303,44 @@ class ServiceDefinitionManifest(StrictModel):
 
     @model_validator(mode="after")
     def validate_manifest_rules(self) -> "ServiceDefinitionManifest":
-        if self.persistence == "required" and not self.storage:
-            raise ValueError("persistent definitions must declare storage")
         secret_names = [secret.name for secret in self.secrets]
         if len(secret_names) != len(set(secret_names)):
             raise ValueError("secret names must be unique")
         input_names = [item.name for item in self.inputs]
         if len(input_names) != len(set(input_names)):
             raise ValueError("input names must be unique")
+        storage_names = [item.name for item in self.storage]
+        if len(storage_names) != len(set(storage_names)):
+            raise ValueError("storage names must be unique")
+        dependency_names = [item.name for item in self.dependencies]
+        if len(dependency_names) != len(set(dependency_names)):
+            raise ValueError("dependency names must be unique")
+        port_names = [item.name for item in self.ports]
+        if len(port_names) != len(set(port_names)) or len({item.port for item in self.ports}) != len(self.ports):
+            raise ValueError("port names and numbers must be unique")
+        endpoint_names = [item.name for item in self.endpoints]
+        if len(endpoint_names) != len(set(endpoint_names)):
+            raise ValueError("endpoint names must be unique")
+        if self.persistence == "required" and not self.storage:
+            raise ValueError("persistent definitions must declare storage")
+        if self.ports:
+            declared_ports = {item.port for item in self.ports}
+            if self.healthcheck.port not in declared_ports:
+                raise ValueError("healthcheck port must be declared in ports")
+            port_names_set = set(port_names)
+            for endpoint in self.endpoints:
+                if isinstance(endpoint.port, int) and endpoint.port not in declared_ports:
+                    raise ValueError("endpoint port must be declared in ports")
+                if isinstance(endpoint.port, str) and endpoint.port not in port_names_set:
+                    raise ValueError("endpoint port reference must name a declared port")
+        secret_set = set(secret_names)
+        for item in self.inputs:
+            if item.type == "secret" and item.name not in secret_set:
+                raise ValueError("secret inputs must have a matching secret declaration")
+        if self.slug == "waha-plus" and "license_policy" not in self.metadata:
+            raise ValueError("WAHA Plus must declare license_policy metadata")
+        if "license_policy" in self.metadata and not isinstance(self.metadata["license_policy"], (str, dict)):
+            raise ValueError("license_policy metadata must be a string or object")
         return self
 
 

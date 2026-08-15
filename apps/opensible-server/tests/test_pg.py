@@ -62,10 +62,16 @@ def test_transaction_commits(pg_db):
 
 
 def test_schema_migrate_idempotent(pg_db):
-    # reset_schema already applied v1+v2; calling migrate again is safe.
+    # reset_schema applies v1-v3; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
-    assert versions == [{"version": 1}, {"version": 2}]
+    assert versions == [{"version": 1}, {"version": 2}, {"version": 3}]
+
+
+def test_schema_v3_catalog_tables_exist(pg_db):
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 3") == {"version": 3}
+    for table in ("service_definitions", "service_definition_versions"):
+        assert pg.query_one("SELECT to_regclass(%s) AS name", (f"public.{table}",))["name"] == table
 
 
 def test_schema_tables_exist(pg_db):
@@ -74,7 +80,8 @@ def test_schema_tables_exist(pg_db):
     for t in ("users", "roles", "permissions", "projects", "settings",
               "queued_executions", "kv_store", "executions", "execution_logs",
               "stack_meta", "stack_secrets", "stack_state", "snapshots",
-              "orgs", "org_members", "schema_migrations"):
+              "orgs", "org_members", "service_definitions", "service_definition_versions",
+              "schema_migrations"):
         assert t in names, f"table {t} missing"
 
 

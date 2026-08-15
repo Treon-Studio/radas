@@ -199,6 +199,9 @@ _V2_DDL: List[str] = [
 ]
 
 # Version 3 — immutable, tenant-scoped service catalog definitions.
+# Catalog seed is intentionally not part of migration execution. Call
+# service_catalog.seed_recommended_definitions() explicitly from an admin or
+# migration command after this schema version is applied.
 _V3_DDL: List[str] = [
     """CREATE TABLE IF NOT EXISTS service_definitions (
         id TEXT PRIMARY KEY,

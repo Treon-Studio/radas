@@ -82,6 +82,10 @@ def test_recommended_seed_is_explicit_and_idempotent(pg_db):
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_definitions")["count"] == 11
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_definition_versions")["count"] == 11
     assert all(":latest" not in item["manifest"]["image"] for item in first)
+    waha = next(item for item in first if item["slug"] == "waha-plus")
+    assert waha["manifest"]["metadata"]["license_policy"] == "requires_valid_waha_license_for_production"
+    assert set(waha["manifest"]["lifecycle"]) == {"start", "stop", "restart", "update", "rollback", "destroy"}
+    assert waha["manifest"]["ports"] and waha["manifest"]["endpoints"]
 
 
 def test_immutable_versions_and_duplicate_conflicts(pg_db):
@@ -97,6 +101,11 @@ def test_immutable_versions_and_duplicate_conflicts(pg_db):
 def _seed_users(data_dir: Path):
     for uid in ("owner", "admin", "member", "outsider"):
         pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", (uid, uid, "x"))
+    pg.execute(
+        "INSERT INTO roles (id, name, description, is_system) VALUES (%s,%s,%s,1)",
+        ("role-admin", "admin", "Authoritative test administrator"),
+    )
+    pg.execute("INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s)", ("admin", "role-admin"))
     org = create_org("Org A", "owner")
     add_member(org["id"], "admin", "admin")
     add_member(org["id"], "member", "member")
@@ -134,21 +143,23 @@ def test_private_org_isolation_and_owner_admin_authorization(data_dir):
     client = app.test_client()
     private = _manifest("private-demo")
     published = client.post(
-        "/api/platform/catalog",
-        json={"scope": "organization", "org_id": org_id, "manifest": private},
+        "/api/projects/project-a/catalog",
+        json={"manifest": private},
         headers=tokens["member"],
     )
     assert published.status_code == 403
     published = client.post(
-        "/api/platform/catalog",
-        json={"scope": "organization", "org_id": org_id, "manifest": private},
+        "/api/projects/project-a/catalog",
+        json={"manifest": private},
         headers=tokens["owner"],
     )
     assert published.status_code == 201
     assert client.get("/api/platform/catalog", headers=tokens["member"]).status_code == 200
-    assert any(item["slug"] == "private-demo" for item in client.get(f"/api/platform/catalog?org_id={org_id}", headers=tokens["member"]).get_json()["data"]["definitions"])
-    outsider = client.get(f"/api/platform/catalog?org_id={org_id}", headers=tokens["outsider"])
+    project_list = client.get("/api/projects/project-a/catalog", headers=tokens["member"])
+    assert any(item["slug"] == "private-demo" for item in project_list.get_json()["data"]["definitions"])
+    outsider = client.get("/api/projects/project-a/catalog", headers=tokens["outsider"])
     assert outsider.status_code == 403
+    assert client.get("/api/platform/catalog?org_id=%s" % org_id, headers=tokens["member"]).status_code == 422
     assert client.get("/api/platform/catalog", headers=tokens["outsider"]).status_code == 200
     global_publish = client.post(
         "/api/platform/catalog", json={"manifest": _manifest("global-demo")}, headers=tokens["owner"]
@@ -166,9 +177,12 @@ def test_invalid_input_and_error_envelopes(data_dir):
     invalid_json = client.post("/api/platform/catalog", data="[]", content_type="application/json", headers=headers)
     assert invalid_json.status_code == 422
     assert invalid_json.get_json()["error"]["code"] == "VALIDATION_ERROR"
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("admin", "admin", "x"))
+    pg.execute("INSERT INTO roles (id, name, description, is_system) VALUES (%s,%s,%s,1)", ("role-admin", "admin", "Admin"))
+    pg.execute("INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s)", ("admin", "role-admin"))
     bad = _manifest("bad-demo")
     bad["image"] = "example/demo:latest"
-    response = client.post("/api/platform/catalog", json={"manifest": bad}, headers=_headers("admin", "admin", ["admin"], data_dir))
+    response = client.post("/api/platform/catalog", json={"manifest": bad}, headers=_headers("admin", "admin", ["stale"], data_dir))
     assert response.status_code == 422
     assert response.get_json()["error"]["code"] == "VALIDATION_ERROR"
     assert response.get_json()["request_id"] == response.headers["X-Request-ID"]
