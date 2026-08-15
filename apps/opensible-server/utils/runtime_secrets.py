@@ -19,13 +19,19 @@ PRODUCTION_SECRET_NAMES = (
     "GLOBAL_SECRETS_ENCRYPTION_KEY",
     "WORKER_REGISTRATION_SECRET",
     "VAULT_SERVER_SECRET",
+    "PREVIEW_WEBHOOK_SECRET",
 )
 
 # Keep this aligned with every production gate. Secret strength is measured
 # after Unicode whitespace trimming, in Unicode code points, with at least one
 # ASCII letter and one ASCII digit. The ASCII requirement is deliberate: Python,
 # Node, and Go otherwise disagree about which letters and digits qualify.
-_REPOSITORY_KNOWN_SECRET = "dev-only-change-me-0123456789abcdef"
+_REPOSITORY_KNOWN_SECRETS = frozenset(
+    {
+        "dev-only-change-me-0123456789abcdef",
+        "radas-preview-dev-secret",
+    }
+)
 
 _TRUE_DEBUG_VALUES = {"1", "true", "yes", "on"}
 _FALSE_DEBUG_VALUES = {"0", "false", "no", "off"}
@@ -92,7 +98,7 @@ def validate_secret_value(name: str, value: Optional[str]) -> str:
     secret = (value or "").strip()
     if not secret:
         raise RuntimeError(f"{name} must be explicitly configured in production")
-    if secret == _REPOSITORY_KNOWN_SECRET:
+    if secret in _REPOSITORY_KNOWN_SECRETS:
         raise RuntimeError(f"{name} must not use a repository-known secret in production")
     if not _is_strong_secret(secret):
         raise RuntimeError(

@@ -60,13 +60,20 @@ def api_teardown_preview(name):
 def api_github_preview_webhook():
     """Public endpoint for GitHub `pull_request` events (UC 49).
 
-    Verify with X-Hub-Signature-256 using PREVIEW_WEBHOOK_SECRET (or the dev
-    default). The base stack is taken from the `stack` query param, or looked up
-    by matching the repo on existing stacks.
+    Verify with X-Hub-Signature-256 using PREVIEW_WEBHOOK_SECRET. The base
+    stack is taken from the `stack` query param, or looked up by matching the
+    repo on existing stacks.
     """
+    try:
+        secret = webhook_secret()
+    except RuntimeError:
+        # Keep the public endpoint fail-closed without exposing configuration
+        # details or any secret value to callers.
+        return jsonify({"error": "preview webhook is not configured"}), 503
+
     body = request.get_data()
     signature = request.headers.get("X-Hub-Signature-256")
-    if not verify_github_signature(webhook_secret(), body, signature):
+    if not verify_github_signature(secret, body, signature):
         return jsonify({"error": "invalid signature"}), 401
     try:
         payload = request.get_json(silent=True) or {}

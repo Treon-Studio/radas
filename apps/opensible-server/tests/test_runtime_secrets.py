@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import secrets
 
 import pytest
@@ -80,6 +81,47 @@ def test_production_accepts_configured_secrets(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://db.example.invalid/radas")
 
     runtime_secrets.validate_runtime_secrets(require_database=True)
+
+
+def test_production_accepts_valid_configured_preview_webhook_secret(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    value = "preview-webhook-0123456789-abcdefghijklmnop"
+    monkeypatch.setenv("PREVIEW_WEBHOOK_SECRET", value)
+
+    assert runtime_secrets.resolve_secret("PREVIEW_WEBHOOK_SECRET") == value
+
+
+def test_production_requires_preview_webhook_secret(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    for name in runtime_secrets.PRODUCTION_SECRET_NAMES:
+        monkeypatch.setenv(name, _secret())
+    monkeypatch.delenv("PREVIEW_WEBHOOK_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="PREVIEW_WEBHOOK_SECRET"):
+        runtime_secrets.validate_runtime_secrets()
+
+
+def test_preview_webhook_secret_is_not_available_from_an_implicit_fallback(monkeypatch):
+    from services import preview_envs
+
+    monkeypatch.setenv("FLASK_ENV", "development")
+    monkeypatch.delenv("PREVIEW_WEBHOOK_SECRET", raising=False)
+    generated = preview_envs.webhook_secret()
+    assert generated and len(generated) >= 32
+
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.delenv("PREVIEW_WEBHOOK_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="PREVIEW_WEBHOOK_SECRET"):
+        preview_envs.webhook_secret()
+
+
+def test_production_rejects_known_preview_webhook_fallback(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.setenv("PREVIEW_WEBHOOK_SECRET", "radas-preview-dev-secret")
+    with pytest.raises(RuntimeError, match="PREVIEW_WEBHOOK_SECRET"):
+        runtime_secrets.validate_secret_value(
+            "PREVIEW_WEBHOOK_SECRET", os.environ["PREVIEW_WEBHOOK_SECRET"]
+        )
 
 
 def test_nonproduction_fallbacks_are_ephemeral_and_not_persisted(monkeypatch):

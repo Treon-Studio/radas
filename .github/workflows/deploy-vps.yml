@@ -55,6 +55,7 @@ jobs:
             required_env GLOBAL_SECRETS_ENCRYPTION_KEY
             required_env WORKER_REGISTRATION_SECRET
             required_env VAULT_SERVER_SECRET
+            required_env PREVIEW_WEBHOOK_SECRET
 
             cd apps/opensible-server
             .venv/bin/pip install -q -r requirements.txt
@@ -72,6 +73,7 @@ jobs:
                 "GLOBAL_SECRETS_ENCRYPTION_KEY": True,
                 "WORKER_REGISTRATION_SECRET": True,
                 "VAULT_SERVER_SECRET": True,
+                "PREVIEW_WEBHOOK_SECRET": True,
             }
             values = {}
             for line in Path("/opt/radas/.env").read_text(encoding="utf-8").splitlines():
@@ -113,6 +115,7 @@ jobs:
             required_env GLOBAL_SECRETS_ENCRYPTION_KEY
             required_env WORKER_REGISTRATION_SECRET
             required_env VAULT_SERVER_SECRET
+            required_env PREVIEW_WEBHOOK_SECRET
             cd /opt/radas
             pm2 delete radas-server || true
             pm2 start ecosystem.config.cjs --only radas-server --update-env

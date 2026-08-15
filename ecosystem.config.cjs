@@ -55,7 +55,10 @@ if (isProduction && productionDebugEnabled) {
 }
 const childFlaskDebug = isProduction ? "0" : (process.env.FLASK_DEBUG || "1");
 
-const KNOWN_REPOSITORY_SECRETS = new Set(["dev-only-change-me-0123456789abcdef"]);
+const KNOWN_REPOSITORY_SECRETS = new Set([
+  "dev-only-change-me-0123456789abcdef",
+  "radas-preview-dev-secret",
+]);
 
 function requireStrongProductionSecret(name, value) {
   const secret = String(value || "").trim();
@@ -93,6 +96,10 @@ const vaultServerSecret = requireStrongProductionSecret(
   "VAULT_SERVER_SECRET",
   process.env.VAULT_SERVER_SECRET || (isProduction ? "" : DEV_SECRET),
 );
+const previewWebhookSecret = requireStrongProductionSecret(
+  "PREVIEW_WEBHOOK_SECRET",
+  process.env.PREVIEW_WEBHOOK_SECRET || (isProduction ? "" : DEV_SECRET),
+);
 const jwtSecret = requireStrongProductionSecret(
   "JWT_SECRET_KEY",
   process.env.JWT_SECRET_KEY || (isProduction ? "" : DEV_SECRET),
@@ -122,6 +129,7 @@ module.exports = {
         GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
         WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
         VAULT_SERVER_SECRET: vaultServerSecret,
+        PREVIEW_WEBHOOK_SECRET: previewWebhookSecret,
         ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
         CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || "http://localhost:8080",
         DATABASE_URL: databaseUrl || "postgresql://localhost/radas",

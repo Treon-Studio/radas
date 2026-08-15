@@ -19,6 +19,8 @@ REQUIRED_PRODUCTION_ENV = (
     "VAULT_SERVER_SECRET",
 )
 
+SERVER_ONLY_PRODUCTION_ENV = ("PREVIEW_WEBHOOK_SECRET",)
+
 
 def _compose_services() -> dict[str, dict]:
     document = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
@@ -36,6 +38,11 @@ def test_compose_worker_has_server_production_environment_contract():
         assert server_env[name] == expected
         assert worker_env[name] == server_env[name]
 
+    for name in SERVER_ONLY_PRODUCTION_ENV:
+        expected = f"${{{name}:?{name} must be set}}"
+        assert server_env[name] == expected
+        assert name not in worker_env
+
 
 def test_compose_does_not_embed_production_secret_values():
     services = _compose_services()
@@ -45,3 +52,6 @@ def test_compose_does_not_embed_production_secret_values():
         for name in REQUIRED_PRODUCTION_ENV[2:]:
             assert environment[name].startswith("${")
             assert ":-" not in environment[name]
+
+    assert services["opensible-server"]["environment"]["PREVIEW_WEBHOOK_SECRET"].startswith("${")
+    assert ":-" not in services["opensible-server"]["environment"]["PREVIEW_WEBHOOK_SECRET"]

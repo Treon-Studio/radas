@@ -7,7 +7,6 @@ exposes a GitHub `pull_request` webhook handler.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import time
 import uuid
@@ -214,4 +213,13 @@ def verify_github_signature(secret: str, body: bytes, signature: Optional[str]) 
 
 
 def webhook_secret() -> str:
-    return os.environ.get("PREVIEW_WEBHOOK_SECRET") or "radas-preview-dev-secret"
+    """Resolve the webhook secret without a repository-known fallback.
+
+    Production validation is delegated to the canonical runtime secret resolver.
+    Development and tests may explicitly configure the variable; when they do
+    not, an ephemeral value is generated and therefore cannot authenticate a
+    request using a shared, known secret.
+    """
+    from utils.runtime_secrets import resolve_secret
+
+    return resolve_secret("PREVIEW_WEBHOOK_SECRET", generate_in_nonproduction=True)
