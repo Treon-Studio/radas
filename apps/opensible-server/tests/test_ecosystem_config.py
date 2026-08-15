@@ -10,12 +10,41 @@ ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "ecosystem.config.cjs"
 
 
-def _load_config(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _load_config(
+    env: dict[str, str], *, unset: set[str] | None = None
+) -> subprocess.CompletedProcess[str]:
     script = f"const c=require({json.dumps(str(CONFIG))}); console.log(JSON.stringify(c.apps));"
+    process_env = {**os.environ, **env}
+    for key in unset or set():
+        process_env.pop(key, None)
     return subprocess.run(
-        ["node", "-e", script], cwd=ROOT, env={**os.environ, **env},
+        ["node", "-e", script], cwd=ROOT, env=process_env,
         text=True, capture_output=True, check=False,
     )
+
+
+def test_production_ecosystem_defaults_flask_debug_to_zero_when_absent():
+    common = {
+        "FLASK_ENV": "  Production ",
+        "JWT_SECRET_KEY": "jwt-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "INTERNAL_CALL_SECRET": "internal-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "GLOBAL_SECRETS_ENCRYPTION_KEY": "global-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "WORKER_REGISTRATION_SECRET": "worker-registration-0123456789-abcdefghijklmnop",
+        "VAULT_SERVER_SECRET": "vault-server-0123456789-abcdefghijklmnop",
+        "DATABASE_URL": "postgresql://db.example.invalid/radas",
+    }
+    result = _load_config(common, unset={"FLASK_DEBUG"})
+    assert result.returncode == 0, result.stderr
+    apps = json.loads(result.stdout)
+    server = next(app for app in apps if app["name"] == "radas-server")
+    assert server["env"]["FLASK_ENV"] == "production"
+    assert server["env"]["FLASK_DEBUG"] == "0"
+
+
+def test_production_ecosystem_rejects_enabled_flask_debug():
+    result = _load_config({"FLASK_ENV": "production", "FLASK_DEBUG": "true"})
+    assert result.returncode != 0
+    assert "FLASK_DEBUG must be disabled in production" in result.stderr
 
 
 def test_production_ecosystem_requires_all_strong_secrets():

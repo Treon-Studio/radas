@@ -48,6 +48,12 @@ if (fs.existsSync(ENV_FILE)) {
 const normalizedFlaskEnv = String(process.env.FLASK_ENV || "development").trim().toLowerCase();
 const isProduction = normalizedFlaskEnv === "production";
 const childFlaskEnv = normalizedFlaskEnv || "development";
+const normalizedFlaskDebug = String(process.env.FLASK_DEBUG || "").trim().toLowerCase();
+const productionDebugEnabled = ["1", "true", "yes", "on"].includes(normalizedFlaskDebug);
+if (isProduction && productionDebugEnabled) {
+  throw new Error("FLASK_DEBUG must be disabled in production");
+}
+const childFlaskDebug = isProduction ? "0" : (process.env.FLASK_DEBUG || "1");
 
 const KNOWN_REPOSITORY_SECRETS = new Set(["dev-only-change-me-0123456789abcdef"]);
 
@@ -108,7 +114,7 @@ module.exports = {
         PORT: SERVER_PORT,
         DATA_DIR: process.env.DATA_DIR || "./data",
         FLASK_ENV: childFlaskEnv,
-        FLASK_DEBUG: process.env.FLASK_DEBUG || "1",
+        FLASK_DEBUG: childFlaskDebug,
         JWT_SECRET_KEY: jwtSecret,
         INTERNAL_CALL_SECRET,
         GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
