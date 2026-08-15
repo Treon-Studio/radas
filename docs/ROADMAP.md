@@ -30,6 +30,14 @@
 
 ---
 
+## All-in-One Developer Platform
+
+Plan: [`2026-08-15-all-in-one-developer-platform.md`](superpowers/plans/2026-08-15-all-in-one-developer-platform.md)
+
+- ⬜ Freeze current project/tenant, execution, worker, provider, secrets, source, environment, approval, audit, and feature-flag contracts (Phase 0.1).
+- ⬜ Add a project-centric service glossary and current-state architecture map.
+- ⬜ Build the RADAS-owned service catalog, runtime adapters, service instances, revisions, operations, and first vertical slice in later phases.
+
 ## A. Provisioning & IaC (1–15)
 
 | # | Use case | Status | Prio | Fase |
