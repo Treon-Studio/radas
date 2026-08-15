@@ -29,8 +29,40 @@ def _values(data, field, header=None):
 
 
 def _scope_context(data=None):
-    """Resolve a scope and reject conflicting client supplied identifiers."""
+    """Resolve a requested scope, rejecting conflicts and unknown scope types.
+
+    ``scope_type``/``scope_id`` are an explicit target for effective records. This
+    is intentionally separate from the ambient project header: a project listing
+    can contain an inherited organization/global record, and mutations must target
+    that record rather than silently creating a project record with the same key.
+    """
     data = data or {}
+    requested_types = _values(data, "scope_type")
+    requested_ids = _values(data, "scope_id")
+    if len(requested_types) > 1 or len(requested_ids) > 1:
+        raise ScopeError("Conflicting explicit scope identifiers")
+    requested_type = next(iter(requested_types), None)
+    requested_id = next(iter(requested_ids), None)
+    if requested_type is not None or requested_id is not None:
+        scope_type = str(requested_type or "").strip().lower()
+        if scope_type not in {"global", "organization", "org", "project"}:
+            raise ScopeError("Invalid scope type")
+        if scope_type == "org":
+            scope_type = "organization"
+        if scope_type == "global":
+            if requested_id not in (None, "", "default"):
+                raise ScopeError("Global scope cannot have an identifier")
+            return "global", None, None
+        if not requested_id or not str(requested_id).strip():
+            raise ScopeError("Scoped records require a scope identifier")
+        scope_id = str(requested_id).strip()
+        if scope_type == "project":
+            org_id = _org_id_of_project(scope_id)
+            if not org_id:
+                raise ScopeError("Project not found or not tenant-bound")
+            return "project", scope_id, org_id
+        return "organization", scope_id, scope_id
+
     project_ids = _values(data, "project_id", "X-Project-Id")
     org_ids = _values(data, "org_id", "X-Org-Id")
     if len(project_ids) > 1 or len(org_ids) > 1:

@@ -69,6 +69,33 @@ def test_flag_routes_authorize_project_org_global_and_preview_scopes(data_dir):
     ).status_code == 200
 
 
+def test_explicit_record_scope_targets_inherited_flags_and_checks_access(data_dir):
+    org_a, _org_b, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    assert client.post("/api/flags", json={"key": "inherited.flag", "org_id": org_a["id"]}, headers=tokens["owner"]).status_code == 201
+    target_scope = {"scope_type": "organization", "scope_id": org_a["id"]}
+    project_headers = {**tokens["member"], "X-Project-Id": "project-a"}
+    owner_project_headers = {**tokens["owner"], "X-Project-Id": "project-a"}
+
+    listed = client.get("/api/flags", headers=project_headers).get_json()["flags"]
+    inherited = next(flag for flag in listed if flag["key"] == "inherited.flag")
+    assert inherited["scope_type"] == "organization"
+    assert inherited["scope_id"] == org_a["id"]
+
+    updated = client.patch("/api/flags/inherited.flag", json={"enabled": False, **target_scope}, headers=owner_project_headers)
+    assert updated.status_code == 200
+    assert updated.get_json()["flag"]["scope_type"] == "organization"
+    assert client.get(f"/api/flags/inherited.flag/impact?scope_type=organization&scope_id={org_a['id']}", headers=project_headers).status_code == 200
+    assert client.get(f"/api/flags/audit?flag_key=inherited.flag&scope_type=organization&scope_id={org_a['id']}", headers=project_headers).status_code == 200
+    evaluation = client.post("/api/flags/evaluate", json={"key": "inherited.flag", **target_scope}, headers=project_headers)
+    assert evaluation.status_code == 200
+    assert evaluation.get_json()["source"] == "organization"
+
+    assert client.patch("/api/flags/inherited.flag", json={"enabled": True, "scope_type": "project", "scope_id": "project-a"}, headers=owner_project_headers).status_code == 404
+    assert client.get(f"/api/flags/inherited.flag/impact?scope_type=organization&scope_id={org_a['id']}", headers=tokens["outsider"]).status_code == 403
+
+
 def test_flag_rollback_returns_conflict_when_target_disappears(data_dir, monkeypatch):
     from api import feature_flag_routes
 
