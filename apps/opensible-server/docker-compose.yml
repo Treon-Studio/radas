@@ -1,3 +1,7 @@
+# Production contract: copy .env.example to .env beside this file, generate and
+# fill every required value, then run `docker compose up`. This file intentionally
+# has no development secret defaults. For local development without containers,
+# use the PM2 configuration in ecosystem.config.cjs with the same .env contract.
 services:
   opensible-server:
     image: docker.io/ossopensible/opensible-server:latest
@@ -49,6 +53,11 @@ services:
       WORKER_SERVER_URL: http://127.0.0.1:5000
       WORKER_TOKEN_FILE: /app/data/worker.token
       DATA_DIR: /app/data
+      FLASK_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET:?INTERNAL_CALL_SECRET must be set}
+      GLOBAL_SECRETS_ENCRYPTION_KEY: ${GLOBAL_SECRETS_ENCRYPTION_KEY:?GLOBAL_SECRETS_ENCRYPTION_KEY must be set}
       WORKER_REGISTRATION_SECRET: ${WORKER_REGISTRATION_SECRET:?WORKER_REGISTRATION_SECRET must be set}
       WORKER_MAX_CONCURRENCY: ${WORKER_MAX_CONCURRENCY:-3}
       VAULT_SERVER_HOST: 127.0.0.1
