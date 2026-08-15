@@ -88,7 +88,7 @@ def api_worker_register():
         import secrets as _ps
         from services.worker_registry import create_worker
 
-        reg_secret = os.environ.get('WORKER_REGISTRATION_SECRET') or ''
+        reg_secret = (os.environ.get('WORKER_REGISTRATION_SECRET') or '').strip()
         provided = request.headers.get('X-Worker-Registration-Secret') or ''
         bypass_with_secret = bool(reg_secret) and _ps.compare_digest(provided, reg_secret)
 

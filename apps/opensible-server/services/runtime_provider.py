@@ -18,13 +18,32 @@ _REDACTED = "[REDACTED]"
 PUBLIC_PROVIDER_ERROR = "runtime provider operation failed"
 PUBLIC_PROVIDER_LOG_ERROR = "runtime provider log retrieval failed"
 PUBLIC_PROVIDER_VALIDATION_ERROR = "runtime provider validation failed"
+# Registry/provider codes are a closed public contract. Adapter-specific or
+# malformed values are mapped to PROVIDER_ERROR before they can be persisted.
+RUNTIME_ERROR_CODES = frozenset({
+    "PROVIDER_ERROR", "PROVIDER_TIMEOUT", "PROVIDER_DISABLED", "INVALID_RUNTIME",
+    "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "UNSUPPORTED_IDEMPOTENCY",
+    "IDEMPOTENCY_MISMATCH", "INVALID_PROVIDER_RESULT", "INVALID_PROVIDER_LOG",
+    "INVALID_PROVIDER_VALIDATION", "INVALID_SPEC", "PROVIDER_VALIDATION_ERROR",
+    "REMOTE_ERROR", "BAD_SPEC", "MISSING_DETAILS",
+})
+_ERROR_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _PUBLIC_ERROR_MESSAGES = {
     "PROVIDER_DISABLED": "runtime provider is disabled",
     "INVALID_RUNTIME": "runtime provider configuration is invalid",
     "UNSUPPORTED_CAPABILITY": "runtime provider capability is unsupported",
     "UNSUPPORTED_TIMEOUT": "runtime provider adapter cannot honor operation timeout",
+    "UNSUPPORTED_IDEMPOTENCY": "runtime provider adapter cannot honor idempotency key",
+    "IDEMPOTENCY_MISMATCH": "provider returned an idempotency key that differs from the requested key",
     "PROVIDER_TIMEOUT": "runtime provider operation timed out",
 }
+
+
+def safe_runtime_error_code(value: Any) -> str:
+    candidate = str(value or "").strip().upper()
+    if candidate in RUNTIME_ERROR_CODES and _ERROR_CODE_RE.fullmatch(candidate):
+        return candidate
+    return "PROVIDER_ERROR"
 _SENSITIVE_KEY = re.compile(
     r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
     re.IGNORECASE,
@@ -79,9 +98,7 @@ def redact(value: Any) -> Any:
 def _public_provider_error(error: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return a safe public provider error envelope."""
     safe = redact(dict(error or {}))
-    code = safe.get("code")
-    if not isinstance(code, str) or not code:
-        code = "PROVIDER_ERROR"
+    code = safe_runtime_error_code(safe.get("code"))
     message = _PUBLIC_ERROR_MESSAGES.get(code, PUBLIC_PROVIDER_ERROR)
     details = safe.get("details", {})
     if not isinstance(details, Mapping):
@@ -102,13 +119,13 @@ def _public_validation_error(value: Any) -> dict[str, Any]:
     """Normalize one provider validation item while retaining its safe message."""
     if isinstance(value, Mapping):
         safe = redact(dict(value))
-        code = safe.get("code")
-        if not isinstance(code, str) or not code:
+        code = safe_runtime_error_code(safe.get("code"))
+        if code == "PROVIDER_ERROR":
             code = "PROVIDER_VALIDATION_ERROR"
         message = safe.get("message")
         if not isinstance(message, str) or not message:
             message = PUBLIC_PROVIDER_VALIDATION_ERROR
-        return {"code": code, "message": message, "details": _public_details(safe.get("details", {}))}
+        return {"code": code, "message": _redact_text(message)[:2000], "details": _public_details(safe.get("details", {}))}
     return {
         "code": "PROVIDER_VALIDATION_ERROR",
         "message": PUBLIC_PROVIDER_VALIDATION_ERROR,
@@ -235,7 +252,7 @@ class ProviderLogPage:
             error = safe.get("error")
             if isinstance(error, Mapping):
                 safe["error"] = {
-                    "code": error.get("code") if isinstance(error.get("code"), str) and error.get("code") else "PROVIDER_ERROR",
+                    "code": safe_runtime_error_code(error.get("code")),
                     "message": PUBLIC_PROVIDER_LOG_ERROR,
                     "details": redact(dict(error.get("details", {}))) if isinstance(error.get("details", {}), Mapping) else {"value": redact(error.get("details"))},
                 }

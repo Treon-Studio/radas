@@ -18,6 +18,7 @@ from .runtime_provider import (
     PUBLIC_PROVIDER_ERROR,
     PUBLIC_PROVIDER_LOG_ERROR,
     PUBLIC_PROVIDER_VALIDATION_ERROR,
+    safe_runtime_error_code,
     _public_details,
     _public_provider_error,
     _public_validation_error,
@@ -175,8 +176,10 @@ class RuntimeProviderRegistry:
             code = "PROVIDER_TIMEOUT"
             message = "runtime provider operation timed out"
         elif isinstance(exc, RuntimeProviderError):
-            code = exc.code
-            message = exc.message if exc.code in {"UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT"} else message
+            code = safe_runtime_error_code(exc.code)
+            message = exc.message if code in {
+                "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "UNSUPPORTED_IDEMPOTENCY", "IDEMPOTENCY_MISMATCH",
+            } else message
         else:
             code = "PROVIDER_ERROR"
         details = redact(getattr(exc, "details", {}))
@@ -382,13 +385,13 @@ class RuntimeProviderRegistry:
                 raise RuntimeProviderError("INVALID_PROVIDER_VALIDATION", "provider returned invalid validation details")
             return [_public_validation_error(item) for item in raw]
         except Exception as exc:
-            code = getattr(exc, "code", "PROVIDER_ERROR")
-            if not isinstance(code, str) or not code:
-                code = "PROVIDER_ERROR"
+            code = safe_runtime_error_code(getattr(exc, "code", "PROVIDER_ERROR"))
+            if code == "PROVIDER_ERROR" and isinstance(exc, RuntimeProviderError):
+                code = "PROVIDER_VALIDATION_ERROR"
             message = redact(getattr(exc, "message", str(exc)))
             if not isinstance(message, str) or not message:
                 message = PUBLIC_PROVIDER_VALIDATION_ERROR
-            return [{"code": code, "message": message, "details": _public_details(getattr(exc, "details", {}))}]
+            return [{"code": code, "message": message[:2000], "details": _public_details(getattr(exc, "details", {}))}]
 
     def deploy(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
         return self.invoke(provider_id, "deploy", operation_id, spec, **kwargs)

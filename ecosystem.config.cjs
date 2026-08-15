@@ -19,10 +19,11 @@
  * below in vite.config.ts).
  */
 const SERVER_PORT = process.env.OPEN_SERVER_PORT || "5001";
+const crypto = require("crypto");
+
 // Local-development fallbacks are generated per launch. Production values must
 // come from the environment and are never replaced with repository-known text.
-const SECRET = "dev-only-change-me-0123456789abcdef";
-const crypto = require("crypto");
+const DEV_SECRET = crypto.randomBytes(48).toString("base64url");
 
 // Load optional .env (gitignored) so DATABASE_URL / GITHUB_OAUTH_* etc. can be
 // provided without editing this file. Simple parser — no dotenv dependency.
@@ -39,9 +40,42 @@ if (fs.existsSync(ENV_FILE)) {
 }
 
 const isProduction = (process.env.FLASK_ENV || "development").toLowerCase() === "production";
+const KNOWN_REPOSITORY_SECRETS = new Set(["dev-only-change-me-0123456789abcdef"]);
+
+function requireStrongProductionSecret(name, value) {
+  const secret = String(value || "").trim();
+  if (!isProduction) return secret;
+  if (!secret) throw new Error(`${name} must be explicitly configured in production`);
+  if (KNOWN_REPOSITORY_SECRETS.has(secret)) {
+    throw new Error(`${name} must not use a repository-known secret in production`);
+  }
+  if (secret.length < 32 || new Set(secret).size < 16 || !/[A-Za-z]/.test(secret) || !/[0-9]/.test(secret)) {
+    throw new Error(`${name} must be a strong secret in production (32+ chars, letters, digits, and 16+ distinct chars)`);
+  }
+  return secret;
+}
+
 const DEV_INTERNAL_CALL_SECRET = crypto.randomBytes(48).toString("base64url");
-const INTERNAL_CALL_SECRET = process.env.INTERNAL_CALL_SECRET ||
-  (isProduction ? "" : DEV_INTERNAL_CALL_SECRET);
+const INTERNAL_CALL_SECRET = requireStrongProductionSecret(
+  "INTERNAL_CALL_SECRET",
+  process.env.INTERNAL_CALL_SECRET || (isProduction ? "" : DEV_INTERNAL_CALL_SECRET),
+);
+const workerRegistrationSecret = requireStrongProductionSecret(
+  "WORKER_REGISTRATION_SECRET",
+  process.env.WORKER_REGISTRATION_SECRET || (isProduction ? "" : DEV_SECRET),
+);
+const vaultServerSecret = requireStrongProductionSecret(
+  "VAULT_SERVER_SECRET",
+  process.env.VAULT_SERVER_SECRET || (isProduction ? "" : DEV_SECRET),
+);
+const jwtSecret = requireStrongProductionSecret(
+  "JWT_SECRET_KEY",
+  process.env.JWT_SECRET_KEY || (isProduction ? "" : DEV_SECRET),
+);
+const globalSecretsEncryptionKey = requireStrongProductionSecret(
+  "GLOBAL_SECRETS_ENCRYPTION_KEY",
+  process.env.GLOBAL_SECRETS_ENCRYPTION_KEY || (isProduction ? "" : DEV_SECRET),
+);
 
 module.exports = {
   apps: [
@@ -57,10 +91,10 @@ module.exports = {
         DATA_DIR: process.env.DATA_DIR || "./data",
         FLASK_ENV: process.env.FLASK_ENV || "development",
         FLASK_DEBUG: process.env.FLASK_DEBUG || "1",
-        JWT_SECRET_KEY: process.env.JWT_SECRET_KEY || SECRET,
+        JWT_SECRET_KEY: jwtSecret,
         INTERNAL_CALL_SECRET,
-        GLOBAL_SECRETS_ENCRYPTION_KEY: process.env.GLOBAL_SECRETS_ENCRYPTION_KEY || SECRET,
-        WORKER_REGISTRATION_SECRET: process.env.WORKER_REGISTRATION_SECRET || SECRET,
+        GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
+        WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
         ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
         CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || "http://localhost:8080",
         DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
@@ -87,11 +121,12 @@ module.exports = {
         WORKER_SERVER_URL: `http://127.0.0.1:${SERVER_PORT}`,
         WORKER_TOKEN_FILE: "./data/worker.token",
         DATA_DIR: "./data",
-        WORKER_REGISTRATION_SECRET: SECRET,
+        // Must exactly match the server's registration secret.
+        WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
         WORKER_MAX_CONCURRENCY: "3",
         VAULT_SERVER_HOST: "127.0.0.1",
         VAULT_SERVER_PORT: "9998",
-        VAULT_SERVER_SECRET: SECRET,
+        VAULT_SERVER_SECRET: vaultServerSecret,
       },
     },
   ],

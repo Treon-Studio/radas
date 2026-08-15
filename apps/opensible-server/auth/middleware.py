@@ -43,23 +43,28 @@ if not _env_internal:
         "INTERNAL_CALL_SECRET must be configured; refusing to generate a per-process secret"
     )
 _KNOWN_REPOSITORY_SECRET = "dev-only-change-me-0123456789abcdef"
+
+
+def _require_strong_production_secret(name: str, value: str) -> str:
+    secret = (value or "").strip()
+    if not _is_production:
+        return secret
+    if not secret:
+        raise RuntimeError(f"{name} must be explicitly configured in production")
+    if secret == _KNOWN_REPOSITORY_SECRET:
+        raise RuntimeError(f"{name} must not use a repository-known secret in production")
+    if len(secret) < 32 or len(set(secret)) < 16:
+        raise RuntimeError(f"{name} must be a strong secret in production")
+    if not any(char.isalpha() for char in secret) or not any(char.isdigit() for char in secret):
+        raise RuntimeError(f"{name} must contain letters and digits in production")
+    return secret
+
+
 if _is_production:
-    if len(_env_internal) < 32:
-        raise RuntimeError(
-            "INTERNAL_CALL_SECRET must be at least 32 characters long in production."
-        )
-    if _env_internal == _KNOWN_REPOSITORY_SECRET:
-        raise RuntimeError(
-            "INTERNAL_CALL_SECRET must not use the repository default in production."
-        )
-    if len(set(_env_internal)) < 16:
-        raise RuntimeError(
-            "INTERNAL_CALL_SECRET must have at least 16 distinct characters in production."
-        )
-    if not any(char.isalpha() for char in _env_internal) or not any(char.isdigit() for char in _env_internal):
-        raise RuntimeError(
-            "INTERNAL_CALL_SECRET must contain letters and digits in production."
-        )
+    _require_strong_production_secret("INTERNAL_CALL_SECRET", _env_internal)
+    _require_strong_production_secret(
+        "WORKER_REGISTRATION_SECRET", os.environ.get("WORKER_REGISTRATION_SECRET", "")
+    )
 elif len(_env_internal) < 32:
     logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure.")
 

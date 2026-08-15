@@ -8,6 +8,7 @@ from services.runtime_provider import (
     ProviderResult,
     RuntimeProviderTimeoutError,
     UnsupportedCapabilityError,
+    safe_runtime_error_code,
 )
 from services.runtime_providers.local_container import LocalContainerProvider
 from services.runtime_providers.mock import MockRuntimeProvider
@@ -64,6 +65,21 @@ def test_mock_lifecycle_status_and_logs():
     page = registry.logs("mock", {"id": "instance-1"})
     assert page.entries[0]["message"] == "mock runtime ready"
     assert page.provider_id == "mock"
+
+
+@pytest.mark.parametrize("code", [
+    "UNSUPPORTED_IDEMPOTENCY", "IDEMPOTENCY_MISMATCH", "INVALID_PROVIDER_RESULT",
+    "INVALID_PROVIDER_LOG", "INVALID_PROVIDER_VALIDATION", "PROVIDER_VALIDATION_ERROR",
+])
+def test_runtime_error_code_allowlist_preserves_legitimate_codes(code):
+    assert safe_runtime_error_code(code) == code
+
+
+@pytest.mark.parametrize("code", [
+    "authorization=raw-secret", "SECRET_LEAK", "provider\ncode", "arbitrary-code", "",
+])
+def test_runtime_error_code_allowlist_rejects_unsafe_or_arbitrary_codes(code):
+    assert safe_runtime_error_code(code) == "PROVIDER_ERROR"
 
 
 def test_failure_normalization_timeout_and_secret_redaction():
@@ -139,6 +155,20 @@ def test_natural_language_provider_error_and_log_failure_are_safe():
     assert "hunter2" not in rendered_logs
     assert "abc123" not in rendered_logs
     assert page.entries[0]["error"]["message"] == "runtime provider log retrieval failed"
+
+
+def test_unknown_provider_error_code_is_normalized_and_message_is_bounded():
+    class UnknownCodeProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            return ProviderResult.failed(
+                "deploy", "authorization=raw-secret", "x" * 5000,
+                details={"token": "raw-secret"}, provider_id=self.id,
+            )
+
+    result = RuntimeProviderRegistry([UnknownCodeProvider()]).deploy("mock", "op", {"name": "demo"})
+    assert result.error["code"] == "PROVIDER_ERROR"
+    assert len(result.error["message"]) <= 2000
+    assert "raw-secret" not in str(result.to_dict())
 
 
 def test_invalid_result_and_mismatched_idempotency_are_normalized():

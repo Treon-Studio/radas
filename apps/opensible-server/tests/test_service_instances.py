@@ -287,6 +287,16 @@ def test_operation_instance_composite_tenant_constraint_rejects_corruption(pg_db
         )
 
 
+def test_operation_error_code_allowlist_preserves_runtime_contract(pg_db):
+    _project()
+    operation = service_operations.create_operation("project-a", "service.deploy", "runtime-code", {}, actor_id="owner")
+    result = service_operations.transition_operation(
+        "project-a", operation["id"], "failed", actor_id="owner",
+        error_code="UNSUPPORTED_IDEMPOTENCY", error_message="adapter cannot honor key",
+    )
+    assert result["error_code"] == "UNSUPPORTED_IDEMPOTENCY"
+
+
 def test_operation_error_code_and_message_are_safe_on_write_and_read(pg_db):
     _project()
     operation = service_operations.create_operation("project-a", "service.deploy", "safe-errors", {}, actor_id="owner")

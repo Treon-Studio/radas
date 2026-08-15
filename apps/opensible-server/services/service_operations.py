@@ -14,7 +14,7 @@ from psycopg import errors as psycopg_errors
 from psycopg.types.json import Jsonb
 
 from storage import pg
-from services.runtime_provider import redact
+from services.runtime_provider import RUNTIME_ERROR_CODES, redact
 from services.service_instances import (
     ProjectAuthorizationError,
     ProjectNotFoundError,
@@ -26,11 +26,7 @@ from services.service_instances import (
 )
 
 _ERROR_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
-_ALLOWED_ERROR_CODES = frozenset({
-    "PROVIDER_ERROR", "PROVIDER_TIMEOUT", "PROVIDER_DISABLED", "INVALID_RUNTIME",
-    "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "INVALID_PROVIDER_RESULT",
-    "INVALID_SPEC", "PROVIDER_VALIDATION_ERROR", "OPERATION_FAILED",
-})
+_ALLOWED_ERROR_CODES = RUNTIME_ERROR_CODES | frozenset({"OPERATION_FAILED"})
 _SAFE_ERROR_CODE = "OPERATION_FAILED"
 
 
