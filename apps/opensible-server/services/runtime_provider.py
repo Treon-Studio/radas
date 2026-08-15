@@ -15,6 +15,8 @@ from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
 
 _REDACTED = "[REDACTED]"
+PUBLIC_PROVIDER_ERROR = "runtime provider operation failed"
+PUBLIC_PROVIDER_LOG_ERROR = "runtime provider log retrieval failed"
 _SENSITIVE_KEY = re.compile(
     r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
     re.IGNORECASE,
@@ -28,6 +30,24 @@ _SENSITIVE_VALUE = re.compile(
     r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|token)\s*[=:]\s*)(?P<quote>[\"']?)(?P<value>[^\s,;\"']+)(?P=quote)",
     re.IGNORECASE,
 )
+_NATURAL_LANGUAGE_SECRET = re.compile(
+    r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|token|private[_ -]?key)"
+    r"\s+(?:is|was|equals|:)[ ]*)(?P<quote>[\"']?)(?P<value>[^\s,;.\"']+)(?P=quote)",
+    re.IGNORECASE,
+)
+
+
+def _redact_text(value: str) -> str:
+    result = _PRIVATE_KEY.sub(_REDACTED, value)
+    result = _BEARER.sub("Bearer " + _REDACTED, result)
+    result = _SENSITIVE_VALUE.sub(
+        lambda match: match.group("prefix") + match.group("quote") + _REDACTED + match.group("quote"),
+        result,
+    )
+    return _NATURAL_LANGUAGE_SECRET.sub(
+        lambda match: match.group("prefix") + match.group("quote") + _REDACTED + match.group("quote"),
+        result,
+    )
 
 
 def redact(value: Any) -> Any:
@@ -44,12 +64,7 @@ def redact(value: Any) -> Any:
     if isinstance(value, set):
         return {redact(item) for item in value}
     if isinstance(value, str):
-        result = _PRIVATE_KEY.sub(_REDACTED, value)
-        result = _BEARER.sub("Bearer " + _REDACTED, result)
-        return _SENSITIVE_VALUE.sub(
-            lambda match: match.group("prefix") + match.group("quote") + _REDACTED + match.group("quote"),
-            result,
-        )
+        return _redact_text(value)
     return copy.deepcopy(value)
 
 
@@ -193,6 +208,17 @@ class RuntimeProviderTimeoutError(RuntimeProviderError):
 
     def __init__(self, message: str = "runtime provider operation timed out"):
         super().__init__("PROVIDER_TIMEOUT", message)
+
+
+class UnsupportedTimeoutError(RuntimeProviderError):
+    """Raised when an adapter cannot honor the normalized timeout contract."""
+
+    def __init__(self, operation: str):
+        super().__init__(
+            "UNSUPPORTED_TIMEOUT",
+            "runtime provider adapter cannot honor operation timeout",
+            details={"operation": operation},
+        )
 
 
 @runtime_checkable

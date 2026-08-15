@@ -16,24 +16,27 @@ class LocalContainerProvider:
 
     def __init__(self, *, config: dict[str, Any] | None = None, enabled: bool = False):
         self.config = dict(config or {})
-        self.enabled = bool(enabled and self.config.get("allow_execution", False))
+        # Keep the configuration gate for observability, but do not treat it as
+        # an implementation gate: Phase 1 has no subprocess execution.
+        self.requested_enabled = bool(enabled and self.config.get("allow_execution", False))
+        self.enabled = False
         self.runtime = str(self.config.get("runtime", "docker"))
 
     def capabilities(self) -> dict[str, bool]:
-        # The contract is visible for negotiation, but no operation is
-        # advertised until explicit execution is enabled by configuration.
-        enabled = self.enabled
+        # ``allow_execution`` is only a future configuration gate.  This
+        # adapter has no subprocess implementation yet, so it must not claim
+        # any operation, health check, or endpoint capability.
         return {
-            "deploy": enabled,
-            "update": enabled,
-            "start": enabled,
-            "stop": enabled,
-            "restart": enabled,
-            "destroy": enabled,
-            "logs": enabled,
-            "status": enabled,
-            "healthcheck": enabled,
-            "public_endpoint": enabled,
+            "deploy": False,
+            "update": False,
+            "start": False,
+            "stop": False,
+            "restart": False,
+            "destroy": False,
+            "logs": False,
+            "status": False,
+            "healthcheck": False,
+            "public_endpoint": False,
         }
 
     def validate(self, spec: dict[str, Any]) -> list[dict[str, Any]]:

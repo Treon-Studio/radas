@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import inspect
+import math
+import time
 from collections.abc import Iterable
 from typing import Any
 
@@ -12,6 +14,9 @@ from .runtime_provider import (
     RuntimeProviderError,
     RuntimeProviderTimeoutError,
     UnsupportedCapabilityError,
+    UnsupportedTimeoutError,
+    PUBLIC_PROVIDER_ERROR,
+    PUBLIC_PROVIDER_LOG_ERROR,
     redact,
 )
 
@@ -109,22 +114,25 @@ class RuntimeProviderRegistry:
     def _failure(
         provider_id: str,
         operation: str,
-        exc: BaseException,
+        exc: Exception,
         *,
         operation_id: str | None = None,
         idempotency_key: str | None = None,
+        message: str = PUBLIC_PROVIDER_ERROR,
     ) -> ProviderResult:
         if isinstance(exc, (TimeoutError, RuntimeProviderTimeoutError)):
             code = "PROVIDER_TIMEOUT"
+            message = "runtime provider operation timed out"
         elif isinstance(exc, RuntimeProviderError):
             code = exc.code
+            message = exc.message if exc.code in {"UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT"} else message
         else:
             code = "PROVIDER_ERROR"
-        details = getattr(exc, "details", {})
+        details = redact(getattr(exc, "details", {}))
         return ProviderResult.failed(
             operation,
             code,
-            str(exc),
+            message,
             details=details,
             provider_id=provider_id,
             operation_id=operation_id,
@@ -132,22 +140,55 @@ class RuntimeProviderRegistry:
         )
 
     @staticmethod
-    def _call(method: Any, *args: Any, idempotency_key: str | None, timeout: float | None) -> Any:
-        """Call an adapter while keeping the normalized keyword contract.
+    def _validate_timeout(timeout: float | None) -> float | None:
+        if timeout is None:
+            return None
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+            raise ValueError("timeout must be a finite, non-negative number")
+        if not math.isfinite(float(timeout)) or timeout < 0:
+            raise ValueError("timeout must be a finite, non-negative number")
+        return float(timeout)
 
-        The signature check makes adapters written against the minimal plan
-        interface (without optional keywords) usable during the migration,
-        while first-party adapters receive both values whenever supported.
+    @staticmethod
+    def _enforce_elapsed_timeout(started: float, timeout: float | None) -> None:
+        if timeout is not None and time.monotonic() - started > timeout:
+            raise RuntimeProviderTimeoutError()
+
+    @staticmethod
+    def _call(method: Any, *args: Any, idempotency_key: str | None, timeout: float | None) -> Any:
+        """Call an adapter using the normalized keyword contract.
+
+        Extensible adapters may declare either named keywords or ``**kwargs``.
+        A requested timeout is rejected when the adapter cannot receive it;
+        silently dropping it would violate the synchronous timeout contract.
         """
         try:
             parameters = inspect.signature(method).parameters
-        except (TypeError, ValueError):
-            parameters = {}
+        except (TypeError, ValueError) as exc:
+            if timeout is not None:
+                raise UnsupportedTimeoutError(getattr(method, "__name__", "operation")) from exc
+            if idempotency_key is not None:
+                raise RuntimeProviderError(
+                    "UNSUPPORTED_IDEMPOTENCY",
+                    "runtime provider adapter cannot honor idempotency key",
+                ) from exc
+            return method(*args)
+        has_kwargs = any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+        def accepts_keyword(name: str) -> bool:
+            parameter = parameters.get(name)
+            return parameter is not None and parameter.kind in {
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            }
         kwargs: dict[str, Any] = {}
-        if "idempotency_key" in parameters:
+        if accepts_keyword("idempotency_key") or has_kwargs:
             kwargs["idempotency_key"] = idempotency_key
-        if "timeout" in parameters:
+        elif idempotency_key is not None:
+            raise RuntimeProviderError("UNSUPPORTED_IDEMPOTENCY", "runtime provider adapter cannot honor idempotency key")
+        if accepts_keyword("timeout") or has_kwargs:
             kwargs["timeout"] = timeout
+        elif timeout is not None:
+            raise UnsupportedTimeoutError(getattr(method, "__name__", "operation"))
         return method(*args, **kwargs)
 
     def invoke(
@@ -164,28 +205,33 @@ class RuntimeProviderRegistry:
         provider = self._check_capability(provider_id, operation)
         operation_id = args[0] if args and operation not in {"status"} else None
         try:
+            normalized_timeout = self._validate_timeout(timeout)
+            started = time.monotonic()
             result = self._call(
                 getattr(provider, operation), *args,
                 idempotency_key=idempotency_key,
-                timeout=timeout,
+                timeout=normalized_timeout,
             )
+            self._enforce_elapsed_timeout(started, normalized_timeout)
             if not isinstance(result, ProviderResult):
                 raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned an invalid result")
-            if result.provider_id is None or result.idempotency_key != idempotency_key:
-                return ProviderResult(
-                    operation=result.operation,
-                    status=result.status,
-                    success=result.success,
-                    data=result.data,
-                    error=result.error,
-                    provider_id=result.provider_id or provider_id,
-                    operation_id=result.operation_id or operation_id,
-                    idempotency_key=result.idempotency_key if result.idempotency_key is not None else idempotency_key,
+            if idempotency_key is not None and result.idempotency_key not in {None, idempotency_key}:
+                raise RuntimeProviderError(
+                    "IDEMPOTENCY_MISMATCH",
+                    "provider returned an idempotency key that differs from the requested key",
+                    details={"mismatch": True},
                 )
-            return result
-        except BaseException as exc:
-            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-                raise
+            return ProviderResult(
+                operation=result.operation,
+                status=result.status,
+                success=result.success,
+                data=result.data,
+                error=result.error,
+                provider_id=result.provider_id or provider_id,
+                operation_id=result.operation_id or operation_id,
+                idempotency_key=idempotency_key if idempotency_key is not None else result.idempotency_key,
+            )
+        except Exception as exc:
             return self._failure(
                 provider_id, operation, exc,
                 operation_id=operation_id,
@@ -202,17 +248,21 @@ class RuntimeProviderRegistry:
     ) -> ProviderLogPage:
         provider = self._check_capability(provider_id, "logs")
         try:
-            result = self._call(provider.logs, instance, cursor, idempotency_key=None, timeout=timeout)
+            normalized_timeout = self._validate_timeout(timeout)
+            started = time.monotonic()
+            result = self._call(provider.logs, instance, cursor, idempotency_key=None, timeout=normalized_timeout)
+            self._enforce_elapsed_timeout(started, normalized_timeout)
             if not isinstance(result, ProviderLogPage):
                 raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned invalid logs")
             return result
-        except BaseException as exc:
-            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-                raise
+        except Exception as exc:
             # Logs have no ProviderResult return type; expose a structured,
             # redacted error page rather than leaking an adapter exception.
+            failure = self._failure(provider_id, "logs", exc)
+            error = dict(failure.to_dict()["error"])
+            error["message"] = PUBLIC_PROVIDER_LOG_ERROR
             return ProviderLogPage(
-                entries=({"level": "error", "error": self._failure(provider_id, "logs", exc).to_dict()["error"]},),
+                entries=({"level": "error", "error": error},),
                 provider_id=provider_id,
                 instance_id=str(instance.get("id")) if instance.get("id") is not None else None,
             )
@@ -221,10 +271,8 @@ class RuntimeProviderRegistry:
         provider = self.require(provider_id)
         try:
             return redact(list(provider.validate(spec)))
-        except BaseException as exc:
-            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-                raise
-            return [{"code": "PROVIDER_ERROR", "message": redact(str(exc)), "details": {}}]
+        except Exception as exc:
+            return [{"code": "PROVIDER_ERROR", "message": PUBLIC_PROVIDER_ERROR, "details": redact(getattr(exc, "details", {}))}]
 
     def deploy(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
         return self.invoke(provider_id, "deploy", operation_id, spec, **kwargs)

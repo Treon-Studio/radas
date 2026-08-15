@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from services.runtime_provider import RuntimeProviderTimeoutError, UnsupportedCapabilityError
+from services.runtime_provider import (
+    ProviderResult,
+    RuntimeProviderTimeoutError,
+    UnsupportedCapabilityError,
+)
 from services.runtime_providers.local_container import LocalContainerProvider
 from services.runtime_providers.mock import MockRuntimeProvider
 from services.runtime_registry import (
@@ -100,6 +104,10 @@ def test_idempotency_key_is_forwarded_to_provider():
 def test_local_provider_disabled_without_runtime_invocation():
     provider = LocalContainerProvider(config={"runtime": "docker"}, enabled=False)
     assert all(value is False for value in provider.capabilities().values())
+    enabled_without_implementation = LocalContainerProvider(
+        config={"runtime": "docker", "allow_execution": True}, enabled=True
+    )
+    assert all(value is False for value in enabled_without_implementation.capabilities().values())
     assert provider.validate({})[0]["code"] == "PROVIDER_DISABLED"
     result = provider.deploy("op-1", {"name": "demo"})
     assert result.error["code"] == "PROVIDER_DISABLED"
@@ -109,4 +117,97 @@ def test_local_provider_disabled_without_runtime_invocation():
     assert registry.ids() == ("mock",)
     enabled = build_default_registry(enable_local_container=True)
     assert enabled.ids() == ("local-container", "mock")
-    assert enabled.get("local-container").capabilities()["deploy"] is False
+    assert all(value is False for value in enabled.get("local-container").capabilities().values())
+
+
+def test_natural_language_provider_error_and_log_failure_are_safe():
+    provider = MockRuntimeProvider(
+        failure=RuntimeError("authentication failed because password is hunter2 and token is abc123")
+    )
+    registry = RuntimeProviderRegistry([provider])
+    result = registry.deploy("mock", "op-secret", {"name": "demo"})
+    rendered = str(result.to_dict())
+    assert result.error["message"] == "runtime provider operation failed"
+    assert "hunter2" not in rendered
+    assert "abc123" not in rendered
+
+    page = registry.logs("mock", {"id": "instance-1"})
+    rendered_logs = str(page.to_dict())
+    assert "hunter2" not in rendered_logs
+    assert "abc123" not in rendered_logs
+    assert page.entries[0]["error"]["message"] == "runtime provider log retrieval failed"
+
+
+def test_invalid_result_and_mismatched_idempotency_are_normalized():
+    class InvalidProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            return object()
+
+    invalid = RuntimeProviderRegistry([InvalidProvider()]).deploy("mock", "op", {"name": "demo"})
+    assert invalid.error["code"] == "INVALID_PROVIDER_RESULT"
+
+    class MismatchProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            return ProviderResult.ok("deploy", provider_id=self.id, idempotency_key="other")
+
+    mismatch = RuntimeProviderRegistry([MismatchProvider()]).deploy(
+        "mock", "op", {"name": "demo"}, idempotency_key="requested"
+    )
+    assert mismatch.error["code"] == "IDEMPOTENCY_MISMATCH"
+
+
+def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
+    provider = MockRuntimeProvider()
+    registry = RuntimeProviderRegistry([provider])
+    registry.status("mock", {"id": "instance-1"}, timeout=2.5)
+    assert provider.calls[-1]["timeout"] == 2.5
+
+    class SlowProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            import time
+            time.sleep(0.01)
+            return ProviderResult.ok("deploy")
+
+    slow = RuntimeProviderRegistry([SlowProvider()]).deploy(
+        "mock", "op", {"name": "demo"}, timeout=0.001
+    )
+    assert slow.error["code"] == "PROVIDER_TIMEOUT"
+
+    class NoTimeoutProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec):
+            return ProviderResult.ok("deploy")
+
+    result = RuntimeProviderRegistry([NoTimeoutProvider()]).deploy(
+        "mock", "op", {"name": "demo"}, timeout=1
+    )
+    assert result.error["code"] == "UNSUPPORTED_TIMEOUT"
+
+
+def test_cancellation_like_base_exception_propagates():
+    class CancelProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        RuntimeProviderRegistry([CancelProvider()]).deploy("mock", "op", {"name": "demo"})
+
+
+def test_healthcheck_and_public_endpoint_capabilities_are_explicit():
+    mock = MockRuntimeProvider()
+    assert mock.capabilities()["healthcheck"] is True
+    assert mock.capabilities()["public_endpoint"] is True
+    local = LocalContainerProvider(config={"allow_execution": True}, enabled=True)
+    assert local.capabilities()["healthcheck"] is False
+    assert local.capabilities()["public_endpoint"] is False
+
+
+def test_repeated_lifecycle_operations_after_destroy_are_deterministic():
+    provider = MockRuntimeProvider()
+    registry = RuntimeProviderRegistry([provider])
+    instance = {"id": "instance-1"}
+    registry.deploy("mock", "deploy", {**instance, "name": "demo"})
+    first = registry.destroy("mock", "destroy-1", instance)
+    second = registry.destroy("mock", "destroy-2", instance)
+    after = registry.status("mock", instance)
+    assert first.success and second.success
+    assert after.data["instance"]["status"] == "destroyed"
