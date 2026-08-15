@@ -273,6 +273,10 @@ def _reconcile_platform_duplicates(conn: Any) -> None:
     considers NULLs distinct, so more than one platform row could exist. The
     row with the highest current semantic version wins, with created time and
     id as deterministic tie breakers. Every version and audit row is retained.
+    Security-relevant definition state is merged before the duplicate rows are
+    removed: disabled is an OR across all duplicates, and a single non-null
+    owner is retained. Distinct non-null owners are incompatible and abort the
+    migration rather than silently discarding ownership metadata.
     """
     duplicate_slugs = conn.execute(
         "SELECT slug FROM service_definitions WHERE scope_type = 'platform' "
@@ -281,12 +285,21 @@ def _reconcile_platform_duplicates(conn: Any) -> None:
     for duplicate in duplicate_slugs:
         slug = duplicate["slug"]
         rows = conn.execute(
-            "SELECT id, slug, current_version, created_at FROM service_definitions "
+            "SELECT id, slug, scope_type, org_id, owner_id, current_version, "
+            "disabled, created_at FROM service_definitions "
             "WHERE scope_type = 'platform' AND slug = %s "
             "ORDER BY id FOR UPDATE",
             (slug,),
         ).fetchall()
         try:
+            owner_ids = {row["owner_id"] for row in rows if row["owner_id"] is not None}
+            if len(owner_ids) > 1:
+                raise CatalogMigrationError(
+                    f"catalog migration v4 found conflicting owners for platform slug "
+                    f"{slug!r}; resolve the duplicate rows manually and retry"
+                )
+            owner_id = next(iter(owner_ids), None)
+            disabled = any(bool(row["disabled"]) for row in rows)
             winner = max(
                 rows,
                 key=lambda row: (
@@ -295,6 +308,8 @@ def _reconcile_platform_duplicates(conn: Any) -> None:
                     str(row["id"]),
                 ),
             )
+        except CatalogMigrationError:
+            raise
         except (KeyError, TypeError) as exc:
             raise CatalogMigrationError(
                 f"catalog migration v4 cannot reconcile platform slug {slug!r}; "
@@ -361,8 +376,9 @@ def _reconcile_platform_duplicates(conn: Any) -> None:
                 "restore its service_definition_versions rows and retry"
             )
         conn.execute(
-            "UPDATE service_definitions SET current_version = %s WHERE id = %s",
-            (highest_version, winner_id),
+            "UPDATE service_definitions SET current_version = %s, owner_id = %s, disabled = %s "
+            "WHERE id = %s",
+            (highest_version, owner_id, disabled, winner_id),
         )
         for row in rows:
             if row["id"] == winner_id:

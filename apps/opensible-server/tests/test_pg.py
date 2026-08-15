@@ -101,10 +101,13 @@ def test_catalog_v4_reconciles_legacy_duplicates_and_preserves_all_versions(pg_d
     pg.execute("DELETE FROM schema_migrations WHERE version = 4")
     pg.execute(
         "INSERT INTO service_definitions "
-        "(id, slug, scope_type, current_version, disabled, created_at) "
-        "VALUES (%s,%s,'platform',%s,FALSE,%s), (%s,%s,'platform',%s,FALSE,%s)",
-        # 1.10.0 must beat 1.9.0 semantically (not lexically).
-        ("legacy-a", "duplicate", "1.10.0", 10.0, "legacy-b", "duplicate", "1.9.0", 20.0),
+        "(id, slug, scope_type, owner_id, current_version, disabled, created_at) "
+        "VALUES (%s,%s,'platform',%s,%s,FALSE,%s), (%s,%s,'platform',%s,%s,TRUE,%s)",
+        # 1.10.0 must beat 1.9.0 semantically (not lexically), but the lower
+        # duplicate's disabled state must still restrict the canonical row.
+        # Its owner metadata must also survive even though the winner is NULL.
+        ("legacy-a", "duplicate", None, "1.10.0", 10.0,
+         "legacy-b", "duplicate", "owner-a", "1.9.0", 20.0),
     )
     pg.execute(
         "INSERT INTO service_definition_versions "
@@ -127,10 +130,13 @@ def test_catalog_v4_reconciles_legacy_duplicates_and_preserves_all_versions(pg_d
     pg_schema.migrate()
 
     rows = pg.query_all(
-        "SELECT id, current_version FROM service_definitions WHERE slug = %s AND scope_type = 'platform'",
+        "SELECT id, owner_id, current_version, disabled "
+        "FROM service_definitions WHERE slug = %s AND scope_type = 'platform'",
         ("duplicate",),
     )
-    assert rows == [{"id": "legacy-a", "current_version": "1.11.0"}]
+    assert rows == [{
+        "id": "legacy-a", "owner_id": "owner-a", "current_version": "1.11.0", "disabled": True,
+    }]
     versions = pg.query_all(
         "SELECT definition_id, version FROM service_definition_versions WHERE definition_id = %s ORDER BY version",
         ("legacy-a",),
@@ -144,6 +150,36 @@ def test_catalog_v4_reconciles_legacy_duplicates_and_preserves_all_versions(pg_d
     )["count"] == 2
     assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") == {"version": 4}
     assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
+
+
+def test_catalog_v4_rejects_conflicting_duplicate_owners(pg_db):
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_platform_slug")
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_org_slug")
+    pg.execute(
+        "ALTER TABLE service_definitions ADD CONSTRAINT "
+        "service_definitions_slug_scope_type_org_id_key UNIQUE (slug, scope_type, org_id)"
+    )
+    pg.execute("DELETE FROM schema_migrations WHERE version = 4")
+    pg.execute(
+        "INSERT INTO service_definitions "
+        "(id, slug, scope_type, owner_id, current_version, created_at) "
+        "VALUES (%s,%s,'platform',%s,%s,%s), (%s,%s,'platform',%s,%s,%s)",
+        ("owner-a-row", "conflicting-owners", "owner-a", "1.0.0", 1.0,
+         "owner-b-row", "conflicting-owners", "owner-b", "1.1.0", 2.0),
+    )
+    pg.execute(
+        "INSERT INTO service_definition_versions "
+        "(definition_id, version, manifest, published_at) VALUES "
+        "(%s,%s,%s,%s), (%s,%s,%s,%s)",
+        ("owner-a-row", "1.0.0", '{"version":"1.0.0"}', 1.0,
+         "owner-b-row", "1.1.0", '{"version":"1.1.0"}', 2.0),
+    )
+
+    with pytest.raises(pg_schema.CatalogMigrationError, match="conflicting owners"):
+        pg_schema.migrate()
+
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") is None
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",)) is None
 
 
 def test_catalog_partial_unique_indexes_enforce_scope(pg_db):
