@@ -144,7 +144,7 @@ def test_global_registry_merges_legacy_records_and_prefers_namespaced_duplicates
     assert flags["shared.flag"]["enabled"] is True
 
 
-def test_legacy_only_global_flags_are_migrated_for_registry_update_and_delete(data_dir):
+def test_legacy_only_global_flags_are_migrated_for_registry_update_archive_and_delete(data_dir):
     from services.feature_flags import create_flag as create_legacy_flag, get_flag as get_legacy_flag
     from services.feature_flag_registry import archive_flag, audit, create_flag, delete_flag, evaluate, list_flags, update_flag
 
@@ -157,12 +157,21 @@ def test_legacy_only_global_flags_are_migrated_for_registry_update_and_delete(da
     assert audit(key="legacy.update")[0]["operation"] == "update"
 
     create_legacy_flag({"key": "legacy.delete", "enabled": True})
-    assert delete_flag("legacy.delete", actor="editor") is True
-
+    with pytest.raises(ValueError, match="archived"):
+        delete_flag("legacy.delete", actor="editor")
+    archived = archive_flag("legacy.delete", actor="editor", reason="retired")
+    assert archived and archived["archived"] is True and archived["enabled"] is False
     assert get_legacy_flag("legacy.delete")["enabled"] is True
+    assert delete_flag("legacy.delete", actor="editor") is True
     assert "legacy.delete" not in {flag["key"] for flag in list_flags()}
     assert evaluate("legacy.delete")["reason"] == "unknown_flag"
-    assert audit(key="legacy.delete")[0]["operation"] == "delete"
+    assert [entry["operation"] for entry in audit(key="legacy.delete")[:2]] == ["delete", "archive"]
+
+    create_legacy_flag({"key": "legacy.guarded", "enabled": True})
+    create_flag({"key": "legacy.dependent", "parent_key": "legacy.guarded"})
+    with pytest.raises(ValueError, match="dependents"):
+        archive_flag("legacy.guarded", actor="editor")
+    assert get_legacy_flag("legacy.guarded")["enabled"] is True
 
     create_legacy_flag({"key": "registry.wins", "enabled": True})
     create_flag({"key": "registry.wins", "enabled": False})
@@ -216,6 +225,35 @@ def test_flags_api_derives_project_organization_for_evaluation(data_dir):
         response = feature_flag_routes.api_evaluate_flag()
 
     assert response.get_json()["source"] == "organization"
+
+
+def test_lifecycle_dependents_resolve_to_exact_target_without_cross_tenant_leaks(data_dir):
+    from services.feature_flag_registry import archive_flag, create_flag, delete_flag, find_dependents, impact
+    from storage import pg
+
+    pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+               "VALUES (%s,%s,%s,%s,%s,0,%s)", ("project-a", "org-a", "owner", "A", "", 0))
+    pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+               "VALUES (%s,%s,%s,%s,%s,0,%s)", ("project-b", "org-b", "owner", "B", "", 0))
+    create_flag({"key": "shared.target"}, "organization", "org-a")
+    create_flag({"key": "shared.target"}, "organization", "org-b")
+    create_flag({"key": "a.child", "parent_key": "shared.target"}, "project", "project-a", org_id="org-a")
+    create_flag({"key": "b.child", "parent_key": "shared.target"}, "project", "project-b", org_id="org-b")
+
+    org_a_dependents = find_dependents("shared.target", "organization", "org-a")
+    assert [(item["key"], item["scope_id"]) for item in org_a_dependents] == [("a.child", "project-a")]
+    assert [(item["key"], item["scope_id"]) for item in impact("shared.target", "organization", "org-a")["blockers"]] == [
+        ("a.child", "project-a")
+    ]
+    with pytest.raises(ValueError, match="dependents"):
+        archive_flag("shared.target", "organization", "org-a")
+
+    archive_flag("a.child", "project", "project-a", org_id="org-a")
+    assert delete_flag("a.child", "project", "project-a", org_id="org-a") is True
+    assert archive_flag("shared.target", "organization", "org-a")["archived"] is True
+    assert impact("shared.target", "organization", "org-b")["blockers"] == [{
+        "key": "b.child", "scope_type": "project", "scope_id": "project-b", "relationship": "parent",
+    }]
 
 
 def test_registry_expiry_archives_lifecycle_and_permanent_delete_guards(data_dir):

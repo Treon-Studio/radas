@@ -287,6 +287,28 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
     return _decorate(flag, scope_type, scope_id)
 
 
+def _registry_index(flags: List[Dict[str, Any]], key: str) -> Optional[int]:
+    return next((i for i, item in enumerate(flags)
+                 if item.get("key") == key and not item.get("_deleted")), None)
+
+
+def _materialize_legacy_global(key: str) -> bool:
+    """Copy a visible legacy global flag into the registry without changing legacy storage."""
+    flags = _load_registry("global", None)
+    if _registry_index(flags, key) is not None:
+        return True
+    if any(item.get("key") == key and item.get("_deleted") for item in flags):
+        return False
+    legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
+    if not legacy_flag:
+        return False
+    materialized = copy.deepcopy(legacy_flag)
+    materialized["_legacy_materialized"] = True
+    flags.append(materialized)
+    _save(flags, "global", None)
+    return True
+
+
 def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None,
                 actor: str = "", actor_name: str = "", operation: str = "update", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     try:
@@ -294,14 +316,18 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     except ValueError:
         return None
     flags = _load_registry(scope_type, scope_id)
-    index = next((i for i, item in enumerate(flags) if item.get("key") == key), None)
+    index = _registry_index(flags, key)
     if index is None:
         if scope_type != "global" or scope_id:
+            return None
+        if any(item.get("key") == key and item.get("_deleted") for item in flags):
             return None
         legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
         if not legacy_flag:
             return None
-        flags.append(copy.deepcopy(legacy_flag))
+        materialized = copy.deepcopy(legacy_flag)
+        materialized["_legacy_materialized"] = True
+        flags.append(materialized)
         index = len(flags) - 1
     before = copy.deepcopy(flags[index])
     if before.get("archived") and patch.get("enabled") is True:
@@ -341,29 +367,27 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     return _decorate(candidate, scope_type, scope_id)
 
 
-def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "", actor_name: str = "") -> bool:
+def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
+                actor_name: str = "", org_id: Optional[str] = None) -> bool:
     try:
         key = _normalize_key(key)
     except ValueError:
         return False
+    if scope_type == "global" and not scope_id and not _materialize_legacy_global(key):
+        return False
     flags = _load_registry(scope_type, scope_id)
-    index = next((i for i, item in enumerate(flags) if item.get("key") == key), None)
+    index = _registry_index(flags, key)
     if index is None:
-        if scope_type != "global" or scope_id:
-            return False
-        legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
-        if not legacy_flag:
-            return False
-        # Preserve legacy compatibility: deleting a legacy-only global record
-        # remains a tombstone operation because it cannot be archived in place.
-        removed = copy.deepcopy(legacy_flag)
-        flags.append({"key": key, "_deleted": True})
+        return False
+    removed = copy.deepcopy(flags[index])
+    if not removed.get("archived"):
+        raise ValueError("Flag must be archived before permanent deletion")
+    if find_dependents(key, scope_type, scope_id, org_id):
+        raise ValueError("Flag has dependents and cannot be deleted")
+    if removed.get("_legacy_materialized"):
+        # Keep a registry tombstone so the unchanged legacy source stays hidden.
+        flags[index] = {"key": key, "_deleted": True}
     else:
-        removed = copy.deepcopy(flags[index])
-        if not removed.get("archived"):
-            raise ValueError("Flag must be archived before permanent deletion")
-        if find_dependents(key):
-            raise ValueError("Flag has dependents and cannot be deleted")
         flags.pop(index)
     _save(flags, scope_type, scope_id)
     _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
@@ -445,14 +469,39 @@ def _expire_at(flag: Dict[str, Any]) -> Optional[int]:
 
 
 def expire_due_flags(now: Optional[int] = None) -> int:
-    """Disable all due registry records in every scope and audit each expiry."""
+    """Disable every due visible flag once, preserving legacy and registry precedence."""
     now = int(now if now is not None else time.time())
     changed = 0
+    registry_global_keys = {
+        str(flag.get("key")) for flag in _load_registry("global", None)
+        if isinstance(flag, dict) and flag.get("key")
+    }
+    # Legacy records are still globally visible only when no registry record or
+    # tombstone shadows them. Update only those records so a registry successor
+    # cannot also expire its hidden legacy predecessor.
+    legacy_flags = legacy._load()
+    legacy_dirty = False
+    for flag in legacy_flags:
+        if (not isinstance(flag, dict) or str(flag.get("key")) in registry_global_keys
+                or not flag.get("enabled")):
+            continue
+        if (expire_at := _expire_at(flag)) is not None and now >= expire_at:
+            before = copy.deepcopy(flag)
+            flag["enabled"] = False
+            flag["expired_at"] = now
+            flag["updated_at"] = now
+            _append_history({"operation": "expire", "key": flag.get("key"), "actor": "system", "actor_name": "",
+                             "at": now, "before": before, "after": copy.deepcopy(flag), "changes": _diff(before, flag),
+                             "scope_type": "global", "scope_id": None}, "global", None)
+            legacy_dirty = True
+            changed += 1
+    if legacy_dirty:
+        legacy._save(legacy_flags)
     for scope_type, scope_id in _stored_scopes():
         flags = _load_registry(scope_type, scope_id)
         dirty = False
         for flag in flags:
-            if not isinstance(flag, dict) or not flag.get("enabled"):
+            if not isinstance(flag, dict) or flag.get("_deleted") or not flag.get("enabled"):
                 continue
             expire_at = _expire_at(flag)
             if expire_at is not None and now >= expire_at:
@@ -477,7 +526,7 @@ def impact(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
         raise ValueError("Flag not found")
     parent = _resolve_effective(flag["parent_key"], scope_type, scope_id, org_id) if flag.get("parent_key") else None
     prerequisites = [_resolve_effective(item, scope_type, scope_id, org_id) for item in flag.get("prerequisites") or []]
-    blockers = find_dependents(flag["key"])
+    blockers = find_dependents(flag["key"], scope_type, scope_id, org_id)
     return {"flag": flag, "effective_parent": parent, "prerequisites": [item for item in prerequisites if item],
             "dependents": blockers, "blockers": blockers,
             "lifecycle": {"archived": bool(flag.get("archived")), "expired_at": flag.get("expired_at")}}
@@ -485,7 +534,13 @@ def impact(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
 
 def archive_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
                  actor_name: str = "", reason: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    if find_dependents(key):
+    try:
+        key = _normalize_key(key)
+    except ValueError:
+        return None
+    if scope_type == "global" and not scope_id and not _materialize_legacy_global(key):
+        return None
+    if find_dependents(key, scope_type, scope_id, org_id):
         raise ValueError("Flag has dependents and cannot be archived")
     return update_flag(key, {"enabled": False, "archived": True, "reason": reason}, scope_type, scope_id,
                        actor=actor, actor_name=actor_name, operation="archive", org_id=org_id)
@@ -616,16 +671,50 @@ def _stored_scopes() -> Iterable[Tuple[str, Optional[str]]]:
             yield parts[1], None if parts[2] == "default" else parts[2]
 
 
-def find_dependents(key: str) -> List[Dict[str, Any]]:
-    """Return direct stored-registry relationship dependents for a logical key."""
+def _scope_org_id(scope_type: str, scope_id: Optional[str]) -> Optional[str]:
+    if scope_type == "organization":
+        return scope_id
+    if scope_type != "project" or not scope_id:
+        return None
+    from storage import pg
+    row = pg.query_one("SELECT org_id FROM projects WHERE id = %s", (scope_id,))
+    return str(row["org_id"]) if row and row.get("org_id") else None
+
+
+def _matches_target(record: Optional[Dict[str, Any]], target_scope_type: str,
+                    target_scope_id: Optional[str]) -> bool:
+    return bool(record and record.get("scope_type") == target_scope_type
+                and record.get("scope_id") == target_scope_id)
+
+
+def find_dependents(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
+                    org_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return stored relationships that resolve to this exact scoped target.
+
+    Matching references by key alone crosses tenant and precedence boundaries. A
+    dependent is relevant only when resolving its relationship in its own
+    effective context selects the lifecycle target being inspected.
+    """
     key = _normalize_key(key)
+    target = get_flag(key, scope_type, scope_id)
+    if not target:
+        return []
+    target_scope_type = target["scope_type"]
+    target_scope_id = target["scope_id"]
     dependents: List[Dict[str, Any]] = []
-    for scope_type, scope_id in _stored_scopes():
-        for flag in _load_registry(scope_type, scope_id):
-            if not isinstance(flag, dict):
+    for dependent_scope_type, dependent_scope_id in _stored_scopes():
+        dependent_org_id = _scope_org_id(dependent_scope_type, dependent_scope_id)
+        for flag in _load_registry(dependent_scope_type, dependent_scope_id):
+            if not isinstance(flag, dict) or flag.get("_deleted"):
                 continue
-            if flag.get("parent_key") == key:
-                dependents.append({"key": flag.get("key"), "scope_type": scope_type, "scope_id": scope_id, "relationship": "parent"})
-            if key in (flag.get("prerequisites") or []):
-                dependents.append({"key": flag.get("key"), "scope_type": scope_type, "scope_id": scope_id, "relationship": "prerequisite"})
+            if flag.get("parent_key") == key and _matches_target(
+                    _resolve_effective(key, dependent_scope_type, dependent_scope_id, dependent_org_id),
+                    target_scope_type, target_scope_id):
+                dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
+                                   "scope_id": dependent_scope_id, "relationship": "parent"})
+            if key in (flag.get("prerequisites") or []) and _matches_target(
+                    _resolve_effective(key, dependent_scope_type, dependent_scope_id, dependent_org_id),
+                    target_scope_type, target_scope_id):
+                dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
+                                   "scope_id": dependent_scope_id, "relationship": "prerequisite"})
     return sorted(dependents, key=lambda item: (item["scope_type"], item["scope_id"] or "", item["key"] or "", item["relationship"]))

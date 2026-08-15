@@ -69,6 +69,19 @@ def test_flag_routes_authorize_project_org_global_and_preview_scopes(data_dir):
     ).status_code == 200
 
 
+def test_flag_rollback_returns_conflict_when_target_disappears(data_dir, monkeypatch):
+    from api import feature_flag_routes
+
+    _org_a, _org_b, tokens = _seed(data_dir)
+    monkeypatch.setattr(feature_flag_routes, "audit", lambda *args, **kwargs: [{"before": {"enabled": False}}])
+    monkeypatch.setattr(feature_flag_routes, "update_flag", lambda *args, **kwargs: None)
+
+    response = _app(data_dir).test_client().post("/api/flags/rollback.flag/rollback", headers=tokens["admin"])
+
+    assert response.status_code == 409
+    assert response.get_json()["error"] == "not found or conflicted"
+
+
 def test_flag_routes_lifecycle_impact_atomic_import_and_invalid_limits(data_dir):
     _org_a, _org_b, tokens = _seed(data_dir)
     client = _app(data_dir).test_client()

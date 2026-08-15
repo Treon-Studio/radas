@@ -161,10 +161,10 @@ def api_delete_flag(key):
     context, error = _scoped(mutation=True)
     if error:
         return error
-    scope_type, scope_id, _ = context
+    scope_type, scope_id, org_id = context
     actor_id, actor_name = _actor()
     try:
-        deleted = delete_flag(key, scope_type, scope_id, actor=actor_id, actor_name=actor_name)
+        deleted = delete_flag(key, scope_type, scope_id, actor=actor_id, actor_name=actor_name, org_id=org_id)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 409
     if not deleted:
@@ -294,4 +294,6 @@ def api_flag_rollback(key):
         restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback", org_id=org_id)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    if not restored:
+        return jsonify({"error": "not found or conflicted"}), 409
     return jsonify({"success": True, "flag": restored})
