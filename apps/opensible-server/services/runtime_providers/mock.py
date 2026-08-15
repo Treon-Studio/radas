@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 
 from ..runtime_provider import ProviderLogPage, ProviderResult, RuntimeProviderTimeoutError, redact
 
@@ -12,6 +12,7 @@ class MockRuntimeProvider:
     """A predictable provider with no filesystem, network, or subprocess use."""
 
     id: str = "mock"
+    TIMEOUT_ENFORCED: ClassVar[bool] = True
     failure: BaseException | Mapping[str, Any] | None = None
     state: dict[str, dict[str, Any]] = field(default_factory=dict)
     logs_by_instance: dict[str, list[dict[str, Any]]] = field(default_factory=dict)

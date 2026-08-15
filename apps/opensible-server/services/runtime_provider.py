@@ -11,12 +11,20 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, ClassVar, Mapping, Protocol, Sequence, runtime_checkable
 
 
 _REDACTED = "[REDACTED]"
 PUBLIC_PROVIDER_ERROR = "runtime provider operation failed"
 PUBLIC_PROVIDER_LOG_ERROR = "runtime provider log retrieval failed"
+PUBLIC_PROVIDER_VALIDATION_ERROR = "runtime provider validation failed"
+_PUBLIC_ERROR_MESSAGES = {
+    "PROVIDER_DISABLED": "runtime provider is disabled",
+    "INVALID_RUNTIME": "runtime provider configuration is invalid",
+    "UNSUPPORTED_CAPABILITY": "runtime provider capability is unsupported",
+    "UNSUPPORTED_TIMEOUT": "runtime provider adapter cannot honor operation timeout",
+    "PROVIDER_TIMEOUT": "runtime provider operation timed out",
+}
 _SENSITIVE_KEY = re.compile(
     r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
     re.IGNORECASE,
@@ -27,12 +35,12 @@ _PRIVATE_KEY = re.compile(
 )
 _BEARER = re.compile(r"\bBearer\s+[^\s,;]+", re.IGNORECASE)
 _SENSITIVE_VALUE = re.compile(
-    r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|token)\s*[=:]\s*)(?P<quote>[\"']?)(?P<value>[^\s,;\"']+)(?P=quote)",
+    r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|credential|credentials|token|private[_ -]?key)\s*[=:]\s*)(?P<quote>[\"']?)(?P<value>[^\s,;\"']+)(?P=quote)",
     re.IGNORECASE,
 )
 _NATURAL_LANGUAGE_SECRET = re.compile(
-    r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|token|private[_ -]?key)"
-    r"\s+(?:is|was|equals|:)[ ]*)(?P<quote>[\"']?)(?P<value>[^\s,;.\"']+)(?P=quote)",
+    r"(?P<prefix>\b(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|api[_-]?key|authorization|password|secret|credential|token|private[_ -]?key)"
+    r"\s+(?:(?:is|was|equals|equal to)\s+|:\s*)?)(?P<quote>[\"']?)(?P<value>[^\s,;.\"']+)(?P=quote)",
     re.IGNORECASE,
 )
 
@@ -68,9 +76,45 @@ def redact(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
+def _public_provider_error(error: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Return a safe public provider error envelope."""
+    safe = redact(dict(error or {}))
+    code = safe.get("code")
+    if not isinstance(code, str) or not code:
+        code = "PROVIDER_ERROR"
+    message = _PUBLIC_ERROR_MESSAGES.get(code, PUBLIC_PROVIDER_ERROR)
+    details = safe.get("details", {})
+    if not isinstance(details, Mapping):
+        details = {"value": details}
+    return {"code": code, "message": message, "details": redact(dict(details))}
+
+
+def _public_validation_error(value: Any) -> dict[str, Any]:
+    """Normalize one provider validation item without exposing its message."""
+    if isinstance(value, Mapping):
+        safe = redact(dict(value))
+        code = safe.get("code")
+        if not isinstance(code, str) or not code:
+            code = "PROVIDER_VALIDATION_ERROR"
+        details = safe.get("details", {})
+        if not isinstance(details, Mapping):
+            details = {"value": details}
+        return {"code": code, "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": redact(dict(details))}
+    return {"code": "PROVIDER_VALIDATION_ERROR", "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": {"value": redact(value)}}
+
+
 @dataclass(frozen=True)
 class ProviderResult:
-    """Normalized result for every mutating or state operation."""
+    """Normalized result for every mutating or state operation.
+
+    ``operation`` and ``status`` are part of the wire contract, not advisory
+    provider metadata.  The registry validates them against the requested
+    operation before exposing a result.  Provider adapters must return
+    ``status`` as ``succeeded`` or ``failed`` and keep ``success`` and
+    ``error`` consistent with that status.
+    """
+
+    ALLOWED_STATUSES: ClassVar[frozenset[str]] = frozenset({"succeeded", "failed"})
 
     operation: str
     status: str
@@ -82,9 +126,15 @@ class ProviderResult:
     idempotency_key: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "data", redact(dict(self.data or {})))
-        if self.error is not None:
+        # Keep construction lossless enough for the registry to inspect and
+        # normalize malformed adapter results instead of letting constructor
+        # errors escape from a provider call.  The registry is the semantic
+        # boundary; these fields are still redacted at construction time.
+        object.__setattr__(self, "data", redact(dict(self.data)) if isinstance(self.data, Mapping) else copy.deepcopy(self.data))
+        if isinstance(self.error, Mapping):
             object.__setattr__(self, "error", redact(dict(self.error)))
+        elif self.error is not None:
+            object.__setattr__(self, "error", copy.deepcopy(self.error))
 
     @classmethod
     def ok(
@@ -163,7 +213,21 @@ class ProviderLogPage:
     instance_id: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "entries", tuple(redact(dict(entry)) for entry in self.entries))
+        normalized: list[Mapping[str, Any]] = []
+        for entry in self.entries:
+            if not isinstance(entry, Mapping):
+                normalized.append({"level": "error", "error": {"code": "INVALID_PROVIDER_LOG", "message": PUBLIC_PROVIDER_LOG_ERROR, "details": {}}})
+                continue
+            safe = redact(dict(entry))
+            error = safe.get("error")
+            if isinstance(error, Mapping):
+                safe["error"] = {
+                    "code": error.get("code") if isinstance(error.get("code"), str) and error.get("code") else "PROVIDER_ERROR",
+                    "message": PUBLIC_PROVIDER_LOG_ERROR,
+                    "details": redact(dict(error.get("details", {}))) if isinstance(error.get("details", {}), Mapping) else {"value": redact(error.get("details"))},
+                }
+            normalized.append(safe)
+        object.__setattr__(self, "entries", tuple(normalized))
 
     @property
     def has_more(self) -> bool:
@@ -223,9 +287,18 @@ class UnsupportedTimeoutError(RuntimeProviderError):
 
 @runtime_checkable
 class RuntimeProvider(Protocol):
-    """The provider contract shared by all RADAS-owned runtime adapters."""
+    """The provider contract shared by all RADAS-owned runtime adapters.
+
+    Adapter calls are synchronous.  The registry never runs arbitrary Python
+    calls in a worker/future and therefore cannot interrupt a blocked call.
+    Every adapter that accepts a timeout must set ``TIMEOUT_ENFORCED = True``
+    and enforce that deadline in its own I/O/subprocess implementation.  An
+    adapter without that declaration is rejected before invocation when a
+    timeout is requested; this avoids silently dispatching an unbounded call.
+    """
 
     id: str
+    TIMEOUT_ENFORCED: ClassVar[bool]
 
     def capabilities(self) -> dict[str, bool]: ...
 

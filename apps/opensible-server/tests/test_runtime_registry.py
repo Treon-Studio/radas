@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from services.runtime_provider import (
+    ProviderLogPage,
     ProviderResult,
     RuntimeProviderTimeoutError,
     UnsupportedCapabilityError,
@@ -156,6 +157,69 @@ def test_invalid_result_and_mismatched_idempotency_are_normalized():
     assert mismatch.error["code"] == "IDEMPOTENCY_MISMATCH"
 
 
+def test_provider_result_semantics_are_validated_and_normalized():
+    cases = [
+        ProviderResult.ok("update"),
+        ProviderResult(operation="deploy", status="unknown", success=True),
+        ProviderResult(operation="deploy", status="succeeded", success=True, error={"code": "BAD", "message": "leak"}),
+        ProviderResult(operation="deploy", status="failed", success=False, error={"message": "missing code"}),
+        ProviderResult.ok("deploy", provider_id="other"),
+        ProviderResult.ok("deploy", operation_id="different"),
+    ]
+
+    for malformed in cases:
+        class MalformedProvider(MockRuntimeProvider):
+            def deploy(self, operation_id, spec, **kwargs):
+                return malformed
+
+        result = RuntimeProviderRegistry([MalformedProvider()]).deploy("mock", "op", {"name": "demo"})
+        assert result.success is False
+        assert result.error["code"] == "INVALID_PROVIDER_RESULT"
+        assert result.error["message"] == "runtime provider operation failed"
+        assert "leak" not in str(result.to_dict())
+
+
+def test_provider_messages_and_nested_validation_details_are_redacted():
+    class LeakyProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, **kwargs):
+            return ProviderResult.failed(
+                "deploy",
+                "REMOTE_ERROR",
+                "credential hunter2; password hunter2; token hunter2; private-key hunter2",
+                details={"nested": [{"message": "credential hunter2", "private_key": "raw-key"}]},
+            )
+
+        def validate(self, spec):
+            return [{
+                "code": "INVALID_SPEC",
+                "message": "password hunter2",
+                "details": {"nested": {"token": "hunter2", "text": "private key hunter2"}},
+            }]
+
+        def logs(self, instance, cursor=None, **kwargs):
+            return ProviderLogPage(entries=({
+                "level": "error",
+                "message": "credential hunter2",
+                "error": {"code": "REMOTE_ERROR", "message": "private key hunter2", "details": {"password": "hunter2"}},
+            },), provider_id=self.id, instance_id=instance["id"])
+
+    registry = RuntimeProviderRegistry([LeakyProvider()])
+    result = registry.deploy("mock", "op", {"name": "demo"})
+    rendered = str(result.to_dict())
+    assert result.error["message"] == "runtime provider operation failed"
+    assert "hunter2" not in rendered
+    assert result.error["details"]["nested"][0]["private_key"] == "[REDACTED]"
+
+    validation = registry.validate("mock", {"name": "demo"})
+    assert validation[0]["message"] == "runtime provider validation failed"
+    assert "hunter2" not in str(validation)
+    assert validation[0]["details"]["nested"]["token"] == "[REDACTED]"
+
+    page = registry.logs("mock", {"id": "instance-1"})
+    assert "hunter2" not in str(page.to_dict())
+    assert page.entries[0]["error"]["message"] == "runtime provider log retrieval failed"
+
+
 def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
     provider = MockRuntimeProvider()
     registry = RuntimeProviderRegistry([provider])
@@ -166,7 +230,7 @@ def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
         def deploy(self, operation_id, spec, **kwargs):
             import time
             time.sleep(0.01)
-            return ProviderResult.ok("deploy")
+            return ProviderResult.ok("deploy", provider_id=self.id, operation_id=operation_id)
 
     slow = RuntimeProviderRegistry([SlowProvider()]).deploy(
         "mock", "op", {"name": "demo"}, timeout=0.001
@@ -174,6 +238,8 @@ def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
     assert slow.error["code"] == "PROVIDER_TIMEOUT"
 
     class NoTimeoutProvider(MockRuntimeProvider):
+        TIMEOUT_ENFORCED = False
+
         def deploy(self, operation_id, spec):
             return ProviderResult.ok("deploy")
 
@@ -181,6 +247,16 @@ def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
         "mock", "op", {"name": "demo"}, timeout=1
     )
     assert result.error["code"] == "UNSUPPORTED_TIMEOUT"
+
+    class LegacyProvider(MockRuntimeProvider):
+        TIMEOUT_ENFORCED = False
+
+        def logs(self, instance, cursor=None):
+            return super().logs(instance, cursor)
+
+    logs = RuntimeProviderRegistry([LegacyProvider()]).logs("mock", {"id": "instance-1"}, timeout=1)
+    assert logs.entries[0]["error"]["code"] == "UNSUPPORTED_TIMEOUT"
+    assert logs.entries[0]["error"]["message"] == "runtime provider log retrieval failed"
 
 
 def test_cancellation_like_base_exception_propagates():

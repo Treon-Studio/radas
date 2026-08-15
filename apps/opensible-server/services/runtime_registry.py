@@ -4,7 +4,7 @@ from __future__ import annotations
 import inspect
 import math
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .runtime_provider import (
@@ -17,6 +17,9 @@ from .runtime_provider import (
     UnsupportedTimeoutError,
     PUBLIC_PROVIDER_ERROR,
     PUBLIC_PROVIDER_LOG_ERROR,
+    PUBLIC_PROVIDER_VALIDATION_ERROR,
+    _public_provider_error,
+    _public_validation_error,
     redact,
 )
 
@@ -155,7 +158,61 @@ class RuntimeProviderRegistry:
             raise RuntimeProviderTimeoutError()
 
     @staticmethod
-    def _call(method: Any, *args: Any, idempotency_key: str | None, timeout: float | None) -> Any:
+    def _validate_provider_result(
+        result: Any,
+        requested_operation: str,
+        provider_id: str,
+        operation_id: str | None,
+        idempotency_key: str | None,
+    ) -> ProviderResult:
+        """Validate and normalize an adapter result at the registry boundary."""
+        if not isinstance(result, ProviderResult):
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned an invalid result")
+        if result.operation != requested_operation:
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned a mismatched operation")
+        if result.status not in ProviderResult.ALLOWED_STATUSES:
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned an invalid status")
+        if not isinstance(result.success, bool) or result.success != (result.status == "succeeded"):
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned inconsistent success state")
+        if not isinstance(result.data, dict | Mapping):
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned invalid result data")
+        if result.success:
+            if result.error is not None:
+                raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "successful provider result contains an error")
+        elif (
+            not isinstance(result.error, Mapping)
+            or not isinstance(result.error.get("code"), str)
+            or not result.error.get("code")
+            or not isinstance(result.error.get("message"), str)
+            or not result.error.get("message")
+        ):
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "failed provider result has an invalid error")
+        for name, value in (("provider_id", result.provider_id), ("operation_id", result.operation_id), ("idempotency_key", result.idempotency_key)):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise RuntimeProviderError("INVALID_PROVIDER_RESULT", f"provider returned invalid {name}")
+        if result.provider_id not in {None, provider_id}:
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned a mismatched provider ID")
+        if operation_id is not None and result.operation_id not in {None, operation_id}:
+            raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned a mismatched operation ID")
+        if idempotency_key is not None and result.idempotency_key not in {None, idempotency_key}:
+            raise RuntimeProviderError(
+                "IDEMPOTENCY_MISMATCH",
+                "provider returned an idempotency key that differs from the requested key",
+                details={"mismatch": True},
+            )
+        return ProviderResult(
+            operation=requested_operation,
+            status=result.status,
+            success=result.success,
+            data=result.data,
+            error=_public_provider_error(result.error) if result.error is not None else None,
+            provider_id=result.provider_id or provider_id,
+            operation_id=result.operation_id or operation_id,
+            idempotency_key=idempotency_key if idempotency_key is not None else result.idempotency_key,
+        )
+
+    @staticmethod
+    def _call(method: Any, *args: Any, idempotency_key: str | None, timeout: float | None, timeout_enforced: bool) -> Any:
         """Call an adapter using the normalized keyword contract.
 
         Extensible adapters may declare either named keywords or ``**kwargs``.
@@ -206,31 +263,18 @@ class RuntimeProviderRegistry:
         operation_id = args[0] if args and operation not in {"status"} else None
         try:
             normalized_timeout = self._validate_timeout(timeout)
+            timeout_enforced = bool(getattr(provider, "TIMEOUT_ENFORCED", False))
+            if normalized_timeout is not None and not timeout_enforced:
+                raise UnsupportedTimeoutError(operation)
             started = time.monotonic()
             result = self._call(
                 getattr(provider, operation), *args,
                 idempotency_key=idempotency_key,
                 timeout=normalized_timeout,
+                timeout_enforced=timeout_enforced,
             )
             self._enforce_elapsed_timeout(started, normalized_timeout)
-            if not isinstance(result, ProviderResult):
-                raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned an invalid result")
-            if idempotency_key is not None and result.idempotency_key not in {None, idempotency_key}:
-                raise RuntimeProviderError(
-                    "IDEMPOTENCY_MISMATCH",
-                    "provider returned an idempotency key that differs from the requested key",
-                    details={"mismatch": True},
-                )
-            return ProviderResult(
-                operation=result.operation,
-                status=result.status,
-                success=result.success,
-                data=result.data,
-                error=result.error,
-                provider_id=result.provider_id or provider_id,
-                operation_id=result.operation_id or operation_id,
-                idempotency_key=idempotency_key if idempotency_key is not None else result.idempotency_key,
-            )
+            return self._validate_provider_result(result, operation, provider_id, operation_id, idempotency_key)
         except Exception as exc:
             return self._failure(
                 provider_id, operation, exc,
@@ -250,7 +294,17 @@ class RuntimeProviderRegistry:
         try:
             normalized_timeout = self._validate_timeout(timeout)
             started = time.monotonic()
-            result = self._call(provider.logs, instance, cursor, idempotency_key=None, timeout=normalized_timeout)
+            timeout_enforced = bool(getattr(provider, "TIMEOUT_ENFORCED", False))
+            if normalized_timeout is not None and not timeout_enforced:
+                raise UnsupportedTimeoutError("logs")
+            result = self._call(
+                provider.logs,
+                instance,
+                cursor,
+                idempotency_key=None,
+                timeout=normalized_timeout,
+                timeout_enforced=timeout_enforced,
+            )
             self._enforce_elapsed_timeout(started, normalized_timeout)
             if not isinstance(result, ProviderLogPage):
                 raise RuntimeProviderError("INVALID_PROVIDER_RESULT", "provider returned invalid logs")
@@ -270,9 +324,13 @@ class RuntimeProviderRegistry:
     def validate(self, provider_id: str, spec: dict[str, Any]) -> list[dict[str, Any]]:
         provider = self.require(provider_id)
         try:
-            return redact(list(provider.validate(spec)))
+            raw = provider.validate(spec)
+            if not isinstance(raw, list):
+                raise RuntimeProviderError("INVALID_PROVIDER_VALIDATION", "provider returned invalid validation details")
+            return [_public_validation_error(item) for item in raw]
         except Exception as exc:
-            return [{"code": "PROVIDER_ERROR", "message": PUBLIC_PROVIDER_ERROR, "details": redact(getattr(exc, "details", {}))}]
+            details = redact(getattr(exc, "details", {}))
+            return [{"code": getattr(exc, "code", "PROVIDER_ERROR"), "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": details}]
 
     def deploy(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
         return self.invoke(provider_id, "deploy", operation_id, spec, **kwargs)

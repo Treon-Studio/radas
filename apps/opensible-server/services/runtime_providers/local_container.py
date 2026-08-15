@@ -6,13 +6,14 @@ stub unless a future task supplies an explicit execution implementation.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from ..runtime_provider import ProviderLogPage, ProviderResult
 
 
 class LocalContainerProvider:
     id = "local-container"
+    TIMEOUT_ENFORCED: ClassVar[bool] = True
 
     def __init__(self, *, config: dict[str, Any] | None = None, enabled: bool = False):
         self.config = dict(config or {})
