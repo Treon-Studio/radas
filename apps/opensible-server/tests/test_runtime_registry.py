@@ -280,6 +280,27 @@ def test_timeout_marker_must_be_actual_bool_and_contract_must_be_explicit(marker
         RuntimeProviderRegistry([MissingContractProvider()])
 
 
+def test_keyword_only_timeout_hook_is_invoked_with_keyword():
+    class KeywordOnlyHookProvider(MockRuntimeProvider):
+        def enforce_timeout(self, *, timeout):
+            self.seen_timeout = timeout
+
+    provider = KeywordOnlyHookProvider()
+    result = RuntimeProviderRegistry([provider]).deploy("mock", "op", {"name": "demo"}, timeout=2.5)
+
+    assert result.success is True
+    assert provider.seen_timeout == 2.5
+
+
+def test_positional_only_operation_timeout_is_rejected_at_registration():
+    class PositionalOnlyTimeoutProvider(MockRuntimeProvider):
+        def deploy(self, operation_id, spec, timeout=None, /):
+            return ProviderResult.ok("deploy", provider_id=self.id, operation_id=operation_id)
+
+    with pytest.raises(ProviderRegistryError, match="positional-only timeout"):
+        RuntimeProviderRegistry([PositionalOnlyTimeoutProvider()])
+
+
 def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():
     provider = MockRuntimeProvider()
     registry = RuntimeProviderRegistry([provider])

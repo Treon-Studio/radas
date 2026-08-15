@@ -84,7 +84,7 @@ class RuntimeProviderRegistry:
                 inspect.Parameter.KEYWORD_ONLY,
             }:
                 raise ProviderRegistryError(
-                    f"provider '{provider_id}' timeout contract must accept enforce_timeout(timeout)"
+                    f"provider '{provider_id}' timeout contract must accept enforce_timeout(timeout=...)"
                 )
             for operation in _OPERATION_NAMES:
                 method = getattr(provider, operation, None)
@@ -97,6 +97,10 @@ class RuntimeProviderRegistry:
                         f"provider '{provider_id}' timeout-capable method '{operation}' has no inspectable signature"
                     ) from exc
                 has_timeout = parameters.get("timeout")
+                if has_timeout is not None and has_timeout.kind is inspect.Parameter.POSITIONAL_ONLY:
+                    raise ProviderRegistryError(
+                        f"provider '{provider_id}' timeout-capable method '{operation}' has positional-only timeout"
+                    )
                 has_kwargs = any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
                 if has_timeout is None and not has_kwargs:
                     raise ProviderRegistryError(
@@ -312,7 +316,7 @@ class RuntimeProviderRegistry:
             if normalized_timeout is not None and not timeout_enforced:
                 raise UnsupportedTimeoutError(operation)
             if normalized_timeout is not None:
-                provider.enforce_timeout(normalized_timeout)
+                provider.enforce_timeout(timeout=normalized_timeout)
             started = time.monotonic()
             result = self._call(
                 getattr(provider, operation), *args,
@@ -345,7 +349,7 @@ class RuntimeProviderRegistry:
             if normalized_timeout is not None and not timeout_enforced:
                 raise UnsupportedTimeoutError("logs")
             if normalized_timeout is not None:
-                provider.enforce_timeout(normalized_timeout)
+                provider.enforce_timeout(timeout=normalized_timeout)
             result = self._call(
                 provider.logs,
                 instance,
