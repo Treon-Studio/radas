@@ -24,6 +24,11 @@ def register_blueprints(app: "Flask") -> None:
     """
     from importlib import import_module
 
+    # New platform routes opt into additive response/error contracts. Legacy
+    # routes remain unchanged because handlers only activate under /api/platform.
+    from api.platform_contracts import register_platform_contracts
+    register_platform_contracts(app)
+
     modules = [
         "api.auth_routes",
         "api.users_routes",
