@@ -349,6 +349,17 @@ _V6_DDL: List[str] = [
 ]
 
 
+# Version 7 — composite tenant integrity for operation-to-instance links.
+# ``instance_id`` remains nullable for project-level operations, but whenever it
+# is present the database requires the same org/project tuple as the instance.
+_V7_DDL: List[str] = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_instances_org_project_id ON service_instances(org_id, project_id, id)",
+    "ALTER TABLE service_operations DROP CONSTRAINT IF EXISTS fk_service_operations_instance_tenant",
+    "ALTER TABLE service_operations ADD CONSTRAINT fk_service_operations_instance_tenant "
+    "FOREIGN KEY (org_id, project_id, instance_id) REFERENCES service_instances(org_id, project_id, id)",
+]
+
+
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
 
@@ -509,7 +520,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue

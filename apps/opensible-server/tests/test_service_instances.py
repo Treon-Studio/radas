@@ -50,6 +50,10 @@ def test_migration_creates_tables_constraints_and_indexes(pg_db):
         ("idx_service_%",),
     )
     names = {row["indexname"] for row in indexes}
+    assert pg.query_one(
+        "SELECT conname FROM pg_constraint WHERE conname = %s",
+        ("fk_service_operations_instance_tenant",),
+    )
     assert {
         "idx_service_instances_project_environment_status",
         "idx_service_revisions_instance_created",
@@ -256,6 +260,45 @@ def test_fingerprint_requires_stable_configured_secret_and_changes_across_restar
     monkeypatch.setenv("IDEMPOTENCY_FINGERPRINT_SECRET", "stable-secret-b")
     restarted = service_operations.payload_fingerprint("service.deploy", {}, instance_id="instance-a")
     assert first != restarted
+
+
+def test_operation_tenant_integrity_rejects_direct_corruption_on_reads(pg_db):
+    _project()
+    _project("project-b", "org-b")
+    operation = service_operations.create_operation("project-a", "service.deploy", "corrupt-me", {}, actor_id="owner")
+    pg.execute("ALTER TABLE service_operations DROP CONSTRAINT fk_service_operations_org_project")
+    pg.execute("UPDATE service_operations SET org_id = %s WHERE id = %s", ("org-b", operation["id"]))
+    with pytest.raises(service_instances.ProjectAuthorizationError, match="tenant"):
+        service_operations.get_operation("project-a", operation["id"], actor_id="owner")
+    with pytest.raises(service_instances.ProjectAuthorizationError, match="tenant"):
+        service_operations.list_operations("project-a", actor_id="owner")
+
+
+def test_operation_instance_composite_tenant_constraint_rejects_corruption(pg_db):
+    _project()
+    _project("project-b", "org-b")
+    instance = _instance()
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_operations "
+            "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            ("bad-operation", "org-b", "project-b", instance["id"], "deploy", "bad", "fp", "pending", time.time()),
+        )
+
+
+def test_operation_error_code_and_message_are_safe_on_write_and_read(pg_db):
+    _project()
+    operation = service_operations.create_operation("project-a", "service.deploy", "safe-errors", {}, actor_id="owner")
+    result = service_operations.transition_operation(
+        "project-a", operation["id"], "failed", actor_id="owner",
+        error_code="credential hunter2", error_message="password=hunter2 token=hunter2",
+    )
+    assert result["error_code"] == "OPERATION_FAILED"
+    assert "hunter2" not in str(result)
+    stored = pg.query_one("SELECT error_code, error_message FROM service_operations WHERE id = %s", (operation["id"],))
+    assert stored["error_code"] == "OPERATION_FAILED"
+    assert "hunter2" not in str(stored["error_message"])
 
 
 def test_operation_reads_and_lists_allow_explicit_internal_context(pg_db):

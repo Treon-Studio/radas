@@ -42,11 +42,25 @@ if not _env_internal:
     raise RuntimeError(
         "INTERNAL_CALL_SECRET must be configured; refusing to generate a per-process secret"
     )
-if len(_env_internal) < 32:
-    if _is_production:
+_KNOWN_REPOSITORY_SECRET = "dev-only-change-me-0123456789abcdef"
+if _is_production:
+    if len(_env_internal) < 32:
         raise RuntimeError(
             "INTERNAL_CALL_SECRET must be at least 32 characters long in production."
         )
+    if _env_internal == _KNOWN_REPOSITORY_SECRET:
+        raise RuntimeError(
+            "INTERNAL_CALL_SECRET must not use the repository default in production."
+        )
+    if len(set(_env_internal)) < 16:
+        raise RuntimeError(
+            "INTERNAL_CALL_SECRET must have at least 16 distinct characters in production."
+        )
+    if not any(char.isalpha() for char in _env_internal) or not any(char.isdigit() for char in _env_internal):
+        raise RuntimeError(
+            "INTERNAL_CALL_SECRET must contain letters and digits in production."
+        )
+elif len(_env_internal) < 32:
     logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure.")
 
 _INTERNAL_CALL_SECRET: str = _env_internal

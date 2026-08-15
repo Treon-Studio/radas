@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 import uuid
 from typing import Any, Mapping
@@ -23,6 +24,29 @@ from services.service_instances import (
     _project_context,
     redact_spec,
 )
+
+_ERROR_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
+_ALLOWED_ERROR_CODES = frozenset({
+    "PROVIDER_ERROR", "PROVIDER_TIMEOUT", "PROVIDER_DISABLED", "INVALID_RUNTIME",
+    "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "INVALID_PROVIDER_RESULT",
+    "INVALID_SPEC", "PROVIDER_VALIDATION_ERROR", "OPERATION_FAILED",
+})
+_SAFE_ERROR_CODE = "OPERATION_FAILED"
+
+
+def _safe_error_code(value: Any) -> str | None:
+    if value is None:
+        return None
+    candidate = str(value).strip().upper()
+    if candidate in _ALLOWED_ERROR_CODES and _ERROR_CODE_RE.fullmatch(candidate):
+        return candidate
+    return _SAFE_ERROR_CODE
+
+
+def _safe_error_message(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(redact(str(value)))[:2000]
 
 OPERATION_STATES = frozenset({"pending", "queued", "running", "succeeded", "failed", "canceled"})
 OPERATION_TRANSITIONS: dict[str, frozenset[str]] = {
@@ -98,9 +122,24 @@ def _project_access(conn: Any, project_id: str, org_id: str | None, actor_id: st
     )
 
 
+def _validate_operation_row(conn: Any, row: Mapping[str, Any]) -> None:
+    project = conn.execute("SELECT org_id FROM projects WHERE id = %s", (row["project_id"],)).fetchone()
+    if not project or str(row.get("org_id")) != str(project["org_id"]):
+        raise ProjectAuthorizationError("operation tenant does not match project tenant")
+    instance_id = row.get("instance_id")
+    if instance_id is not None:
+        instance = conn.execute(
+            "SELECT org_id, project_id FROM service_instances WHERE id = %s",
+            (instance_id,),
+        ).fetchone()
+        if not instance or str(instance["org_id"]) != str(row["org_id"]) or str(instance["project_id"]) != str(row["project_id"]):
+            raise ProjectAuthorizationError("operation instance does not match its tenant")
+
+
 def _row(row: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(row)
-    result["error_message"] = redact(result.get("error_message"))
+    result["error_code"] = _safe_error_code(result.get("error_code"))
+    result["error_message"] = _safe_error_message(result.get("error_message"))
     return result
 
 
@@ -142,6 +181,7 @@ def create_operation(
                 (project_id, idempotency_key),
             ).fetchone()
             if existing:
+                _validate_operation_row(conn, existing)
                 return _existing_or_conflict(existing, fingerprint, instance_id)
             conn.execute(
                 "INSERT INTO service_operations "
@@ -161,6 +201,8 @@ def create_operation(
             (project_id, idempotency_key),
         )
         if existing:
+            with pg.transaction() as conn:
+                _validate_operation_row(conn, existing)
             return _existing_or_conflict(existing, fingerprint, instance_id)
         raise
 
@@ -174,6 +216,8 @@ def get_operation(project_id: str, operation_id: str, *, org_id: str | None = No
             "SELECT * FROM service_operations WHERE id = %s AND project_id = %s",
             (operation_id, project_id),
         ).fetchone()
+        if row:
+            _validate_operation_row(conn, row)
     return _row(row) if row else None
 
 
@@ -209,6 +253,8 @@ def list_operations(project_id: str, *, instance_id: str | None = None,
             f"SELECT * FROM service_operations WHERE {' AND '.join(clauses)} "
             "ORDER BY created_at DESC LIMIT %s", tuple(params),
         ).fetchall()
+        for row in rows:
+            _validate_operation_row(conn, row)
     return [_row(row) for row in rows]
 
 
@@ -229,12 +275,15 @@ def transition_operation(
         ).fetchone()
         if not row:
             raise OperationNotFoundError("service operation not found")
+        _validate_operation_row(conn, row)
         current = str(row["status"])
         if expected_status is not None and current != expected_status:
             raise OperationConflictError(f"operation status changed from {expected_status}")
         if current in {"succeeded", "failed", "canceled"}:
-            same_error = (error_code is None or error_code == row["error_code"]) and (
-                error_message is None or redact(error_message) == row["error_message"]
+            safe_code = _safe_error_code(error_code)
+            safe_message = _safe_error_message(error_message)
+            same_error = (error_code is None or safe_code == _safe_error_code(row["error_code"])) and (
+                error_message is None or safe_message == _safe_error_message(row["error_message"])
             )
             if status == current and same_error:
                 return _row(row)
@@ -248,11 +297,12 @@ def transition_operation(
         finished_at = row["finished_at"]
         if status in {"succeeded", "failed", "canceled"}:
             finished_at = now
-        safe_error = redact(error_message) if error_message is not None else row["error_message"]
+        safe_code = _safe_error_code(error_code) if error_code is not None else row["error_code"]
+        safe_error = _safe_error_message(error_message) if error_message is not None else row["error_message"]
         conn.execute(
             "UPDATE service_operations SET status = %s, error_code = %s, error_message = %s, "
             "started_at = %s, finished_at = %s WHERE id = %s AND project_id = %s AND status = %s",
-            (status, error_code, safe_error, started_at, finished_at, operation_id, project_id, current),
+            (status, safe_code, safe_error, started_at, finished_at, operation_id, project_id, current),
         )
         updated = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
     return _row(updated)

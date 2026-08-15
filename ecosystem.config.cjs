@@ -19,8 +19,10 @@
  * below in vite.config.ts).
  */
 const SERVER_PORT = process.env.OPEN_SERVER_PORT || "5001";
-// Local-development fallback only. Production values must come from .env.
+// Local-development fallbacks are generated per launch. Production values must
+// come from the environment and are never replaced with repository-known text.
 const SECRET = "dev-only-change-me-0123456789abcdef";
+const crypto = require("crypto");
 
 // Load optional .env (gitignored) so DATABASE_URL / GITHUB_OAUTH_* etc. can be
 // provided without editing this file. Simple parser — no dotenv dependency.
@@ -35,6 +37,11 @@ if (fs.existsSync(ENV_FILE)) {
     }
   }
 }
+
+const isProduction = (process.env.FLASK_ENV || "development").toLowerCase() === "production";
+const DEV_INTERNAL_CALL_SECRET = crypto.randomBytes(48).toString("base64url");
+const INTERNAL_CALL_SECRET = process.env.INTERNAL_CALL_SECRET ||
+  (isProduction ? "" : DEV_INTERNAL_CALL_SECRET);
 
 module.exports = {
   apps: [
@@ -51,7 +58,7 @@ module.exports = {
         FLASK_ENV: process.env.FLASK_ENV || "development",
         FLASK_DEBUG: process.env.FLASK_DEBUG || "1",
         JWT_SECRET_KEY: process.env.JWT_SECRET_KEY || SECRET,
-        INTERNAL_CALL_SECRET: process.env.INTERNAL_CALL_SECRET || SECRET,
+        INTERNAL_CALL_SECRET,
         GLOBAL_SECRETS_ENCRYPTION_KEY: process.env.GLOBAL_SECRETS_ENCRYPTION_KEY || SECRET,
         WORKER_REGISTRATION_SECRET: process.env.WORKER_REGISTRATION_SECRET || SECRET,
         ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
