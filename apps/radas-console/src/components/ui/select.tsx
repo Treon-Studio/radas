@@ -71,22 +71,22 @@ export function Select({
     setActiveIndex(index);
     setOpen(true);
   };
-  const moveActive = (direction: 1 | -1) => {
-    if (!enabledIndexes.length) return;
-    const currentPosition = enabledIndexes.indexOf(activeIndex);
+  const nextEnabledIndex = (currentIndex: number, direction: 1 | -1) => {
+    if (!enabledIndexes.length) return -1;
+    const currentPosition = enabledIndexes.indexOf(currentIndex);
     const nextPosition = currentPosition < 0
       ? (direction === 1 ? 0 : enabledIndexes.length - 1)
       : (currentPosition + direction + enabledIndexes.length) % enabledIndexes.length;
-    setActiveIndex(enabledIndexes[nextPosition]!);
+    return enabledIndexes[nextPosition]!;
+  };
+  const moveActive = (direction: 1 | -1) => {
+    setActiveIndex(nextEnabledIndex(activeIndex, direction));
   };
 
   useEffect(() => {
-    if (!open) return;
-    const index = initialActiveIndex();
-    if (index !== activeIndex) {
-      setActiveIndex(index);
-    }
-  }, [open, options, value]);
+    if (!open || enabledIndexes.includes(activeIndex)) return;
+    setActiveIndex(initialActiveIndex());
+  }, [activeIndex, enabledIndexes, open, options, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,13 +126,23 @@ export function Select({
         return;
       case "ArrowDown":
         event.preventDefault();
-        if (!open) openSelect();
-        moveActive(1);
+        if (!open) {
+          const initialIndex = initialActiveIndex();
+          setActiveIndex(nextEnabledIndex(initialIndex, 1));
+          setOpen(true);
+        } else {
+          moveActive(1);
+        }
         return;
       case "ArrowUp":
         event.preventDefault();
-        if (!open) openSelect();
-        moveActive(-1);
+        if (!open) {
+          const initialIndex = initialActiveIndex();
+          setActiveIndex(nextEnabledIndex(initialIndex, -1));
+          setOpen(true);
+        } else {
+          moveActive(-1);
+        }
         return;
       case "Home":
         event.preventDefault();
