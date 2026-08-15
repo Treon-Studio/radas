@@ -8,8 +8,12 @@ org tables for multi-tenancy (Fase D).
 """
 from __future__ import annotations
 
+import json
 import logging
-from typing import List
+import re
+from typing import Any, List, Mapping
+
+from psycopg.types.json import Jsonb
 
 from storage import pg
 
@@ -225,20 +229,152 @@ _V3_DDL: List[str] = [
     )""",
     """CREATE INDEX IF NOT EXISTS idx_service_definitions_scope
        ON service_definitions(scope_type, org_id, slug)""",
+]
+
+# Version 4 — reconcile legacy NULL-org platform duplicates before adding the
+# partial unique indexes that make both scope rules explicit.
+_V4_DDL: List[str] = [
+    # Remove the legacy nullable unique constraint after duplicate rows have
+    # been reconciled. Its platform half was never truly unique in PostgreSQL.
+    "ALTER TABLE service_definitions DROP CONSTRAINT IF EXISTS service_definitions_slug_scope_type_org_id_key",
     """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_platform_slug
        ON service_definitions(slug) WHERE scope_type = 'platform'""",
     """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_org_slug
        ON service_definitions(org_id, slug) WHERE scope_type = 'organization'""",
 ]
 
-# Version 4 — repair catalog uniqueness for NULL platform org ids and make
-# both scope rules explicit partial PostgreSQL unique indexes.
-_V4_DDL: List[str] = [
-    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_platform_slug
-       ON service_definitions(slug) WHERE scope_type = 'platform'""",
-    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_org_slug
-       ON service_definitions(org_id, slug) WHERE scope_type = 'organization'""",
-]
+
+class CatalogMigrationError(RuntimeError):
+    """Raised when legacy catalog rows cannot be merged without data loss."""
+
+
+def _migration_semver_key(version: str) -> tuple[Any, ...]:
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?",
+        str(version),
+    )
+    if not match:
+        raise CatalogMigrationError(
+            f"catalog migration v4 cannot reconcile invalid version {version!r}; "
+            "repair service_definition_versions before retrying"
+        )
+    prerelease = match.group(4)
+    identifiers = () if prerelease is None else tuple(
+        (0, int(part)) if part.isdigit() else (1, part)
+        for part in prerelease.split(".")
+    )
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)), prerelease is None, identifiers)
+
+
+def _reconcile_platform_duplicates(conn: Any) -> None:
+    """Merge legacy NULL-org platform duplicates before adding the unique index.
+
+    Old v3 databases used ``UNIQUE (slug, scope_type, org_id)``; PostgreSQL
+    considers NULLs distinct, so more than one platform row could exist. The
+    row with the highest current semantic version wins, with created time and
+    id as deterministic tie breakers. Every version and audit row is retained.
+    """
+    duplicate_slugs = conn.execute(
+        "SELECT slug FROM service_definitions WHERE scope_type = 'platform' "
+        "GROUP BY slug HAVING COUNT(*) > 1 ORDER BY slug"
+    ).fetchall()
+    for duplicate in duplicate_slugs:
+        slug = duplicate["slug"]
+        rows = conn.execute(
+            "SELECT id, slug, current_version, created_at FROM service_definitions "
+            "WHERE scope_type = 'platform' AND slug = %s "
+            "ORDER BY id FOR UPDATE",
+            (slug,),
+        ).fetchall()
+        try:
+            winner = max(
+                rows,
+                key=lambda row: (
+                    _migration_semver_key(row["current_version"]),
+                    row["created_at"],
+                    str(row["id"]),
+                ),
+            )
+        except (KeyError, TypeError) as exc:
+            raise CatalogMigrationError(
+                f"catalog migration v4 cannot reconcile platform slug {slug!r}; "
+                "definition metadata is incomplete"
+            ) from exc
+        winner_id = winner["id"]
+
+        version_rows = conn.execute(
+            "SELECT definition_id, version, manifest, published_by, published_at "
+            "FROM service_definition_versions WHERE definition_id = ANY(%s) "
+            "ORDER BY definition_id, version FOR UPDATE",
+            ([row["id"] for row in rows],),
+        ).fetchall()
+        by_version: dict[str, Mapping[str, Any]] = {}
+        versions_by_definition = {row["id"]: set() for row in rows}
+        for version_row in version_rows:
+            version = str(version_row["version"])
+            _migration_semver_key(version)
+            versions_by_definition[version_row["definition_id"]].add(version)
+            existing = by_version.get(version)
+            if existing is not None:
+                if json.dumps(existing["manifest"], sort_keys=True, default=str) != json.dumps(
+                    version_row["manifest"], sort_keys=True, default=str
+                ):
+                    raise CatalogMigrationError(
+                        f"catalog migration v4 found conflicting manifests for platform slug "
+                        f"{slug!r} version {version!r}; resolve the duplicate rows manually and retry"
+                    )
+                # Keep the most recent publication metadata for an identical
+                # version while retaining every publication audit row below.
+                if (
+                    float(version_row["published_at"]),
+                    str(version_row["published_by"] or ""),
+                    str(version_row["definition_id"]),
+                ) > (
+                    float(existing["published_at"]),
+                    str(existing["published_by"] or ""),
+                    str(existing["definition_id"]),
+                ):
+                    by_version[version] = version_row
+                continue
+            by_version[version] = version_row
+
+        for row in rows:
+            if row["current_version"] not in versions_by_definition[row["id"]]:
+                raise CatalogMigrationError(
+                    f"catalog migration v4 cannot reconcile platform slug {slug!r}: "
+                    f"definition {row['id']!r} points to missing version {row['current_version']!r}; "
+                    "restore its service_definition_versions row and retry"
+                )
+        highest_version = max(by_version, key=_migration_semver_key) if by_version else None
+        for version, version_row in by_version.items():
+            if version_row["definition_id"] == winner_id:
+                continue
+            conn.execute(
+                "INSERT INTO service_definition_versions "
+                "(definition_id, version, manifest, published_by, published_at) "
+                "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (definition_id, version) DO NOTHING",
+                (winner_id, version, Jsonb(version_row["manifest"]), version_row["published_by"], version_row["published_at"]),
+            )
+        if highest_version is None:
+            raise CatalogMigrationError(
+                f"catalog migration v4 found platform slug {slug!r} without versions; "
+                "restore its service_definition_versions rows and retry"
+            )
+        conn.execute(
+            "UPDATE service_definitions SET current_version = %s WHERE id = %s",
+            (highest_version, winner_id),
+        )
+        for row in rows:
+            if row["id"] == winner_id:
+                continue
+            # Keep audit history while making the surviving definition id the
+            # canonical target for historical catalog publication events.
+            conn.execute(
+                "UPDATE audit_log SET target_id = %s "
+                "WHERE target_type = 'service_definition' AND target_id = %s",
+                (winner_id, row["id"]),
+            )
+            conn.execute("DELETE FROM service_definitions WHERE id = %s", (row["id"],))
 
 
 def migrate() -> None:
@@ -257,6 +393,8 @@ def migrate() -> None:
         if version in applied:
             continue
         with pg.transaction() as conn:
+            if version == 4:
+                _reconcile_platform_duplicates(conn)
             for stmt in ddl:
                 conn.execute(stmt)
             conn.execute(

@@ -41,6 +41,7 @@ def _is_global_admin() -> bool:
 
 
 def _has_catalog_publish_permission() -> bool:
+    """Check the authoritative catalog permission in PostgreSQL RBAC."""
     user_id = _user().get("user_id")
     if user_id == "__internal__":
         return True
@@ -52,8 +53,9 @@ def _has_catalog_publish_permission() -> bool:
         "JOIN roles r ON r.id = ur.role_id "
         "JOIN role_permissions rp ON rp.role_id = r.id "
         "JOIN permissions p ON p.id = rp.permission_id "
-        "WHERE u.id = %s AND u.is_active = 1 AND p.name = %s",
-        (user_id, "catalog.publish"),
+        "WHERE u.id = %s AND u.is_active = 1 "
+        "AND p.name IN (%s, %s)",
+        (user_id, "catalog.publish", "catalog.admin"),
     ))
 
 

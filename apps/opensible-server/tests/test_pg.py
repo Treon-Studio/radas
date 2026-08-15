@@ -88,6 +88,64 @@ def test_catalog_v1_v2_upgrade_applies_v3_v4(pg_db):
     assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
 
 
+def test_catalog_v4_reconciles_legacy_duplicates_and_preserves_all_versions(pg_db):
+    # Recreate the actual legacy v3 shape: UNIQUE(slug, scope_type, org_id)
+    # permits duplicate platform rows because PostgreSQL treats NULLs as
+    # distinct. v4 must repair that state before creating its partial index.
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_platform_slug")
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_org_slug")
+    pg.execute(
+        "ALTER TABLE service_definitions ADD CONSTRAINT "
+        "service_definitions_slug_scope_type_org_id_key UNIQUE (slug, scope_type, org_id)"
+    )
+    pg.execute("DELETE FROM schema_migrations WHERE version = 4")
+    pg.execute(
+        "INSERT INTO service_definitions "
+        "(id, slug, scope_type, current_version, disabled, created_at) "
+        "VALUES (%s,%s,'platform',%s,FALSE,%s), (%s,%s,'platform',%s,FALSE,%s)",
+        # 1.10.0 must beat 1.9.0 semantically (not lexically).
+        ("legacy-a", "duplicate", "1.10.0", 10.0, "legacy-b", "duplicate", "1.9.0", 20.0),
+    )
+    pg.execute(
+        "INSERT INTO service_definition_versions "
+        "(definition_id, version, manifest, published_by, published_at) "
+        "VALUES "
+        "(%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s), "
+        "(%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s)",
+        ("legacy-a", "1.10.0", '{"version":"1.10.0","image":"example/a:1.10.0"}', "a", 10.0,
+         "legacy-a", "1.11.0", '{"version":"1.11.0","image":"example/a:1.11.0"}', "a", 11.0,
+         "legacy-b", "1.5.0", '{"version":"1.5.0","image":"example/b:1.5.0"}', "b", 15.0,
+         "legacy-b", "1.9.0", '{"version":"1.9.0","image":"example/b:1.9.0"}', "b", 20.0),
+    )
+    pg.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, meta_json, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s,%s)",
+        ("a", "catalog.publish", "service_definition", "legacy-a", "{}", "now",
+         "b", "catalog.publish", "service_definition", "legacy-b", "{}", "now"),
+    )
+
+    pg_schema.migrate()
+
+    rows = pg.query_all(
+        "SELECT id, current_version FROM service_definitions WHERE slug = %s AND scope_type = 'platform'",
+        ("duplicate",),
+    )
+    assert rows == [{"id": "legacy-a", "current_version": "1.11.0"}]
+    versions = pg.query_all(
+        "SELECT definition_id, version FROM service_definition_versions WHERE definition_id = %s ORDER BY version",
+        ("legacy-a",),
+    )
+    assert {row["version"] for row in versions} == {"1.5.0", "1.9.0", "1.10.0", "1.11.0"}
+    assert all(row["definition_id"] == "legacy-a" for row in versions)
+    assert pg.query_one(
+        "SELECT COUNT(*) AS count FROM audit_log "
+        "WHERE target_type = %s AND target_id = %s",
+        ("service_definition", "legacy-a"),
+    )["count"] == 2
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") == {"version": 4}
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
+
+
 def test_catalog_partial_unique_indexes_enforce_scope(pg_db):
     pg.execute(
         "INSERT INTO service_definitions (id, slug, scope_type, current_version, created_at) "

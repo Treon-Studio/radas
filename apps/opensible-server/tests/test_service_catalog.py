@@ -128,18 +128,31 @@ def test_audit_failure_rolls_back_publication(pg_db, monkeypatch):
 
 
 def _seed_users(data_dir: Path):
-    for uid in ("owner", "admin", "publisher", "jwt-only", "member", "outsider"):
+    for uid in ("owner", "admin", "publisher", "publish-only", "jwt-only", "member", "outsider"):
         pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", (uid, uid, "x"))
     pg.execute(
         "INSERT INTO roles (id, name, description, is_system) VALUES (%s,%s,%s,1)",
         ("role-admin", "admin", "Authoritative test administrator"),
     )
+    # Keep the admin role unpermissioned here so the role and permission
+    # authorization paths are independently covered.
     pg.execute("INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s)", ("admin", "role-admin"))
     pg.execute(
-        "INSERT INTO permissions (id, name, description, resource, action) VALUES (%s,%s,%s,%s,%s)",
-        ("perm-catalog-publish", "catalog.publish", "Publish catalog entries", "catalog", "publish"),
+        "INSERT INTO permissions (id, name, description, resource, action) VALUES "
+        "(%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s)",
+        ("perm-catalog-publish", "catalog.publish", "Publish catalog entries", "catalog", "publish",
+         "perm-catalog-admin", "catalog.admin", "Administer the catalog", "catalog", "admin"),
     )
-    pg.execute("INSERT INTO role_permissions (role_id, permission_id) VALUES (%s,%s)", ("role-admin", "perm-catalog-publish"))
+    pg.execute(
+        "INSERT INTO roles (id, name, description, is_system) VALUES "
+        "(%s,%s,%s,0), (%s,%s,%s,0)",
+        ("role-catalog-admin", "catalog-publisher", "Catalog administrator",
+         "role-catalog-publish", "catalog-publish-only", "Catalog publisher"),
+    )
+    pg.execute("INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s), (%s,%s)",
+               ("publisher", "role-catalog-admin", "publish-only", "role-catalog-publish"))
+    pg.execute("INSERT INTO role_permissions (role_id, permission_id) VALUES (%s,%s), (%s,%s)",
+               ("role-catalog-admin", "perm-catalog-admin", "role-catalog-publish", "perm-catalog-publish"))
     org = create_org("Org A", "owner")
     add_member(org["id"], "admin", "admin")
     add_member(org["id"], "member", "member")
@@ -222,6 +235,40 @@ def test_private_org_isolation_and_owner_admin_authorization(data_dir):
         "/api/platform/catalog", json={"manifest": _manifest("permission-demo")}, headers=tokens["admin"]
     )
     assert permission_publish.status_code == 201
+
+
+def test_catalog_rbac_permissions_grant_and_deny_platform_publish(data_dir):
+    _seed_users(data_dir)
+    client = _app(data_dir).test_client()
+
+    catalog_admin = client.post(
+        "/api/platform/catalog",
+        json={"manifest": _manifest("catalog-admin-demo")},
+        headers=_headers("publisher", "publisher", [], data_dir),
+    )
+    assert catalog_admin.status_code == 201
+
+    publish_only = client.post(
+        "/api/platform/catalog",
+        json={"manifest": _manifest("catalog-publish-demo")},
+        headers=_headers("publish-only", "publish-only", [], data_dir),
+    )
+    assert publish_only.status_code == 201
+
+    denied = client.post(
+        "/api/platform/catalog",
+        json={"manifest": _manifest("catalog-denied-demo")},
+        headers=_headers("outsider", "outsider", [], data_dir),
+    )
+    assert denied.status_code == 403
+
+    # A JWT role claim and file-backed state must not grant publication.
+    jwt_only = client.post(
+        "/api/platform/catalog",
+        json={"manifest": _manifest("catalog-jwt-only-demo")},
+        headers=_headers("jwt-only", "jwt-only", ["admin"], data_dir),
+    )
+    assert jwt_only.status_code == 403
 
 
 def test_invalid_input_and_error_envelopes(data_dir):
