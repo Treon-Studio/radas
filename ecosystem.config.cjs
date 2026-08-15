@@ -25,21 +25,30 @@ const crypto = require("crypto");
 // come from the environment and are never replaced with repository-known text.
 const DEV_SECRET = crypto.randomBytes(48).toString("base64url");
 
-// Load optional .env (gitignored) so DATABASE_URL / GITHUB_OAUTH_* etc. can be
-// provided without editing this file. Simple parser — no dotenv dependency.
+// Load the process .env before resolving any runtime configuration. It is the
+// explicit source of truth for PM2; no secret or database URL is hard-coded
+// below. Simple parser — no dotenv dependency.
 const fs = require("fs");
 const path = require("path");
 const ENV_FILE = path.join(__dirname, ".env");
 if (fs.existsSync(ENV_FILE)) {
   for (const line of fs.readFileSync(ENV_FILE, "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (m && !(m[1] in process.env)) {
-      process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    if (m) {
+      // The repository .env is the sole PM2 configuration source; do not let
+      // an inherited shell value silently override it.
+      process.env[m[1]] = m[2].replace(/^['\"]|['\"]$/g, "");
     }
   }
 }
 
-const isProduction = (process.env.FLASK_ENV || "development").toLowerCase() === "production";
+// Production has one indicator everywhere: FLASK_ENV=production. Values are
+// normalized for comparison and for the child-process environment. APP_ENV and
+// ENVIRONMENT are intentionally not production switches.
+const normalizedFlaskEnv = String(process.env.FLASK_ENV || "development").trim().toLowerCase();
+const isProduction = normalizedFlaskEnv === "production";
+const childFlaskEnv = normalizedFlaskEnv || "development";
+
 const KNOWN_REPOSITORY_SECRETS = new Set(["dev-only-change-me-0123456789abcdef"]);
 
 function requireStrongProductionSecret(name, value) {
@@ -53,6 +62,14 @@ function requireStrongProductionSecret(name, value) {
     throw new Error(`${name} must be a strong secret in production (32+ chars, letters, digits, and 16+ distinct chars)`);
   }
   return secret;
+}
+
+function requireProductionValue(name, value) {
+  const configured = String(value || "").trim();
+  if (isProduction && !configured) {
+    throw new Error(`${name} must be explicitly configured in production`);
+  }
+  return configured;
 }
 
 const DEV_INTERNAL_CALL_SECRET = crypto.randomBytes(48).toString("base64url");
@@ -76,6 +93,7 @@ const globalSecretsEncryptionKey = requireStrongProductionSecret(
   "GLOBAL_SECRETS_ENCRYPTION_KEY",
   process.env.GLOBAL_SECRETS_ENCRYPTION_KEY || (isProduction ? "" : DEV_SECRET),
 );
+const databaseUrl = requireProductionValue("DATABASE_URL", process.env.DATABASE_URL);
 
 module.exports = {
   apps: [
@@ -89,15 +107,16 @@ module.exports = {
         ...process.env,
         PORT: SERVER_PORT,
         DATA_DIR: process.env.DATA_DIR || "./data",
-        FLASK_ENV: process.env.FLASK_ENV || "development",
+        FLASK_ENV: childFlaskEnv,
         FLASK_DEBUG: process.env.FLASK_DEBUG || "1",
         JWT_SECRET_KEY: jwtSecret,
         INTERNAL_CALL_SECRET,
         GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
         WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
+        VAULT_SERVER_SECRET: vaultServerSecret,
         ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
         CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || "http://localhost:8080",
-        DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
+        DATABASE_URL: databaseUrl || "postgresql://localhost/radas",
         TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || "postgresql://localhost/radas_test",
       },
     },
@@ -116,7 +135,7 @@ module.exports = {
       script: "go",
       args: "run ./cmd/worker",
       env: {
-        FLASK_ENV: process.env.FLASK_ENV || "development",
+        FLASK_ENV: childFlaskEnv,
         WORKER_NAME: "worker-go",
         WORKER_TAGS: "go",
         WORKER_SERVER_URL: `http://127.0.0.1:${SERVER_PORT}`,
@@ -125,11 +144,13 @@ module.exports = {
         // Must exactly match the server's registration secret.
         WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
         VAULT_SERVER_SECRET: vaultServerSecret,
-        DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
+        DATABASE_URL: databaseUrl || "postgresql://localhost/radas",
+        JWT_SECRET_KEY: jwtSecret,
+        INTERNAL_CALL_SECRET,
+        GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
         WORKER_MAX_CONCURRENCY: "3",
         VAULT_SERVER_HOST: "127.0.0.1",
         VAULT_SERVER_PORT: "9998",
-        VAULT_SERVER_SECRET: vaultServerSecret,
       },
     },
   ],

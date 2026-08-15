@@ -43,6 +43,12 @@ jobs:
                 exit 1
               fi
             }
+            # Normalize and force the canonical production indicator before
+            # any validation or process startup.
+            if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
+            if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
+            if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
+
             required_env DATABASE_URL
             required_env JWT_SECRET_KEY
             required_env INTERNAL_CALL_SECRET
@@ -90,15 +96,25 @@ jobs:
               test -n "${DATABASE_URL:-}" || { echo 'DATABASE_URL is required for admin reset'; exit 1; }
               .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
             fi
-            if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
-            if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
-            if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
+            # Revalidate the rewritten file; the runtime must observe the same
+            # canonical production indicator and complete secret set.
+            grep -q '^FLASK_ENV=production$' /opt/radas/.env || { echo 'FLASK_ENV=production is required'; exit 1; }
+            required_env DATABASE_URL
+            required_env JWT_SECRET_KEY
+            required_env INTERNAL_CALL_SECRET
+            required_env GLOBAL_SECRETS_ENCRYPTION_KEY
+            required_env WORKER_REGISTRATION_SECRET
+            required_env VAULT_SERVER_SECRET
             cd /opt/radas
             pm2 delete radas-server || true
             pm2 start ecosystem.config.cjs --only radas-server --update-env
             cd /opt/radas/apps/opensible-worker
             go mod tidy && go build -o /opt/radas/bin/radas-worker ./cmd/worker
-            pm2 restart radas-worker --update-env || true
+            # Recreate the worker from ecosystem.config.cjs so every secret is
+            # loaded from /opt/radas/.env rather than an inherited PM2 env.
+            cd /opt/radas
+            pm2 delete radas-worker || true
+            pm2 start ecosystem.config.cjs --only radas-worker --update-env
             cd /opt/radas
             grep -q 'PORT=5001' .env || echo 'PORT=5001' >> .env
             health_code=000

@@ -27,13 +27,12 @@ _REPOSITORY_KNOWN_SECRET = "dev-only-change-me-0123456789abcdef"
 
 
 def is_production_environment() -> bool:
-    """Return whether the process is running in a production-like mode."""
-    values = (
-        os.environ.get("FLASK_ENV"),
-        os.environ.get("APP_ENV"),
-        os.environ.get("ENVIRONMENT"),
-    )
-    return any((value or "").strip().lower() in {"production", "prod"} for value in values)
+    """Return whether the canonical FLASK_ENV indicator is production.
+
+    FLASK_ENV is the only supported production switch. APP_ENV and ENVIRONMENT
+    are deliberately ignored so every runtime has identical fail-closed rules.
+    """
+    return (os.environ.get("FLASK_ENV") or "").strip().lower() == "production"
 
 
 def _is_strong_secret(value: str) -> bool:

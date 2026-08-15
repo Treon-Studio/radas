@@ -51,6 +51,16 @@ def _no_manager():
     return jsonify({'success': False, 'error': 'Global secrets manager not available'}), 503
 
 
+def _production_key_configuration_required():
+    """Reject public key-file mutation in production before any disk write."""
+    try:
+        from utils.runtime_secrets import is_production_environment
+        return is_production_environment()
+    except ImportError:  # pragma: no cover - package import fallback
+        from ..utils.runtime_secrets import is_production_environment
+        return is_production_environment()
+
+
 def _safe_log(msg, e, data=None):
     a = _app_module()
     return a.safe_log_error(msg, e, data) if data is not None else a.safe_log_error(msg, e)
@@ -283,10 +293,11 @@ def api_get_encryption_key():
             return _forbid()
 
         from utils.secret_encryption import get_encryption_key_file_path
+        from utils.runtime_secrets import is_production_environment
 
         env_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
         key_file = get_encryption_key_file_path(a.DATA_DIR)
-        file_exists = key_file.exists()
+        file_exists = key_file.exists() and not is_production_environment()
         key_source = 'environment' if env_key else ('file' if file_exists else 'none')
 
         return jsonify({
@@ -326,6 +337,12 @@ def api_update_encryption_key():
         a = _app_module()
         if not a.can_write_global_secrets():
             return _forbid()
+        if _production_key_configuration_required():
+            return jsonify({
+                'success': False,
+                'error': 'Encryption key must be configured through the production environment',
+                'errorCode': 'CONFIGURATION_REQUIRED',
+            }), 409
 
         data = request.get_json()
         new_key = data.get('key', '').strip() if data else ''
@@ -375,6 +392,12 @@ def api_create_encryption_key():
         a = _app_module()
         if not a.can_write_global_secrets():
             return _forbid()
+        if _production_key_configuration_required():
+            return jsonify({
+                'success': False,
+                'error': 'Encryption key must be configured through the production environment',
+                'errorCode': 'CONFIGURATION_REQUIRED',
+            }), 409
 
         from utils.secret_encryption import load_encryption_key, generate_and_save_encryption_key
 

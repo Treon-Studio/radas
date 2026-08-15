@@ -56,11 +56,26 @@ def test_production_encryption_does_not_load_or_generate_data_volume_key(monkeyp
     monkeypatch.setenv("FLASK_ENV", "production")
     monkeypatch.delenv("GLOBAL_SECRETS_ENCRYPTION_KEY", raising=False)
     secret_encryption._encryption_instance = None
-    key_file = secret_encryption.get_encryption_key_file_path(tmp_path)
+    key_file = tmp_path / "global" / "secrets" / ".encryption_key"
+    key_file.parent.mkdir(parents=True)
     key_file.write_text(_secret(), encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="GLOBAL_SECRETS_ENCRYPTION_KEY"):
         secret_encryption.get_encryption(tmp_path)
+    with pytest.raises(RuntimeError, match="environment"):
+        secret_encryption.save_encryption_key(_secret(), tmp_path)
+    with pytest.raises(RuntimeError, match="environment"):
+        secret_encryption.generate_and_save_encryption_key(tmp_path)
 
     assert key_file.read_text(encoding="utf-8")
     secret_encryption._encryption_instance = None
+
+
+def test_production_indicator_is_only_flask_env(monkeypatch):
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    assert runtime_secrets.is_production_environment() is False
+
+    monkeypatch.setenv("FLASK_ENV", " Production ")
+    assert runtime_secrets.is_production_environment() is True

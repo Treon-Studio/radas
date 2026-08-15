@@ -25,8 +25,10 @@ var (
 const repositoryKnownSecret = "dev-only-change-me-0123456789abcdef"
 
 func ValidateProductionSecrets() error {
+	// FLASK_ENV=production is the sole supported production indicator. Keep
+	// normalization identical to ecosystem.config.cjs and runtime_secrets.py.
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("FLASK_ENV")))
-	if mode != "production" && mode != "prod" {
+	if mode != "production" {
 		return nil
 	}
 	for _, name := range []string{

@@ -32,6 +32,7 @@ def test_production_ecosystem_shares_registration_secret_and_requires_vault_secr
         "GLOBAL_SECRETS_ENCRYPTION_KEY": "global-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
         "WORKER_REGISTRATION_SECRET": "worker-registration-0123456789-abcdefghijklmnop",
         "VAULT_SERVER_SECRET": "vault-server-0123456789-abcdefghijklmnop",
+        "DATABASE_URL": "postgresql://db.example.invalid/radas",
     }
     result = _load_config(common)
     assert result.returncode == 0, result.stderr
@@ -50,6 +51,7 @@ def test_production_ecosystem_rejects_repository_known_secret():
         "GLOBAL_SECRETS_ENCRYPTION_KEY": "global-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
         "WORKER_REGISTRATION_SECRET": "dev-only-change-me-0123456789abcdef",
         "VAULT_SERVER_SECRET": "vault-server-0123456789-abcdefghijklmnop",
+        "DATABASE_URL": "postgresql://db.example.invalid/radas",
     }
     result = _load_config(env)
     assert result.returncode != 0
