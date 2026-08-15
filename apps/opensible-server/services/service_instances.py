@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import hmac
+import json
 import os
 import re
 import time
@@ -150,6 +151,18 @@ def _safe_provider(value: Any) -> Any:
     return redact(value) if value is not None else None
 
 
+def _audit_instance(conn: Any, action: str, *, actor_id: str | None, row: Mapping[str, Any], before: Any = None, after: Any = None, metadata: Mapping[str, Any] | None = None) -> None:
+    safe_meta = redact({
+        "actor": actor_id, "org_id": row.get("org_id"), "project_id": row.get("project_id"),
+        "instance_id": row.get("id"), "before": before, "after": after,
+        **dict(metadata or {}),
+    })
+    conn.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, meta_json, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+        (actor_id, action, "service_instance", str(row.get("id")), json.dumps(safe_meta, sort_keys=True), time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())),
+    )
+
+
 def _project_context(conn: Any, project_id: str, requested_org_id: str | None = None) -> str:
     project_id = _text(project_id, "project_id")
     row = conn.execute("SELECT org_id FROM projects WHERE id = %s", (project_id,)).fetchone()
@@ -255,6 +268,7 @@ def create_instance(
         except psycopg_errors.UniqueViolation as exc:
             raise InstanceConflictError("service name already exists in this project and environment") from exc
         row = conn.execute("SELECT * FROM service_instances WHERE id = %s", (instance_id,)).fetchone()
+        _audit_instance(conn, "service.instance.created", actor_id=created_by, row=row, after=row.get("status"), metadata={"definition_slug": definition_slug, "definition_version": definition_version, "runtime_id": runtime_id})
     return _row(row)
 
 
@@ -373,6 +387,7 @@ def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str |
             (revision_id, now, instance_id),
         )
         created = conn.execute("SELECT * FROM service_revisions WHERE id = %s", (revision_id,)).fetchone()
+        _audit_instance(conn, "service.instance.revision_created", actor_id=created_by, row=row, before=row.get("desired_revision_id"), after=revision_id, metadata={"revision_number": number})
     return _revision_row(created)
 
 
@@ -410,6 +425,7 @@ def update_observed_status(
              now, instance_id, current),
         )
         updated = conn.execute("SELECT * FROM service_instances WHERE id = %s", (instance_id,)).fetchone()
+        _audit_instance(conn, "service.instance.transitioned", actor_id=actor_id, row=updated, before=current, after=status, metadata={"provider_ref": _safe_provider(provider_ref) if provider_ref is not None else None})
     return _row(updated)
 
 

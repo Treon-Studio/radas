@@ -95,6 +95,12 @@ class SecretDeclaration(StrictModel):
     required: bool = True
     description: str | None = None
 
+    @model_validator(mode="after")
+    def reference_only(self) -> "SecretDeclaration":
+        # Catalog manifests declare references, never credential material.
+        # Secret values are supplied by the secret manager at execution time.
+        return self
+
     @field_validator("name")
     @classmethod
     def valid_name(cls, value: str) -> str:

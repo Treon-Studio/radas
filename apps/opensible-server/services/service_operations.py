@@ -139,6 +139,45 @@ def _row(row: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _audit_lifecycle(
+    conn: Any,
+    action: str,
+    *,
+    actor_id: str | None,
+    org_id: str | None,
+    project_id: str,
+    instance_id: str | None,
+    operation: Mapping[str, Any],
+    before: str | None,
+    after: str | None,
+    metadata: Mapping[str, Any] | None = None,
+) -> None:
+    """Write a safe lifecycle audit row in the same transaction as the change."""
+    safe_meta = redact({
+        "actor": actor_id,
+        "org_id": org_id,
+        "project_id": project_id,
+        "instance_id": instance_id,
+        "operation_id": operation.get("id"),
+        "operation": operation.get("kind"),
+        "before": before,
+        "after": after,
+        **dict(metadata or {}),
+    })
+    conn.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, meta_json, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s)",
+        (
+            actor_id,
+            action,
+            "service_operation",
+            str(operation.get("id")),
+            json.dumps(safe_meta, ensure_ascii=False, sort_keys=True),
+            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+        ),
+    )
+
+
 def _existing_or_conflict(row: Mapping[str, Any], fingerprint: str, instance_id: str | None) -> dict[str, Any]:
     if row["payload_fingerprint"] != fingerprint or row.get("instance_id") != instance_id:
         raise OperationConflictError("idempotency key was already used with a different operation identity")
@@ -166,8 +205,11 @@ def create_operation(
                 raise InvalidOperationState("caller may only create pending or queued operations")
             derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
             if instance_id:
+                # Serialize all lifecycle requests for one instance. The lock is
+                # held through the active-operation check and insert, so two
+                # different idempotency keys cannot both become active.
                 instance = conn.execute(
-                    "SELECT project_id, org_id FROM service_instances WHERE id = %s FOR SHARE",
+                    "SELECT project_id, org_id FROM service_instances WHERE id = %s FOR UPDATE",
                     (instance_id,),
                 ).fetchone()
                 if not instance or instance["project_id"] != project_id or instance["org_id"] != derived_org:
@@ -179,6 +221,18 @@ def create_operation(
             if existing:
                 _validate_operation_row(conn, existing)
                 return _existing_or_conflict(existing, fingerprint, instance_id)
+            if instance_id:
+                active = conn.execute(
+                    "SELECT id, kind FROM service_operations "
+                    "WHERE project_id = %s AND instance_id = %s "
+                    "AND status IN ('pending','queued','running') "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (project_id, instance_id),
+                ).fetchone()
+                if active:
+                    raise OperationConflictError(
+                        f"another service operation is already active ({active['id']})"
+                    )
             conn.execute(
                 "INSERT INTO service_operations "
                 "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,status,requested_by,"
@@ -188,6 +242,12 @@ def create_operation(
                  fingerprint, initial_status, requested_by, now),
             )
             row = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
+            _audit_lifecycle(
+                conn, "service.operation.created", actor_id=requested_by,
+                org_id=derived_org, project_id=project_id, instance_id=instance_id,
+                operation=row, before=None, after=initial_status,
+                metadata={"idempotency_key": idempotency_key},
+            )
             return _row(row)
     except psycopg_errors.UniqueViolation:
         # A concurrent creator may win the unique key between the SELECT and
@@ -301,6 +361,13 @@ def transition_operation(
             (status, safe_code, safe_error, started_at, finished_at, operation_id, project_id, current),
         )
         updated = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
+        _audit_lifecycle(
+            conn, "service.operation.transitioned", actor_id=actor_id,
+            org_id=updated.get("org_id"), project_id=project_id,
+            instance_id=updated.get("instance_id"), operation=updated,
+            before=current, after=status,
+            metadata={"error_code": safe_code} if safe_code else None,
+        )
     return _row(updated)
 
 

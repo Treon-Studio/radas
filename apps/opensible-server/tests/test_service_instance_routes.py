@@ -110,21 +110,28 @@ def test_auth_membership_and_cross_tenant_isolation(client, data_dir):
         headers=_headers(USER_B, data_dir),
     )
     assert denied.status_code == 403
-    assert "Access denied" in denied.get_json()["error"]
+    assert denied.get_json()["error"]["code"] == "FORBIDDEN"
     assert client.get(
         f"/api/projects/{PROJECT_B}/services",
         headers=_headers(USER_B, data_dir),
     ).get_json()["data"]["services"] == []
 
 
-def test_create_list_detail_envelopes_and_redaction(client, data_dir):
+def test_create_rejects_raw_secret_values_without_persisting(client, data_dir):
     response = _create(client, data_dir, spec={"mode": "safe", "admin_password": "raw-secret"})
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "SERVICE_VALIDATION_FAILED"
+    assert "raw-secret" not in response.get_data(as_text=True)
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
+
+
+def test_create_list_detail_envelopes_and_redaction(client, data_dir):
+    response = _create(client, data_dir)
     assert response.status_code == 201
     body = response.get_json()
     assert set(body) == {"data", "request_id"}
     service = body["data"]["service"]
     assert service["status"] == "draft"
-    assert "raw-secret" not in str(body)
     service_id = service["id"]
 
     listing = client.get(
@@ -139,6 +146,26 @@ def test_create_list_detail_envelopes_and_redaction(client, data_dir):
     )
     assert detail.status_code == 200
     assert detail.get_json()["data"]["service"]["revision"]["revision_number"] == 1
+
+
+def test_provider_validation_rejection_does_not_insert_operation(client, data_dir, monkeypatch):
+    from api import service_instance_routes as routes
+    created = _create(client, data_dir).get_json()["data"]["service"]
+
+    class RejectingRegistry:
+        def capabilities(self, runtime_id):
+            return {"deploy": True, "update": True, "start": True, "stop": True, "restart": True, "destroy": True}
+        def validate(self, runtime_id, spec):
+            return [{"code": "INVALID_SPEC", "message": "provider rejected spec", "details": {"password": "raw"}}]
+
+    monkeypatch.setattr(routes, "_RUNTIME_REGISTRY", RejectingRegistry())
+    response = client.post(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/deploy",
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "provider-reject"},
+    )
+    # Lifecycle deploy validates the current normalized revision before queueing.
+    assert response.status_code == 422
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operations")["count"] == 0
 
 
 def test_catalog_runtime_and_spec_validation(client, data_dir):
@@ -235,7 +262,7 @@ def test_operation_conflict_destroy_confirmation_and_capability_rejection(client
     monkeypatch.setattr(routes, "_RUNTIME_REGISTRY", type("R", (), {"capabilities": lambda self, _: {"deploy": True, "destroy": True}})())
     queued = client.post(
         f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/destroy",
-        json={"confirm": True},
+        json={"confirm": True, "target_id": created["id"], "revision_id": created["desired_revision_id"]},
         headers=base,
     )
     assert queued.status_code == 202

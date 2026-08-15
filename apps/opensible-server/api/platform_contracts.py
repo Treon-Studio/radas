@@ -51,6 +51,7 @@ _ERROR_CODES = {
     500: "INTERNAL_SERVER_ERROR",
 }
 _LEGACY_PLATFORM_PATHS = {"/api/platform/idempotency"}
+_SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
 
 
 def generate_request_id() -> str:
@@ -217,9 +218,9 @@ def is_platform_request() -> bool:
         return False
     # The namespace root is part of the new contract even though it has no
     # view. Exact legacy paths remain outside the contract by design.
-    return (request.path == "/api/platform" or request.path.startswith("/api/platform/")) and (
-        request.path not in _LEGACY_PLATFORM_PATHS
-    )
+    return (
+        (request.path == "/api/platform" or request.path.startswith("/api/platform/")) and request.path not in _LEGACY_PLATFORM_PATHS
+    ) or bool(_SERVICE_ROUTE_RE.fullmatch(request.path) or _SERVICE_ROUTE_RE.match(request.path))
 
 
 def _copy_response_headers(source: Response, target: Response) -> Response:

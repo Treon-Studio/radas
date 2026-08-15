@@ -12,7 +12,25 @@ Security notes
   Authorization headers.
 """
 from functools import wraps
-from flask import request, jsonify
+from flask import current_app, request, jsonify
+
+
+def _service_error(code: str, message: str, status: int):
+    try:
+        from api.platform_contracts import error_envelope, get_request_id
+        response = current_app.response_class(
+            current_app.json.dumps(error_envelope(code, message, request_id_value=get_request_id())),
+            status=status,
+            mimetype="application/json",
+        )
+        response.headers["X-Request-ID"] = get_request_id()
+        return response
+    except Exception:
+        return jsonify({'error': code, 'message': message}), status
+
+
+def _service_route() -> bool:
+    return request.path.startswith('/api/projects/') and '/services' in request.path
 from typing import Any, Optional, Callable
 from pathlib import Path
 import logging
@@ -122,6 +140,8 @@ def require_auth(f: Callable) -> Callable:
         if not token and request.method == 'GET' and _path_allows_query_token(request.path):
             token = request.args.get('access_token') or request.args.get('token')
         if not token:
+            if _service_route():
+                return _service_error('UNAUTHORIZED', 'Access token missing', 401)
             return jsonify({
                 'error': 'Authentication required',
                 'message': 'Access token missing',
@@ -350,6 +370,8 @@ def require_project_access(f: Callable) -> Callable:
         try:
             from services.org_service import is_member
             if not is_member(org_id, uid):
+                if _service_route():
+                    return _service_error('FORBIDDEN', 'Access denied: you are not a member of the organization that owns this project.', 403)
                 return jsonify({
                     'error': 'Access denied',
                     'message': 'You are not a member of the organization that owns this project.',

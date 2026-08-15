@@ -6,6 +6,10 @@ calls a runtime provider.  Provider execution belongs to Task 2.2.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import os
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -31,6 +35,45 @@ _OPERATION_NAMES = {"deploy", "start", "stop", "restart", "destroy"}
 
 # Kept as a module-level seam for route tests and future application wiring.
 _RUNTIME_REGISTRY = None
+
+
+def _provider_validation_errors(runtime_id: str, spec: Mapping[str, Any]) -> list[dict[str, Any]]:
+    try:
+        validator = getattr(_runtime(), "validate", None)
+    except Exception:
+        validator = None
+    if not callable(validator):
+        # Test doubles and legacy adapters may expose only capabilities; the
+        # concrete registry contract always provides validate().
+        return []
+    try:
+        errors = validator(runtime_id, dict(spec))
+    except runtime_registry.ProviderNotFoundError:
+        return [{"code": "RUNTIME_UNSUPPORTED", "message": "Runtime is not registered", "details": {"runtime_id": runtime_id}}]
+    return [dict(item) for item in errors if isinstance(item, Mapping)]
+
+
+def _confirmation_token(instance: Mapping[str, Any]) -> str:
+    revision_id = str(instance.get("desired_revision_id") or "")
+    revision = service_instances.get_revision(
+        str(instance["project_id"]), str(instance["id"]), revision_id=revision_id,
+        **_auth_kwargs(str(instance["project_id"])),
+    ) if revision_id else None
+    revision_number = str((revision or {}).get("revision_number") or "")
+    payload = f"{instance['id']}:{revision_id}:{revision_number}".encode()
+    secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
+    return base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
+
+
+def _destroy_confirmation(instance: Mapping[str, Any], data: Mapping[str, Any]) -> tuple[bool, str]:
+    identity = str(data.get("target_id") or data.get("service_id") or data.get("confirm_target") or "")
+    revision = str(data.get("revision_id") or data.get("revision") or data.get("version") or "")
+    token = str(data.get("impact_token") or data.get("confirmation_token") or "")
+    current_revision = str(instance.get("desired_revision_id") or "")
+    if token:
+        return hmac.compare_digest(token, _confirmation_token(instance)), "token"
+    confirmed = data.get("confirm") is True or data.get("confirmed") is True
+    return bool(confirmed and identity == str(instance["id"]) and revision == current_revision), "snapshot"
 
 
 def _user() -> dict[str, Any]:
@@ -182,6 +225,17 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
         present = name in normalized or (isinstance(secrets, Mapping) and name in secrets)
         if declaration.get("required", True) and not present:
             errors.append(_type_error(name, "secret reference is required"))
+        if name in normalized:
+            value = normalized[name]
+            if not isinstance(value, str) or not re.fullmatch(r"(?:secret://|ref:)[A-Za-z0-9._:/-]+", value):
+                errors.append(_type_error(name, "must be a secret reference (secret://... or ref:...)"))
+        if isinstance(secrets, Mapping) and name in secrets:
+            value = secrets[name]
+            if not isinstance(value, Mapping) or not any(
+                isinstance(value.get(key), str) and re.fullmatch(r"(?:secret://|ref:)[A-Za-z0-9._:/-]+", value[key])
+                for key in ("secret_ref", "ref", "reference", "secret_id", "name")
+            ):
+                errors.append(_type_error(f"secrets.{name}", "must contain a secret reference"))
     storage = normalized.get("storage")
     if storage is not None and not isinstance(storage, (Mapping, list)):
         errors.append(_type_error("storage", "must be an object or list"))
@@ -328,6 +382,9 @@ def create_service(project_id: str):
     if errors:
         return _manifest_error(errors)
     normalized.update({"name": name, "environment": environment, "runtime_id": runtime_id, "catalog_slug": definition["slug"], "catalog_version": definition["version"]})
+    provider_errors = _provider_validation_errors(runtime_id, normalized)
+    if provider_errors:
+        return _manifest_error([{"path": "spec", **item} for item in provider_errors])
     try:
         instance = service_instances.create_instance(
             project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
@@ -376,6 +433,9 @@ def patch_service(project_id: str, service_id: str):
     if errors:
         return _manifest_error(errors)
     normalized.update({"name": instance["name"], "environment": instance["environment"], "runtime_id": instance["runtime_id"], "catalog_slug": instance["definition_slug"], "catalog_version": instance["definition_version"]})
+    provider_errors = _provider_validation_errors(instance["runtime_id"], normalized)
+    if provider_errors:
+        return _manifest_error([{"path": "spec", **item} for item in provider_errors])
     try:
         revision = service_instances.create_revision(instance["id"], normalized, _actor_id(), project_id=project_id, org_id=instance["org_id"], **_auth_kwargs(project_id))
     except service_instances.ServiceInstanceError as exc:
@@ -385,17 +445,26 @@ def patch_service(project_id: str, service_id: str):
 
 
 def _lifecycle(kind: str, project_id: str, service_id: str):
-    data = request.get_json(silent=True) or {}
-    _, error = _context(project_id, data if isinstance(data, dict) else None)
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return error_response("SERVICE_VALIDATION_FAILED", "JSON object required", 422)
+    _, error = _context(project_id, data)
     if error:
         return error
     instance, error = _load_instance(project_id, service_id)
     if error:
         return error
     if kind == "destroy":
-        confirmed = data.get("confirm") is True or data.get("confirmed") is True or request.headers.get("X-Confirm-Destroy", "").lower() == "true"
+        confirmed, confirmation_mode = _destroy_confirmation(instance, data)
+        if not confirmed and request.headers.get("X-Confirm-Destroy", "").lower() == "true":
+            confirmed = False
         if not confirmed:
-            return error_response("SERVICE_CONFIRMATION_REQUIRED", "Destroy requires explicit confirmation", 400)
+            has_confirmation = data.get("confirm") is True or data.get("confirmed") is True or bool(request.headers.get("X-Confirm-Destroy"))
+            code = "SERVICE_OPERATION_CONFLICT" if has_confirmation else "SERVICE_CONFIRMATION_REQUIRED"
+            message = "Destroy confirmation does not match the current service revision" if has_confirmation else "Destroy requires explicit confirmation with target_id and revision_id"
+            return error_response(code, message, 409 if has_confirmation else 400, details={"service_id": service_id, "revision_id": instance.get("desired_revision_id")})
     idem_key = request.headers.get("Idempotency-Key", "").strip()
     existing = _find_existing_operation(project_id, service_id, idem_key) if idem_key else None
     active = None if existing else _active_conflict(project_id, service_id)
@@ -407,8 +476,15 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
     if definition is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
+    revision = service_instances.get_revision(project_id, service_id, revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id))
+    if revision is None:
+        return error_response("SERVICE_VALIDATION_FAILED", "Service desired revision is unavailable", 422)
+    if kind in {"deploy", "update"}:
+        provider_errors = _provider_validation_errors(instance["runtime_id"], revision.get("spec") or {})
+        if provider_errors:
+            return _manifest_error([{"path": "spec", **item} for item in provider_errors])
     lifecycle = definition["manifest"].get("lifecycle", {})
-    if kind != "deploy" and lifecycle.get(kind) is False:
+    if kind != "deploy" and not bool(lifecycle.get(kind, False)):
         return error_response("RUNTIME_UNSUPPORTED", f"Service does not support {kind}", 422, details={"capability": kind})
     try:
         if not _runtime().capabilities(instance["runtime_id"]).get(kind, False):
@@ -475,10 +551,14 @@ def service_impact(project_id: str, service_id: str):
     definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
     operations = service_operations.list_operations(project_id, instance_id=service_id, **_auth_kwargs(project_id))
     manifest = (definition or {}).get("manifest", {})
+    revision = service_instances.get_revision(project_id, service_id, revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id))
     return success_response({
         "impact": {
             "service_id": service_id,
             "project_id": project_id,
+            "revision_id": instance.get("desired_revision_id"),
+            "revision_number": (revision or {}).get("revision_number"),
+            "confirmation_token": _confirmation_token(instance),
             "environment": instance.get("environment"),
             "status": instance.get("status"),
             "relationships": {"dependencies": manifest.get("dependencies", []), "outputs": manifest.get("outputs", [])},
