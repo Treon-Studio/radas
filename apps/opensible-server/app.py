@@ -2885,7 +2885,7 @@ def start_recovery_task():
     except Exception:
         pass
     try:
-        from services.feature_flags import expire_due_flags
+        from services.feature_flag_registry import expire_due_flags
         def _flag_expiry_worker():
             while True:
                 time.sleep(max(30, int(os.environ.get("FEATURE_FLAG_EXPIRY_INTERVAL", "60"))))

@@ -32,6 +32,21 @@ def test_ttl_expiry_disables_flag(data_dir):
     assert evaluate("short", env="prod")["enabled"] is False
 
 
+def test_registry_scheduler_expires_visible_legacy_flags_once_and_audits(data_dir):
+    from services.feature_flags import create_flag as create_legacy_flag, get_flag as get_legacy_flag
+    from services.feature_flag_registry import audit, create_flag, expire_due_flags
+
+    create_legacy_flag({"key": "legacy.ttl", "enabled": True, "ttl_seconds": 1})
+    assert expire_due_flags(now=int(time.time()) + 10) == 1
+    assert get_legacy_flag("legacy.ttl")["enabled"] is False
+    assert audit("global", None, "legacy.ttl", 1)[0]["operation"] == "expire"
+
+    create_legacy_flag({"key": "shadowed.ttl", "enabled": True, "ttl_seconds": 1})
+    create_flag({"key": "shadowed.ttl", "enabled": True, "ttl_seconds": 100})
+    assert expire_due_flags(now=int(time.time()) + 10) == 0
+    assert get_legacy_flag("shadowed.ttl")["enabled"] is True
+
+
 def test_registry_audit_diff_and_pagination(data_dir):
     from services.feature_flag_registry import audit, create_flag, update_flag
     create_flag({"key": "d.flag", "rollout_percent": 100}, "global", None, actor="u1", actor_name="admin")

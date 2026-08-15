@@ -92,3 +92,24 @@ def kv_save(scope: str, value: Any) -> None:
     else:
         kv_delete(scope, "default")
         kv_set(scope, "default", value)
+
+
+def kv_save_tx(conn: Any, scope: str, value: Any) -> None:
+    """Save a whole scope using an already-open transaction connection."""
+    rows = conn.execute("SELECT key FROM kv_store WHERE scope = %s", (scope,)).fetchall()
+    existing = {row["key"] if isinstance(row, dict) else row[0] for row in rows}
+    if isinstance(value, dict):
+        for key in existing - {str(k) for k in value}:
+            conn.execute("DELETE FROM kv_store WHERE scope = %s AND key = %s", (scope, key))
+        for key, item in value.items():
+            conn.execute(
+                "INSERT INTO kv_store (scope, key, value, updated_at) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (scope, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at",
+                (scope, str(key), json.dumps(item), time.time()),
+            )
+    else:
+        conn.execute("DELETE FROM kv_store WHERE scope = %s", (scope,))
+        conn.execute(
+            "INSERT INTO kv_store (scope, key, value, updated_at) VALUES (%s,%s,%s,%s)",
+            (scope, "default", json.dumps(value), time.time()),
+        )
