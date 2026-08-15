@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
+import secrets
 import time
 import uuid
 from typing import Any, Mapping
@@ -15,6 +18,9 @@ from services.runtime_provider import redact
 from services.service_instances import (
     ProjectAuthorizationError,
     ProjectNotFoundError,
+    TrustedInternalExecution,
+    _authorize_project_access,
+    _is_trusted_internal,
     _project_context,
     redact_spec,
 )
@@ -25,7 +31,7 @@ OPERATION_TRANSITIONS: dict[str, frozenset[str]] = {
     "queued": frozenset({"queued", "running", "failed", "canceled"}),
     "running": frozenset({"running", "succeeded", "failed", "canceled"}),
     "succeeded": frozenset({"succeeded"}),
-    "failed": frozenset({"failed", "queued", "canceled"}),
+    "failed": frozenset({"failed"}),
     "canceled": frozenset({"canceled"}),
 }
 
@@ -53,35 +59,41 @@ def _text(value: Any, field: str) -> str:
     return value
 
 
-def _safe_payload(payload: Any) -> Any:
-    """Return a canonical, secret-free request payload for hashing/storage."""
+def _canonical_payload(payload: Any) -> Any:
     if payload is None:
         return {}
     if isinstance(payload, Mapping):
-        # Specs use the stricter service-instance sanitizer.  Provider/request
-        # metadata is passed through the provider redactor for known patterns.
-        return redact_spec(payload)
+        return {str(key): _canonical_payload(value) for key, value in payload.items()}
     if isinstance(payload, (list, tuple)):
-        return [redact(item) for item in payload]
-    return redact(payload)
+        return [_canonical_payload(item) for item in payload]
+    if isinstance(payload, (str, int, float, bool)) or payload is None:
+        return payload
+    raise ServiceOperationError("payload must contain only JSON-compatible values")
+
+
+def _fingerprint_key() -> bytes:
+    configured = os.environ.get("IDEMPOTENCY_FINGERPRINT_SECRET") or os.environ.get("INTERNAL_CALL_SECRET")
+    if configured:
+        return configured.encode("utf-8")
+    # Process-local fallback keeps tests/dev usable without exposing values in DB.
+    return _EPHEMERAL_FINGERPRINT_KEY
+
+
+_EPHEMERAL_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 
 def payload_fingerprint(kind: str, payload: Any) -> str:
-    normalized = {"kind": _text(kind, "kind"), "payload": _safe_payload(payload)}
-    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    normalized = {"kind": _text(kind, "kind"), "payload": _canonical_payload(payload)}
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hmac.new(_fingerprint_key(), encoded, hashlib.sha256).hexdigest()
 
 
-def _project_access(conn: Any, project_id: str, org_id: str | None, actor_id: str | None) -> str:
-    derived = _project_context(conn, project_id, org_id)
-    if actor_id and actor_id != "__internal__":
-        member = conn.execute(
-            "SELECT 1 FROM org_members WHERE org_id = %s AND user_id = %s",
-            (derived, actor_id),
-        ).fetchone()
-        if not member:
-            raise ProjectAuthorizationError("project access denied")
-    return derived
+def _project_access(conn: Any, project_id: str, org_id: str | None, actor_id: str | None,
+                    internal_context: TrustedInternalExecution | None = None) -> str:
+    return _authorize_project_access(
+        conn, project_id, actor_id=actor_id, org_id=org_id,
+        internal_context=internal_context,
+    )
 
 
 def _row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -100,6 +112,7 @@ def create_operation(
     project_id: str, kind: str, idempotency_key: str, payload: Any = None,
     *, instance_id: str | None = None, requested_by: str | None = None,
     org_id: str | None = None, actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
     initial_status: str = "pending",
 ) -> dict[str, Any]:
     """Create or retrieve an operation atomically by project/idempotency key."""
@@ -112,7 +125,9 @@ def create_operation(
     operation_id, now = str(uuid.uuid4()), time.time()
     try:
         with pg.transaction() as conn:
-            derived_org = _project_access(conn, project_id, org_id, actor_id)
+            if initial_status not in {"pending", "queued"}:
+                raise InvalidOperationState("caller may only create pending or queued operations")
+            derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
             if instance_id:
                 instance = conn.execute(
                     "SELECT project_id, org_id FROM service_instances WHERE id = %s FOR SHARE",
@@ -149,9 +164,10 @@ def create_operation(
 
 
 def get_operation(project_id: str, operation_id: str, *, org_id: str | None = None,
-                  actor_id: str | None = None) -> dict[str, Any] | None:
+                  actor_id: str | None = None,
+                  internal_context: TrustedInternalExecution | None = None) -> dict[str, Any] | None:
     with pg.transaction() as conn:
-        _project_access(conn, project_id, org_id, actor_id)
+        _project_access(conn, project_id, org_id, actor_id, internal_context)
     row = pg.query_one(
         "SELECT * FROM service_operations WHERE id = %s AND project_id = %s",
         (operation_id, project_id),
@@ -168,9 +184,10 @@ def require_operation(project_id: str, operation_id: str, **kwargs: Any) -> dict
 
 def list_operations(project_id: str, *, instance_id: str | None = None,
                     status: str | None = None, limit: int = 100,
-                    org_id: str | None = None, actor_id: str | None = None) -> list[dict[str, Any]]:
+                    org_id: str | None = None, actor_id: str | None = None,
+                    internal_context: TrustedInternalExecution | None = None) -> list[dict[str, Any]]:
     with pg.transaction() as conn:
-        _project_access(conn, project_id, org_id, actor_id)
+        _project_access(conn, project_id, org_id, actor_id, internal_context)
     if status is not None and status not in OPERATION_STATES:
         raise InvalidOperationState(f"unknown operation state: {status}")
     try:
@@ -197,12 +214,13 @@ def transition_operation(
     project_id: str, operation_id: str, status: str, *, expected_status: str | None = None,
     error_code: str | None = None, error_message: str | None = None,
     org_id: str | None = None, actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
 ) -> dict[str, Any]:
     """CAS transition an operation, with terminal timestamps and safe errors."""
     if status not in OPERATION_STATES:
         raise InvalidOperationState(f"unknown operation state: {status}")
     with pg.transaction() as conn:
-        _project_access(conn, project_id, org_id, actor_id)
+        _project_access(conn, project_id, org_id, actor_id, internal_context)
         row = conn.execute(
             "SELECT * FROM service_operations WHERE id = %s AND project_id = %s FOR UPDATE",
             (operation_id, project_id),
@@ -212,6 +230,13 @@ def transition_operation(
         current = str(row["status"])
         if expected_status is not None and current != expected_status:
             raise OperationConflictError(f"operation status changed from {expected_status}")
+        if current in {"succeeded", "failed", "canceled"}:
+            same_error = (error_code is None or error_code == row["error_code"]) and (
+                error_message is None or redact(error_message) == row["error_message"]
+            )
+            if status == current and same_error:
+                return _row(row)
+            raise OperationConflictError("terminal operation result is immutable")
         if status not in OPERATION_TRANSITIONS[current]:
             raise InvalidOperationState(f"invalid operation transition: {current} -> {status}")
         now = time.time()

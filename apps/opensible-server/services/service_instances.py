@@ -7,9 +7,12 @@ functions without gaining a way to bypass project tenancy.
 from __future__ import annotations
 
 import copy
+import hmac
+import os
 import re
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from psycopg import errors as psycopg_errors
@@ -71,6 +74,27 @@ class InvalidInstanceState(ServiceInstanceError):
 
 class RevisionConflictError(ServiceInstanceError):
     pass
+
+
+@dataclass(frozen=True)
+class TrustedInternalExecution:
+    """Explicit credential for worker/internal service execution paths."""
+
+    token: str
+
+
+def internal_execution_context(token: str | None = None) -> TrustedInternalExecution:
+    """Build a trusted internal context from the configured server secret."""
+    configured = os.environ.get("INTERNAL_CALL_SECRET", "")
+    supplied = token if token is not None else configured
+    if not configured or not supplied or not hmac.compare_digest(str(supplied), configured):
+        raise ProjectAuthorizationError("trusted internal execution context required")
+    return TrustedInternalExecution(str(supplied))
+
+
+def _is_trusted_internal(context: TrustedInternalExecution | None) -> bool:
+    configured = os.environ.get("INTERNAL_CALL_SECRET", "")
+    return bool(context and configured and hmac.compare_digest(context.token, configured))
 
 
 def _text(value: Any, field: str) -> str:
@@ -137,19 +161,45 @@ def _project_context(conn: Any, project_id: str, requested_org_id: str | None = 
     return org_id
 
 
-def authorize_project_access(project_id: str, *, actor_id: str | None = None,
-                             org_id: str | None = None) -> str:
-    """Derive a project's org and optionally verify an org member."""
-    with pg.transaction() as conn:
-        derived = _project_context(conn, project_id, org_id)
-        if actor_id and actor_id != "__internal__":
-            member = conn.execute(
-                "SELECT 1 FROM org_members WHERE org_id = %s AND user_id = %s",
-                (derived, actor_id),
-            ).fetchone()
-            if not member:
-                raise ProjectAuthorizationError("project access denied")
+def _authorize_project_access(conn: Any, project_id: str, *, actor_id: str | None,
+                              org_id: str | None,
+                              internal_context: TrustedInternalExecution | None = None) -> str:
+    derived = _project_context(conn, project_id, org_id)
+    if _is_trusted_internal(internal_context):
         return derived
+    if not actor_id:
+        raise ProjectAuthorizationError("authenticated actor required")
+    member = conn.execute(
+        "SELECT 1 FROM org_members WHERE org_id = %s AND user_id = %s",
+        (derived, actor_id),
+    ).fetchone()
+    if not member:
+        raise ProjectAuthorizationError("project access denied")
+    return derived
+
+
+def authorize_project_access(project_id: str, *, actor_id: str | None = None,
+                             org_id: str | None = None,
+                             internal_context: TrustedInternalExecution | None = None) -> str:
+    """Derive a project's org and require a member or explicit worker context."""
+    with pg.transaction() as conn:
+        return _authorize_project_access(
+            conn, project_id, actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
+
+
+def _validate_instance_row(conn: Any, row: Mapping[str, Any]) -> None:
+    project = conn.execute("SELECT org_id FROM projects WHERE id = %s", (row["project_id"],)).fetchone()
+    if not project or str(row.get("org_id")) != str(project["org_id"]):
+        raise ProjectAuthorizationError("instance tenant does not match project tenant")
+    desired = row.get("desired_revision_id")
+    if desired is not None:
+        revision = conn.execute(
+            "SELECT instance_id FROM service_revisions WHERE id = %s", (desired,)
+        ).fetchone()
+        if not revision or revision["instance_id"] != row["id"]:
+            raise RevisionConflictError("instance desired revision is invalid")
 
 
 def _row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -172,6 +222,7 @@ def create_instance(
     environment: str, runtime_id: str, spec: Mapping[str, Any],
     created_by: str | None = None, *, org_id: str | None = None,
     actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
 ) -> dict[str, Any]:
     """Create a draft instance and its first immutable desired revision."""
     name = _text(name, "name")
@@ -182,13 +233,10 @@ def create_instance(
     safe_spec = redact_spec(spec)
     instance_id, revision_id, now = str(uuid.uuid4()), str(uuid.uuid4()), time.time()
     with pg.transaction() as conn:
-        derived_org = _project_context(conn, project_id, org_id)
-        if actor_id and actor_id != "__internal__":
-            if not conn.execute(
-                "SELECT 1 FROM org_members WHERE org_id = %s AND user_id = %s",
-                (derived_org, actor_id),
-            ).fetchone():
-                raise ProjectAuthorizationError("project access denied")
+        derived_org = _authorize_project_access(
+            conn, project_id, actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
         try:
             conn.execute(
                 "INSERT INTO service_instances "
@@ -211,12 +259,16 @@ def create_instance(
 
 
 def get_instance(project_id: str, instance_id: str, *, org_id: str | None = None,
-                 actor_id: str | None = None) -> dict[str, Any] | None:
-    authorize_project_access(project_id, org_id=org_id, actor_id=actor_id)
-    row = pg.query_one(
-        "SELECT * FROM service_instances WHERE id = %s AND project_id = %s",
-        (instance_id, project_id),
-    )
+                 actor_id: str | None = None,
+                 internal_context: TrustedInternalExecution | None = None) -> dict[str, Any] | None:
+    with pg.transaction() as conn:
+        _authorize_project_access(conn, project_id, actor_id=actor_id, org_id=org_id, internal_context=internal_context)
+        row = conn.execute(
+            "SELECT * FROM service_instances WHERE id = %s AND project_id = %s",
+            (instance_id, project_id),
+        ).fetchone()
+        if row:
+            _validate_instance_row(conn, row)
     return _row(row) if row else None
 
 
@@ -243,17 +295,21 @@ def list_instances(project_id: str, *, environment: str | None = None,
         params.append(status)
     if not include_archived:
         clauses.append("archived = FALSE")
-    rows = pg.query_all(
-        f"SELECT * FROM service_instances WHERE {' AND '.join(clauses)} "
-        "ORDER BY environment, name, created_at", tuple(params),
-    )
+    with pg.transaction() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM service_instances WHERE {' AND '.join(clauses)} "
+            "ORDER BY environment, name, created_at", tuple(params),
+        ).fetchall()
+        for row in rows:
+            _validate_instance_row(conn, row)
     return [_row(row) for row in rows]
 
 
 def get_revision(project_id: str, instance_id: str, revision_id: str | None = None,
                  revision_number: int | None = None, *, org_id: str | None = None,
-                 actor_id: str | None = None) -> dict[str, Any] | None:
-    authorize_project_access(project_id, org_id=org_id, actor_id=actor_id)
+                 actor_id: str | None = None,
+                 internal_context: TrustedInternalExecution | None = None) -> dict[str, Any] | None:
+    authorize_project_access(project_id, org_id=org_id, actor_id=actor_id, internal_context=internal_context)
     clauses = ["r.instance_id = %s", "i.project_id = %s"]
     params: list[Any] = [instance_id, project_id]
     if revision_id is not None:
@@ -262,16 +318,21 @@ def get_revision(project_id: str, instance_id: str, revision_id: str | None = No
     if revision_number is not None:
         clauses.append("r.revision_number = %s")
         params.append(revision_number)
-    row = pg.query_one(
-        "SELECT r.* FROM service_revisions r JOIN service_instances i ON i.id = r.instance_id "
-        f"WHERE {' AND '.join(clauses)}", tuple(params),
-    )
+    with pg.transaction() as conn:
+        row = conn.execute(
+            "SELECT r.*, i.org_id, i.id AS owning_instance_id FROM service_revisions r "
+            "JOIN service_instances i ON i.id = r.instance_id "
+            f"WHERE {' AND '.join(clauses)}", tuple(params),
+        ).fetchone()
+        if row:
+            _validate_instance_row(conn, {"id": row["owning_instance_id"], "project_id": project_id, "org_id": row["org_id"], "desired_revision_id": None})
     return _revision_row(row) if row else None
 
 
 def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str | None = None,
                     *, project_id: str | None = None, org_id: str | None = None,
-                    actor_id: str | None = None) -> dict[str, Any]:
+                    actor_id: str | None = None,
+                    internal_context: TrustedInternalExecution | None = None) -> dict[str, Any]:
     """Append a new immutable desired revision and point the instance at it."""
     safe_spec = redact_spec(spec)
     with pg.transaction() as conn:
@@ -282,10 +343,10 @@ def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str |
         derived_org = _project_context(conn, row["project_id"], org_id)
         if str(row["org_id"]) != derived_org:
             raise ProjectAuthorizationError("instance tenant does not match project tenant")
-        if actor_id and actor_id != "__internal__" and not conn.execute(
-            "SELECT 1 FROM org_members WHERE org_id = %s AND user_id = %s", (derived_org, actor_id)
-        ).fetchone():
-            raise ProjectAuthorizationError("project access denied")
+        _authorize_project_access(
+            conn, row["project_id"], actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
         # Lock the owning instance before allocating the next revision number;
         # PostgreSQL does not permit FOR UPDATE on an aggregate query.
         conn.execute("SELECT id FROM service_instances WHERE id = %s FOR UPDATE", (instance_id,))
@@ -312,6 +373,8 @@ def update_observed_status(
     instance_id: str, status: str, *, project_id: str | None = None,
     org_id: str | None = None, expected_status: str | None = None,
     provider_ref: Any = None, endpoint_summary: Any = None,
+    actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
 ) -> dict[str, Any]:
     """CAS-update observed provider state without changing desired revision."""
     if status not in INSTANCE_STATES:
@@ -320,7 +383,10 @@ def update_observed_status(
         row = conn.execute("SELECT * FROM service_instances WHERE id = %s FOR UPDATE", (instance_id,)).fetchone()
         if not row or (project_id is not None and row["project_id"] != project_id):
             raise InstanceNotFoundError("service instance not found")
-        derived = _project_context(conn, row["project_id"], org_id)
+        derived = _authorize_project_access(
+            conn, row["project_id"], actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
         if row["org_id"] != derived:
             raise ProjectAuthorizationError("instance tenant does not match project tenant")
         current = str(row["status"])

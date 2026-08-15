@@ -312,6 +312,42 @@ _V5_DDL: List[str] = [
        ON service_operations(instance_id, created_at)""",
 ]
 
+# Version 6 — tenant integrity and immutable service revision history.
+_V6_DDL: List[str] = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_projects_org_id ON projects(org_id, id)",
+    "ALTER TABLE projects DROP CONSTRAINT IF EXISTS fk_projects_org",
+    "ALTER TABLE projects ADD CONSTRAINT fk_projects_org FOREIGN KEY (org_id) REFERENCES orgs(id)",
+    "ALTER TABLE service_instances DROP CONSTRAINT IF EXISTS fk_service_instances_project",
+    "ALTER TABLE service_instances ADD CONSTRAINT fk_service_instances_project FOREIGN KEY (project_id) REFERENCES projects(id)",
+    "ALTER TABLE service_instances DROP CONSTRAINT IF EXISTS fk_service_instances_org_project",
+    "ALTER TABLE service_instances ADD CONSTRAINT fk_service_instances_org_project FOREIGN KEY (org_id, project_id) REFERENCES projects(org_id, id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_revisions_instance_id ON service_revisions(instance_id, id)",
+    "ALTER TABLE service_instances DROP CONSTRAINT IF EXISTS fk_service_instances_desired_revision",
+    "ALTER TABLE service_instances ADD CONSTRAINT fk_service_instances_desired_revision FOREIGN KEY (id, desired_revision_id) REFERENCES service_revisions(instance_id, id) DEFERRABLE INITIALLY DEFERRED",
+    "ALTER TABLE service_operations DROP CONSTRAINT IF EXISTS fk_service_operations_project",
+    "ALTER TABLE service_operations ADD CONSTRAINT fk_service_operations_project FOREIGN KEY (project_id) REFERENCES projects(id)",
+    "ALTER TABLE service_operations DROP CONSTRAINT IF EXISTS fk_service_operations_org_project",
+    "ALTER TABLE service_operations ADD CONSTRAINT fk_service_operations_org_project FOREIGN KEY (org_id, project_id) REFERENCES projects(org_id, id)",
+    "ALTER TABLE service_operations DROP CONSTRAINT IF EXISTS service_operations_instance_id_fkey",
+    "ALTER TABLE service_operations DROP CONSTRAINT IF EXISTS fk_service_operations_instance",
+    "ALTER TABLE service_operations ADD CONSTRAINT fk_service_operations_instance FOREIGN KEY (instance_id) REFERENCES service_instances(id)",
+    "ALTER TABLE service_revisions DROP CONSTRAINT IF EXISTS service_revisions_instance_id_fkey",
+    "ALTER TABLE service_revisions DROP CONSTRAINT IF EXISTS fk_service_revisions_instance",
+    "ALTER TABLE service_revisions ADD CONSTRAINT fk_service_revisions_instance FOREIGN KEY (instance_id) REFERENCES service_instances(id)",
+    """CREATE OR REPLACE FUNCTION reject_service_revision_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'service revision history is immutable'; END; $$""",
+    """DROP TRIGGER IF EXISTS service_revisions_immutable ON service_revisions""",
+    """CREATE TRIGGER service_revisions_immutable BEFORE UPDATE OR DELETE ON service_revisions
+       FOR EACH ROW EXECUTE FUNCTION reject_service_revision_mutation()""",
+    """CREATE OR REPLACE FUNCTION check_service_revision_tenant() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM service_instances i WHERE i.id = NEW.instance_id) THEN
+        RAISE EXCEPTION 'service revision instance is invalid';
+      END IF;
+      RETURN NEW;
+    END; $$""",
+]
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
@@ -473,7 +509,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue
