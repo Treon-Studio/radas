@@ -127,8 +127,7 @@ export function Select({
       case "ArrowDown":
         event.preventDefault();
         if (!open) {
-          const initialIndex = initialActiveIndex();
-          setActiveIndex(nextEnabledIndex(initialIndex, 1));
+          setActiveIndex(selectedIndex >= 0 ? selectedIndex : (enabledIndexes[0] ?? -1));
           setOpen(true);
         } else {
           moveActive(1);
@@ -137,8 +136,7 @@ export function Select({
       case "ArrowUp":
         event.preventDefault();
         if (!open) {
-          const initialIndex = initialActiveIndex();
-          setActiveIndex(nextEnabledIndex(initialIndex, -1));
+          setActiveIndex(selectedIndex >= 0 ? selectedIndex : (enabledIndexes[enabledIndexes.length - 1] ?? -1));
           setOpen(true);
         } else {
           moveActive(-1);
