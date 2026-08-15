@@ -1,0 +1,487 @@
+"""Project-scoped service instance API (Phase 2, Task 2.1).
+
+This module is deliberately a control-plane boundary.  It validates catalog
+and runtime contracts and records desired state/queued operations, but never
+calls a runtime provider.  Provider execution belongs to Task 2.2.
+"""
+from __future__ import annotations
+
+import re
+from collections.abc import Mapping
+from typing import Any
+
+from flask import Blueprint, request
+
+from api.platform_contracts import (
+    error_response,
+    operation_response,
+    redact_sensitive,
+    register_platform_blueprint_contracts,
+    success_response,
+)
+from auth.middleware import require_project_access
+from services import runtime_registry, service_catalog, service_instances, service_operations
+
+bp = Blueprint("service_instance_api", __name__)
+register_platform_blueprint_contracts(bp)
+
+_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,62}$")
+_ACTIVE_OPERATION_STATES = {"pending", "queued", "running"}
+_OPERATION_NAMES = {"deploy", "start", "stop", "restart", "destroy"}
+
+# Kept as a module-level seam for route tests and future application wiring.
+_RUNTIME_REGISTRY = None
+
+
+def _user() -> dict[str, Any]:
+    return getattr(request, "current_user", {}) or {}
+
+
+def _actor_id() -> str | None:
+    value = _user().get("user_id")
+    return str(value) if value else None
+
+
+def _auth_kwargs(project_id: str) -> dict[str, Any]:
+    actor = _actor_id()
+    if actor == "__internal__":
+        return {"internal_context": service_instances.internal_execution_context()}
+    return {"actor_id": actor}
+
+
+def _json_body() -> tuple[dict[str, Any] | None, tuple[Any, int] | None]:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, error_response("SERVICE_VALIDATION_FAILED", "JSON object required", 422)
+    return data, None
+
+
+def _context(project_id: str, data: Mapping[str, Any] | None = None) -> tuple[str | None, tuple[Any, int] | None]:
+    """Derive org from the project and reject client-selected tenant context."""
+    data = data or {}
+    requested_orgs: set[str] = set()
+    for key in ("org_id", "orgId", "tenant_id", "tenantId"):
+        value = data.get(key)
+        if value is not None and str(value).strip():
+            requested_orgs.add(str(value).strip())
+    for header in ("X-Org-Id", "X-Tenant-Id"):
+        value = request.headers.get(header)
+        if value and value.strip():
+            requested_orgs.add(value.strip())
+    for key in ("org_id", "tenant_id"):
+        value = request.args.get(key)
+        if value and value.strip():
+            requested_orgs.add(value.strip())
+    requested_projects: set[str] = set()
+    for key in ("project_id", "projectId"):
+        value = data.get(key)
+        if value is not None and str(value).strip():
+            requested_projects.add(str(value).strip())
+    for value in (request.headers.get("X-Project-Id"), request.args.get("project_id")):
+        if value and value.strip():
+            requested_projects.add(value.strip())
+    if requested_projects != set() and requested_projects != {project_id}:
+        return None, error_response("FORBIDDEN", "Project context does not match the route", 403)
+    if requested_orgs:
+        try:
+            project_org = service_catalog.project_org_id(project_id)
+        except Exception:
+            project_org = None
+        if not project_org:
+            return None, error_response("PROJECT_NOT_FOUND", "Project not found", 404)
+        if requested_orgs != {str(project_org)}:
+            return None, error_response("FORBIDDEN", "Organization does not own this project", 403)
+    try:
+        org_id = service_instances.authorize_project_access(project_id, **_auth_kwargs(project_id))
+    except service_instances.ProjectNotFoundError:
+        return None, error_response("PROJECT_NOT_FOUND", "Project not found", 404)
+    except service_instances.ProjectAuthorizationError:
+        return None, error_response("FORBIDDEN", "Project access denied", 403)
+    return org_id, None
+
+
+def _runtime() -> runtime_registry.RuntimeProviderRegistry:
+    global _RUNTIME_REGISTRY
+    if _RUNTIME_REGISTRY is None:
+        _RUNTIME_REGISTRY = runtime_registry.build_default_registry()
+    return _RUNTIME_REGISTRY
+
+
+def _catalog_values(data: Mapping[str, Any]) -> tuple[str, str]:
+    slug = data.get("catalog_slug", data.get("definition_slug", data.get("slug")))
+    version = data.get("catalog_version", data.get("definition_version", data.get("version")))
+    return str(slug or "").strip(), str(version or "").strip()
+
+
+def _manifest_error(errors: list[dict[str, Any]]) -> tuple[Any, int]:
+    return error_response(
+        "SERVICE_VALIDATION_FAILED",
+        "Service specification is invalid",
+        422,
+        details={"errors": errors},
+    )
+
+
+def _runtime_for_manifest(runtime_id: str, manifest: Mapping[str, Any]) -> bool:
+    supported = {str(value) for value in manifest.get("supported_runtimes", [])}
+    if runtime_id in supported:
+        return True
+    # The deterministic mock and local adapter represent container runtimes;
+    # they are intentionally usable with the catalog's "docker" contract.
+    return runtime_id in {"mock", "local-container"} and "docker" in supported
+
+
+def _type_error(name: str, message: str) -> dict[str, Any]:
+    return {"path": f"spec.{name}", "code": "invalid", "message": message}
+
+
+def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    if not isinstance(spec, dict):
+        return None, [{"path": "spec", "code": "object_required", "message": "spec must be an object"}]
+    normalized = dict(spec)
+    errors: list[dict[str, Any]] = []
+    declarations = {str(item.get("name")): item for item in manifest.get("inputs", []) if isinstance(item, Mapping)}
+    secret_declarations = {
+        str(item.get("name")): item for item in manifest.get("secrets", []) if isinstance(item, Mapping)
+    }
+    for key in normalized:
+        if key in {"name", "environment", "runtime_id", "catalog_slug", "catalog_version", "secrets", "storage", "image"}:
+            continue
+        if key not in declarations and key not in secret_declarations:
+            errors.append(_type_error(key, "is not declared by the service catalog"))
+    for name, declaration in declarations.items():
+        if name not in normalized:
+            if declaration.get("required") and declaration.get("default") is None:
+                errors.append(_type_error(name, "is required"))
+            elif declaration.get("default") is not None:
+                normalized[name] = declaration["default"]
+            continue
+        value = normalized[name]
+        kind = declaration.get("type")
+        valid = (
+            kind in {"string", "domain", "url", "secret"} and isinstance(value, str)
+        ) or (
+            kind in {"integer", "port"} and isinstance(value, int) and not isinstance(value, bool)
+        ) or (
+            kind == "number" and isinstance(value, (int, float)) and not isinstance(value, bool)
+        ) or (kind == "boolean" and isinstance(value, bool)) or (
+            kind == "enum" and isinstance(value, str) and value in (declaration.get("choices") or [])
+        )
+        if not valid:
+            errors.append(_type_error(name, f"must be a valid {kind or 'input'} value"))
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if declaration.get("min") is not None and value < declaration["min"]:
+                errors.append(_type_error(name, "is below the minimum"))
+            if declaration.get("max") is not None and value > declaration["max"]:
+                errors.append(_type_error(name, "is above the maximum"))
+    secrets = normalized.get("secrets", {})
+    if secrets is not None and not isinstance(secrets, Mapping):
+        errors.append(_type_error("secrets", "must be an object"))
+    for name, declaration in secret_declarations.items():
+        present = name in normalized or (isinstance(secrets, Mapping) and name in secrets)
+        if declaration.get("required", True) and not present:
+            errors.append(_type_error(name, "secret reference is required"))
+    storage = normalized.get("storage")
+    if storage is not None and not isinstance(storage, (Mapping, list)):
+        errors.append(_type_error("storage", "must be an object or list"))
+    return normalized, errors
+
+
+def _validated_definition(data: Mapping[str, Any], org_id: str) -> tuple[dict[str, Any] | None, tuple[Any, int] | None]:
+    slug, version = _catalog_values(data)
+    if not slug or not version:
+        return None, error_response(
+            "SERVICE_VALIDATION_FAILED", "catalog slug and version are required", 422
+        )
+    definition = service_catalog.get_definition(slug, version, org_id=org_id)
+    if definition is None:
+        return None, error_response(
+            "SERVICE_VALIDATION_FAILED", "catalog definition not found", 422,
+            details={"slug": slug, "version": version},
+        )
+    return definition, None
+
+
+def _instance_view(project_id: str, instance: dict[str, Any], *, detail: bool = False) -> dict[str, Any]:
+    result = dict(instance)
+    if detail:
+        revision = service_instances.get_revision(
+            project_id, instance["id"], revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id)
+        )
+        if revision:
+            result["revision"] = revision
+    return redact_sensitive(result)
+
+
+def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, Any]:
+    operation_id = str(operation["id"])
+    instance_id = operation.get("instance_id")
+    suffix = f"/services/{instance_id}" if instance_id else ""
+    return redact_sensitive({
+        "id": operation_id,
+        "kind": operation.get("kind"),
+        "status": operation.get("status"),
+        "instance_id": instance_id,
+        "requested_by": operation.get("requested_by"),
+        "error_code": operation.get("error_code"),
+        "error_message": operation.get("error_message"),
+        "created_at": operation.get("created_at"),
+        "started_at": operation.get("started_at"),
+        "finished_at": operation.get("finished_at"),
+        "poll_url": f"/api/projects/{project_id}{suffix}/operations/{operation_id}",
+    })
+
+
+def _find_existing_operation(project_id: str, instance_id: str, key: str) -> dict[str, Any] | None:
+    from storage import pg
+    row = pg.query_one(
+        "SELECT * FROM service_operations WHERE project_id = %s AND instance_id = %s AND idempotency_key = %s",
+        (project_id, instance_id, key),
+    )
+    return dict(row) if row else None
+
+
+def _active_conflict(project_id: str, instance_id: str) -> dict[str, Any] | None:
+    rows = service_operations.list_operations(project_id, instance_id=instance_id, limit=50, **_auth_kwargs(project_id))
+    return next((row for row in rows if row.get("status") in _ACTIVE_OPERATION_STATES), None)
+
+
+def _operation_for(project_id: str, instance: Mapping[str, Any], kind: str):
+    key = request.headers.get("Idempotency-Key", "").strip()
+    if not key or len(key) > 255:
+        return None, error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required", 400)
+    existing = _find_existing_operation(project_id, str(instance["id"]), key)
+    payload: dict[str, Any] = {"operation": kind, "desired_revision_id": instance.get("desired_revision_id")}
+    if kind == "destroy":
+        payload["confirmed"] = True
+    if existing is None:
+        conflict = _active_conflict(project_id, str(instance["id"]))
+        if conflict:
+            return None, error_response(
+                "SERVICE_OPERATION_CONFLICT", "Another service operation is already running", 409,
+                details={"operation_id": conflict.get("id"), "kind": conflict.get("kind")},
+            )
+    try:
+        operation = service_operations.create_operation(
+            project_id, f"service.{kind}", key, payload,
+            instance_id=str(instance["id"]), requested_by=_actor_id(),
+            **_auth_kwargs(project_id), initial_status="queued",
+        )
+    except service_operations.OperationConflictError as exc:
+        return None, error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
+    except service_instances.ProjectAuthorizationError:
+        return None, error_response("FORBIDDEN", "Project access denied", 403)
+    return operation, None
+
+
+def _load_instance(project_id: str, service_id: str):
+    try:
+        instance = service_instances.get_instance(project_id, service_id, **_auth_kwargs(project_id))
+    except service_instances.ProjectAuthorizationError:
+        return None, error_response("FORBIDDEN", "Project access denied", 403)
+    if instance is None:
+        return None, error_response("SERVICE_NOT_FOUND", "Service instance not found", 404)
+    return instance, None
+
+
+@bp.get("/api/projects/<project_id>/services")
+@require_project_access
+def list_services(project_id: str):
+    org_id, error = _context(project_id)
+    if error:
+        return error
+    instances = service_instances.list_instances(project_id, **_auth_kwargs(project_id))
+    return success_response({"services": [_instance_view(project_id, item) for item in instances], "org_id": org_id})
+
+
+@bp.post("/api/projects/<project_id>/services")
+@require_project_access
+def create_service(project_id: str):
+    data, error = _json_body()
+    if error:
+        return error
+    org_id, error = _context(project_id, data)
+    if error:
+        return error
+    name = str(data.get("name") or "").strip()
+    environment = str(data.get("environment") or "").strip()
+    runtime_id = str(data.get("runtime_id", data.get("runtimeId")) or "").strip()
+    if not _NAME_RE.fullmatch(name):
+        return _manifest_error([{"path": "name", "code": "invalid_name", "message": "valid service name is required"}])
+    if not environment or not runtime_id:
+        return _manifest_error([{"path": "environment" if not environment else "runtime_id", "code": "required", "message": "field is required"}])
+    definition, error = _validated_definition(data, org_id)
+    if error:
+        return error
+    manifest = definition["manifest"]
+    if not _runtime_for_manifest(runtime_id, manifest):
+        return error_response("RUNTIME_UNSUPPORTED", "Runtime is not supported by this catalog service", 422, details={"runtime_id": runtime_id})
+    try:
+        capabilities = _runtime().capabilities(runtime_id)
+    except runtime_registry.ProviderNotFoundError:
+        return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422, details={"runtime_id": runtime_id})
+    if not capabilities.get("deploy", False):
+        return error_response("RUNTIME_UNSUPPORTED", "Runtime does not support deploy", 422, details={"capability": "deploy"})
+    spec = data.get("spec", data.get("inputs", {}))
+    normalized, errors = _validate_spec(manifest, spec)
+    if errors:
+        return _manifest_error(errors)
+    normalized.update({"name": name, "environment": environment, "runtime_id": runtime_id, "catalog_slug": definition["slug"], "catalog_version": definition["version"]})
+    try:
+        instance = service_instances.create_instance(
+            project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
+            created_by=_actor_id(), org_id=org_id, **_auth_kwargs(project_id),
+        )
+    except service_instances.InstanceConflictError as exc:
+        return error_response("SERVICE_NAME_CONFLICT", str(exc), 409)
+    except service_instances.ServiceInstanceError as exc:
+        return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
+    return success_response({"service": _instance_view(project_id, instance, detail=True)}, status=201)
+
+
+@bp.get("/api/projects/<project_id>/services/<service_id>")
+@require_project_access
+def get_service(project_id: str, service_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    instance, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    return success_response({"service": _instance_view(project_id, instance, detail=True)})
+
+
+@bp.patch("/api/projects/<project_id>/services/<service_id>")
+@require_project_access
+def patch_service(project_id: str, service_id: str):
+    data, error = _json_body()
+    if error:
+        return error
+    _, error = _context(project_id, data)
+    if error:
+        return error
+    instance, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    if _active_conflict(project_id, service_id):
+        return error_response("SERVICE_OPERATION_CONFLICT", "Another service operation is already running", 409)
+    definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
+    if definition is None:
+        return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
+    spec = data.get("spec", data.get("inputs"))
+    if spec is None:
+        return error_response("SERVICE_VALIDATION_FAILED", "spec is required", 422)
+    normalized, errors = _validate_spec(definition["manifest"], spec)
+    if errors:
+        return _manifest_error(errors)
+    normalized.update({"name": instance["name"], "environment": instance["environment"], "runtime_id": instance["runtime_id"], "catalog_slug": instance["definition_slug"], "catalog_version": instance["definition_version"]})
+    try:
+        revision = service_instances.create_revision(instance["id"], normalized, _actor_id(), project_id=project_id, org_id=instance["org_id"], **_auth_kwargs(project_id))
+    except service_instances.ServiceInstanceError as exc:
+        return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
+    updated = service_instances.get_instance(project_id, service_id, **_auth_kwargs(project_id))
+    return success_response({"service": _instance_view(project_id, updated, detail=True), "revision": revision})
+
+
+def _lifecycle(kind: str, project_id: str, service_id: str):
+    data = request.get_json(silent=True) or {}
+    _, error = _context(project_id, data if isinstance(data, dict) else None)
+    if error:
+        return error
+    instance, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    if kind == "destroy":
+        confirmed = data.get("confirm") is True or data.get("confirmed") is True or request.headers.get("X-Confirm-Destroy", "").lower() == "true"
+        if not confirmed:
+            return error_response("SERVICE_CONFIRMATION_REQUIRED", "Destroy requires explicit confirmation", 400)
+    idem_key = request.headers.get("Idempotency-Key", "").strip()
+    existing = _find_existing_operation(project_id, service_id, idem_key) if idem_key else None
+    active = None if existing else _active_conflict(project_id, service_id)
+    if active:
+        return error_response(
+            "SERVICE_OPERATION_CONFLICT", "Another service operation is already running", 409,
+            details={"operation_id": active.get("id"), "kind": active.get("kind")},
+        )
+    definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
+    if definition is None:
+        return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
+    lifecycle = definition["manifest"].get("lifecycle", {})
+    if kind != "deploy" and lifecycle.get(kind) is False:
+        return error_response("RUNTIME_UNSUPPORTED", f"Service does not support {kind}", 422, details={"capability": kind})
+    try:
+        if not _runtime().capabilities(instance["runtime_id"]).get(kind, False):
+            return error_response("RUNTIME_UNSUPPORTED", f"Runtime does not support {kind}", 422, details={"capability": kind})
+    except runtime_registry.ProviderNotFoundError:
+        return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422)
+    operation, error = _operation_for(project_id, instance, kind)
+    if error:
+        return error
+    return operation_response(_operation_view(project_id, operation), status=202)
+
+
+for _kind in sorted(_OPERATION_NAMES):
+    # Register explicit wrappers so Flask endpoint names and tracebacks remain useful.
+    def _make(kind: str):
+        @bp.post(
+            f"/api/projects/<project_id>/services/<service_id>/operations/{kind}",
+            endpoint=f"{kind}_service_operation",
+        )
+        @require_project_access
+        def handler(project_id: str, service_id: str, _kind: str = kind):
+            return _lifecycle(_kind, project_id, service_id)
+        return handler
+    _make(_kind)
+
+
+@bp.get("/api/projects/<project_id>/services/<service_id>/operations")
+@require_project_access
+def list_service_operations(project_id: str, service_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    _, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    rows = service_operations.list_operations(project_id, instance_id=service_id, **_auth_kwargs(project_id))
+    return success_response({"operations": [_operation_view(project_id, row) for row in rows]})
+
+
+@bp.get("/api/projects/<project_id>/services/<service_id>/operations/<operation_id>")
+@require_project_access
+def get_service_operation(project_id: str, service_id: str, operation_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    _, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    operation = service_operations.get_operation(project_id, operation_id, **_auth_kwargs(project_id))
+    if not operation or operation.get("instance_id") != service_id:
+        return error_response("SERVICE_NOT_FOUND", "Service operation not found", 404)
+    return success_response({"operation": _operation_view(project_id, operation)})
+
+
+@bp.get("/api/projects/<project_id>/services/<service_id>/impact")
+@require_project_access
+def service_impact(project_id: str, service_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    instance, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
+    operations = service_operations.list_operations(project_id, instance_id=service_id, **_auth_kwargs(project_id))
+    manifest = (definition or {}).get("manifest", {})
+    return success_response({
+        "impact": {
+            "service_id": service_id,
+            "project_id": project_id,
+            "environment": instance.get("environment"),
+            "status": instance.get("status"),
+            "relationships": {"dependencies": manifest.get("dependencies", []), "outputs": manifest.get("outputs", [])},
+            "operation_state": [_operation_view(project_id, item) for item in operations if item.get("status") in _ACTIVE_OPERATION_STATES],
+        }
+    })

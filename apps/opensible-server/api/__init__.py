@@ -101,6 +101,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.org_routes",
         "api.code_registry_routes",
         "api.service_catalog_routes",
+        "api.service_instance_routes",
     ]
     for mod_name in modules:
         try:
