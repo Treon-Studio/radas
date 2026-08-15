@@ -247,9 +247,11 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
         errors.append(_type_error("secrets", "must be an object"))
         secrets = {}
     canonical_secrets: dict[str, dict[str, str]] = {}
+    nested_secret_names: set[str] = set()
     if isinstance(secrets, Mapping):
         for name, value in secrets.items():
             name = str(name)
+            nested_secret_names.add(name)
             if name not in secret_names:
                 errors.append(_type_error(f"secrets.{name}", "is not declared by the service catalog"))
                 continue
@@ -263,13 +265,14 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
     # metadata-only shape. This lets nested refs survive while raw values are
     # rejected before provider validation or persistence.
     for name, declaration in secret_declarations.items():
-        direct = normalized.pop(name, None) if name in normalized else None
-        nested = canonical_secrets.get(name)
-        if direct is not None and nested is not None:
+        direct_present = name in normalized
+        direct = normalized.pop(name) if direct_present else None
+        nested_present = name in nested_secret_names
+        if direct_present and nested_present:
             errors.append(_type_error(name, "must be supplied either in spec or spec.secrets, not both"))
             continue
-        reference = _secret_reference(direct) if direct is not None else None
-        if direct is not None and reference is None:
+        reference = _secret_reference(direct) if direct_present else None
+        if direct_present and reference is None:
             errors.append(_type_error(name, "must be a secret reference (secret://...) or nested secret_ref"))
         elif reference is not None:
             canonical_secrets[name] = {"secret_ref": reference}

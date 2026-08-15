@@ -161,6 +161,28 @@ def test_create_rejects_raw_secret_values_without_persisting(client, data_dir):
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
 
 
+def test_create_rejects_explicit_null_for_optional_declared_secret(client, data_dir):
+    response = _create(client, data_dir, spec={"mode": "safe", "admin_password": None})
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "SERVICE_VALIDATION_FAILED"
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
+
+
+def test_create_rejects_duplicate_top_level_and_nested_secret_declarations(client, data_dir):
+    response = _create(
+        client,
+        data_dir,
+        spec={
+            "mode": "safe",
+            "admin_password": "secret://vault/admin",
+            "secrets": {"admin_password": {"secret_ref": "secret://vault/admin"}},
+        },
+    )
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "SERVICE_VALIDATION_FAILED"
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
+
+
 def test_secret_references_are_canonicalized_and_nested_values_are_rejected(client, data_dir):
     response = _create(
         client,
