@@ -12,7 +12,6 @@ Security notes:
   signature and MUST NOT be used for any authorization decision.
 """
 import os
-import secrets as _secrets
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -21,35 +20,23 @@ import json
 import logging
 import threading
 
+from utils.runtime_secrets import resolve_secret
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Secret key resolution (fail-hard in production)
 # ---------------------------------------------------------------------------
-_env_secret = os.environ.get('JWT_SECRET_KEY') or os.environ.get('JWT_SECRET')
-_flask_env = (os.environ.get('FLASK_ENV') or '').lower()
-_is_production = _flask_env == 'production'
+# Development/test may use a per-process key. Production must explicitly set
+# JWT_SECRET_KEY; the legacy alias is retained only for non-production users.
+JWT_SECRET_KEY = resolve_secret(
+    "JWT_SECRET_KEY", aliases=("JWT_SECRET",), generate_in_nonproduction=True
+)
+if not JWT_SECRET_KEY:  # defensive: resolve_secret should only return this in dev
+    raise RuntimeError("JWT_SECRET_KEY is required to initialize authentication")
 
-if not _env_secret:
-    if _is_production:
-        raise RuntimeError(
-            "JWT_SECRET_KEY environment variable must be set in production "
-            "(legacy JWT_SECRET is also accepted). Generate one with: "
-            "python -c \"import secrets; print(secrets.token_urlsafe(64))\""
-        )
-    # Non-production: ephemeral key. Tokens will be invalidated on every restart.
-    _env_secret = _secrets.token_urlsafe(64)
-    logger.warning(
-        "JWT_SECRET_KEY is not set. Using a random ephemeral key for this process. "
-        "All JWTs will be invalidated when the backend restarts. "
-        "Set JWT_SECRET_KEY in the environment for stable tokens."
-    )
-elif len(_env_secret) < 32:
-    if _is_production:
-        raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters long.")
-    logger.warning("JWT_SECRET_KEY is shorter than 32 characters — this is insecure.")
-
-JWT_SECRET_KEY = _env_secret
+if len(JWT_SECRET_KEY) < 32:
+    logger.warning("JWT_SECRET_KEY is shorter than 32 chars — insecure outside production.")
 JWT_ALGORITHM = 'HS256'
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRE_MINUTES', '1440'))
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRE_DAYS', '7'))

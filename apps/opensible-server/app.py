@@ -24,6 +24,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+# Validate production credentials before any worker, scheduler, or service
+# initialization. This applies equally to direct Python and container startup.
+from utils.runtime_secrets import validate_runtime_secrets
+validate_runtime_secrets(require_database=True)
+
 # Import GitSourceManager
 try:
     from services.git_source_manager import GitSourceManager, GitSourceError

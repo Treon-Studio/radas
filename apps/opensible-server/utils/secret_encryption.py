@@ -20,6 +20,8 @@ import base64
 import secrets
 from pathlib import Path
 from typing import Optional, Tuple
+
+from utils.runtime_secrets import is_production_environment, validate_secret_value
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -49,11 +51,17 @@ class SecretEncryption:
         if server_key is None:
             server_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
 
-        if not server_key:
+        if is_production_environment():
+            # Never accept a data-volume key or an ephemeral fallback in
+            # production. The named environment variable is operator-managed.
+            server_key = validate_secret_value(
+                "GLOBAL_SECRETS_ENCRYPTION_KEY", server_key
+            )
+        elif not server_key:
             import warnings
             warnings.warn(
                 "GLOBAL_SECRETS_ENCRYPTION_KEY not set. Using generated key "
-                "(NOT SECURE for production).",
+                "(development/test only).",
                 UserWarning,
             )
             server_key = secrets.token_urlsafe(32)
@@ -124,10 +132,12 @@ def get_encryption_key_file_path(data_dir: Optional[Path] = None) -> Path:
 
 
 def load_encryption_key(data_dir: Optional[Path] = None) -> Optional[str]:
-    """Resolve key. Prefers env var; warns if falling back to on-disk file."""
+    """Resolve the key, with disk fallback allowed only outside production."""
     env_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
     if env_key:
         return env_key
+    if is_production_environment():
+        return None
 
     key_file = get_encryption_key_file_path(data_dir)
     if key_file.exists():
@@ -171,12 +181,16 @@ def get_encryption(data_dir: Optional[Path] = None) -> SecretEncryption:
     if _encryption_instance is None:
         server_key = load_encryption_key(data_dir)
         if not server_key:
+            if is_production_environment():
+                # Do not generate or persist a replacement key in production.
+                validate_secret_value(
+                    "GLOBAL_SECRETS_ENCRYPTION_KEY", os.environ.get("GLOBAL_SECRETS_ENCRYPTION_KEY")
+                )
             server_key = generate_and_save_encryption_key(data_dir)
             import warnings
             warnings.warn(
                 "GLOBAL_SECRETS_ENCRYPTION_KEY not set and no saved key found. "
-                "Generated and saved new encryption key. All existing secrets "
-                "encrypted with a previous key will not be decryptable.",
+                "Generated and saved new encryption key for development/test only.",
                 UserWarning,
             )
         _encryption_instance = SecretEncryption(server_key)

@@ -31,11 +31,54 @@ jobs:
             set -e
             cd /opt/radas
             git pull origin main
+
+            # Read presence only: never print or export production secrets into
+            # the GitHub Actions environment. Values are supplied by /opt/radas/.env.
+            test -r /opt/radas/.env || { echo '/opt/radas/.env is required'; exit 1; }
+            required_env() {
+              name="$1"
+              value=$(grep -E "^${name}=" /opt/radas/.env | tail -n 1 | cut -d= -f2-)
+              if [ -z "${value}" ]; then
+                echo "${name} is required in /opt/radas/.env"
+                exit 1
+              fi
+            }
+            required_env DATABASE_URL
+            required_env JWT_SECRET_KEY
+            required_env INTERNAL_CALL_SECRET
+            required_env GLOBAL_SECRETS_ENCRYPTION_KEY
+            required_env WORKER_REGISTRATION_SECRET
+            required_env VAULT_SERVER_SECRET
+
             cd apps/opensible-server
             .venv/bin/pip install -q -r requirements.txt
-            test -n "$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)" || { echo 'DATABASE_URL is required in /opt/radas/.env'; exit 1; }
-            test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
-            test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
+            # Validate presence and strength without sourcing or printing the
+            # values. The file remains the sole source for PM2/container env.
+            .venv/bin/python - <<'PY'
+            import re
+            from pathlib import Path
+
+            required = {
+                "DATABASE_URL": False,
+                "JWT_SECRET_KEY": True,
+                "INTERNAL_CALL_SECRET": True,
+                "GLOBAL_SECRETS_ENCRYPTION_KEY": True,
+                "WORKER_REGISTRATION_SECRET": True,
+                "VAULT_SERVER_SECRET": True,
+            }
+            values = {}
+            for line in Path("/opt/radas/.env").read_text(encoding="utf-8").splitlines():
+                match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line)
+                if match:
+                    values[match.group(1)] = match.group(2).strip()
+            missing = []
+            for name, strong in required.items():
+                value = values.get(name, "")
+                if not value or (strong and (len(value) < 32 or len(set(value)) < 16 or not re.search(r"[A-Za-z]", value) or not re.search(r"[0-9]", value))):
+                    missing.append(name)
+            if missing:
+                raise SystemExit("Production configuration is missing or weak: " + ", ".join(missing))
+            PY
             if [ -n "${ADMIN_RESET_PASSWORD:-}" ]; then
               server_pid=$(pm2 pid radas-server || true)
               if [ -n "$server_pid" ] && [ "$server_pid" != "0" ] && [ -r "/proc/$server_pid/environ" ]; then
@@ -47,12 +90,6 @@ jobs:
               test -n "${DATABASE_URL:-}" || { echo 'DATABASE_URL is required for admin reset'; exit 1; }
               .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
             fi
-            if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
-            if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
-            if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
-            test -n "$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)" || { echo 'DATABASE_URL is required in /opt/radas/.env'; exit 1; }
-            test -n "$(grep -E '^JWT_SECRET_KEY=' /opt/radas/.env | cut -d= -f2-)" || { echo 'JWT_SECRET_KEY is required in /opt/radas/.env'; exit 1; }
-            test -n "$(grep -E '^INTERNAL_CALL_SECRET=' /opt/radas/.env | cut -d= -f2-)" || { echo 'INTERNAL_CALL_SECRET is required in /opt/radas/.env'; exit 1; }
             if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
             if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
             if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi

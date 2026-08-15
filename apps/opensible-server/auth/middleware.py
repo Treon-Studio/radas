@@ -19,6 +19,8 @@ import logging
 import os
 import hmac
 
+from utils.runtime_secrets import is_production_environment, resolve_secret
+
 try:
     from .auth import verify_token, get_token_from_header
 except ImportError:
@@ -34,41 +36,20 @@ _access_control_service = None
 # ---------------------------------------------------------------------------
 # Internal-call secret
 # ---------------------------------------------------------------------------
-_env_internal = os.environ.get('INTERNAL_CALL_SECRET') or ''
-_flask_env = (os.environ.get('FLASK_ENV') or '').lower()
-_is_production = _flask_env == 'production'
+_INTERNAL_CALL_SECRET = resolve_secret(
+    "INTERNAL_CALL_SECRET", generate_in_nonproduction=True
+)
+if not _INTERNAL_CALL_SECRET:
+    raise RuntimeError("INTERNAL_CALL_SECRET is required to initialize authentication")
+if len(_INTERNAL_CALL_SECRET) < 32:
+    logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure outside production.")
 
-if not _env_internal:
-    raise RuntimeError(
-        "INTERNAL_CALL_SECRET must be configured; refusing to generate a per-process secret"
-    )
-_KNOWN_REPOSITORY_SECRET = "dev-only-change-me-0123456789abcdef"
-
-
-def _require_strong_production_secret(name: str, value: str) -> str:
-    secret = (value or "").strip()
-    if not _is_production:
-        return secret
-    if not secret:
-        raise RuntimeError(f"{name} must be explicitly configured in production")
-    if secret == _KNOWN_REPOSITORY_SECRET:
-        raise RuntimeError(f"{name} must not use a repository-known secret in production")
-    if len(secret) < 32 or len(set(secret)) < 16:
-        raise RuntimeError(f"{name} must be a strong secret in production")
-    if not any(char.isalpha() for char in secret) or not any(char.isdigit() for char in secret):
-        raise RuntimeError(f"{name} must contain letters and digits in production")
-    return secret
-
-
-if _is_production:
-    _require_strong_production_secret("INTERNAL_CALL_SECRET", _env_internal)
-    _require_strong_production_secret(
-        "WORKER_REGISTRATION_SECRET", os.environ.get("WORKER_REGISTRATION_SECRET", "")
-    )
-elif len(_env_internal) < 32:
-    logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure.")
-
-_INTERNAL_CALL_SECRET: str = _env_internal
+# Registration is consumed by both the server and worker. Validate it at
+# server import/startup so direct Python/container startup has the same gate as
+# PM2; do not generate it here because the worker must share the exact value.
+if is_production_environment():
+    resolve_secret("WORKER_REGISTRATION_SECRET")
+    resolve_secret("VAULT_SERVER_SECRET")
 
 
 def get_internal_call_secret() -> str:

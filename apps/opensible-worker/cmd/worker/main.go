@@ -35,6 +35,11 @@ func main() {
 
 	flag.Parse()
 
+	if err := config.ValidateProductionSecrets(); err != nil {
+		// Keep the error limited to the missing/invalid variable name; never
+		// include a configured secret value in startup output.
+		panic(err)
+	}
 
 	// Initialize config + logging.
 	config.Init()

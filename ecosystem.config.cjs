@@ -116,6 +116,7 @@ module.exports = {
       script: "go",
       args: "run ./cmd/worker",
       env: {
+        FLASK_ENV: process.env.FLASK_ENV || "development",
         WORKER_NAME: "worker-go",
         WORKER_TAGS: "go",
         WORKER_SERVER_URL: `http://127.0.0.1:${SERVER_PORT}`,
@@ -123,6 +124,8 @@ module.exports = {
         DATA_DIR: "./data",
         // Must exactly match the server's registration secret.
         WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
+        VAULT_SERVER_SECRET: vaultServerSecret,
+        DATABASE_URL: process.env.DATABASE_URL || "postgresql://localhost/radas",
         WORKER_MAX_CONCURRENCY: "3",
         VAULT_SERVER_HOST: "127.0.0.1",
         VAULT_SERVER_PORT: "9998",
