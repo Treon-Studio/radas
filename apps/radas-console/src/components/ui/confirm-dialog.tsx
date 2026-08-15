@@ -2,6 +2,7 @@ import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { acquireModalIsolation } from "@/components/ui/modal-stack";
 
 type Props = {
   open: boolean;
@@ -26,25 +27,32 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  const busyRef = useRef(busy);
+  const initialFocusRefRef = useRef(initialFocusRef);
 
   useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const hiddenSiblings = Array.from(document.body.children).filter((element) => element !== overlayRef.current);
-    const priorAriaHidden = hiddenSiblings.map((element) => [element, element.getAttribute("aria-hidden")] as const);
-    hiddenSiblings.forEach((element) => element.setAttribute("aria-hidden", "true"));
+    onCancelRef.current = onCancel;
+    busyRef.current = busy;
+    initialFocusRefRef.current = initialFocusRef;
+  }, [busy, initialFocusRef, onCancel]);
 
+  useEffect(() => {
+    if (!open || typeof document === "undefined" || !overlayRef.current) return;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const releaseIsolation = acquireModalIsolation(overlayRef.current);
     const focusInitial = () => {
-      const initial = initialFocusRef?.current
+      const initial = initialFocusRefRef.current?.current
         ?? dialogRef.current?.querySelector<HTMLElement>("[data-dialog-initial-focus]")
         ?? dialogRef.current?.querySelector<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])");
       initial?.focus();
     };
     const frame = window.requestAnimationFrame(focusInitial);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
+      if (event.key === "Escape" && !busyRef.current) {
         event.preventDefault();
-        onCancel();
+        onCancelRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -64,16 +72,20 @@ export function ConfirmDialog({
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();
+      } else if (!dialogRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
       }
     };
     document.addEventListener("keydown", onKeyDown);
+
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      priorAriaHidden.forEach(([element, value]) => value === null ? element.removeAttribute("aria-hidden") : element.setAttribute("aria-hidden", value));
+      releaseIsolation();
       previousFocusRef.current?.focus();
     };
-  }, [open, busy, onCancel, initialFocusRef]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
   return createPortal(

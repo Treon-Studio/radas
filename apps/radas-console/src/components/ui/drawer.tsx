@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
+import { acquireModalIsolation } from "@/components/ui/modal-stack";
 
 type DrawerProps = {
   open: boolean;
@@ -20,23 +21,18 @@ export function Drawer({ open, onClose, title, children, footer, widthClass = "m
   const drawerRef = useRef<HTMLElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
 
   useEffect(() => {
-    if (!open || typeof document === "undefined") return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined" || !overlayRef.current) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const background = Array.from(document.body.children).filter((element) => element !== overlayRef.current);
-    const previousState = background.map((element) => ({
-      element,
-      ariaHidden: element.getAttribute("aria-hidden"),
-      inert: element.hasAttribute("inert"),
-    }));
-    background.forEach((element) => {
-      element.setAttribute("aria-hidden", "true");
-      element.setAttribute("inert", "");
-    });
-
+    const releaseIsolation = acquireModalIsolation(overlayRef.current);
     const focusFirst = () => {
       const target = drawerRef.current?.querySelector<HTMLElement>(focusableSelector) ?? drawerRef.current;
       target?.focus();
@@ -48,7 +44,7 @@ export function Drawer({ open, onClose, title, children, footer, widthClass = "m
       if (hasExternalModal()) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !drawerRef.current) return;
@@ -77,14 +73,10 @@ export function Drawer({ open, onClose, title, children, footer, widthClass = "m
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      previousState.forEach(({ element, ariaHidden, inert }) => {
-        if (ariaHidden === null) element.removeAttribute("aria-hidden");
-        else element.setAttribute("aria-hidden", ariaHidden);
-        element.toggleAttribute("inert", inert);
-      });
+      releaseIsolation();
       previousFocusRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 

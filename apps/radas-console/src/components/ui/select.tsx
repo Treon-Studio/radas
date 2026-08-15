@@ -66,7 +66,8 @@ export function Select({
     setOpen(false);
     if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
   };
-  const openAt = (index = initialActiveIndex()) => {
+  const openSelect = () => {
+    const index = initialActiveIndex();
     setActiveIndex(index);
     setOpen(true);
   };
@@ -81,8 +82,11 @@ export function Select({
 
   useEffect(() => {
     if (!open) return;
-    if (!enabledIndexes.includes(activeIndex)) setActiveIndex(initialActiveIndex());
-  }, [activeIndex, enabledIndexes, open, options, value]);
+    const index = initialActiveIndex();
+    if (index !== activeIndex) {
+      setActiveIndex(index);
+    }
+  }, [open, options, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +115,7 @@ export function Select({
       case " ":
         event.preventDefault();
         if (open) selectActive();
-        else openAt();
+        else openSelect();
         return;
       case "Escape":
         if (open) {
@@ -122,22 +126,22 @@ export function Select({
         return;
       case "ArrowDown":
         event.preventDefault();
-        if (!open) openAt();
+        if (!open) openSelect();
         moveActive(1);
         return;
       case "ArrowUp":
         event.preventDefault();
-        if (!open) openAt();
+        if (!open) openSelect();
         moveActive(-1);
         return;
       case "Home":
         event.preventDefault();
-        if (!open) setOpen(true);
+        if (!open) openSelect();
         setActiveIndex(enabledIndexes[0] ?? -1);
         return;
       case "End":
         event.preventDefault();
-        if (!open) setOpen(true);
+        if (!open) openSelect();
         setActiveIndex(enabledIndexes[enabledIndexes.length - 1] ?? -1);
         return;
       default:
@@ -168,7 +172,7 @@ export function Select({
         type="button"
         role="combobox"
         disabled={disabled}
-        onClick={() => !disabled && (open ? close() : openAt())}
+        onClick={() => !disabled && (open ? close() : openSelect())}
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}

@@ -52,7 +52,7 @@ export function Tabs<T extends string>({ tabs, active, onChange, id, ariaLabel =
             type="button"
             role="tab"
             aria-selected={selected}
-            aria-controls={`${baseId}-panel-${tab.id}`}
+            aria-controls={id ? `${baseId}-panel-${tab.id}` : undefined}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
