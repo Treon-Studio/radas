@@ -44,6 +44,14 @@ def _seed(data_dir):
     }
 
 
+def test_flag_routes_reject_non_object_json_bodies(data_dir):
+    _org_a, _org_b, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+    for path, method in (("/api/flags", "post"), ("/api/flags/x.flag", "patch"), ("/api/flags/x.flag/archive", "post"), ("/api/flags/x.flag/restore", "post"), ("/api/flags/evaluate", "post"), ("/api/flags/import", "post")):
+        response = getattr(client, method)(path, json=[] if path != "/api/flags/evaluate" else [], headers=tokens["admin"])
+        assert response.status_code == 400
+
+
 def test_flag_routes_authorize_project_org_global_and_preview_scopes(data_dir):
     org_a, org_b, tokens = _seed(data_dir)
     client = _app(data_dir).test_client()
@@ -67,6 +75,20 @@ def test_flag_routes_authorize_project_org_global_and_preview_scopes(data_dir):
     assert client.post(
         "/api/flags/evaluate", json={"key": "project.flag", "project_id": "project-a", "user": "someone-else"}, headers=tokens["owner"]
     ).status_code == 200
+
+
+def test_global_impact_filters_unrelated_tenant_dependents(data_dir):
+    org_a, org_b, tokens = _seed(data_dir)
+    from services.feature_flag_registry import create_flag
+    from storage import pg
+    pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) VALUES (%s,%s,%s,%s,%s,0,%s)",
+               ("project-b", org_b["id"], "outsider", "B", "", time.time()))
+    create_flag({"key": "shared.impact"})
+    create_flag({"key": "a.dependent", "parent_key": "shared.impact"}, "project", "project-a", org_id=org_a["id"])
+    create_flag({"key": "b.dependent", "parent_key": "shared.impact"}, "project", "project-b", org_id=org_b["id"])
+    response = _app(data_dir).test_client().get("/api/flags/shared.impact/impact", headers=tokens["member"])
+    assert response.status_code == 200
+    assert [(item["key"], item["scope_id"]) for item in response.get_json()["dependents"]] == [("a.dependent", "project-a")]
 
 
 def test_explicit_record_scope_targets_inherited_flags_and_checks_access(data_dir):

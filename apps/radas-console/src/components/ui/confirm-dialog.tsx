@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export function ConfirmDialog({
 }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const titleId = `confirm-dialog-title-${useId()}`;
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCancelRef = useRef(onCancel);
   const busyRef = useRef(busy);
@@ -99,7 +100,7 @@ export function ConfirmDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+            aria-labelledby={titleId}
         tabIndex={-1}
         className="bg-[var(--color-card)] rounded-md shadow-[var(--shadow-popover)] w-full max-w-md border border-[var(--color-border)]"
         onMouseDown={(event) => event.stopPropagation()}
@@ -109,7 +110,7 @@ export function ConfirmDialog({
             <AlertTriangle className="h-5 w-5 text-[var(--color-foreground)]" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 id="confirm-dialog-title" className="text-base font-semibold text-[var(--color-foreground)]">{title}</h2>
+            <h2 id={titleId} className="text-base font-semibold text-[var(--color-foreground)]">{title}</h2>
             {description && <div className="mt-1 text-sm text-[var(--color-muted-foreground)]">{description}</div>}
             {children && <div className="mt-3">{children}</div>}
           </div>

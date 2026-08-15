@@ -86,6 +86,33 @@ def _actor():
     return (user.get("user_id", ""), user.get("username", ""))
 
 
+def _impact_authorization(scope_type, scope_id, org_id):
+    user = getattr(request, "current_user", {}) or {}
+    if user.get("user_id") == "__internal__" or "admin" in (user.get("roles") or []):
+        return {"global_admin": True}
+    from services.org_service import accessible_project_ids, list_orgs_for_user, org_projects
+    user_id = user.get("user_id")
+    if scope_type == "project":
+        # A project impact request is confined to that project's effective tenant
+        # context, never every tenant the requester happens to belong to.
+        project_ids = set(accessible_project_ids(user_id)) if user_id else set()
+        if scope_id not in project_ids:
+            raise ScopeError("Access denied")
+        return {"org_ids": {org_id}, "project_ids": {scope_id}, "global_admin": False}
+    if scope_type == "organization":
+        memberships = {item["id"] for item in list_orgs_for_user(user_id)} if user_id else set()
+        if scope_id not in memberships:
+            raise ScopeError("Access denied")
+        return {"org_ids": {scope_id},
+                "project_ids": {item["id"] for item in org_projects(scope_id)},
+                "global_admin": False}
+    # Global reads are allowed to authenticated users, but only return impact
+    # records in tenants they can actually access.
+    org_ids = {item["id"] for item in list_orgs_for_user(user_id)} if user_id else set()
+    project_ids = set(accessible_project_ids(user_id)) if user_id else set()
+    return {"org_ids": org_ids, "project_ids": project_ids, "global_admin": False}
+
+
 def _scope_admin(scope_type, org_id):
     user = getattr(request, "current_user", {}) or {}
     if user.get("user_id") == "__internal__" or "admin" in (user.get("roles") or []):
@@ -118,6 +145,15 @@ def _authorize_scope(data=None, mutation=False):
     if scope_type == "organization" and mutation and not _scope_admin(scope_type, org_id):
         return None, (jsonify({"error": "owner/admin required"}), 403)
     return (scope_type, scope_id, org_id), None
+
+
+def _json_object():
+    data = request.get_json(silent=True)
+    if data is None and not request.get_data(cache=True):
+        return {}, None
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": "JSON object required"}), 400)
+    return data, None
 
 
 def _scoped(data=None, mutation=False):
@@ -156,7 +192,9 @@ def api_flag_audit():
 @bp.route('/api/flags', methods=['POST'])
 @require_auth
 def api_create_flag():
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error
@@ -172,7 +210,9 @@ def api_create_flag():
 @bp.route('/api/flags/<key>', methods=['PATCH'])
 @require_auth
 def api_update_flag(key):
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error
@@ -212,7 +252,10 @@ def api_flag_impact(key):
         return error
     scope_type, scope_id, org_id = context
     try:
-        return jsonify(impact(key, scope_type, scope_id, org_id))
+        authorization = _impact_authorization(scope_type, scope_id, org_id)
+        return jsonify(impact(key, scope_type, scope_id, org_id, authorized_context=authorization))
+    except ScopeError as exc:
+        return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
 
@@ -220,7 +263,9 @@ def api_flag_impact(key):
 @bp.route('/api/flags/<key>/archive', methods=['POST'])
 @require_auth
 def api_archive_flag(key):
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error
@@ -238,13 +283,18 @@ def api_archive_flag(key):
 @bp.route('/api/flags/<key>/restore', methods=['POST'])
 @require_auth
 def api_restore_flag(key):
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error
     scope_type, scope_id, org_id = context
     actor_id, actor_name = _actor()
-    flag = restore_flag(key, scope_type, scope_id, actor_id, actor_name, org_id)
+    try:
+        flag = restore_flag(key, scope_type, scope_id, actor_id, actor_name, org_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 409
     if not flag:
         return jsonify({"error": "not found"}), 404
     return jsonify({"success": True, "flag": flag})
@@ -253,7 +303,9 @@ def api_restore_flag(key):
 @bp.route('/api/flags/evaluate', methods=['POST'])
 @require_auth
 def api_evaluate_flag():
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     key = (data.get("key") or "").strip()
     if not key:
         return jsonify({"error": "key required"}), 400
@@ -282,7 +334,9 @@ def api_export_flags():
 @bp.route('/api/flags/import', methods=['POST'])
 @require_auth
 def api_import_flags():
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error
@@ -312,7 +366,9 @@ def api_flag_evaluations():
 @bp.route('/api/flags/<key>/rollback', methods=['POST'])
 @require_auth
 def api_flag_rollback(key):
-    data = request.get_json(silent=True) or {}
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
     context, error = _scoped(data, mutation=True)
     if error:
         return error

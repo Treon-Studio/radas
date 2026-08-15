@@ -198,6 +198,16 @@ def test_evaluation_trace_uses_the_relationship_for_each_diamond_path(data_dir):
     ]
 
 
+def test_evaluate_project_without_org_id_uses_project_organization(data_dir):
+    from services.feature_flag_registry import create_flag, evaluate
+    from storage import pg
+
+    pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) VALUES (%s,%s,%s,%s,%s,0,%s)",
+               ("project-org", "org-derived", "owner", "Project", "", 0))
+    create_flag({"key": "derived.org.flag"}, "organization", "org-derived")
+    assert evaluate("derived.org.flag", project_id="project-org")["source"] == "organization"
+
+
 def test_flags_api_derives_project_organization_for_evaluation(data_dir):
     import flask
 
@@ -291,6 +301,20 @@ def test_registry_expiry_archives_lifecycle_and_permanent_delete_guards(data_dir
     assert delete_flag("child.lifecycle", actor="owner") is True
 
 
+def test_legacy_corrupt_relationships_are_normalized_for_dependents(data_dir):
+    from services.feature_flag_registry import _save, find_dependents
+
+    _save([
+        {"key": "base.corrupt", "enabled": True, "environments": {}},
+        {"key": "child.corrupt", "enabled": True, "environments": {}, "parent_key": "  BASE.CORRUPT  ", "prerequisites": []},
+        {"key": "prereq.corrupt", "enabled": True, "environments": {}, "prerequisites": [" BASE.CORRUPT "]},
+    ], "global", None)
+    dependents = find_dependents("base.corrupt")
+    assert {(item["key"], item["relationship"]) for item in dependents} == {
+        ("child.corrupt", "parent"), ("prereq.corrupt", "prerequisite"),
+    }
+
+
 def test_impact_reports_effective_relationships_lifecycle_and_cross_scope_dependents(data_dir):
     from services.feature_flag_registry import archive_flag, create_flag, impact
 
@@ -310,6 +334,33 @@ def test_impact_reports_effective_relationships_lifecycle_and_cross_scope_depend
         ("child.impact", "organization", "parent"),
         ("project.impact", "project", "prerequisite"),
     }
+
+
+def test_legacy_archive_and_delete_rejections_do_not_materialize_registry(data_dir):
+    from services.feature_flags import create_flag as create_legacy_flag
+    from services.feature_flag_registry import _load_registry, archive_flag, create_flag, delete_flag
+
+    create_legacy_flag({"key": "legacy.blocked", "enabled": True})
+    create_flag({"key": "legacy.child", "parent_key": "legacy.blocked"})
+    before = _load_registry("global", None)
+    with pytest.raises(ValueError, match="dependents"):
+        archive_flag("legacy.blocked")
+    assert _load_registry("global", None) == before
+    with pytest.raises(ValueError, match="archived"):
+        delete_flag("legacy.blocked")
+    assert _load_registry("global", None) == before
+
+
+def test_atomic_import_rolls_back_registry_when_audit_write_fails(data_dir, monkeypatch):
+    import services.feature_flag_registry as registry
+
+    before_flags = registry.list_flags()
+    before_audit = registry.audit()
+    monkeypatch.setattr(registry, "_append_history_tx", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("audit unavailable")))
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        registry.import_flags([{"key": "atomic.failure"}], actor="importer")
+    assert registry.list_flags() == before_flags
+    assert registry.audit() == before_audit
 
 
 def test_atomic_import_accepts_forward_references_and_rolls_back_invalid_batches(data_dir):

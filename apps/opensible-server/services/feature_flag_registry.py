@@ -24,6 +24,16 @@ def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[s
     kv.kv_set(_history_key(scope_type, scope_id), "entries", rows)
 
 
+def _append_history_tx(conn: Any, entry: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> None:
+    """Append audit history on the caller's transaction connection."""
+    from storage import kv
+    scope = _history_key(scope_type, scope_id)
+    row = conn.execute("SELECT value FROM kv_store WHERE scope = %s AND key = %s", (scope, "entries")).fetchone()
+    current = row["value"] if isinstance(row, dict) else (row[0] if row else None)
+    rows = (current if isinstance(current, list) else [])[-999:] + [entry]
+    kv.kv_save_tx(conn, scope, {"entries": rows})
+
+
 def _diff(before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Field-level before/after diff between two flag states (nested envs aware)."""
     before = before or {}
@@ -113,6 +123,11 @@ def _load(scope_type: str = "global", scope_id: Optional[str] = None) -> List[Di
 def _save(flags: List[Dict[str, Any]], scope_type: str, scope_id: Optional[str]) -> None:
     from storage import kv
     kv.kv_save(_scope(scope_type, scope_id), flags)
+
+
+def _save_tx(conn: Any, flags: List[Dict[str, Any]], scope_type: str, scope_id: Optional[str]) -> None:
+    from storage import kv
+    kv.kv_save_tx(conn, _scope(scope_type, scope_id), flags)
 
 
 def _decorate(flag: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> Dict[str, Any]:
@@ -373,6 +388,13 @@ def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = 
         key = _normalize_key(key)
     except ValueError:
         return False
+    visible = get_flag(key, scope_type, scope_id)
+    if not visible:
+        return False
+    if not visible.get("archived"):
+        raise ValueError("Flag must be archived before permanent deletion")
+    if find_dependents(key, scope_type, scope_id, org_id):
+        raise ValueError("Flag has dependents and cannot be deleted")
     if scope_type == "global" and not scope_id and not _materialize_legacy_global(key):
         return False
     flags = _load_registry(scope_type, scope_id)
@@ -380,10 +402,6 @@ def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = 
     if index is None:
         return False
     removed = copy.deepcopy(flags[index])
-    if not removed.get("archived"):
-        raise ValueError("Flag must be archived before permanent deletion")
-    if find_dependents(key, scope_type, scope_id, org_id):
-        raise ValueError("Flag has dependents and cannot be deleted")
     if removed.get("_legacy_materialized"):
         # Keep a registry tombstone so the unchanged legacy source stays hidden.
         flags[index] = {"key": key, "_deleted": True}
@@ -446,12 +464,19 @@ def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] 
     _validate_batch_dependency_graph(flags, scope_type, scope_id, org_id)
     if not flags:
         return {"batch_id": str(uuid.uuid4()), "flags": []}
-    _save(current + flags, scope_type, scope_id)
     batch_id = str(uuid.uuid4())
-    for flag in flags:
-        _append_history({"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
-                         "actor_name": actor_name or "", "at": int(time.time()), "after": flag,
-                         "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+    from storage import pg
+    with pg.transaction() as conn:
+        _save_tx(conn, current + flags, scope_type, scope_id)
+        for flag in flags:
+            _append_history_tx(
+                conn,
+                {"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
+                 "actor_name": actor_name or "", "at": int(time.time()), "after": flag,
+                 "scope_type": scope_type, "scope_id": scope_id},
+                scope_type,
+                scope_id,
+            )
     return {"batch_id": batch_id, "flags": [_decorate(flag, scope_type, scope_id) for flag in flags]}
 
 
@@ -520,13 +545,13 @@ def expire_due_flags(now: Optional[int] = None) -> int:
 
 
 def impact(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
-           org_id: Optional[str] = None) -> Dict[str, Any]:
+           org_id: Optional[str] = None, authorized_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     flag = get_flag(key, scope_type, scope_id)
     if not flag:
         raise ValueError("Flag not found")
     parent = _resolve_effective(flag["parent_key"], scope_type, scope_id, org_id) if flag.get("parent_key") else None
     prerequisites = [_resolve_effective(item, scope_type, scope_id, org_id) for item in flag.get("prerequisites") or []]
-    blockers = find_dependents(flag["key"], scope_type, scope_id, org_id)
+    blockers = find_dependents(flag["key"], scope_type, scope_id, org_id, authorized_context=authorized_context)
     return {"flag": flag, "effective_parent": parent, "prerequisites": [item for item in prerequisites if item],
             "dependents": blockers, "blockers": blockers,
             "lifecycle": {"archived": bool(flag.get("archived")), "expired_at": flag.get("expired_at")}}
@@ -538,10 +563,13 @@ def archive_flag(key: str, scope_type: str = "global", scope_id: Optional[str] =
         key = _normalize_key(key)
     except ValueError:
         return None
-    if scope_type == "global" and not scope_id and not _materialize_legacy_global(key):
+    visible = get_flag(key, scope_type, scope_id)
+    if not visible:
         return None
     if find_dependents(key, scope_type, scope_id, org_id):
         raise ValueError("Flag has dependents and cannot be archived")
+    if scope_type == "global" and not scope_id and not _materialize_legacy_global(key):
+        return None
     return update_flag(key, {"enabled": False, "archived": True, "reason": reason}, scope_type, scope_id,
                        actor=actor, actor_name=actor_name, operation="archive", org_id=org_id)
 
@@ -564,6 +592,8 @@ def _result(base: Dict[str, Any], enabled: bool, reason: str, trace: List[Dict[s
 def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[str] = None,
              org_id: Optional[str] = None) -> Dict[str, Any]:
     """Evaluate a flag with scoped dependency gates and defensive graph handling."""
+    if project_id and not org_id:
+        org_id = _scope_org_id("project", project_id)
     try:
         requested_key = _normalize_key(key)
     except ValueError:
@@ -688,7 +718,7 @@ def _matches_target(record: Optional[Dict[str, Any]], target_scope_type: str,
 
 
 def find_dependents(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
-                    org_id: Optional[str] = None) -> List[Dict[str, Any]]:
+                    org_id: Optional[str] = None, authorized_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Return stored relationships that resolve to this exact scoped target.
 
     Matching references by key alone crosses tenant and precedence boundaries. A
@@ -702,17 +732,32 @@ def find_dependents(key: str, scope_type: str = "global", scope_id: Optional[str
     target_scope_type = target["scope_type"]
     target_scope_id = target["scope_id"]
     dependents: List[Dict[str, Any]] = []
+    allowed_org_ids = set((authorized_context or {}).get("org_ids") or [])
+    allowed_project_ids = set((authorized_context or {}).get("project_ids") or [])
+    is_global_authorized = bool((authorized_context or {}).get("global_admin"))
     for dependent_scope_type, dependent_scope_id in _stored_scopes():
         dependent_org_id = _scope_org_id(dependent_scope_type, dependent_scope_id)
+        if authorized_context and not is_global_authorized:
+            if dependent_scope_type == "project" and dependent_scope_id not in allowed_project_ids:
+                continue
+            if dependent_scope_type == "organization" and dependent_scope_id not in allowed_org_ids:
+                continue
+            if dependent_scope_type == "global":
+                continue
         for flag in _load_registry(dependent_scope_type, dependent_scope_id):
             if not isinstance(flag, dict) or flag.get("_deleted"):
                 continue
-            if flag.get("parent_key") == key and _matches_target(
+            parent_key = str(flag.get("parent_key") or "").strip().lower()
+            prerequisite_keys = {
+                str(value).strip().lower() for value in (flag.get("prerequisites") or [])
+                if isinstance(value, str)
+            }
+            if parent_key == key and _matches_target(
                     _resolve_effective(key, dependent_scope_type, dependent_scope_id, dependent_org_id),
                     target_scope_type, target_scope_id):
                 dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
                                    "scope_id": dependent_scope_id, "relationship": "parent"})
-            if key in (flag.get("prerequisites") or []) and _matches_target(
+            if key in prerequisite_keys and _matches_target(
                     _resolve_effective(key, dependent_scope_type, dependent_scope_id, dependent_org_id),
                     target_scope_type, target_scope_id):
                 dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
