@@ -92,13 +92,21 @@ def _load(scope_type: str = "global", scope_id: Optional[str] = None) -> List[Di
     """Load a visible scope, retaining legacy global entries after registry writes.
 
     Registry entries take precedence over legacy entries with the same logical key.
-    The legacy records are never copied into or removed from the registry store.
+    Legacy storage is never mutated; registry tombstones hide legacy records deleted
+    through this API.
     """
     registry = _load_registry(scope_type, scope_id)
     if scope_type != "global" or scope_id:
         return registry
     merged = {str(flag.get("key", "")): dict(flag) for flag in legacy.list_flags() if isinstance(flag, dict)}
-    merged.update({str(flag.get("key", "")): dict(flag) for flag in registry if isinstance(flag, dict)})
+    for flag in registry:
+        if not isinstance(flag, dict):
+            continue
+        key = str(flag.get("key", ""))
+        if flag.get("_deleted"):
+            merged.pop(key, None)
+        else:
+            merged[key] = dict(flag)
     return list(merged.values())
 
 
@@ -281,7 +289,13 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     flags = _load_registry(scope_type, scope_id)
     index = next((i for i, item in enumerate(flags) if item.get("key") == key), None)
     if index is None:
-        return None
+        if scope_type != "global" or scope_id:
+            return None
+        legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
+        if not legacy_flag:
+            return None
+        flags.append(copy.deepcopy(legacy_flag))
+        index = len(flags) - 1
     before = copy.deepcopy(flags[index])
     candidate = copy.deepcopy(before)
     for field in ("name", "description", "tags", "reason", "type"):
@@ -311,12 +325,24 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
 
 
 def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "", actor_name: str = "") -> bool:
-    flags = _load_registry(scope_type, scope_id)
-    remaining = [item for item in flags if item.get("key") != key]
-    if len(remaining) == len(flags):
+    try:
+        key = _normalize_key(key)
+    except ValueError:
         return False
-    removed = copy.deepcopy(next(item for item in flags if item.get("key") == key))
-    _save(remaining, scope_type, scope_id)
+    flags = _load_registry(scope_type, scope_id)
+    index = next((i for i, item in enumerate(flags) if item.get("key") == key), None)
+    if index is None:
+        if scope_type != "global" or scope_id:
+            return False
+        legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
+        if not legacy_flag:
+            return False
+        removed = copy.deepcopy(legacy_flag)
+        flags.append({"key": key, "_deleted": True})
+    else:
+        removed = copy.deepcopy(flags[index])
+        flags.pop(index)
+    _save(flags, scope_type, scope_id)
     _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return True
 
@@ -349,15 +375,19 @@ def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[s
             return _result({"key": flag_key, "source": "dependency", "matched_scope": ""}, False, "invalid_dependency_cycle",
                            [{"key": flag_key, "relationship": relationship, "gate": "dependency", "scope": "cycle"}], path)
         if flag_key in cache:
-            return copy.deepcopy(cache[flag_key])
+            cached = copy.deepcopy(cache[flag_key])
+            if cached.get("trace"):
+                cached["trace"][0]["relationship"] = relationship
+            return cached
         matched = resolve(flag_key)
         if not matched:
-            # Legacy's unknown result remains the public behaviour for top-level lookup.
-            if relationship == "target":
+            # Legacy's unknown result remains the public behaviour for top-level lookup,
+            # unless a registry tombstone intentionally hides a legacy global record.
+            if relationship == "target" and not _is_registry_global_key(flag_key):
                 legacy_result = legacy.evaluate(flag_key, env=env, user=user)
                 return {**legacy_result, "source": "legacy-global", "matched_scope": "global:default",
                         "trace": [{"key": flag_key, "relationship": relationship, "gate": "lookup", "scope": "global:default"}], "dependency_path": [flag_key]}
-            reason = "unknown_parent" if relationship == "parent" else "unknown_prerequisite"
+            reason = "unknown_flag" if relationship == "target" else ("unknown_parent" if relationship == "parent" else "unknown_prerequisite")
             return _result({"key": flag_key, "source": "dependency", "matched_scope": ""}, False, reason,
                            [{"key": flag_key, "relationship": relationship, "gate": "lookup", "scope": "missing"}], [flag_key])
         matched_scope = _scope(matched["scope_type"], matched["scope_id"])

@@ -142,3 +142,70 @@ def test_global_registry_merges_legacy_records_and_prefers_namespaced_duplicates
     flags = {flag["key"]: flag for flag in list_flags()}
     assert set(flags) == {"legacy.only", "shared.flag", "registry.only"}
     assert flags["shared.flag"]["enabled"] is True
+
+
+def test_legacy_only_global_flags_are_migrated_for_registry_update_and_delete(data_dir):
+    from services.feature_flags import create_flag as create_legacy_flag, get_flag as get_legacy_flag
+    from services.feature_flag_registry import audit, create_flag, delete_flag, evaluate, list_flags, update_flag
+
+    create_legacy_flag({"key": "legacy.update", "enabled": True})
+    updated = update_flag("legacy.update", {"enabled": False}, actor="editor")
+
+    assert updated and updated["enabled"] is False
+    assert get_legacy_flag("legacy.update")["enabled"] is True
+    assert {flag["key"]: flag for flag in list_flags()}["legacy.update"]["enabled"] is False
+    assert audit(key="legacy.update")[0]["operation"] == "update"
+
+    create_legacy_flag({"key": "legacy.delete", "enabled": True})
+    assert delete_flag("legacy.delete", actor="editor") is True
+
+    assert get_legacy_flag("legacy.delete")["enabled"] is True
+    assert "legacy.delete" not in {flag["key"] for flag in list_flags()}
+    assert evaluate("legacy.delete")["reason"] == "unknown_flag"
+    assert audit(key="legacy.delete")[0]["operation"] == "delete"
+
+    create_legacy_flag({"key": "registry.wins", "enabled": True})
+    create_flag({"key": "registry.wins", "enabled": False})
+    assert delete_flag("registry.wins", actor="editor") is True
+    assert {flag["key"]: flag for flag in list_flags()}["registry.wins"]["enabled"] is True
+
+
+def test_evaluation_trace_uses_the_relationship_for_each_diamond_path(data_dir):
+    from services.feature_flag_registry import create_flag, evaluate
+
+    create_flag({"key": "shared.flag"})
+    create_flag({"key": "left.flag", "prerequisites": ["shared.flag"]})
+    create_flag({"key": "right.flag", "parent_key": "shared.flag"})
+    create_flag({"key": "root.flag", "prerequisites": ["left.flag", "right.flag"]})
+
+    result = evaluate("root.flag")
+
+    assert result["enabled"] is True
+    assert [item["relationship"] for item in result["trace"] if item["key"] == "shared.flag"] == [
+        "prerequisite", "parent",
+    ]
+
+
+def test_flags_api_derives_project_organization_for_evaluation(data_dir):
+    import flask
+
+    from services.feature_flag_registry import create_flag
+    from storage import pg
+    from services.org_service import create_org
+    from api import feature_flag_routes
+
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("u-1", "alice", "x"))
+    org = create_org("Example", "u-1")
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("project-1", org["id"], "u-1", "Project", "", 0),
+    )
+    create_flag({"key": "org.only"}, "organization", org["id"])
+
+    app = flask.Flask(__name__)
+    app.register_blueprint(feature_flag_routes.bp)
+    with app.test_request_context("/api/flags/evaluate", method="POST", json={"key": "org.only", "project_id": "project-1"}):
+        response = feature_flag_routes.api_evaluate_flag.__wrapped__()
+
+    assert response.get_json()["source"] == "organization"

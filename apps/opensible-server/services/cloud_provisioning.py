@@ -1048,9 +1048,16 @@ def stacks_action(name):
             except Exception:
                 _env = None
             _user = (_cu.get("username") or "")
+            _org_id = None
+            if pid:
+                try:
+                    from auth.middleware import _org_id_of_project
+                    _org_id = _org_id_of_project(pid)
+                except Exception:
+                    pass
             from services.feature_flag_registry import evaluate as _ff_evaluate
             for _fkey in ("safety.cloud.apply.block", "safety.cloud.destroy.block", "safety.cloud.refresh.block", f"stack.{name}.block_apply"):
-                _ff_result = _ff_evaluate(_fkey, env=_env or "prod", user=_user, project_id=pid)
+                _ff_result = _ff_evaluate(_fkey, env=_env or "prod", user=_user, project_id=pid, org_id=_org_id)
                 if _ff_result.get("enabled"):
                     return jsonify({"error": f"Operation blocked by feature flag '{_fkey}' ({_ff_result.get('reason')}).", "flag": _ff_result}), 423
         except Exception as exc:
