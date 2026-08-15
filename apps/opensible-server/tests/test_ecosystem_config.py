@@ -5,6 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "ecosystem.config.cjs"
@@ -70,6 +72,30 @@ def test_production_ecosystem_shares_registration_secret_and_requires_vault_secr
     worker = next(app for app in apps if app["name"] == "radas-worker")
     assert server["env"]["WORKER_REGISTRATION_SECRET"] == worker["env"]["WORKER_REGISTRATION_SECRET"]
     assert worker["env"]["VAULT_SERVER_SECRET"] == common["VAULT_SERVER_SECRET"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "accepted"),
+    [
+        ("JWT_SECRET_KEY", "Abcdefghijklmnop1234567890123456", True),
+        ("JWT_SECRET_KEY", "Abcdefghijklmnop١١١١١١١١١١١١١١١١", False),
+        ("JWT_SECRET_KEY", "ébcdefghijklmnop1234567890123456", True),
+        ("JWT_SECRET_KEY", "éééééééééééééééé١١١١١١١١١١١١١١١١", False),
+    ],
+)
+def test_production_ecosystem_uses_ascii_secret_boundaries(field, value, accepted):
+    common = {
+        "FLASK_ENV": "production",
+        "JWT_SECRET_KEY": "jwt-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "INTERNAL_CALL_SECRET": "internal-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "GLOBAL_SECRETS_ENCRYPTION_KEY": "global-secret-0123456789-abcdefghijklmnopqrstuvwxyz",
+        "WORKER_REGISTRATION_SECRET": "worker-registration-0123456789-abcdefghijklmnop",
+        "VAULT_SERVER_SECRET": "vault-server-0123456789-abcdefghijklmnop",
+        "DATABASE_URL": "postgresql://db.example.invalid/radas",
+    }
+    common[field] = value
+    result = _load_config(common)
+    assert (result.returncode == 0) is accepted, result.stderr
 
 
 def test_production_ecosystem_rejects_repository_known_secret():

@@ -21,9 +21,51 @@ PRODUCTION_SECRET_NAMES = (
     "VAULT_SERVER_SECRET",
 )
 
-# Keep this aligned with the PM2 production gate. It rejects common copied
-# placeholders without requiring a particular alphabet or exposing values.
+# Keep this aligned with every production gate. Secret strength is measured
+# after Unicode whitespace trimming, in Unicode code points, with at least one
+# ASCII letter and one ASCII digit. The ASCII requirement is deliberate: Python,
+# Node, and Go otherwise disagree about which letters and digits qualify.
 _REPOSITORY_KNOWN_SECRET = "dev-only-change-me-0123456789abcdef"
+
+_TRUE_DEBUG_VALUES = {"1", "true", "yes", "on"}
+_FALSE_DEBUG_VALUES = {"0", "false", "no", "off"}
+
+
+def _is_ascii_letter(char: str) -> bool:
+    return "A" <= char <= "Z" or "a" <= char <= "z"
+
+
+def _is_ascii_digit(char: str) -> bool:
+    return "0" <= char <= "9"
+
+
+def _is_debug_enabled(value: object) -> bool:
+    return str(value).strip().lower() in _TRUE_DEBUG_VALUES
+
+
+def resolve_debug_mode(settings: dict[str, object]) -> bool:
+    """Resolve Flask debug without a production fallback.
+
+    Development keeps the historical explicit environment-or-settings behavior.
+    Production requires FLASK_DEBUG to be present and explicitly false, and also
+    rejects a persisted debug_mode=true setting even when the environment says 0.
+    """
+    raw_env = os.environ.get("FLASK_DEBUG")
+    persisted = settings.get("debug_mode")
+    if is_production_environment():
+        if _is_debug_enabled(persisted):
+            raise RuntimeError("Persisted debug_mode must be disabled in production")
+        if raw_env is None or not raw_env.strip():
+            raise RuntimeError("FLASK_DEBUG must be explicitly disabled in production")
+        normalized = raw_env.strip().lower()
+        if normalized in _TRUE_DEBUG_VALUES:
+            raise RuntimeError("FLASK_DEBUG must be disabled in production")
+        if normalized not in _FALSE_DEBUG_VALUES:
+            raise RuntimeError("FLASK_DEBUG must be explicitly disabled in production")
+        return False
+
+    normalized = (raw_env if raw_env is not None else str(persisted or False)).strip().lower()
+    return normalized in _TRUE_DEBUG_VALUES
 
 
 def is_production_environment() -> bool:
@@ -36,11 +78,12 @@ def is_production_environment() -> bool:
 
 
 def _is_strong_secret(value: str) -> bool:
+    code_points = list(value)
     return (
-        len(value) >= 32
-        and len(set(value)) >= 16
-        and any(char.isalpha() for char in value)
-        and any(char.isdigit() for char in value)
+        len(code_points) >= 32
+        and len(set(code_points)) >= 16
+        and any(_is_ascii_letter(char) for char in code_points)
+        and any(_is_ascii_digit(char) for char in code_points)
     )
 
 

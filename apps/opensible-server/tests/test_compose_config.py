@@ -10,6 +10,7 @@ COMPOSE = ROOT / "apps" / "opensible-server" / "docker-compose.yml"
 
 REQUIRED_PRODUCTION_ENV = (
     "FLASK_ENV",
+    "FLASK_DEBUG",
     "DATABASE_URL",
     "JWT_SECRET_KEY",
     "INTERNAL_CALL_SECRET",
@@ -31,7 +32,8 @@ def test_compose_worker_has_server_production_environment_contract():
 
     for name in REQUIRED_PRODUCTION_ENV:
         required_expansion = f"${{{name}:?{name} must be set}}"
-        assert server_env[name] == ("production" if name == "FLASK_ENV" else required_expansion)
+        expected = {"FLASK_ENV": "production", "FLASK_DEBUG": "0"}.get(name, required_expansion)
+        assert server_env[name] == expected
         assert worker_env[name] == server_env[name]
 
 
@@ -40,6 +42,6 @@ def test_compose_does_not_embed_production_secret_values():
 
     for service_name in ("opensible-server", "opensible-worker"):
         environment = services[service_name]["environment"]
-        for name in REQUIRED_PRODUCTION_ENV[1:]:
+        for name in REQUIRED_PRODUCTION_ENV[2:]:
             assert environment[name].startswith("${")
             assert ":-" not in environment[name]

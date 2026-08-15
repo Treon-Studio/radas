@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -39,8 +39,9 @@ func ValidateProductionSecrets() error {
 		"VAULT_SERVER_SECRET",
 	} {
 		value := strings.TrimSpace(os.Getenv(name))
-		if value == repositoryKnownSecret || len(value) < 32 || len(uniqueRunes(value)) < 16 || !hasLetter(value) || !hasDigit(value) {
+		if value == repositoryKnownSecret || utf8.RuneCountInString(value) < 32 || len(uniqueRunes(value)) < 16 || !hasLetter(value) || !hasDigit(value) {
 			return fmt.Errorf("%s must be a strong secret in production", name)
+
 		}
 	}
 	if strings.TrimSpace(os.Getenv("DATABASE_URL")) == "" {
@@ -59,7 +60,7 @@ func uniqueRunes(value string) map[rune]struct{} {
 
 func hasLetter(value string) bool {
 	for _, char := range value {
-		if unicode.IsLetter(char) {
+		if (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') {
 			return true
 		}
 	}
@@ -68,7 +69,7 @@ func hasLetter(value string) bool {
 
 func hasDigit(value string) bool {
 	for _, char := range value {
-		if unicode.IsDigit(char) {
+		if char >= '0' && char <= '9' {
 			return true
 		}
 	}

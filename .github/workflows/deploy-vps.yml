@@ -63,6 +63,7 @@ jobs:
             .venv/bin/python - <<'PY'
             import re
             from pathlib import Path
+            from utils.runtime_secrets import validate_secret_value
 
             required = {
                 "DATABASE_URL": False,
@@ -80,8 +81,15 @@ jobs:
             missing = []
             for name, strong in required.items():
                 value = values.get(name, "")
-                if not value or (strong and (len(value) < 32 or len(set(value)) < 16 or not re.search(r"[A-Za-z]", value) or not re.search(r"[0-9]", value))):
+                if not value:
                     missing.append(name)
+                elif strong:
+                    # Reuse the runtime's exact Unicode-trimmed code-point and
+                    # ASCII letter/digit policy; do not duplicate another gate.
+                    try:
+                        validate_secret_value(name, value)
+                    except RuntimeError:
+                        missing.append(name)
             if missing:
                 raise SystemExit("Production configuration is missing or weak: " + ", ".join(missing))
             PY

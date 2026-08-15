@@ -64,7 +64,9 @@ function requireStrongProductionSecret(name, value) {
   if (KNOWN_REPOSITORY_SECRETS.has(secret)) {
     throw new Error(`${name} must not use a repository-known secret in production`);
   }
-  if (secret.length < 32 || new Set(secret).size < 16 || !/[A-Za-z]/.test(secret) || !/[0-9]/.test(secret)) {
+  // Match Python/Go: Unicode-trimmed code points, ASCII letters/digits.
+  const codePoints = Array.from(secret);
+  if (codePoints.length < 32 || new Set(codePoints).size < 16 || !/[A-Za-z]/.test(secret) || !/[0-9]/.test(secret)) {
     throw new Error(`${name} must be a strong secret in production (32+ chars, letters, digits, and 16+ distinct chars)`);
   }
   return secret;

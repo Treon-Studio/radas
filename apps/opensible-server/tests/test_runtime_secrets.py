@@ -33,6 +33,46 @@ def test_production_rejects_weak_secret_without_echoing_value(monkeypatch):
     assert value not in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    ("value", "accepted"),
+    [
+        ("Abcdefghijklmnop1234567890123456", True),
+        ("Abcdefghijklmnop" + "١" * 16, False),
+        ("ébcdefghijklmnop" + "1234567890123456", True),
+        ("é" * 16 + "١" * 16, False),
+    ],
+)
+def test_secret_strength_uses_ascii_letter_and_digit_boundaries(monkeypatch, value, accepted):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    if accepted:
+        runtime_secrets.validate_secret_value("JWT_SECRET_KEY", value)
+    else:
+        with pytest.raises(RuntimeError, match="strong secret"):
+            runtime_secrets.validate_secret_value("JWT_SECRET_KEY", value)
+
+
+def test_production_debug_requires_explicit_disabled_environment(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.delenv("FLASK_DEBUG", raising=False)
+    with pytest.raises(RuntimeError, match="explicitly disabled"):
+        runtime_secrets.resolve_debug_mode({"debug_mode": False})
+
+    monkeypatch.setenv("FLASK_DEBUG", "0")
+    with pytest.raises(RuntimeError, match="Persisted debug_mode"):
+        runtime_secrets.resolve_debug_mode({"debug_mode": True})
+
+    monkeypatch.setenv("FLASK_DEBUG", "false")
+    assert runtime_secrets.resolve_debug_mode({"debug_mode": False}) is False
+
+
+def test_development_debug_remains_explicit(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "development")
+    monkeypatch.delenv("FLASK_DEBUG", raising=False)
+    assert runtime_secrets.resolve_debug_mode({"debug_mode": True}) is True
+    monkeypatch.setenv("FLASK_DEBUG", "0")
+    assert runtime_secrets.resolve_debug_mode({"debug_mode": True}) is False
+
+
 def test_production_accepts_configured_secrets(monkeypatch):
     monkeypatch.setenv("FLASK_ENV", "production")
     for name in runtime_secrets.PRODUCTION_SECRET_NAMES:

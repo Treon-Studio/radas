@@ -3029,13 +3029,11 @@ if __name__ == '__main__':
     app.logger.info(f"PROJECTS: {PROJECTS_DIR}")
     app.logger.info("Note: All data (executions, drafts, vars, configs) are now project-scoped in Project Storage")
     
-    # debug 
+    # Debug is explicit in development and fail-closed in production. Production
+    # must not fall back to a persisted setting or an implicit Flask default.
     settings = load_execution_settings()
-    debug_mode = os.getenv('FLASK_DEBUG', str(settings.get('debug_mode', False))).lower()
-    if debug_mode == 'true' or debug_mode == '1':
-        debug_mode = True
-    else:
-        debug_mode = False
+    from utils.runtime_secrets import resolve_debug_mode
+    debug_mode = resolve_debug_mode(settings)
     
     initial_log_level = os.getenv('FLASK_LOG_LEVEL', settings.get('log_level', 'INFO'))
     set_log_level(initial_log_level)
