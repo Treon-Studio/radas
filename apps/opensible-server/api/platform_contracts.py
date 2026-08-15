@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from flask import Flask, Response, Blueprint, current_app, g, has_request_context, jsonify, request
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, MethodNotAllowed
 
 REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -317,9 +317,17 @@ def register_platform_contracts(app: Flask) -> None:
         # Routing 404s can be intercepted by a pre-existing app-level handler
         # before Flask has a blueprint to dispatch. Recover the intended status
         # from the unmatched rule without changing legacy URLs.
-        if request.url_rule is None:
-            # An older app-level catch-all may have converted routing errors to
-            # its legacy status. The platform namespace owns unmatched routes.
+        routing_error = getattr(request, "routing_exception", None)
+        if isinstance(routing_error, MethodNotAllowed):
+            # An older app-level catch-all may have converted a real routing
+            # 405 to its legacy status. Restore both the status and Allow.
+            response.status_code = routing_error.code
+            for key, value in routing_error.get_response().headers.items():
+                if key.lower() == "allow":
+                    response.headers[key] = value
+        elif request.url_rule is None:
+            # The platform namespace owns unmatched routes, while preserving
+            # the status restored above for a real routing 405.
             response.status_code = 404
         if response.status_code >= 400:
             response = _normalize_platform_error(response)

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from flask import Flask, Blueprint, abort, jsonify
+from flask import Flask, Blueprint, abort, jsonify, request
 from werkzeug.exceptions import MethodNotAllowed, TooManyRequests, Unauthorized
 
 from api import register_blueprints
@@ -84,6 +84,14 @@ def app(tmp_path, monkeypatch) -> Flask:
         return success_response(
             {"operation": "created", "client_secret": "must-not-leak"}, status=201
         )
+
+    @platform.post("/api/platform/json-mutation")
+    def json_mutation():
+        return success_response({"payload": request.get_json()})
+
+    @platform.get("/api/platform/get-only")
+    def get_only():
+        return success_response({"method": "GET"})
 
     app.register_blueprint(platform)
 
@@ -209,6 +217,28 @@ def test_legacy_health_and_method_errors_keep_legacy_shapes(app: Flask, monkeypa
     assert REQUEST_ID_HEADER not in wrong_method.headers
 
 
+def test_new_platform_duplicate_preserves_json_body_and_reuses_first_envelope(
+    app: Flask, tmp_path
+):
+    import api.platform_routes as platform_routes
+
+    platform_routes._idem_path = lambda: tmp_path / "idempotency.json"
+    client = app.test_client()
+    headers = {"Idempotency-Key": "json-mutation-1", REQUEST_ID_HEADER: "first-request"}
+    first = client.post("/api/platform/json-mutation", headers=headers, json={"x": 1})
+    duplicate = client.post(
+        "/api/platform/json-mutation",
+        headers={"Idempotency-Key": "json-mutation-1", REQUEST_ID_HEADER: "second-request"},
+        json={"x": 1},
+    )
+
+    assert first.status_code == duplicate.status_code == 200
+    assert first.get_json() == duplicate.get_json()
+    assert first.get_json()["data"]["payload"] == {"x": 1}
+    assert first.get_json()["request_id"] == "first-request"
+    assert duplicate.headers[REQUEST_ID_HEADER] == "first-request"
+
+
 def test_new_platform_duplicate_reuses_redacted_first_envelope_and_request_id(
     app: Flask, tmp_path
 ):
@@ -231,6 +261,46 @@ def test_new_platform_duplicate_reuses_redacted_first_envelope_and_request_id(
     assert "must-not-leak" not in duplicate.get_data(as_text=True)
     stored = (tmp_path / "idempotency.json").read_text()
     assert "must-not-leak" not in stored
+
+
+def test_new_platform_conflicting_idempotency_payload_returns_409_without_overwrite(
+    app: Flask, tmp_path
+):
+    import api.platform_routes as platform_routes
+
+    platform_routes._idem_path = lambda: tmp_path / "idempotency.json"
+    client = app.test_client()
+    first = client.post(
+        "/api/platform/json-mutation",
+        headers={"Idempotency-Key": "conflict-1", REQUEST_ID_HEADER: "first-request"},
+        json={"x": 1},
+    )
+    conflict = client.post(
+        "/api/platform/json-mutation",
+        headers={"Idempotency-Key": "conflict-1", REQUEST_ID_HEADER: "conflict-request"},
+        json={"x": 2},
+    )
+    duplicate = client.post(
+        "/api/platform/json-mutation",
+        headers={"Idempotency-Key": "conflict-1", REQUEST_ID_HEADER: "third-request"},
+        json={"x": 1},
+    )
+
+    assert first.status_code == 200
+    assert conflict.status_code == 409
+    assert conflict.get_json()["error"]["code"] == "CONFLICT"
+    assert conflict.get_json()["request_id"] == "conflict-request"
+    assert duplicate.status_code == 200
+    assert duplicate.get_json() == first.get_json()
+    assert duplicate.headers[REQUEST_ID_HEADER] == "first-request"
+
+
+def test_platform_wrong_method_preserves_405_and_allow_header(app: Flask):
+    response = app.test_client().post("/api/platform/get-only")
+
+    assert response.status_code == 405
+    assert response.get_json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+    assert "GET" in response.headers["Allow"]
 
 
 def test_unexpected_platform_errors_are_safe_and_logged_without_exception_text(

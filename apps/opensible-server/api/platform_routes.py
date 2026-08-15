@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, request
 
 from api.platform_contracts import (
     REQUEST_ID_HEADER,
+    error_response,
     is_platform_request,
     redact_sensitive,
     set_request_id,
@@ -56,24 +57,30 @@ def _idempotency_before():
     # compatible. Only additive platform mutations use the new contract.
     if not key or request.method != "POST" or not is_platform_request():
         return None
-    body = request.get_data(cache=False) or b""
+    body = request.get_data(cache=True) or b""
     h = hashlib.sha256(body).hexdigest()
     store = _idem_load()
     entry = store.get(key)
     now = time.time()
-    if entry and entry.get("body_hash") == h and now - entry.get("ts", 0) < IDEMPOTENCY_TTL:
-        cached = entry.get("result")
-        if isinstance(cached, dict):
-            cached_body = cached.get("body")
-            cached_request_id = cached.get("request_id")
-            if isinstance(cached_body, dict) and isinstance(cached_request_id, str):
-                # Reuse only the already-redacted response envelope and its ID;
-                # never return the storage record or raw body text.
-                set_request_id(cached_request_id)
-                response = jsonify(redact_sensitive(cached_body))
-                response.status_code = int(cached.get("status", 202))
-                response.headers[REQUEST_ID_HEADER] = cached_request_id
-                return response
+    if entry and now - entry.get("ts", 0) < IDEMPOTENCY_TTL:
+        if entry.get("body_hash") == h:
+            cached = entry.get("result")
+            if isinstance(cached, dict):
+                cached_body = cached.get("body")
+                cached_request_id = cached.get("request_id")
+                if isinstance(cached_body, dict) and isinstance(cached_request_id, str):
+                    # Reuse only the already-redacted response envelope and its ID;
+                    # never return the storage record or raw body text.
+                    set_request_id(cached_request_id)
+                    response = jsonify(redact_sensitive(cached_body))
+                    response.status_code = int(cached.get("status", 202))
+                    response.headers[REQUEST_ID_HEADER] = cached_request_id
+                    return response
+        return error_response(
+            "CONFLICT",
+            "Idempotency key was already used with a different request payload",
+            status=409,
+        )
     request._idem_key = key
     request._idem_hash = h
     return None
