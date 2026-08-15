@@ -198,6 +198,33 @@ _V2_DDL: List[str] = [
     "ALTER TABLE schema_migrations ALTER COLUMN applied_at TYPE DOUBLE PRECISION",
 ]
 
+# Version 3 — immutable, tenant-scoped service catalog definitions.
+_V3_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_definitions (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        scope_type TEXT NOT NULL CHECK (scope_type IN ('platform', 'organization')),
+        org_id TEXT,
+        owner_id TEXT,
+        current_version TEXT NOT NULL,
+        disabled BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DOUBLE PRECISION NOT NULL,
+        UNIQUE (slug, scope_type, org_id),
+        CHECK ((scope_type = 'platform' AND org_id IS NULL) OR
+               (scope_type = 'organization' AND org_id IS NOT NULL))
+    )""",
+    """CREATE TABLE IF NOT EXISTS service_definition_versions (
+        definition_id TEXT NOT NULL REFERENCES service_definitions(id) ON DELETE CASCADE,
+        version TEXT NOT NULL,
+        manifest JSONB NOT NULL,
+        published_by TEXT,
+        published_at DOUBLE PRECISION NOT NULL,
+        PRIMARY KEY (definition_id, version)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_definitions_scope
+       ON service_definitions(scope_type, org_id, slug)""",
+]
+
 
 def migrate() -> None:
     """Apply pending schema migrations (idempotent)."""
@@ -210,7 +237,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue
