@@ -1,8 +1,11 @@
 """Tests for the additive platform API response contracts."""
 from __future__ import annotations
 
+import logging
+
 import pytest
-from flask import Flask, abort
+from flask import Flask, Blueprint, abort, jsonify
+from werkzeug.exceptions import MethodNotAllowed, TooManyRequests, Unauthorized
 
 from api.platform_contracts import (
     REQUEST_ID_HEADER,
@@ -10,55 +13,103 @@ from api.platform_contracts import (
     operation_envelope,
     operation_response,
     redact_sensitive,
+    register_platform_blueprint_contracts,
     register_platform_contracts,
     success_response,
 )
+from api.platform_routes import bp as existing_platform_bp
 
 
 @pytest.fixture
-def app() -> Flask:
+def app(tmp_path, monkeypatch) -> Flask:
     app = Flask(__name__)
     app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
-    register_platform_contracts(app)
 
-    @app.get("/api/platform/success")
+    # Exercise the same ordering as API setup: app finalization, then the
+    # existing platform blueprint, then a new platform blueprint.
+    register_platform_contracts(app)
+    register_platform_blueprint_contracts(existing_platform_bp)
+    app.register_blueprint(existing_platform_bp)
+
+    platform = Blueprint("test_platform", __name__)
+    register_platform_blueprint_contracts(platform)
+
+    @platform.get("/api/platform/success")
     def success():
         return success_response({"value": 42})
 
-    @app.get("/api/platform/operation")
+    @platform.get("/api/platform/explicit-request-id")
+    def explicit_request_id():
+        return success_response({"ok": True}, request_id_value="handler-id")
+
+    @platform.get("/api/platform/operation")
     def operation():
         return operation_response(
-            {"id": "op-123", "kind": "service.deploy", "status": "queued", "poll_url": "/api/platform/operations/op-123"}
+            {
+                "id": "op-123",
+                "kind": "service.deploy",
+                "status": "queued",
+                "poll_url": "/api/platform/operations/op-123",
+            }
         )
 
-    @app.get("/api/platform/error/<int:status>")
+    @platform.get("/api/platform/error/<int:status>")
     def error(status: int):
         abort(status)
 
-    @app.get("/api/platform/failure")
+    @platform.get("/api/platform/retry")
+    def retry():
+        raise TooManyRequests(description="slow down", retry_after=60)
+
+    @platform.get("/api/platform/auth")
+    def auth():
+        raise Unauthorized(www_authenticate=["Bearer realm=platform"])
+
+    @platform.post("/api/platform/method")
+    def method():
+        raise MethodNotAllowed(valid_methods=["GET", "POST"])
+
+    @platform.get("/api/platform/failure")
     def failure():
-        raise RuntimeError("provider credentials=super-secret")
+        raise RuntimeError(
+            "provider access_token=raw-access refresh_token=raw-refresh "
+            "client_secret=raw-client AWS_SECRET_ACCESS_KEY=raw-aws"
+        )
+
+    app.register_blueprint(platform)
+
+    @app.get("/legacy-failure")
+    def legacy_failure():
+        raise RuntimeError("legacy failure")
+
+    @app.errorhandler(Exception)
+    def legacy_exception(error):
+        return jsonify({"legacy": type(error).__name__}), 599
 
     return app
 
 
-def test_request_id_is_propagated_and_generated(app: Flask):
-    client = app.test_client()
-
-    propagated = client.get("/api/platform/success", headers={REQUEST_ID_HEADER: "client-trace-123"})
-    assert propagated.status_code == 200
-    assert propagated.get_json() == {
+@pytest.mark.parametrize("request_id", ["client-trace-123", "explicit:request-id"])
+def test_request_id_is_authoritative_and_consistent(app: Flask, request_id: str):
+    response = app.test_client().get(
+        "/api/platform/success", headers={REQUEST_ID_HEADER: request_id}
+    )
+    assert response.status_code == 200
+    assert response.get_json() == {
         "data": {"value": 42},
-        "request_id": "client-trace-123",
+        "request_id": request_id,
     }
-    assert propagated.headers[REQUEST_ID_HEADER] == "client-trace-123"
+    assert response.headers[REQUEST_ID_HEADER] == request_id
 
-    generated = client.get("/api/platform/success")
-    generated_id = generated.get_json()["request_id"]
-    assert generated.status_code == 200
-    assert generated_id
-    assert generated.headers[REQUEST_ID_HEADER] == generated_id
-    assert generated_id != "client-trace-123"
+
+def test_handler_request_id_input_is_authoritative(app: Flask):
+    response = app.test_client().get(
+        "/api/platform/explicit-request-id",
+        headers={REQUEST_ID_HEADER: "client-id"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["request_id"] == "handler-id"
+    assert response.headers[REQUEST_ID_HEADER] == "handler-id"
 
 
 def test_invalid_request_id_is_replaced(app: Flask):
@@ -66,8 +117,16 @@ def test_invalid_request_id_is_replaced(app: Flask):
         "/api/platform/success", headers={REQUEST_ID_HEADER: "bad value"}
     )
     assert response.status_code == 200
-    assert response.get_json()["request_id"] != "bad value"
-    assert response.headers[REQUEST_ID_HEADER] == response.get_json()["request_id"]
+    generated = response.get_json()["request_id"]
+    assert generated != "bad value\n"
+    assert response.headers[REQUEST_ID_HEADER] == generated
+
+
+def test_generated_request_id_is_shared_by_body_and_header(app: Flask):
+    response = app.test_client().get("/api/platform/success")
+    generated = response.get_json()["request_id"]
+    assert generated
+    assert response.headers[REQUEST_ID_HEADER] == generated
 
 
 @pytest.mark.parametrize(
@@ -77,6 +136,7 @@ def test_invalid_request_id_is_replaced(app: Flask):
         (401, "UNAUTHORIZED"),
         (403, "FORBIDDEN"),
         (404, "NOT_FOUND"),
+        (405, "METHOD_NOT_ALLOWED"),
         (409, "CONFLICT"),
         (422, "VALIDATION_ERROR"),
         (429, "RATE_LIMITED"),
@@ -87,41 +147,58 @@ def test_platform_http_errors_use_error_envelope(app: Flask, status: int, code: 
     response = app.test_client().get(f"/api/platform/error/{status}")
     body = response.get_json()
     assert response.status_code == status
-    assert body["error"] == {
-        "code": code,
-        "message": body["error"]["message"],
+    assert body["error"]["code"] == code
+    assert body["error"]["details"] == {}
+    assert body["request_id"] == response.headers[REQUEST_ID_HEADER]
+
+
+def test_platform_missing_route_is_enveloped_after_realistic_registration(app: Flask):
+    response = app.test_client().get("/api/platform/does-not-exist")
+    assert response.status_code == 404
+    assert response.get_json()["error"]["code"] == "NOT_FOUND"
+    assert response.get_json()["request_id"] == response.headers[REQUEST_ID_HEADER]
+
+
+def test_unexpected_platform_errors_are_safe_and_logged_without_exception_text(
+    app: Flask, caplog: pytest.LogCaptureFixture
+):
+    with caplog.at_level(logging.ERROR):
+        response = app.test_client().get("/api/platform/failure")
+    assert response.status_code == 500
+    assert response.get_json()["error"] == {
+        "code": "INTERNAL_SERVER_ERROR",
+        "message": "Internal server error",
         "details": {},
     }
-    assert body["request_id"] == response.headers[REQUEST_ID_HEADER]
-    assert body["request_id"]
+    assert response.get_json()["request_id"] == response.headers[REQUEST_ID_HEADER]
+    output = response.get_data(as_text=True) + "\n" + caplog.text
+    for secret in ("raw-access", "raw-refresh", "raw-client", "raw-aws"):
+        assert secret not in output
 
 
-def test_unexpected_platform_errors_are_safe_and_enveloped(app: Flask):
-    response = app.test_client().get("/api/platform/failure")
-    assert response.status_code == 500
-    assert response.get_json() == {
-        "error": {
-            "code": "INTERNAL_SERVER_ERROR",
-            "message": "Internal server error",
-            "details": {},
-        },
-        "request_id": response.headers[REQUEST_ID_HEADER],
-    }
-    assert "super-secret" not in response.get_data(as_text=True)
+def test_platform_error_headers_are_preserved(app: Flask):
+    retry = app.test_client().get("/api/platform/retry")
+    assert retry.status_code == 429
+    assert retry.headers["Retry-After"] == "60"
+
+    auth = app.test_client().get("/api/platform/auth")
+    assert auth.status_code == 401
+    assert auth.headers.getlist("WWW-Authenticate") == ["Bearer realm=platform"]
+
+    allow = app.test_client().post("/api/platform/method")
+    assert allow.status_code == 405
+    assert "GET" in allow.headers["Allow"]
 
 
-def test_operation_response_shape_is_stable(app: Flask):
-    response = app.test_client().get("/api/platform/operation")
+def test_operation_response_contains_consistent_request_id(app: Flask):
+    response = app.test_client().get(
+        "/api/platform/operation", headers={REQUEST_ID_HEADER: "operation-id"}
+    )
     assert response.status_code == 202
-    assert response.get_json() == {
-        "operation": {
-            "id": "op-123",
-            "kind": "service.deploy",
-            "status": "queued",
-            "poll_url": "/api/platform/operations/op-123",
-        }
-    }
-    assert "request_id" not in response.get_json()
+    body = response.get_json()
+    assert body["operation"]["id"] == "op-123"
+    assert body["request_id"] == "operation-id"
+    assert response.headers[REQUEST_ID_HEADER] == "operation-id"
 
 
 def test_operation_requires_contract_fields():
@@ -129,39 +206,70 @@ def test_operation_requires_contract_fields():
         operation_envelope({"id": "op-1", "kind": "service.deploy", "status": "queued"})
 
 
-def test_secret_redaction_is_recursive_and_non_mutating():
+def test_secret_redaction_covers_credentials_and_is_non_mutating():
     original = {
         "name": "deploy",
-        "password": "p@ss",
-        "nested": [{"api_token": "tok", "safe": "value"}],
-        "stderr": "TOKEN=inline-secret; region=local",
+        "access_token": "access",
+        "refresh-token": "refresh",
+        "client_secret": "client",
+        "AWS_SECRET_ACCESS_KEY": "aws",
+        "private_key": "key",
+        "nested": [{"safe": "value"}],
+        "json": '{"access_token":"json-access","client_secret":"json-client"}',
+        "authorization": "Bearer abc.def.ghi",
+        "provider_message": "Bearer provider-token",
+        "pem": "-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----",
     }
     redacted = redact_sensitive(original)
 
-    assert redacted == {
-        "name": "deploy",
-        "password": "[REDACTED]",
-        "nested": [{"api_token": "[REDACTED]", "safe": "value"}],
-        "stderr": "TOKEN=[REDACTED]; region=local",
-    }
-    assert original["password"] == "p@ss"
-    assert original["nested"][0]["api_token"] == "tok"
+    assert redacted["access_token"] == "[REDACTED]"
+    assert redacted["refresh-token"] == "[REDACTED]"
+    assert redacted["client_secret"] == "[REDACTED]"
+    assert redacted["AWS_SECRET_ACCESS_KEY"] == "[REDACTED]"
+    assert redacted["private_key"] == "[REDACTED]"
+    assert "json-access" not in redacted["json"]
+    assert "json-client" not in redacted["json"]
+    assert redacted["authorization"] == "[REDACTED]"
+    assert redacted["provider_message"] == "Bearer [REDACTED]"
+    assert "secret" not in redacted["pem"]
+    assert original["access_token"] == "access"
+    assert original["json"] == '{"access_token":"json-access","client_secret":"json-client"}'
 
 
-def test_explicit_error_response_redacts_details(app: Flask):
+def test_explicit_error_response_redacts_message_and_details(app: Flask):
     with app.test_request_context("/api/platform/explicit"):
         response, status = error_response(
             "SERVICE_OPERATION_CONFLICT",
-            "cannot use token=raw-token",
+            "cannot use access_token=raw-token Bearer raw-bearer",
             409,
-            details={"secret": "raw-secret", "reason": "already running"},
+            details={"client_secret": "raw-secret", "reason": "already running"},
         )
     assert status == 409
-    assert response.get_json() == {
-        "error": {
-            "code": "SERVICE_OPERATION_CONFLICT",
-            "message": "cannot use token=[REDACTED]",
-            "details": {"secret": "[REDACTED]", "reason": "already running"},
-        },
-        "request_id": response.get_json()["request_id"],
+    body = response.get_json()
+    assert body["error"]["message"] == (
+        "cannot use access_token=[REDACTED] Bearer [REDACTED]"
+    )
+    assert body["error"]["details"] == {
+        "client_secret": "[REDACTED]",
+        "reason": "already running",
     }
+    assert body["request_id"] == response.headers.get(REQUEST_ID_HEADER, body["request_id"])
+
+
+def test_legacy_exception_handler_and_idempotency_route_are_unchanged(app: Flask, tmp_path):
+    response = app.test_client().get("/legacy-failure")
+    assert response.status_code == 599
+    assert response.get_json() == {"legacy": "RuntimeError"}
+
+    import api.platform_routes as platform_routes
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(platform_routes, "_idem_path", lambda: tmp_path / "idempotency.json")
+    try:
+        response = app.test_client().get(
+            "/api/platform/idempotency", headers={REQUEST_ID_HEADER: "legacy-id"}
+        )
+    finally:
+        monkeypatch.undo()
+    assert response.status_code == 200
+    assert response.get_json() == {"entries": 0}
+    assert REQUEST_ID_HEADER not in response.headers
