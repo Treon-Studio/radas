@@ -146,7 +146,7 @@ def test_global_registry_merges_legacy_records_and_prefers_namespaced_duplicates
 
 def test_legacy_only_global_flags_are_migrated_for_registry_update_and_delete(data_dir):
     from services.feature_flags import create_flag as create_legacy_flag, get_flag as get_legacy_flag
-    from services.feature_flag_registry import audit, create_flag, delete_flag, evaluate, list_flags, update_flag
+    from services.feature_flag_registry import archive_flag, audit, create_flag, delete_flag, evaluate, list_flags, update_flag
 
     create_legacy_flag({"key": "legacy.update", "enabled": True})
     updated = update_flag("legacy.update", {"enabled": False}, actor="editor")
@@ -166,6 +166,9 @@ def test_legacy_only_global_flags_are_migrated_for_registry_update_and_delete(da
 
     create_legacy_flag({"key": "registry.wins", "enabled": True})
     create_flag({"key": "registry.wins", "enabled": False})
+    with pytest.raises(ValueError, match="archived"):
+        delete_flag("registry.wins", actor="editor")
+    archive_flag("registry.wins", actor="editor")
     assert delete_flag("registry.wins", actor="editor") is True
     assert {flag["key"]: flag for flag in list_flags()}["registry.wins"]["enabled"] is True
 
@@ -205,7 +208,88 @@ def test_flags_api_derives_project_organization_for_evaluation(data_dir):
 
     app = flask.Flask(__name__)
     app.register_blueprint(feature_flag_routes.bp)
-    with app.test_request_context("/api/flags/evaluate", method="POST", json={"key": "org.only", "project_id": "project-1"}):
-        response = feature_flag_routes.api_evaluate_flag.__wrapped__()
+    from auth.service import generate_token
+    from auth import middleware
+    middleware.set_data_dir(data_dir)
+    headers = {"Authorization": f"Bearer {generate_token('u-1', 'alice', [], data_dir, token_type='access')}"}
+    with app.test_request_context("/api/flags/evaluate", method="POST", json={"key": "org.only", "project_id": "project-1"}, headers=headers):
+        response = feature_flag_routes.api_evaluate_flag()
 
     assert response.get_json()["source"] == "organization"
+
+
+def test_registry_expiry_archives_lifecycle_and_permanent_delete_guards(data_dir):
+    from services.feature_flag_registry import (
+        archive_flag,
+        audit,
+        create_flag,
+        delete_flag,
+        expire_due_flags,
+        get_flag,
+        restore_flag,
+    )
+
+    create_flag({"key": "expiry.flag", "ttl_seconds": 5}, "organization", "org-1")
+    assert expire_due_flags(now=10**10) == 1
+    expired = get_flag("expiry.flag", "organization", "org-1")
+    assert expired["enabled"] is False
+    assert expired["expired_at"] == 10**10
+    assert audit("organization", "org-1", "expiry.flag", 1)[0]["operation"] == "expire"
+
+    create_flag({"key": "base.lifecycle"})
+    create_flag({"key": "child.lifecycle", "parent_key": "base.lifecycle"})
+    with pytest.raises(ValueError, match="dependents"):
+        archive_flag("base.lifecycle")
+    archived = archive_flag("child.lifecycle", reason="retired", actor="owner")
+    assert archived["archived"] is True and archived["enabled"] is False
+    from services.feature_flag_registry import update_flag
+    with pytest.raises(ValueError, match="archived"):
+        update_flag("child.lifecycle", {"enabled": True})
+    with pytest.raises(ValueError, match="archived"):
+        delete_flag("base.lifecycle")
+    restored = restore_flag("child.lifecycle", actor="owner")
+    assert restored["archived"] is False and restored["enabled"] is False
+    archive_flag("child.lifecycle", actor="owner")
+    assert delete_flag("child.lifecycle", actor="owner") is True
+
+
+def test_impact_reports_effective_relationships_lifecycle_and_cross_scope_dependents(data_dir):
+    from services.feature_flag_registry import archive_flag, create_flag, impact
+
+    create_flag({"key": "parent.impact"})
+    create_flag({"key": "child.impact", "parent_key": "parent.impact"}, "organization", "org-1")
+    create_flag({"key": "project.impact", "prerequisites": ["parent.impact"]}, "project", "project-1")
+    archive_flag("child.impact", "organization", "org-1")
+
+    result = impact("child.impact", "organization", "org-1")
+    assert result["effective_parent"]["key"] == "parent.impact"
+    assert result["prerequisites"] == []
+    assert result["lifecycle"]["archived"] is True
+    assert result["blockers"] == []
+
+    parent_impact = impact("parent.impact")
+    assert {(item["key"], item["scope_type"], item["relationship"]) for item in parent_impact["dependents"]} == {
+        ("child.impact", "organization", "parent"),
+        ("project.impact", "project", "prerequisite"),
+    }
+
+
+def test_atomic_import_accepts_forward_references_and_rolls_back_invalid_batches(data_dir):
+    from services.feature_flag_registry import import_flags, list_flags
+
+    result = import_flags([
+        {"key": "child.import", "parent_key": "parent.import"},
+        {"key": "parent.import"},
+    ], actor="importer")
+    assert result["batch_id"]
+    assert [flag["key"] for flag in result["flags"]] == ["child.import", "parent.import"]
+
+    with pytest.raises(ValueError, match="Dependency cycle"):
+        import_flags([
+            {"key": "cycle.one", "parent_key": "cycle.two"},
+            {"key": "cycle.two", "parent_key": "cycle.one"},
+        ])
+    assert {flag["key"] for flag in list_flags()} == {"child.import", "parent.import"}
+
+    with pytest.raises(ValueError, match="flags must be a list"):
+        import_flags({"not": "a list"})

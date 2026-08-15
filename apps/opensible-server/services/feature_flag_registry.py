@@ -241,12 +241,9 @@ def _validate_dependency_graph(candidate: Dict[str, Any], scope_type: str, scope
     walk(str(candidate["key"]))
 
 
-def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None,
-                actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+def _new_flag(data: Dict[str, Any], scope_type: str, scope_id: Optional[str], actor: str = "") -> Dict[str, Any]:
+    """Normalize a new registry record without persisting it."""
     key = _normalize_key(data.get("key"))
-    # A legacy global entry does not block its namespaced registry successor.
-    if any(flag.get("key") == key for flag in _load_registry(scope_type, scope_id)):
-        raise ValueError(f"Flag '{key}' already exists")
     parent, prerequisites = _normalize_relationships(data, key)
     now = int(time.time())
     try:
@@ -272,11 +269,21 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
                 flag[field] = int(data[field])
             except (TypeError, ValueError):
                 pass
+    return flag
+
+
+def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Optional[str] = None,
+                actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+    flag = _new_flag(data, scope_type, scope_id, actor)
+    key = flag["key"]
+    # A legacy global entry does not block its namespaced registry successor.
+    if any(item.get("key") == key for item in _load_registry(scope_type, scope_id)):
+        raise ValueError(f"Flag '{key}' already exists")
     _validate_dependency_graph(flag, scope_type, scope_id, org_id)
     flags = _load_registry(scope_type, scope_id)
     flags.append(flag)
     _save(flags, scope_type, scope_id)
-    _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": now, "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+    _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": flag["created_at"], "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return _decorate(flag, scope_type, scope_id)
 
 
@@ -297,10 +304,20 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
         flags.append(copy.deepcopy(legacy_flag))
         index = len(flags) - 1
     before = copy.deepcopy(flags[index])
+    if before.get("archived") and patch.get("enabled") is True:
+        raise ValueError("archived flags cannot be enabled; restore first")
     candidate = copy.deepcopy(before)
     for field in ("name", "description", "tags", "reason", "type"):
         if field in patch:
             candidate[field] = patch[field]
+    for field in ("ttl_seconds", "scheduled_expire_at"):
+        if field in patch:
+            if patch[field] is None:
+                candidate.pop(field, None)
+            else:
+                candidate[field] = int(patch[field])
+    if "archived" in patch:
+        candidate["archived"] = bool(patch["archived"])
     parent, prerequisites = _normalize_relationships(patch, key, candidate)
     candidate["parent_key"] = parent
     candidate["prerequisites"] = prerequisites
@@ -337,14 +354,147 @@ def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = 
         legacy_flag = next((item for item in legacy.list_flags() if item.get("key") == key), None)
         if not legacy_flag:
             return False
+        # Preserve legacy compatibility: deleting a legacy-only global record
+        # remains a tombstone operation because it cannot be archived in place.
         removed = copy.deepcopy(legacy_flag)
         flags.append({"key": key, "_deleted": True})
     else:
         removed = copy.deepcopy(flags[index])
+        if not removed.get("archived"):
+            raise ValueError("Flag must be archived before permanent deletion")
+        if find_dependents(key):
+            raise ValueError("Flag has dependents and cannot be deleted")
         flags.pop(index)
     _save(flags, scope_type, scope_id)
     _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return True
+
+
+def _validate_batch_dependency_graph(flags: List[Dict[str, Any]], scope_type: str, scope_id: Optional[str],
+                                     org_id: Optional[str]) -> None:
+    """Validate prospective records as one visible graph, allowing forward references."""
+    candidates = {str(flag["key"]): flag for flag in flags}
+    if len(candidates) != len(flags):
+        raise ValueError("Duplicate flag keys in import batch")
+    existing = _effective_records(scope_type, scope_id, org_id)
+    existing.update({key: _decorate(flag, scope_type, scope_id) for key, flag in candidates.items()})
+    visiting: List[str] = []
+    visited: set[str] = set()
+
+    def walk(key: str) -> None:
+        if key in visiting:
+            start = visiting.index(key)
+            raise ValueError(f"Dependency cycle detected: {' -> '.join(visiting[start:] + [key])}")
+        if key in visited:
+            return
+        flag = existing.get(key)
+        if not flag:
+            raise ValueError(f"Unknown dependency flag '{key}'")
+        visiting.append(key)
+        parent = flag.get("parent_key")
+        if parent:
+            if parent not in existing:
+                raise ValueError(f"Unknown parent flag '{parent}'")
+            walk(parent)
+        for prerequisite in flag.get("prerequisites") or []:
+            if prerequisite not in existing:
+                raise ValueError(f"Unknown prerequisite flag '{prerequisite}'")
+            walk(prerequisite)
+        visiting.pop()
+        visited.add(key)
+
+    for key in candidates:
+        walk(key)
+
+
+def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] = None,
+                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Atomically persist a validated import batch; nothing is written on failure."""
+    if not isinstance(data, list):
+        raise ValueError("flags must be a list")
+    if not all(isinstance(item, dict) for item in data):
+        raise ValueError("Every imported flag must be an object")
+    flags = [_new_flag(item, scope_type, scope_id, actor) for item in data]
+    current = _load_registry(scope_type, scope_id)
+    current_keys = {str(item.get("key")) for item in current if isinstance(item, dict)}
+    if any(flag["key"] in current_keys for flag in flags):
+        raise ValueError("An imported flag already exists")
+    _validate_batch_dependency_graph(flags, scope_type, scope_id, org_id)
+    if not flags:
+        return {"batch_id": str(uuid.uuid4()), "flags": []}
+    _save(current + flags, scope_type, scope_id)
+    batch_id = str(uuid.uuid4())
+    for flag in flags:
+        _append_history({"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
+                         "actor_name": actor_name or "", "at": int(time.time()), "after": flag,
+                         "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+    return {"batch_id": batch_id, "flags": [_decorate(flag, scope_type, scope_id) for flag in flags]}
+
+
+def _expire_at(flag: Dict[str, Any]) -> Optional[int]:
+    value = flag.get("scheduled_expire_at")
+    if value is None and flag.get("ttl_seconds") is not None:
+        try:
+            value = int(flag.get("created_at", 0)) + int(flag["ttl_seconds"])
+        except (TypeError, ValueError):
+            value = None
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def expire_due_flags(now: Optional[int] = None) -> int:
+    """Disable all due registry records in every scope and audit each expiry."""
+    now = int(now if now is not None else time.time())
+    changed = 0
+    for scope_type, scope_id in _stored_scopes():
+        flags = _load_registry(scope_type, scope_id)
+        dirty = False
+        for flag in flags:
+            if not isinstance(flag, dict) or not flag.get("enabled"):
+                continue
+            expire_at = _expire_at(flag)
+            if expire_at is not None and now >= expire_at:
+                before = copy.deepcopy(flag)
+                flag["enabled"] = False
+                flag["expired_at"] = now
+                flag["updated_at"] = now
+                _append_history({"operation": "expire", "key": flag.get("key"), "actor": "system", "actor_name": "",
+                                 "at": now, "before": before, "after": copy.deepcopy(flag), "changes": _diff(before, flag),
+                                 "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+                dirty = True
+                changed += 1
+        if dirty:
+            _save(flags, scope_type, scope_id)
+    return changed
+
+
+def impact(key: str, scope_type: str = "global", scope_id: Optional[str] = None,
+           org_id: Optional[str] = None) -> Dict[str, Any]:
+    flag = get_flag(key, scope_type, scope_id)
+    if not flag:
+        raise ValueError("Flag not found")
+    parent = _resolve_effective(flag["parent_key"], scope_type, scope_id, org_id) if flag.get("parent_key") else None
+    prerequisites = [_resolve_effective(item, scope_type, scope_id, org_id) for item in flag.get("prerequisites") or []]
+    blockers = find_dependents(flag["key"])
+    return {"flag": flag, "effective_parent": parent, "prerequisites": [item for item in prerequisites if item],
+            "dependents": blockers, "blockers": blockers,
+            "lifecycle": {"archived": bool(flag.get("archived")), "expired_at": flag.get("expired_at")}}
+
+
+def archive_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
+                 actor_name: str = "", reason: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if find_dependents(key):
+        raise ValueError("Flag has dependents and cannot be archived")
+    return update_flag(key, {"enabled": False, "archived": True, "reason": reason}, scope_type, scope_id,
+                       actor=actor, actor_name=actor_name, operation="archive", org_id=org_id)
+
+
+def restore_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
+                 actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    return update_flag(key, {"enabled": False, "archived": False}, scope_type, scope_id,
+                       actor=actor, actor_name=actor_name, operation="restore", org_id=org_id)
 
 
 def _is_registry_global_key(key: str) -> bool:
