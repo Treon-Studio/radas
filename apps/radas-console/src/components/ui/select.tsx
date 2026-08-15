@@ -1,10 +1,3 @@
-/**
- * Lightweight custom Select — styled to match the reference screenshot:
- * - White rounded "trigger" with chevron
- * - Floating panel with soft border + shadow
- * - Selected row uses a soft indigo highlight with a check
- * - Keyboard friendly: Enter/Space to open, Esc/click-outside to close
- */
 import { useEffect, useId, useRef, useState } from "react";
 import { RiCheckLine as Check, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { cn } from "@/lib/utils";
@@ -35,6 +28,7 @@ type Props = {
   action?: { label: string; icon?: React.ReactNode; onClick: () => void };
 };
 
+/** A keyboard-accessible, single-select combobox that preserves the existing Select API. */
 export function Select({
   value,
   onChange,
@@ -51,35 +45,135 @@ export function Select({
   action,
 }: Props) {
   const id = useId();
+  const triggerId = `${id}-trigger`;
+  const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const typeaheadRef = useRef("");
+  const typeaheadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const optionId = (index: number) => `${id}-option-${index}`;
+  const enabledIndexes = options.reduce<number[]>((indexes, option, index) => {
+    if (!option.disabled) indexes.push(index);
+    return indexes;
+  }, []);
+  const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
+  const initialActiveIndex = () => selectedIndex >= 0 ? selectedIndex : (enabledIndexes[0] ?? -1);
+
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+  const openAt = (index = initialActiveIndex()) => {
+    setActiveIndex(index);
+    setOpen(true);
+  };
+  const moveActive = (direction: 1 | -1) => {
+    if (!enabledIndexes.length) return;
+    const currentPosition = enabledIndexes.indexOf(activeIndex);
+    const nextPosition = currentPosition < 0
+      ? (direction === 1 ? 0 : enabledIndexes.length - 1)
+      : (currentPosition + direction + enabledIndexes.length) % enabledIndexes.length;
+    setActiveIndex(enabledIndexes[nextPosition]!);
+  };
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    if (!enabledIndexes.includes(activeIndex)) setActiveIndex(initialActiveIndex());
+  }, [activeIndex, enabledIndexes, open, options, value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocumentMouseDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => document.removeEventListener("mousedown", onDocumentMouseDown);
   }, [open]);
 
-  const current = options.find(o => o.value === value) ?? null;
+  useEffect(() => () => {
+    if (typeaheadTimeoutRef.current) clearTimeout(typeaheadTimeoutRef.current);
+  }, []);
+
+  const selectActive = () => {
+    const option = options[activeIndex];
+    if (!option || option.disabled) return;
+    onChange(option.value);
+    close(true);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    switch (event.key) {
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (open) selectActive();
+        else openAt();
+        return;
+      case "Escape":
+        if (open) {
+          event.preventDefault();
+          event.stopPropagation();
+          close(true);
+        }
+        return;
+      case "ArrowDown":
+        event.preventDefault();
+        if (!open) openAt();
+        moveActive(1);
+        return;
+      case "ArrowUp":
+        event.preventDefault();
+        if (!open) openAt();
+        moveActive(-1);
+        return;
+      case "Home":
+        event.preventDefault();
+        if (!open) setOpen(true);
+        setActiveIndex(enabledIndexes[0] ?? -1);
+        return;
+      case "End":
+        event.preventDefault();
+        if (!open) setOpen(true);
+        setActiveIndex(enabledIndexes[enabledIndexes.length - 1] ?? -1);
+        return;
+      default:
+        break;
+    }
+
+    if (event.key.length !== 1 || event.altKey || event.ctrlKey || event.metaKey) return;
+    const query = `${typeaheadRef.current}${event.key}`.toLocaleLowerCase();
+    const matchingIndex = enabledIndexes.find((index) => options[index]!.label.toLocaleLowerCase().startsWith(query));
+    if (matchingIndex === undefined) return;
+    event.preventDefault();
+    typeaheadRef.current = query;
+    if (typeaheadTimeoutRef.current) clearTimeout(typeaheadTimeoutRef.current);
+    typeaheadTimeoutRef.current = setTimeout(() => { typeaheadRef.current = ""; }, 500);
+    setActiveIndex(matchingIndex);
+    setOpen(true);
+  };
+
+  const current = options.find((option) => option.value === value) ?? null;
+  const activeOptionId = open && activeIndex >= 0 ? optionId(activeIndex) : undefined;
 
   return (
     <div ref={rootRef} className={cn("relative inline-block", className)}>
-      {label && <label htmlFor={id} className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1">{label}</label>}
+      {label && <label htmlFor={triggerId} className="mb-1 block text-xs font-medium text-[var(--color-muted-foreground)]">{label}</label>}
       <button
-        id={id}
+        ref={triggerRef}
+        id={triggerId}
         type="button"
+        role="combobox"
         disabled={disabled}
-        onClick={() => !disabled && setOpen(o => !o)}
+        onClick={() => !disabled && (open ? close() : openAt())}
+        onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-activedescendant={activeOptionId}
         className={cn(
           "w-full inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md",
           "bg-[var(--color-card)] border border-[var(--color-border)] text-sm text-[var(--color-foreground)]",
@@ -89,18 +183,17 @@ export function Select({
           triggerClassName,
         )}
       >
-        <span className="flex items-center gap-2 min-w-0 truncate">
+        <span className="flex min-w-0 items-center gap-2 truncate">
           {prefix}
           <span className={cn("truncate", !current && "text-[var(--color-muted-foreground)]")}>
             {current?.label ?? placeholder}
           </span>
         </span>
-        <ChevronDown className={cn("h-4 w-4 text-[var(--color-muted-foreground)] shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[var(--color-muted-foreground)] transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
         <div
-          role="listbox"
           className={cn(
             "absolute z-50 min-w-full max-h-72 overflow-auto rounded-md",
             "bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)] p-1.5",
@@ -109,44 +202,52 @@ export function Select({
             panelClassName,
           )}
         >
-          {options.length === 0 && (
-            <div className="px-3 py-2 text-sm text-[var(--color-muted-foreground)]">No options</div>
-          )}
-          {options.map(opt => {
-            const selected = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                disabled={opt.disabled}
-                onClick={() => { if (!opt.disabled) { onChange(opt.value); setOpen(false); } }}
-                className={cn(
-                  "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-left",
-                  "transition-colors",
-                  selected
-                    ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
-                    : "hover:bg-[var(--color-muted)] text-[var(--color-foreground)]",
-                  opt.disabled && "opacity-50 cursor-not-allowed",
-                )}
-              >
-                <span className="flex flex-col min-w-0">
-                  <span className="truncate">{opt.label}</span>
-                  {opt.description && (
-                    <span className="truncate text-[11px] text-[var(--color-muted-foreground)]">{opt.description}</span>
+          <div id={listboxId} role="listbox" aria-labelledby={triggerId}>
+            {options.length === 0 && (
+              <div className="px-3 py-2 text-sm text-[var(--color-muted-foreground)]">No options</div>
+            )}
+            {options.map((option, index) => {
+              const selected = option.value === value;
+              const active = index === activeIndex;
+              return (
+                <div
+                  key={option.value}
+                  id={optionId(index)}
+                  role="option"
+                  aria-selected={selected}
+                  aria-disabled={option.disabled || undefined}
+                  onClick={() => {
+                    if (option.disabled) return;
+                    onChange(option.value);
+                    close(true);
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-left",
+                    "transition-colors",
+                    selected
+                      ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
+                      : "hover:bg-[var(--color-muted)] text-[var(--color-foreground)]",
+                    active && !selected && "bg-[var(--color-muted)]",
+                    option.disabled && "opacity-50 cursor-not-allowed",
                   )}
-                </span>
-                {selected && <Check className="h-4 w-4 shrink-0" />}
-              </button>
-            );
-          })}
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{option.label}</span>
+                    {option.description && (
+                      <span className="truncate text-[11px] text-[var(--color-muted-foreground)]">{option.description}</span>
+                    )}
+                  </span>
+                  {selected && <Check className="h-4 w-4 shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
           {action && (
             <>
               <div className="my-1.5 border-t border-[var(--color-border)]" />
               <button
                 type="button"
-                onClick={() => { setOpen(false); action.onClick(); }}
+                onClick={() => { close(); action.onClick(); }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-[var(--color-primary)] hover:bg-[var(--color-muted)] transition-colors"
               >
                 {action.icon}
