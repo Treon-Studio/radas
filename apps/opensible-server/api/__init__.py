@@ -24,10 +24,11 @@ def register_blueprints(app: "Flask") -> None:
     """
     from importlib import import_module
 
-    # The response contract is opt-in. It installs only request finalization at
-    # app scope; exception handlers are attached to the platform blueprint below
-    # so legacy Flask handlers and exceptions remain untouched.
-    from api.platform_contracts import register_platform_contracts, register_platform_blueprint_contracts
+    # The response contract is opt-in. It installs request finalization at app
+    # scope. ``platform_routes`` is intentionally legacy-only (health probes
+    # and the idempotency status route), so it must not receive new-contract
+    # blueprint handlers.
+    from api.platform_contracts import register_platform_contracts
     register_platform_contracts(app)
 
     modules = [
@@ -105,8 +106,6 @@ def register_blueprints(app: "Flask") -> None:
             mod = import_module(mod_name)
             bp = getattr(mod, "bp", None)
             if bp is not None:
-                if mod_name == "api.platform_routes":
-                    register_platform_blueprint_contracts(bp)
                 app.register_blueprint(bp)
         except Exception as e:  # pragma: no cover - defensive
             app.logger.error(f"Failed to register blueprint {mod_name}: {e}", exc_info=True)

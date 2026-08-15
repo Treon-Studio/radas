@@ -7,7 +7,13 @@ import time
 from pathlib import Path
 from flask import Blueprint, jsonify, request
 
-from services.health import json_error_payload, readiness, redact
+from api.platform_contracts import (
+    REQUEST_ID_HEADER,
+    is_platform_request,
+    redact_sensitive,
+    set_request_id,
+)
+from services.health import json_error_payload, readiness
 
 bp = Blueprint("platform_api", __name__)
 
@@ -46,7 +52,9 @@ def _idem_save(d: dict) -> None:
 @bp.before_app_request
 def _idempotency_before():
     key = request.headers.get("Idempotency-Key")
-    if not key or request.method != "POST":
+    # Keep health probes and the historical status endpoint byte-for-byte
+    # compatible. Only additive platform mutations use the new contract.
+    if not key or request.method != "POST" or not is_platform_request():
         return None
     body = request.get_data(cache=False) or b""
     h = hashlib.sha256(body).hexdigest()
@@ -54,7 +62,18 @@ def _idempotency_before():
     entry = store.get(key)
     now = time.time()
     if entry and entry.get("body_hash") == h and now - entry.get("ts", 0) < IDEMPOTENCY_TTL:
-        return jsonify({"duplicate": True, "result": entry.get("result")}), 202
+        cached = entry.get("result")
+        if isinstance(cached, dict):
+            cached_body = cached.get("body")
+            cached_request_id = cached.get("request_id")
+            if isinstance(cached_body, dict) and isinstance(cached_request_id, str):
+                # Reuse only the already-redacted response envelope and its ID;
+                # never return the storage record or raw body text.
+                set_request_id(cached_request_id)
+                response = jsonify(redact_sensitive(cached_body))
+                response.status_code = int(cached.get("status", 202))
+                response.headers[REQUEST_ID_HEADER] = cached_request_id
+                return response
     request._idem_key = key
     request._idem_hash = h
     return None
@@ -65,13 +84,21 @@ def _idempotency_after(resp):
     key = getattr(request, "_idem_key", None)
     if key and resp.status_code < 500:
         try:
-            body = resp.get_data(as_text=True)[:4000]
+            body = resp.get_json(silent=True)
         except Exception:
-            body = ""
-        store = _idem_load()
-        store[key] = {"body_hash": getattr(request, "_idem_hash", ""), "ts": time.time(),
-                      "result": {"status": resp.status_code, "body": body}}
-        _idem_save(store)
+            body = None
+        if isinstance(body, dict) and isinstance(body.get("request_id"), str):
+            store = _idem_load()
+            store[key] = {
+                "body_hash": getattr(request, "_idem_hash", ""),
+                "ts": time.time(),
+                "result": {
+                    "status": resp.status_code,
+                    "body": redact_sensitive(body),
+                    "request_id": body["request_id"],
+                },
+            }
+            _idem_save(store)
     return resp
 
 

@@ -22,12 +22,16 @@ _SENSITIVE_NAME = (
     r"aws[_-]?(?:secret[_-]?access[_-]?key|session[_-]?token)|private[_-]?key)"
 )
 _SENSITIVE_KEY_RE = re.compile(rf"(?i)^(?:.*[_\-.])?{_SENSITIVE_NAME}(?:[_\-.].*)?$")
+# Inline provider/configuration fields are often prefixed with a dotted
+# namespace (for example ``oauth.client_secret.value=raw``). Keep the
+# sensitive segment explicit while allowing those prefixes and suffixes.
+_SENSITIVE_INLINE_NAME = rf"(?:[\w-]+\.)*{_SENSITIVE_NAME}(?:\.[\w-]+)*"
 _SENSITIVE_QUOTED_VALUE_RE = re.compile(
-    rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_NAME}[\"']?\s*(?:=|:)\s*)"
+    rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
     rf"(?P<quote>[\"'])(?P<value>.*?)(?P=quote)"
 )
 _SENSITIVE_UNQUOTED_VALUE_RE = re.compile(
-    rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_NAME}[\"']?\s*(?:=|:)\s*)"
+    rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
     r"(?P<value>[^\s,;}]+)"
 )
 _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
@@ -94,6 +98,11 @@ def get_request_id() -> str:
     return generate_request_id()
 
 
+def set_request_id(value: str | None) -> str:
+    """Set the authoritative request ID for a response in this request."""
+    return _set_request_id(value)
+
+
 def request_id() -> str:
     """Backward-compatible shorthand for :func:`get_request_id`."""
     return get_request_id()
@@ -130,8 +139,8 @@ redact = redact_sensitive
 
 
 def success_envelope(data: Any, *, request_id_value: str | None = None) -> dict[str, Any]:
-    """Build the standard successful API body."""
-    return {"data": data, "request_id": _set_request_id(request_id_value)}
+    """Build the standard successful API body without exposing credentials."""
+    return {"data": redact_sensitive(data), "request_id": _set_request_id(request_id_value)}
 
 
 def error_envelope(
@@ -204,7 +213,11 @@ def operation_response(
 
 def is_platform_request() -> bool:
     """Whether the active request uses the additive contract namespace."""
-    return has_request_context() and request.path.startswith("/api/platform/") and (
+    if not has_request_context():
+        return False
+    # The namespace root is part of the new contract even though it has no
+    # view. Exact legacy paths remain outside the contract by design.
+    return (request.path == "/api/platform" or request.path.startswith("/api/platform/")) and (
         request.path not in _LEGACY_PLATFORM_PATHS
     )
 

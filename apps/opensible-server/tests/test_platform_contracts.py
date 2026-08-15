@@ -7,6 +7,7 @@ import pytest
 from flask import Flask, Blueprint, abort, jsonify
 from werkzeug.exceptions import MethodNotAllowed, TooManyRequests, Unauthorized
 
+from api import register_blueprints
 from api.platform_contracts import (
     REQUEST_ID_HEADER,
     error_response,
@@ -14,10 +15,9 @@ from api.platform_contracts import (
     operation_response,
     redact_sensitive,
     register_platform_blueprint_contracts,
-    register_platform_contracts,
     success_response,
 )
-from api.platform_routes import bp as existing_platform_bp
+from api.platform_routes import register_error_handlers
 
 
 @pytest.fixture
@@ -25,11 +25,14 @@ def app(tmp_path, monkeypatch) -> Flask:
     app = Flask(__name__)
     app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
 
-    # Exercise the same ordering as API setup: app finalization, then the
-    # existing platform blueprint, then a new platform blueprint.
-    register_platform_contracts(app)
-    register_platform_blueprint_contracts(existing_platform_bp)
-    app.register_blueprint(existing_platform_bp)
+    # Exercise the production registration path, then add a small test-only
+    # platform blueprint for contract behaviors not yet backed by a product
+    # route.
+    register_blueprints(app)
+    # Production still installs these legacy app handlers; keep this fixture
+    # representative while asserting the new finalizer bypasses them only for
+    # the additive platform namespace.
+    register_error_handlers(app)
 
     platform = Blueprint("test_platform", __name__)
     register_platform_blueprint_contracts(platform)
@@ -74,6 +77,12 @@ def app(tmp_path, monkeypatch) -> Flask:
         raise RuntimeError(
             "provider access_token=raw-access refresh_token=raw-refresh "
             "client_secret=raw-client AWS_SECRET_ACCESS_KEY=raw-aws"
+        )
+
+    @platform.post("/api/platform/mutation")
+    def mutation():
+        return success_response(
+            {"operation": "created", "client_secret": "must-not-leak"}, status=201
         )
 
     app.register_blueprint(platform)
@@ -159,6 +168,71 @@ def test_platform_missing_route_is_enveloped_after_realistic_registration(app: F
     assert response.get_json()["request_id"] == response.headers[REQUEST_ID_HEADER]
 
 
+def test_platform_root_namespace_is_enveloped(app: Flask):
+    response = app.test_client().get("/api/platform")
+    assert response.status_code == 404
+    assert response.get_json()["error"]["code"] == "NOT_FOUND"
+    assert response.get_json()["request_id"] == response.headers[REQUEST_ID_HEADER]
+
+
+def test_legacy_health_and_method_errors_keep_legacy_shapes(app: Flask, monkeypatch):
+    import api.platform_routes as platform_routes
+
+    monkeypatch.setattr(
+        platform_routes, "readiness", lambda: {"ok": True, "checks": {"test": True}}
+    )
+    client = app.test_client()
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.get_json() == {"status": "ok"}
+    assert REQUEST_ID_HEADER not in health.headers
+
+    ready = client.get("/readyz")
+    assert ready.status_code == 200
+    assert ready.get_json() == {"ok": True, "checks": {"test": True}}
+    assert REQUEST_ID_HEADER not in ready.headers
+
+    missing = client.get("/healthz/missing")
+    assert missing.status_code == 404
+    assert missing.get_json() == {
+        "error": "not_found",
+        "message": "Not found",
+        "code": "not_found",
+    }
+    assert REQUEST_ID_HEADER not in missing.headers
+
+    wrong_method = client.post(
+        "/api/platform/idempotency", headers={REQUEST_ID_HEADER: "legacy-id"}
+    )
+    assert wrong_method.status_code == 599
+    assert wrong_method.get_json() == {"legacy": "MethodNotAllowed"}
+    assert REQUEST_ID_HEADER not in wrong_method.headers
+
+
+def test_new_platform_duplicate_reuses_redacted_first_envelope_and_request_id(
+    app: Flask, tmp_path
+):
+    import api.platform_routes as platform_routes
+
+    platform_routes._idem_path = lambda: tmp_path / "idempotency.json"
+    client = app.test_client()
+    headers = {"Idempotency-Key": "mutation-1", REQUEST_ID_HEADER: "first-request"}
+    first = client.post("/api/platform/mutation", headers=headers, json={"x": 1})
+    duplicate = client.post(
+        "/api/platform/mutation",
+        headers={"Idempotency-Key": "mutation-1", REQUEST_ID_HEADER: "second-request"},
+        json={"x": 1},
+    )
+
+    assert first.status_code == duplicate.status_code == 201
+    assert first.get_json() == duplicate.get_json()
+    assert first.get_json()["request_id"] == "first-request"
+    assert duplicate.headers[REQUEST_ID_HEADER] == "first-request"
+    assert "must-not-leak" not in duplicate.get_data(as_text=True)
+    stored = (tmp_path / "idempotency.json").read_text()
+    assert "must-not-leak" not in stored
+
+
 def test_unexpected_platform_errors_are_safe_and_logged_without_exception_text(
     app: Flask, caplog: pytest.LogCaptureFixture
 ):
@@ -204,6 +278,21 @@ def test_operation_response_contains_consistent_request_id(app: Flask):
 def test_operation_requires_contract_fields():
     with pytest.raises(ValueError, match="poll_url"):
         operation_envelope({"id": "op-1", "kind": "service.deploy", "status": "queued"})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "oauth.client_secret.value=raw-client",
+        "auth.access_token.value=raw-access",
+        "db.password.value=raw-password",
+        "signing.private_key.value=raw-private-key",
+    ],
+)
+def test_prefixed_dotted_inline_credentials_are_redacted(value: str):
+    redacted = redact_sensitive(value)
+    assert "raw-" not in redacted
+    assert redacted.endswith("[REDACTED]")
 
 
 def test_secret_redaction_covers_credentials_and_is_non_mutating():
