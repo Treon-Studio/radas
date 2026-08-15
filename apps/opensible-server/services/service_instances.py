@@ -281,8 +281,8 @@ def require_instance(project_id: str, instance_id: str, **kwargs: Any) -> dict[s
 
 def list_instances(project_id: str, *, environment: str | None = None,
                    status: str | None = None, include_archived: bool = False,
-                   org_id: str | None = None, actor_id: str | None = None) -> list[dict[str, Any]]:
-    authorize_project_access(project_id, org_id=org_id, actor_id=actor_id)
+                   org_id: str | None = None, actor_id: str | None = None,
+                   internal_context: TrustedInternalExecution | None = None) -> list[dict[str, Any]]:
     clauses = ["project_id = %s"]
     params: list[Any] = [project_id]
     if environment is not None:
@@ -296,6 +296,10 @@ def list_instances(project_id: str, *, environment: str | None = None,
     if not include_archived:
         clauses.append("archived = FALSE")
     with pg.transaction() as conn:
+        _authorize_project_access(
+            conn, project_id, actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
         rows = conn.execute(
             f"SELECT * FROM service_instances WHERE {' AND '.join(clauses)} "
             "ORDER BY environment, name, created_at", tuple(params),
@@ -309,7 +313,6 @@ def get_revision(project_id: str, instance_id: str, revision_id: str | None = No
                  revision_number: int | None = None, *, org_id: str | None = None,
                  actor_id: str | None = None,
                  internal_context: TrustedInternalExecution | None = None) -> dict[str, Any] | None:
-    authorize_project_access(project_id, org_id=org_id, actor_id=actor_id, internal_context=internal_context)
     clauses = ["r.instance_id = %s", "i.project_id = %s"]
     params: list[Any] = [instance_id, project_id]
     if revision_id is not None:
@@ -319,6 +322,10 @@ def get_revision(project_id: str, instance_id: str, revision_id: str | None = No
         clauses.append("r.revision_number = %s")
         params.append(revision_number)
     with pg.transaction() as conn:
+        _authorize_project_access(
+            conn, project_id, actor_id=actor_id, org_id=org_id,
+            internal_context=internal_context,
+        )
         row = conn.execute(
             "SELECT r.*, i.org_id, i.id AS owning_instance_id FROM service_revisions r "
             "JOIN service_instances i ON i.id = r.instance_id "

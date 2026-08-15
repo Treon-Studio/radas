@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import os
-import secrets
 import time
 import uuid
 from typing import Any, Mapping
@@ -73,17 +72,20 @@ def _canonical_payload(payload: Any) -> Any:
 
 def _fingerprint_key() -> bytes:
     configured = os.environ.get("IDEMPOTENCY_FINGERPRINT_SECRET") or os.environ.get("INTERNAL_CALL_SECRET")
-    if configured:
-        return configured.encode("utf-8")
-    # Process-local fallback keeps tests/dev usable without exposing values in DB.
-    return _EPHEMERAL_FINGERPRINT_KEY
+    if not configured:
+        raise ServiceOperationError(
+            "idempotency fingerprinting is unavailable: configure "
+            "IDEMPOTENCY_FINGERPRINT_SECRET or INTERNAL_CALL_SECRET"
+        )
+    return configured.encode("utf-8")
 
 
-_EPHEMERAL_FINGERPRINT_KEY = secrets.token_bytes(32)
-
-
-def payload_fingerprint(kind: str, payload: Any) -> str:
-    normalized = {"kind": _text(kind, "kind"), "payload": _canonical_payload(payload)}
+def payload_fingerprint(kind: str, payload: Any, *, instance_id: str | None = None) -> str:
+    normalized = {
+        "kind": _text(kind, "kind"),
+        "instance_id": instance_id,
+        "payload": _canonical_payload(payload),
+    }
     encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return hmac.new(_fingerprint_key(), encoded, hashlib.sha256).hexdigest()
 
@@ -102,9 +104,9 @@ def _row(row: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _existing_or_conflict(row: Mapping[str, Any], fingerprint: str) -> dict[str, Any]:
-    if row["payload_fingerprint"] != fingerprint:
-        raise OperationConflictError("idempotency key was already used with a different payload")
+def _existing_or_conflict(row: Mapping[str, Any], fingerprint: str, instance_id: str | None) -> dict[str, Any]:
+    if row["payload_fingerprint"] != fingerprint or row.get("instance_id") != instance_id:
+        raise OperationConflictError("idempotency key was already used with a different operation identity")
     return _row(row)
 
 
@@ -121,7 +123,7 @@ def create_operation(
     idempotency_key = _text(idempotency_key, "idempotency_key")
     if initial_status not in OPERATION_STATES:
         raise InvalidOperationState(f"unknown operation state: {initial_status}")
-    fingerprint = payload_fingerprint(kind, payload)
+    fingerprint = payload_fingerprint(kind, payload, instance_id=instance_id)
     operation_id, now = str(uuid.uuid4()), time.time()
     try:
         with pg.transaction() as conn:
@@ -140,7 +142,7 @@ def create_operation(
                 (project_id, idempotency_key),
             ).fetchone()
             if existing:
-                return _existing_or_conflict(existing, fingerprint)
+                return _existing_or_conflict(existing, fingerprint, instance_id)
             conn.execute(
                 "INSERT INTO service_operations "
                 "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,status,requested_by,"
@@ -159,7 +161,7 @@ def create_operation(
             (project_id, idempotency_key),
         )
         if existing:
-            return _existing_or_conflict(existing, fingerprint)
+            return _existing_or_conflict(existing, fingerprint, instance_id)
         raise
 
 
@@ -168,10 +170,10 @@ def get_operation(project_id: str, operation_id: str, *, org_id: str | None = No
                   internal_context: TrustedInternalExecution | None = None) -> dict[str, Any] | None:
     with pg.transaction() as conn:
         _project_access(conn, project_id, org_id, actor_id, internal_context)
-    row = pg.query_one(
-        "SELECT * FROM service_operations WHERE id = %s AND project_id = %s",
-        (operation_id, project_id),
-    )
+        row = conn.execute(
+            "SELECT * FROM service_operations WHERE id = %s AND project_id = %s",
+            (operation_id, project_id),
+        ).fetchone()
     return _row(row) if row else None
 
 
@@ -186,8 +188,6 @@ def list_operations(project_id: str, *, instance_id: str | None = None,
                     status: str | None = None, limit: int = 100,
                     org_id: str | None = None, actor_id: str | None = None,
                     internal_context: TrustedInternalExecution | None = None) -> list[dict[str, Any]]:
-    with pg.transaction() as conn:
-        _project_access(conn, project_id, org_id, actor_id, internal_context)
     if status is not None and status not in OPERATION_STATES:
         raise InvalidOperationState(f"unknown operation state: {status}")
     try:
@@ -203,10 +203,12 @@ def list_operations(project_id: str, *, instance_id: str | None = None,
         clauses.append("status = %s")
         params.append(status)
     params.append(limit)
-    rows = pg.query_all(
-        f"SELECT * FROM service_operations WHERE {' AND '.join(clauses)} "
-        "ORDER BY created_at DESC LIMIT %s", tuple(params),
-    )
+    with pg.transaction() as conn:
+        _project_access(conn, project_id, org_id, actor_id, internal_context)
+        rows = conn.execute(
+            f"SELECT * FROM service_operations WHERE {' AND '.join(clauses)} "
+            "ORDER BY created_at DESC LIMIT %s", tuple(params),
+        ).fetchall()
     return [_row(row) for row in rows]
 
 

@@ -67,7 +67,27 @@ def test_missing_actor_is_denied_and_explicit_internal_context_is_allowed(pg_db)
     with pytest.raises(service_instances.ProjectAuthorizationError):
         _instance(actor_id=None)
     context = service_instances.internal_execution_context()
-    assert _instance(internal_context=context)["project_id"] == "project-a"
+    created = _instance(internal_context=context)
+    assert created["project_id"] == "project-a"
+    assert created["created_at"] <= created["updated_at"]
+    assert service_instances.list_instances("project-a", internal_context=context)[0]["id"] == created["id"]
+
+
+def test_internal_context_is_rejected_after_secret_changes(pg_db, monkeypatch):
+    _project()
+    context = service_instances.internal_execution_context()
+    monkeypatch.setenv("INTERNAL_CALL_SECRET", "a-different-stable-secret")
+    with pytest.raises(service_instances.ProjectAuthorizationError):
+        service_instances.list_instances("project-a", internal_context=context)
+
+
+def test_internal_context_cannot_cross_project_or_bypass_project_mismatch(pg_db):
+    _project()
+    _project("project-b", "org-b")
+    context = service_instances.internal_execution_context()
+    created = _instance(internal_context=context)
+    assert service_instances.get_instance("project-b", created["id"], internal_context=context) is None
+    assert service_instances.list_instances("project-b", internal_context=context) == []
 
 
 def test_project_isolation_and_project_derived_org_authorization(pg_db):
@@ -154,7 +174,7 @@ def test_idempotent_operation_retry_and_conflicting_payload(pg_db):
     assert retry is not None
     assert retry["id"] == first["id"]
     assert first["payload_fingerprint"] != service_operations.payload_fingerprint(
-        "service.deploy", {"revision_id": "r1", "token": "secret-b"}
+        "service.deploy", {"revision_id": "r1", "token": "secret-b"}, instance_id=instance["id"]
     )
     assert "secret-a" not in str(pg.query_one(
         "SELECT payload_fingerprint FROM service_operations WHERE id = %s", (first["id"],)
@@ -163,6 +183,12 @@ def test_idempotent_operation_retry_and_conflicting_payload(pg_db):
         service_operations.create_operation(
             "project-a", "service.deploy", "deploy-1", {"revision_id": "r2"},
             instance_id=instance["id"], requested_by="owner", actor_id="owner",
+        )
+    other = _instance(name="other")
+    with pytest.raises(service_operations.OperationConflictError, match="different operation identity"):
+        service_operations.create_operation(
+            "project-a", "service.deploy", "deploy-1", {"revision_id": "r1", "token": "secret-a"},
+            instance_id=other["id"], requested_by="owner", actor_id="owner",
         )
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_operations")["count"] == 1
 
@@ -218,6 +244,28 @@ def test_concurrent_operation_creators_share_one_idempotent_row(pg_db):
     assert not errors
     assert len({row["id"] for row in results}) == 1
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_operations")["count"] == 1
+
+
+def test_fingerprint_requires_stable_configured_secret_and_changes_across_restart_secret(pg_db, monkeypatch):
+    monkeypatch.delenv("IDEMPOTENCY_FINGERPRINT_SECRET", raising=False)
+    monkeypatch.delenv("INTERNAL_CALL_SECRET", raising=False)
+    with pytest.raises(service_operations.ServiceOperationError, match="configure"):
+        service_operations.payload_fingerprint("service.deploy", {})
+    monkeypatch.setenv("IDEMPOTENCY_FINGERPRINT_SECRET", "stable-secret-a")
+    first = service_operations.payload_fingerprint("service.deploy", {}, instance_id="instance-a")
+    monkeypatch.setenv("IDEMPOTENCY_FINGERPRINT_SECRET", "stable-secret-b")
+    restarted = service_operations.payload_fingerprint("service.deploy", {}, instance_id="instance-a")
+    assert first != restarted
+
+
+def test_operation_reads_and_lists_allow_explicit_internal_context(pg_db):
+    _project()
+    context = service_instances.internal_execution_context()
+    operation = service_operations.create_operation(
+        "project-a", "service.deploy", "internal-list", {}, internal_context=context,
+    )
+    assert service_operations.get_operation("project-a", operation["id"], internal_context=context)["id"] == operation["id"]
+    assert service_operations.list_operations("project-a", internal_context=context)[0]["id"] == operation["id"]
 
 
 def test_specs_and_provider_outputs_never_persist_secret_values(pg_db):

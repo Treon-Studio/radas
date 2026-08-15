@@ -4,11 +4,9 @@ Authentication middleware for protecting API endpoints with JWT.
 
 Security notes
 --------------
-* `INTERNAL_CALL_SECRET`: NEVER falls back to a known string. If unset, the
-  module generates a random secret at process start and exposes it via
-  `get_internal_call_secret()` so in-process callers (e.g. the host-status
-  scheduler using `app.test_client()`) can still pass the check. External
-  callers cannot know this value. In production you may also set it via env.
+* `INTERNAL_CALL_SECRET`: must be configured explicitly and is never generated
+  per process. This keeps internal authentication valid across workers and
+  restarts; startup fails closed when it is missing.
 * Access tokens are accepted in the query string ONLY for a small allow-list
   of streaming endpoints (SSE), where the browser EventSource API cannot set
   Authorization headers.
@@ -19,7 +17,7 @@ from typing import Any, Optional, Callable
 from pathlib import Path
 import logging
 import os
-import secrets as _secrets
+import hmac
 
 try:
     from .auth import verify_token, get_token_from_header
@@ -40,27 +38,22 @@ _env_internal = os.environ.get('INTERNAL_CALL_SECRET') or ''
 _flask_env = (os.environ.get('FLASK_ENV') or '').lower()
 _is_production = _flask_env == 'production'
 
-if _env_internal and len(_env_internal) < 32:
+if not _env_internal:
+    raise RuntimeError(
+        "INTERNAL_CALL_SECRET must be configured; refusing to generate a per-process secret"
+    )
+if len(_env_internal) < 32:
     if _is_production:
         raise RuntimeError(
             "INTERNAL_CALL_SECRET must be at least 32 characters long in production."
         )
     logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure.")
 
-if not _env_internal:
-    # Random per-process value. In-process callers (test_client) read it via
-    # get_internal_call_secret(); no external caller can guess it.
-    _env_internal = _secrets.token_urlsafe(48)
-    logger.info(
-        "INTERNAL_CALL_SECRET not provided; using a random per-process value. "
-        "External X-Internal-Call requests will be rejected."
-    )
-
 _INTERNAL_CALL_SECRET: str = _env_internal
 
 
 def get_internal_call_secret() -> str:
-    """Return the in-process internal-call secret (use only for app.test_client)."""
+    """Return the configured internal-call secret for trusted local callers."""
     return _INTERNAL_CALL_SECRET
 
 
@@ -112,7 +105,7 @@ def require_auth(f: Callable) -> Callable:
     def decorated_function(*args, **kwargs):
         # In-process internal call (scheduler, background jobs via test_client).
         provided_internal = request.headers.get('X-Internal-Call')
-        if provided_internal and _secrets.compare_digest(
+        if provided_internal and hmac.compare_digest(
             provided_internal, _INTERNAL_CALL_SECRET
         ):
             request.current_user = {
