@@ -54,6 +54,7 @@ def audit(
     target_id: Optional[str] = None,
     actor_user_id: Optional[str] = None,
     meta: Optional[Dict[str, Any]] = None,
+    raise_on_error: bool = False,
 ) -> None:
     try:
         conn = get_conn(data_dir)
@@ -72,7 +73,9 @@ def audit(
             )
         finally:
             conn.close()
-    except Exception as e:  # audit must never break a request
+    except Exception as e:
+        if raise_on_error:
+            raise
         logger.warning("audit insert failed (%s): %s", action, e)
 
 

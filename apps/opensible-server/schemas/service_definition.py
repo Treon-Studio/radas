@@ -323,16 +323,18 @@ class ServiceDefinitionManifest(StrictModel):
             raise ValueError("endpoint names must be unique")
         if self.persistence == "required" and not self.storage:
             raise ValueError("persistent definitions must declare storage")
-        if self.ports:
-            declared_ports = {item.port for item in self.ports}
-            if self.healthcheck.port not in declared_ports:
-                raise ValueError("healthcheck port must be declared in ports")
-            port_names_set = set(port_names)
-            for endpoint in self.endpoints:
-                if isinstance(endpoint.port, int) and endpoint.port not in declared_ports:
-                    raise ValueError("endpoint port must be declared in ports")
-                if isinstance(endpoint.port, str) and endpoint.port not in port_names_set:
-                    raise ValueError("endpoint port reference must name a declared port")
+        # Cross-field port references are required even when the declaration
+        # is omitted.  Otherwise a healthcheck or endpoint could point at an
+        # undeclared/exposed port and bypass the manifest contract.
+        declared_ports = {item.port for item in self.ports}
+        if self.healthcheck.port not in declared_ports:
+            raise ValueError("healthcheck port must be declared in ports")
+        port_names_set = set(port_names)
+        for endpoint in self.endpoints:
+            if isinstance(endpoint.port, int) and endpoint.port not in declared_ports:
+                raise ValueError("endpoint port must be declared in ports")
+            if isinstance(endpoint.port, str) and endpoint.port not in port_names_set:
+                raise ValueError("endpoint port reference must name a declared port")
         secret_set = set(secret_names)
         for item in self.inputs:
             if item.type == "secret" and item.name not in secret_set:

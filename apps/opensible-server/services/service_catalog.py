@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import re
 import time
 import uuid
 from typing import Any, Mapping
@@ -13,23 +15,24 @@ from schemas.service_definition import normalize_manifest, validation_errors
 from storage import pg
 
 
-def _audit_publication(action: str, actor_id: str, definition: Mapping[str, Any]) -> None:
-    """Write publication metadata to the existing append-only audit trail."""
-    try:
-        from auth.middleware import get_data_dir
-        from storage import auth_db
-        auth_db.audit(
-            get_data_dir(), action, target_type="service_definition", target_id=str(definition.get("id")),
-            actor_user_id=actor_id,
-            meta={
+def _audit_publication(conn: Any, action: str, actor_id: str, definition: Mapping[str, Any]) -> None:
+    """Append publication audit data using the publication transaction."""
+    conn.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, meta_json, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s)",
+        (
+            actor_id,
+            action,
+            "service_definition",
+            str(definition.get("id")),
+            json.dumps({
                 "slug": definition.get("slug"), "version": definition.get("version"),
                 "scope": definition.get("scope"), "org_id": definition.get("org_id"),
                 "published_at": definition.get("published_at"),
-            },
-        )
-    except Exception:
-        # Existing audit infrastructure is deliberately best effort.
-        return
+            }, ensure_ascii=False),
+            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+        ),
+    )
 
 
 class CatalogValidationError(ValueError):
@@ -55,24 +58,45 @@ def _validated(manifest: Mapping[str, Any]) -> dict[str, Any]:
     errors = validate_manifest(manifest)
     if errors:
         raise CatalogValidationError(errors)
-    return normalize_manifest(manifest)
+    # Persist only the public form.  In particular, arbitrary nested metadata
+    # is redacted before it can enter the JSONB manifest column.
+    return _public_manifest(normalize_manifest(manifest))
+
+
+_SENSITIVE_KEY_RE = re.compile(
+    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer|value)",
+    re.IGNORECASE,
+)
+
+
+def _redact_nested(value: Any, *, sensitive_parent: bool = False) -> Any:
+    """Deeply redact arbitrary metadata without mutating the stored object."""
+    if isinstance(value, Mapping):
+        redacted: dict[str, Any] = {}
+        for key, child in value.items():
+            key_text = str(key)
+            sensitive = sensitive_parent or bool(_SENSITIVE_KEY_RE.search(key_text))
+            if isinstance(child, (Mapping, list, tuple)):
+                redacted[key_text] = _redact_nested(child, sensitive_parent=sensitive)
+            else:
+                redacted[key_text] = "[REDACTED]" if sensitive else _redact_nested(child)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_nested(item, sensitive_parent=sensitive_parent) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_nested(item, sensitive_parent=sensitive_parent) for item in value]
+    return "[REDACTED]" if sensitive_parent else copy.deepcopy(value)
 
 
 def _public_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a manifest safe for API responses and catalog cards."""
-    # Secret declarations contain names and metadata only. Keep this copy
-    # explicit so a future storage extension cannot accidentally expose values.
+    """Return a deeply redacted manifest safe for storage and API responses."""
     result = copy.deepcopy(dict(manifest))
     result["secrets"] = [
         {key: value for key, value in declaration.items() if key in {"name", "required", "description"}}
         for declaration in result.get("secrets", [])
     ]
-    # Metadata is descriptive catalog information, never a credential bag.
-    if isinstance(result.get("metadata"), dict):
-        result["metadata"] = {
-            key: ("[REDACTED]" if any(token in str(key).lower() for token in ("secret", "password", "token", "key")) else value)
-            for key, value in result["metadata"].items()
-        }
+    if "metadata" in result:
+        result["metadata"] = _redact_nested(result["metadata"])
     return result
 
 
@@ -127,18 +151,27 @@ def _row_query(scope: str, org_id: str | None, include_disabled: bool) -> tuple[
 
 
 def list_definitions(org_id: str | None, *, include_disabled: bool = False) -> list[dict[str, Any]]:
-    """List visible definitions with organization definitions taking precedence.
+    """List visible definitions using a private-disabled shadow policy.
 
-    ``org_id`` must already have been authorized by the API layer.  A missing
-    organization is deliberately not treated as a default tenant: it returns
-    only platform definitions.
+    ``org_id`` must already have been authorized by the API layer. A private
+    definition shadows the platform slug even while disabled; callers without
+    an explicit disabled-admin view therefore see neither definition. This is
+    the same boundary used by :func:`get_definition` and prevents fallback
+    leaks through list responses.
     """
-    rows: list[Mapping[str, Any]] = []
-    query, params = _row_query("platform", None, include_disabled)
-    rows.extend(pg.query_all(query, params))
+    platform_query, platform_params = _row_query("platform", None, include_disabled)
+    platform_rows: list[Mapping[str, Any]] = list(pg.query_all(platform_query, platform_params))
+    org_rows: list[Mapping[str, Any]] = []
     if org_id:
-        query, params = _row_query("organization", org_id, include_disabled)
-        rows.extend(pg.query_all(query, params))
+        # Include disabled private rows to calculate shadows before applying
+        # the caller's visibility filter.
+        org_query, org_params = _row_query("organization", org_id, True)
+        org_rows = list(pg.query_all(org_query, org_params))
+        if not include_disabled:
+            disabled_slugs = {str(row["slug"]) for row in org_rows if row.get("disabled")}
+            platform_rows = [row for row in platform_rows if str(row["slug"]) not in disabled_slugs]
+            org_rows = [row for row in org_rows if not row.get("disabled")]
+    rows = [*platform_rows, *org_rows]
     by_slug = {str(row["slug"]): row for row in rows}
     return [_row_to_definition(by_slug[slug]) for slug in sorted(by_slug)]
 
@@ -197,30 +230,42 @@ def get_definition(
     return None
 
 
+def _semantic_version_key(version: str) -> tuple[Any, ...]:
+    """Return a SemVer ordering key (build metadata does not affect order)."""
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?", version)
+    if not match:
+        raise ValueError(f"invalid semantic version: {version}")
+    prerelease = match.group(4)
+    identifiers = () if prerelease is None else tuple(
+        (0, int(part)) if part.isdigit() else (1, part) for part in prerelease.split(".")
+    )
+    # A stable release sorts after every prerelease for the same base version.
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)), prerelease is None, identifiers)
+
+
 def publish_definition(
     manifest: Mapping[str, Any], actor: str | Mapping[str, Any], org_id: str | None,
     *, scope: str | None = None,
 ) -> dict[str, Any]:
-    """Publish an immutable manifest version, never replacing an existing version."""
+    """Publish an immutable version and retain the highest semantic version as current."""
     normalized = _validated(manifest)
     scope_type, scoped_org_id = _scope_values(org_id, scope)
     actor_id = actor.get("user_id") if isinstance(actor, Mapping) else str(actor)
-    actor_id = actor_id or "unknown"
-    actor_id = str(actor_id)
+    actor_id = str(actor_id or "unknown")
     definition_id = str(uuid.uuid4())
     now = time.time()
     try:
         with pg.transaction() as conn:
             if scoped_org_id is None:
                 existing = conn.execute(
-                    "SELECT id FROM service_definitions WHERE slug = %s AND scope_type = %s "
-                    "AND org_id IS NULL",
+                    "SELECT id, current_version FROM service_definitions "
+                    "WHERE slug = %s AND scope_type = %s AND org_id IS NULL FOR UPDATE",
                     (normalized["slug"], scope_type),
                 ).fetchone()
             else:
                 existing = conn.execute(
-                    "SELECT id FROM service_definitions WHERE slug = %s AND scope_type = %s "
-                    "AND org_id = %s",
+                    "SELECT id, current_version FROM service_definitions "
+                    "WHERE slug = %s AND scope_type = %s AND org_id = %s FOR UPDATE",
                     (normalized["slug"], scope_type, scoped_org_id),
                 ).fetchone()
             if existing:
@@ -238,10 +283,11 @@ def publish_definition(
                     "(definition_id, version, manifest, published_by, published_at) VALUES (%s,%s,%s,%s,%s)",
                     (definition_id, normalized["version"], Jsonb(normalized), actor_id, now),
                 )
-                conn.execute(
-                    "UPDATE service_definitions SET current_version = %s WHERE id = %s",
-                    (normalized["version"], definition_id),
-                )
+                if _semantic_version_key(normalized["version"]) > _semantic_version_key(existing["current_version"]):
+                    conn.execute(
+                        "UPDATE service_definitions SET current_version = %s WHERE id = %s",
+                        (normalized["version"], definition_id),
+                    )
             else:
                 conn.execute(
                     "INSERT INTO service_definitions "
@@ -255,17 +301,25 @@ def publish_definition(
                     "(definition_id, version, manifest, published_by, published_at) VALUES (%s,%s,%s,%s,%s)",
                     (definition_id, normalized["version"], Jsonb(normalized), actor_id, now),
                 )
+            # Keep definition and required audit record in one transaction.
+            _audit_publication(conn, "catalog.publish", actor_id, {
+                "id": definition_id, "slug": normalized["slug"], "version": normalized["version"],
+                "scope": scope_type, "org_id": scoped_org_id, "published_at": now,
+            })
     except CatalogConflictError:
         raise
     except psycopg_errors.UniqueViolation as exc:
         raise CatalogConflictError("definition or version already exists") from exc
+    except Exception as exc:
+        # Audit/storage failures must not be reported as a successful publish.
+        raise CatalogConflictError("publication could not be committed") from exc
     result = get_definition(
         normalized["slug"], normalized["version"],
         org_id=scoped_org_id if scope_type == "organization" else None,
+        include_disabled=True,
     )
     if result is None:
         raise CatalogNotFoundError("published definition could not be read")
-    _audit_publication("catalog.publish", actor_id, result)
     return result
 
 
@@ -273,12 +327,12 @@ def seed_recommended_definitions() -> list[dict[str, Any]]:
     """Explicitly publish the harmless, pinned recommended catalog idempotently."""
     seeded: list[dict[str, Any]] = []
     for manifest in RECOMMENDED_DEFINITIONS:
-        existing = get_definition(manifest["slug"], manifest["version"])
+        existing = get_definition(manifest["slug"], manifest["version"], include_disabled=True)
         if existing is None:
             try:
                 seeded.append(publish_definition(manifest, "catalog-seed", None, scope="platform"))
             except CatalogConflictError:
-                existing = get_definition(manifest["slug"], manifest["version"])
+                existing = get_definition(manifest["slug"], manifest["version"], include_disabled=True)
                 if existing is None:
                     raise
                 seeded.append(existing)

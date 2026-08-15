@@ -212,7 +212,6 @@ _V3_DDL: List[str] = [
         current_version TEXT NOT NULL,
         disabled BOOLEAN NOT NULL DEFAULT FALSE,
         created_at DOUBLE PRECISION NOT NULL,
-        UNIQUE (slug, scope_type, org_id),
         CHECK ((scope_type = 'platform' AND org_id IS NULL) OR
                (scope_type = 'organization' AND org_id IS NOT NULL))
     )""",
@@ -226,6 +225,19 @@ _V3_DDL: List[str] = [
     )""",
     """CREATE INDEX IF NOT EXISTS idx_service_definitions_scope
        ON service_definitions(scope_type, org_id, slug)""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_platform_slug
+       ON service_definitions(slug) WHERE scope_type = 'platform'""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_org_slug
+       ON service_definitions(org_id, slug) WHERE scope_type = 'organization'""",
+]
+
+# Version 4 — repair catalog uniqueness for NULL platform org ids and make
+# both scope rules explicit partial PostgreSQL unique indexes.
+_V4_DDL: List[str] = [
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_platform_slug
+       ON service_definitions(slug) WHERE scope_type = 'platform'""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_service_definitions_org_slug
+       ON service_definitions(org_id, slug) WHERE scope_type = 'organization'""",
 ]
 
 
@@ -240,7 +252,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue

@@ -62,16 +62,51 @@ def test_transaction_commits(pg_db):
 
 
 def test_schema_migrate_idempotent(pg_db):
-    # reset_schema applies v1-v3; calling migrate again is safe.
+    # reset_schema applies v1-v4; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
-    assert versions == [{"version": 1}, {"version": 2}, {"version": 3}]
+    assert versions == [{"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}]
 
 
 def test_schema_v3_catalog_tables_exist(pg_db):
     assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 3") == {"version": 3}
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") == {"version": 4}
     for table in ("service_definitions", "service_definition_versions"):
         assert pg.query_one("SELECT to_regclass(%s) AS name", (f"public.{table}",))["name"] == table
+
+
+def test_catalog_v1_v2_upgrade_applies_v3_v4(pg_db):
+    pg.execute("DELETE FROM schema_migrations")
+    pg.execute("DROP TABLE IF EXISTS service_definition_versions CASCADE")
+    pg.execute("DROP TABLE IF EXISTS service_definitions CASCADE")
+    pg.execute("CREATE TABLE service_definitions (id TEXT PRIMARY KEY, slug TEXT NOT NULL, scope_type TEXT NOT NULL, org_id TEXT, owner_id TEXT, current_version TEXT NOT NULL, disabled BOOLEAN NOT NULL DEFAULT FALSE, created_at DOUBLE PRECISION NOT NULL)")
+    pg.execute("CREATE TABLE service_definition_versions (definition_id TEXT NOT NULL REFERENCES service_definitions(id) ON DELETE CASCADE, version TEXT NOT NULL, manifest JSONB NOT NULL, published_by TEXT, published_at DOUBLE PRECISION NOT NULL, PRIMARY KEY (definition_id, version))")
+    pg.execute("INSERT INTO schema_migrations (version, applied_at) VALUES (1, 1), (2, 2)")
+    pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 3")
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4")
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
+
+
+def test_catalog_partial_unique_indexes_enforce_scope(pg_db):
+    pg.execute(
+        "INSERT INTO service_definitions (id, slug, scope_type, current_version, created_at) "
+        "VALUES (%s,%s,%s,%s,%s)", ("platform-1", "same", "platform", "1.0.0", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_definitions (id, slug, scope_type, current_version, created_at) "
+            "VALUES (%s,%s,%s,%s,%s)", ("platform-2", "same", "platform", "1.0.0", 2.0),
+        )
+    pg.execute(
+        "INSERT INTO service_definitions (id, slug, scope_type, org_id, current_version, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s)", ("org-1", "same", "organization", "org-a", "1.0.0", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_definitions (id, slug, scope_type, org_id, current_version, created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s)", ("org-2", "same", "organization", "org-a", "1.0.0", 2.0),
+        )
 
 
 def test_schema_tables_exist(pg_db):

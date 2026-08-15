@@ -30,6 +30,8 @@ def _manifest(slug: str = "demo-service", version: str = "1.0.0") -> dict:
         "inputs": [{"name": "memory_mb", "type": "integer", "default": 512, "min": 128, "max": 4096}],
         "secrets": [{"name": "admin_password", "required": True, "description": "Admin credential reference"}],
         "storage": [{"name": "data", "size_gb": 5, "required": True, "mount_path": "/data"}],
+        "ports": [{"name": "http", "port": 8080, "public": True}],
+        "endpoints": [{"name": "endpoint", "port": "http", "path": "/", "public": True}],
         "healthcheck": {"path": "/healthz", "port": 8080, "interval_seconds": 30},
         "outputs": ["endpoint", "admin_url"],
         "supported_runtimes": ["docker", "podman", "kubernetes"],
@@ -53,6 +55,7 @@ def _headers(user_id: str, username: str, roles: list[str], data_dir: Path, org_
 
 def test_manifest_validation_covers_required_rules():
     manifest = _manifest()
+    manifest["ports"] = [{"name": "http", "port": 8080, "public": True}]
     assert service_catalog.validate_manifest(manifest) == []
     invalid = copy.deepcopy(manifest)
     invalid["slug"] = "Bad Slug"
@@ -64,6 +67,7 @@ def test_manifest_validation_covers_required_rules():
     invalid["healthcheck"]["port"] = 70000
     invalid["outputs"] = ["Endpoint"]
     invalid["supported_runtimes"] = []
+    invalid["ports"] = []
     errors = service_catalog.validate_manifest(invalid)
     assert {item["path"] for item in errors} >= {
         "slug", "version", "image", "inputs.0", "secrets.0.name", "storage.0.mount_path",
@@ -73,6 +77,7 @@ def test_manifest_validation_covers_required_rules():
 
 def test_recommended_seed_is_explicit_and_idempotent(pg_db):
     first = service_catalog.seed_recommended_definitions()
+    pg.execute("UPDATE service_definitions SET disabled = TRUE WHERE slug = %s", ("n8n",))
     second = service_catalog.seed_recommended_definitions()
     assert len(first) == len(second) == 11
     assert {item["slug"] for item in first} == {
@@ -81,6 +86,7 @@ def test_recommended_seed_is_explicit_and_idempotent(pg_db):
     }
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_definitions")["count"] == 11
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_definition_versions")["count"] == 11
+    assert pg.query_one("SELECT disabled FROM service_definitions WHERE slug = %s", ("n8n",))["disabled"] is True
     assert all(":latest" not in item["manifest"]["image"] for item in first)
     waha = next(item for item in first if item["slug"] == "waha-plus")
     assert waha["manifest"]["metadata"]["license_policy"] == "requires_valid_waha_license_for_production"
@@ -89,23 +95,51 @@ def test_recommended_seed_is_explicit_and_idempotent(pg_db):
 
 
 def test_immutable_versions_and_duplicate_conflicts(pg_db):
-    one = service_catalog.publish_definition(_manifest(version="1.0.0"), "u1", None)
-    two = service_catalog.publish_definition(_manifest(version="1.1.0"), "u1", None)
+    one = service_catalog.publish_definition(_manifest(version="1.1.0"), "u1", None)
+    two = service_catalog.publish_definition(_manifest(version="1.0.0"), "u1", None)
     assert one["id"] == two["id"]
+    assert service_catalog.get_definition("demo-service")["version"] == "1.1.0"
     assert service_catalog.get_definition("demo-service", "1.0.0")["manifest"]["version"] == "1.0.0"
     with pytest.raises(service_catalog.CatalogConflictError):
         service_catalog.publish_definition(_manifest(version="1.0.0"), "u1", None)
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_definition_versions")["count"] == 2
 
 
+def test_nested_metadata_is_redacted_before_persistence(pg_db):
+    manifest = _manifest("nested-secrets")
+    manifest["metadata"] = {
+        "safe": {"label": "visible"},
+        "deployment": {"credentials": {"password": "raw-password", "token": "raw-token"}},
+        "items": [{"api_key": "raw-key", "nested": {"value": "raw-value"}}],
+    }
+    result = service_catalog.publish_definition(manifest, "u1", None)
+    assert result["manifest"]["metadata"]["safe"] == {"label": "visible"}
+    assert result["manifest"]["metadata"]["deployment"]["credentials"]["password"] == "[REDACTED]"
+    stored = pg.query_one("SELECT manifest FROM service_definition_versions WHERE definition_id = %s", (result["id"],))["manifest"]
+    assert "raw-password" not in str(stored)
+    assert "raw-key" not in str(stored)
+
+
+def test_audit_failure_rolls_back_publication(pg_db, monkeypatch):
+    monkeypatch.setattr(service_catalog, "_audit_publication", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("audit down")))
+    with pytest.raises(service_catalog.CatalogConflictError):
+        service_catalog.publish_definition(_manifest("audit-failure"), "u1", None)
+    assert pg.query_one("SELECT 1 FROM service_definitions WHERE slug = %s", ("audit-failure",)) is None
+
+
 def _seed_users(data_dir: Path):
-    for uid in ("owner", "admin", "member", "outsider"):
+    for uid in ("owner", "admin", "publisher", "jwt-only", "member", "outsider"):
         pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", (uid, uid, "x"))
     pg.execute(
         "INSERT INTO roles (id, name, description, is_system) VALUES (%s,%s,%s,1)",
         ("role-admin", "admin", "Authoritative test administrator"),
     )
     pg.execute("INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s)", ("admin", "role-admin"))
+    pg.execute(
+        "INSERT INTO permissions (id, name, description, resource, action) VALUES (%s,%s,%s,%s,%s)",
+        ("perm-catalog-publish", "catalog.publish", "Publish catalog entries", "catalog", "publish"),
+    )
+    pg.execute("INSERT INTO role_permissions (role_id, permission_id) VALUES (%s,%s)", ("role-admin", "perm-catalog-publish"))
     org = create_org("Org A", "owner")
     add_member(org["id"], "admin", "admin")
     add_member(org["id"], "member", "member")
@@ -116,6 +150,8 @@ def _seed_users(data_dir: Path):
     return org["id"], {
         "owner": _headers("owner", "owner", [], data_dir),
         "admin": _headers("admin", "admin", [], data_dir),
+        "publisher": _headers("publisher", "publisher", [], data_dir),
+        "jwt_only": _headers("jwt-only", "jwt-only", ["admin"], data_dir),
         "member": _headers("member", "member", [], data_dir),
         "outsider": _headers("outsider", "outsider", [], data_dir),
         "global_admin": _headers("admin", "admin", ["admin"], data_dir),
@@ -135,6 +171,16 @@ def test_catalog_list_detail_and_secret_declaration_non_leak(data_dir):
     assert body["data"]["definition"]["manifest"]["secrets"]
     assert "value" not in body["data"]["definition"]["manifest"]["secrets"][0]
     assert "credential" not in detail.get_data(as_text=True).lower()
+
+
+def test_disabled_private_definition_shadows_platform(data_dir):
+    org_id, tokens = _seed_users(data_dir)
+    service_catalog.publish_definition(_manifest("shadowed"), "platform-owner", None, scope="platform")
+    private = service_catalog.publish_definition(_manifest("shadowed"), "owner", org_id, scope="organization")
+    pg.execute("UPDATE service_definitions SET disabled = TRUE WHERE id = %s", (private["id"],))
+    assert service_catalog.get_definition("shadowed", org_id=org_id) is None
+    assert not any(item["slug"] == "shadowed" for item in service_catalog.list_definitions(org_id))
+    assert service_catalog.get_definition("shadowed", org_id=org_id, include_disabled=True)["disabled"] is True
 
 
 def test_private_org_isolation_and_owner_admin_authorization(data_dir):
@@ -168,6 +214,14 @@ def test_private_org_isolation_and_owner_admin_authorization(data_dir):
     assert client.post(
         "/api/platform/catalog", json={"manifest": _manifest("global-demo")}, headers=tokens["global_admin"]
     ).status_code == 201
+    stale_jwt_role = client.post(
+        "/api/platform/catalog", json={"manifest": _manifest("jwt-only-demo")}, headers=tokens["jwt_only"]
+    )
+    assert stale_jwt_role.status_code == 403
+    permission_publish = client.post(
+        "/api/platform/catalog", json={"manifest": _manifest("permission-demo")}, headers=tokens["admin"]
+    )
+    assert permission_publish.status_code == 201
 
 
 def test_invalid_input_and_error_envelopes(data_dir):

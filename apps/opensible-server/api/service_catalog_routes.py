@@ -12,7 +12,7 @@ from typing import Any
 from flask import Blueprint, request
 
 from api.platform_contracts import error_response, register_platform_blueprint_contracts, success_response
-from auth.middleware import require_auth, get_access_control_service
+from auth.middleware import require_auth
 from services import service_catalog
 from services.org_service import is_member, member_role
 from storage import pg
@@ -26,26 +26,35 @@ def _user() -> dict[str, Any]:
 
 
 def _is_global_admin() -> bool:
-    """Use repository-authoritative RBAC, not mutable JWT role claims."""
+    """Authorize from PostgreSQL RBAC only; JWT roles are informational."""
     user_id = _user().get("user_id")
     if user_id == "__internal__":
         return True
     if not user_id:
         return False
-    try:
-        access_control = get_access_control_service()
-        if access_control.has_permission(user_id, "catalog.admin") or access_control.has_permission(user_id, "service_catalog.admin"):
-            return True
-        # The PostgreSQL RBAC tables are authoritative for this API. This also
-        # supports installations whose file-backed role service is stale.
-        row = pg.query_one(
-            "SELECT 1 AS allowed FROM users u JOIN user_roles ur ON ur.user_id = u.id "
-            "JOIN roles r ON r.id = ur.role_id WHERE u.id = %s AND u.is_active = 1 AND r.name = %s",
-            (user_id, "admin"),
-        )
-        return bool(row)
-    except Exception:
+    return bool(pg.query_one(
+        "SELECT 1 AS allowed FROM users u JOIN user_roles ur ON ur.user_id = u.id "
+        "JOIN roles r ON r.id = ur.role_id WHERE u.id = %s AND u.is_active = 1 "
+        "AND r.name = %s",
+        (user_id, "admin"),
+    ))
+
+
+def _has_catalog_publish_permission() -> bool:
+    user_id = _user().get("user_id")
+    if user_id == "__internal__":
+        return True
+    if not user_id:
         return False
+    return bool(pg.query_one(
+        "SELECT 1 AS allowed FROM users u "
+        "JOIN user_roles ur ON ur.user_id = u.id "
+        "JOIN roles r ON r.id = ur.role_id "
+        "JOIN role_permissions rp ON rp.role_id = r.id "
+        "JOIN permissions p ON p.id = rp.permission_id "
+        "WHERE u.id = %s AND u.is_active = 1 AND p.name = %s",
+        (user_id, "catalog.publish"),
+    ))
 
 
 def _requested_org(data: dict[str, Any] | None = None) -> str | None:
@@ -100,9 +109,9 @@ def _context(project_id: str | None, data: dict[str, Any] | None = None) -> tupl
 
 def _can_publish(scope: str, org_id: str | None) -> bool:
     if scope in {"platform", "global"}:
-        return _is_global_admin()
+        return _is_global_admin() or _has_catalog_publish_permission()
     user = _user()
-    if _is_global_admin():
+    if _is_global_admin() or _has_catalog_publish_permission():
         return True
     return bool(org_id and user.get("user_id") and member_role(org_id, user["user_id"]) in {"owner", "admin"})
 
