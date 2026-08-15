@@ -38,6 +38,7 @@ _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _PRIVATE_KEY_RE = re.compile(
     r"(?is)-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----"
 )
+_SECRET_REFERENCE_RE = re.compile(r"(?:secret://|ref:)[A-Za-z0-9][A-Za-z0-9._:/-]*")
 
 _ERROR_CODES = {
     400: "BAD_REQUEST",
@@ -112,10 +113,21 @@ def request_id() -> str:
 def redact_sensitive(value: Any) -> Any:
     """Copy ``value`` while removing credential-like fields and values."""
     if isinstance(value, Mapping):
-        return {
-            key: "[REDACTED]" if _SENSITIVE_KEY_RE.match(str(key)) else redact_sensitive(item)
-            for key, item in value.items()
-        }
+        output: dict[Any, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if (
+                isinstance(item, Mapping)
+                and set(str(child_key) for child_key in item) == {"secret_ref"}
+                and isinstance(item.get("secret_ref"), str)
+                and _SECRET_REFERENCE_RE.fullmatch(item["secret_ref"])
+            ):
+                output[key] = {"secret_ref": item["secret_ref"]}
+            elif key_text == "secret_ref" and isinstance(item, str) and _SECRET_REFERENCE_RE.fullmatch(item):
+                output[key] = item
+            else:
+                output[key] = "[REDACTED]" if _SENSITIVE_KEY_RE.match(key_text) else redact_sensitive(item)
+        return output
     if isinstance(value, list):
         return [redact_sensitive(item) for item in value]
     if isinstance(value, tuple):

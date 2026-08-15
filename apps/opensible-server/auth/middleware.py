@@ -12,26 +12,23 @@ Security notes
   Authorization headers.
 """
 from functools import wraps
-from flask import current_app, request, jsonify
+from flask import request, jsonify
+from typing import Any, Optional, Callable
+import re
 
 
-def _service_error(code: str, message: str, status: int):
-    try:
-        from api.platform_contracts import error_envelope, get_request_id
-        response = current_app.response_class(
-            current_app.json.dumps(error_envelope(code, message, request_id_value=get_request_id())),
-            status=status,
-            mimetype="application/json",
-        )
-        response.headers["X-Request-ID"] = get_request_id()
-        return response
-    except Exception:
-        return jsonify({'error': code, 'message': message}), status
+_SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
 
 
 def _service_route() -> bool:
-    return request.path.startswith('/api/projects/') and '/services' in request.path
-from typing import Any, Optional, Callable
+    return bool(_SERVICE_ROUTE_RE.match(request.path))
+
+
+def _service_error(code: str, message: str, status: int, *, details: dict[str, Any] | None = None):
+    # Use the same builder as service handlers. This keeps middleware failures
+    # in the platform contract without changing unrelated legacy routes.
+    from api.platform_contracts import error_response
+    return error_response(code, message, status, details=details)
 from pathlib import Path
 import logging
 import os
@@ -182,6 +179,8 @@ def require_auth(f: Callable) -> Callable:
             request.current_org_id = payload.get('org_id')
             request.token = token
             if 'readonly' in (payload.get('roles') or []) and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                if _service_route():
+                    return _service_error('READ_ONLY', 'This account has read-only access.', 403, details={'method': request.method})
                 return jsonify({'error': 'Read-only access',
                                 'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
@@ -209,10 +208,14 @@ def require_auth(f: Callable) -> Callable:
             }
             request.token = token
             if 'readonly' in roles and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                if _service_route():
+                    return _service_error('READ_ONLY', 'This account has read-only access.', 403, details={'method': request.method})
                 return jsonify({'error': 'Read-only access',
                                 'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
 
+        if _service_route():
+            return _service_error('UNAUTHORIZED', 'Access token is invalid or expired', 401)
         return jsonify({
             'error': 'Invalid token',
             'message': 'Access token is invalid or expired',
@@ -362,6 +365,8 @@ def require_project_access(f: Callable) -> Callable:
             # "default" project (pre-org stacks).
             if pid in ("default", "legacy", "_template"):
                 return f(*args, **kwargs)
+            if _service_route():
+                return _service_error('PROJECT_NOT_FOUND', 'Project not found', 404)
             return jsonify({
                 'error': 'Project not found or not tenant-bound',
                 'message': 'The project you tried to access does not exist or is not bound to an organization.',
@@ -377,6 +382,8 @@ def require_project_access(f: Callable) -> Callable:
                     'message': 'You are not a member of the organization that owns this project.',
                 }), 403
         except Exception:
+            if _service_route():
+                return _service_error('INTERNAL_SERVER_ERROR', 'Membership check failed', 500)
             return jsonify({'error': 'Membership check failed'}), 500
         return f(*args, **kwargs)
     return decorated_function

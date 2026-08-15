@@ -108,7 +108,7 @@ def _text(value: Any, field: str) -> str:
 def _safe_spec(value: Any, *, sensitive_parent: bool = False) -> Any:
     """Copy JSON-compatible input and remove secret values.
 
-    Secret references are metadata, not secret values, and are retained.  A
+    Secret references are metadata, not secret values, and are retained. A
     caller accidentally sending a raw secret therefore cannot cause it to be
     persisted; the value becomes the stable redaction marker instead.
     """
@@ -116,6 +116,22 @@ def _safe_spec(value: Any, *, sensitive_parent: bool = False) -> Any:
         output: dict[str, Any] = {}
         for raw_key, child in value.items():
             key = str(raw_key)
+            # ``secrets`` is a container of declared names, not itself a
+            # credential. Preserve each canonical reference object while
+            # dropping any unexpected fields or values.
+            if key == "secrets" and isinstance(child, Mapping):
+                safe_secrets: dict[str, Any] = {}
+                for name, entry in child.items():
+                    if isinstance(entry, Mapping) and set(map(str, entry)) == {"secret_ref"}:
+                        reference = entry.get("secret_ref")
+                        if isinstance(reference, str) and re.fullmatch(r"(?:secret://|ref:)[A-Za-z0-9][A-Za-z0-9._:/-]*", reference):
+                            safe_secrets[str(name)] = {"secret_ref": reference}
+                        else:
+                            safe_secrets[str(name)] = _REDACTED
+                    else:
+                        safe_secrets[str(name)] = _REDACTED
+                output[key] = safe_secrets
+                continue
             sensitive = sensitive_parent or bool(_SENSITIVE_KEY.search(key))
             if sensitive:
                 if isinstance(child, Mapping) and set(map(str, child)) <= _SAFE_REFERENCE_KEYS:

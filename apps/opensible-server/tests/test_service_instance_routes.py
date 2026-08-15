@@ -69,7 +69,7 @@ def _manifest() -> dict:
 @pytest.fixture
 def client(data_dir: Path, monkeypatch):
     from auth import middleware
-    from api.service_instance_routes import bp
+    from api import register_blueprints
 
     middleware.set_data_dir(data_dir)
     _seed_project(PROJECT_A, ORG_A, USER_A)
@@ -77,13 +77,18 @@ def client(data_dir: Path, monkeypatch):
     service_catalog.publish_definition(_manifest(), USER_A, None, scope="platform")
     app = flask.Flask("service-instance-routes")
     app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
-    app.register_blueprint(bp)
+    register_blueprints(app)
     return app.test_client()
 
 
 def _headers(user_id: str, data_dir: Path, **extra: str) -> dict[str, str]:
     token = generate_token(user_id, user_id, [], data_dir, token_type="access")
     return {"Authorization": f"Bearer {token}", **extra}
+
+
+def _role_headers(user_id: str, data_dir: Path, roles: list[str]) -> dict[str, str]:
+    token = generate_token(user_id, user_id, roles, data_dir, token_type="access")
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _create(client, data_dir: Path, **overrides):
@@ -104,13 +109,44 @@ def _create(client, data_dir: Path, **overrides):
 
 
 def test_auth_membership_and_cross_tenant_isolation(client, data_dir):
-    assert client.get(f"/api/projects/{PROJECT_A}/services").status_code == 401
+    missing = client.get(f"/api/projects/{PROJECT_A}/services")
+    assert missing.status_code == 401
+    assert missing.get_json()["error"]["code"] == "UNAUTHORIZED"
+    assert missing.get_json()["error"]["details"] == {}
+    assert missing.get_json()["request_id"] == missing.headers["X-Request-ID"]
+    invalid = client.get(
+        f"/api/projects/{PROJECT_A}/services",
+        headers={"Authorization": "Bearer invalid-token"},
+    )
+    assert invalid.status_code == 401
+    assert invalid.get_json()["error"]["code"] == "UNAUTHORIZED"
     denied = client.get(
         f"/api/projects/{PROJECT_A}/services",
         headers=_headers(USER_B, data_dir),
     )
     assert denied.status_code == 403
     assert denied.get_json()["error"]["code"] == "FORBIDDEN"
+    assert denied.get_json()["request_id"] == denied.headers["X-Request-ID"]
+    readonly = client.post(
+        f"/api/projects/{PROJECT_A}/services",
+        json={},
+        headers=_role_headers(USER_A, data_dir, ["readonly"]),
+    )
+    assert readonly.status_code == 403
+    assert readonly.get_json()["error"]["code"] == "READ_ONLY"
+    unknown = client.get(
+        "/api/projects/unknown-project/services",
+        headers=_headers(USER_A, data_dir),
+    )
+    assert unknown.status_code == 404
+    assert unknown.get_json()["error"]["code"] == "PROJECT_NOT_FOUND"
+    wrong_method = client.put(
+        f"/api/projects/{PROJECT_A}/services",
+        headers=_headers(USER_A, data_dir),
+    )
+    assert wrong_method.status_code == 405
+    assert wrong_method.get_json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+    assert wrong_method.get_json()["request_id"] == wrong_method.headers["X-Request-ID"]
     assert client.get(
         f"/api/projects/{PROJECT_B}/services",
         headers=_headers(USER_B, data_dir),
@@ -123,6 +159,39 @@ def test_create_rejects_raw_secret_values_without_persisting(client, data_dir):
     assert response.get_json()["error"]["code"] == "SERVICE_VALIDATION_FAILED"
     assert "raw-secret" not in response.get_data(as_text=True)
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
+
+
+def test_secret_references_are_canonicalized_and_nested_values_are_rejected(client, data_dir):
+    response = _create(
+        client,
+        data_dir,
+        spec={"mode": "safe", "secrets": {"admin_password": {"secret_ref": "secret://vault/admin"}}},
+    )
+    assert response.status_code == 201
+    service = response.get_json()["data"]["service"]
+    revision = service["revision"]
+    assert revision["spec"]["secrets"] == {"admin_password": {"secret_ref": "secret://vault/admin"}}
+    stored = pg.query_one("SELECT spec, redacted_spec FROM service_revisions WHERE id = %s", (revision["id"],))
+    assert stored["spec"]["secrets"] == {"admin_password": {"secret_ref": "secret://vault/admin"}}
+    assert "raw-secret" not in str(stored)
+
+    undeclared = _create(
+        client,
+        data_dir,
+        name="undeclared",
+        spec={"mode": "safe", "secrets": {"other": {"secret_ref": "secret://vault/other"}}},
+    )
+    assert undeclared.status_code == 422
+    assert undeclared.get_json()["error"]["code"] == "SERVICE_VALIDATION_FAILED"
+
+    raw_nested = _create(
+        client,
+        data_dir,
+        name="raw-nested",
+        spec={"mode": "safe", "secrets": {"admin_password": {"secret_ref": "raw-secret"}}},
+    )
+    assert raw_nested.status_code == 422
+    assert "raw-secret" not in raw_nested.get_data(as_text=True)
 
 
 def test_create_list_detail_envelopes_and_redaction(client, data_dir):
@@ -263,7 +332,7 @@ def test_operation_conflict_destroy_confirmation_and_capability_rejection(client
     queued = client.post(
         f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/destroy",
         json={"confirm": True, "target_id": created["id"], "revision_id": created["desired_revision_id"]},
-        headers=base,
+        headers={**base, "Idempotency-Key": "destroy-1"},
     )
     assert queued.status_code == 202
     conflict = client.post(

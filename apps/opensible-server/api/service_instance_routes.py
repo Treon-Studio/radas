@@ -30,6 +30,7 @@ bp = Blueprint("service_instance_api", __name__)
 register_platform_blueprint_contracts(bp)
 
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,62}$")
+_SECRET_REF_RE = re.compile(r"(?:secret://|ref:)[A-Za-z0-9][A-Za-z0-9._:/-]*")
 _ACTIVE_OPERATION_STATES = {"pending", "queued", "running"}
 _OPERATION_NAMES = {"deploy", "start", "stop", "restart", "destroy"}
 
@@ -178,6 +179,20 @@ def _type_error(name: str, message: str) -> dict[str, Any]:
     return {"path": f"spec.{name}", "code": "invalid", "message": message}
 
 
+def _secret_reference(value: Any) -> str | None:
+    """Return the only accepted secret reference representation."""
+    if (
+        isinstance(value, Mapping)
+        and set(str(key) for key in value) == {"secret_ref"}
+        and isinstance(value.get("secret_ref"), str)
+        and _SECRET_REF_RE.fullmatch(value["secret_ref"])
+    ):
+        return value["secret_ref"]
+    if isinstance(value, str) and _SECRET_REF_RE.fullmatch(value):
+        return value
+    return None
+
+
 def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     if not isinstance(spec, dict):
         return None, [{"path": "spec", "code": "object_required", "message": "spec must be an object"}]
@@ -187,12 +202,20 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
     secret_declarations = {
         str(item.get("name")): item for item in manifest.get("secrets", []) if isinstance(item, Mapping)
     }
+    # An input declared as type=secret is subject to the same reference-only
+    # contract as an entry in manifest.secrets.
+    for name, declaration in declarations.items():
+        if declaration.get("type") == "secret":
+            secret_declarations.setdefault(name, declaration)
+    secret_names = set(secret_declarations)
     for key in normalized:
         if key in {"name", "environment", "runtime_id", "catalog_slug", "catalog_version", "secrets", "storage", "image"}:
             continue
-        if key not in declarations and key not in secret_declarations:
+        if key not in declarations and key not in secret_names:
             errors.append(_type_error(key, "is not declared by the service catalog"))
     for name, declaration in declarations.items():
+        if name in secret_names:
+            continue
         if name not in normalized:
             if declaration.get("required") and declaration.get("default") is None:
                 errors.append(_type_error(name, "is required"))
@@ -202,7 +225,7 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
         value = normalized[name]
         kind = declaration.get("type")
         valid = (
-            kind in {"string", "domain", "url", "secret"} and isinstance(value, str)
+            kind in {"string", "domain", "url"} and isinstance(value, str)
         ) or (
             kind in {"integer", "port"} and isinstance(value, int) and not isinstance(value, bool)
         ) or (
@@ -218,28 +241,50 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
                 errors.append(_type_error(name, "is below the minimum"))
             if declaration.get("max") is not None and value > declaration["max"]:
                 errors.append(_type_error(name, "is above the maximum"))
+
     secrets = normalized.get("secrets", {})
     if secrets is not None and not isinstance(secrets, Mapping):
         errors.append(_type_error("secrets", "must be an object"))
+        secrets = {}
+    canonical_secrets: dict[str, dict[str, str]] = {}
+    if isinstance(secrets, Mapping):
+        for name, value in secrets.items():
+            name = str(name)
+            if name not in secret_names:
+                errors.append(_type_error(f"secrets.{name}", "is not declared by the service catalog"))
+                continue
+            reference = _secret_reference(value)
+            if reference is None or not isinstance(value, Mapping):
+                errors.append(_type_error(f"secrets.{name}", "must be exactly {secret_ref: secret://...}"))
+                continue
+            canonical_secrets[name] = {"secret_ref": reference}
+
+    # Canonicalize legacy top-level declared secret fields into the same
+    # metadata-only shape. This lets nested refs survive while raw values are
+    # rejected before provider validation or persistence.
     for name, declaration in secret_declarations.items():
-        present = name in normalized or (isinstance(secrets, Mapping) and name in secrets)
-        if declaration.get("required", True) and not present:
+        direct = normalized.pop(name, None) if name in normalized else None
+        nested = canonical_secrets.get(name)
+        if direct is not None and nested is not None:
+            errors.append(_type_error(name, "must be supplied either in spec or spec.secrets, not both"))
+            continue
+        reference = _secret_reference(direct) if direct is not None else None
+        if direct is not None and reference is None:
+            errors.append(_type_error(name, "must be a secret reference (secret://...) or nested secret_ref"))
+        elif reference is not None:
+            canonical_secrets[name] = {"secret_ref": reference}
+        if declaration.get("required", True) and name not in canonical_secrets:
             errors.append(_type_error(name, "secret reference is required"))
-        if name in normalized:
-            value = normalized[name]
-            if not isinstance(value, str) or not re.fullmatch(r"(?:secret://|ref:)[A-Za-z0-9._:/-]+", value):
-                errors.append(_type_error(name, "must be a secret reference (secret://... or ref:...)"))
-        if isinstance(secrets, Mapping) and name in secrets:
-            value = secrets[name]
-            if not isinstance(value, Mapping) or not any(
-                isinstance(value.get(key), str) and re.fullmatch(r"(?:secret://|ref:)[A-Za-z0-9._:/-]+", value[key])
-                for key in ("secret_ref", "ref", "reference", "secret_id", "name")
-            ):
-                errors.append(_type_error(f"secrets.{name}", "must contain a secret reference"))
+
+    if canonical_secrets:
+        normalized["secrets"] = canonical_secrets
+    else:
+        normalized.pop("secrets", None)
     storage = normalized.get("storage")
     if storage is not None and not isinstance(storage, (Mapping, list)):
         errors.append(_type_error("storage", "must be an object or list"))
     return normalized, errors
+
 
 
 def _validated_definition(data: Mapping[str, Any], org_id: str) -> tuple[dict[str, Any] | None, tuple[Any, int] | None]:
