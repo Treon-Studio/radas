@@ -13,6 +13,7 @@ from services.runtime_providers.local_container import LocalContainerProvider
 from services.runtime_providers.mock import MockRuntimeProvider
 from services.runtime_registry import (
     DuplicateProviderError,
+    ProviderRegistryError,
     RuntimeProviderRegistry,
     build_default_registry,
 )
@@ -104,6 +105,7 @@ def test_idempotency_key_is_forwarded_to_provider():
 
 def test_local_provider_disabled_without_runtime_invocation():
     provider = LocalContainerProvider(config={"runtime": "docker"}, enabled=False)
+    assert provider.TIMEOUT_ENFORCED is False
     assert all(value is False for value in provider.capabilities().values())
     enabled_without_implementation = LocalContainerProvider(
         config={"runtime": "docker", "allow_execution": True}, enabled=True
@@ -211,13 +213,71 @@ def test_provider_messages_and_nested_validation_details_are_redacted():
     assert result.error["details"]["nested"][0]["private_key"] == "[REDACTED]"
 
     validation = registry.validate("mock", {"name": "demo"})
-    assert validation[0]["message"] == "runtime provider validation failed"
+    assert validation[0]["message"] == "password [REDACTED]"
+    assert validation[0]["code"] == "INVALID_SPEC"
     assert "hunter2" not in str(validation)
     assert validation[0]["details"]["nested"]["token"] == "[REDACTED]"
 
     page = registry.logs("mock", {"id": "instance-1"})
     assert "hunter2" not in str(page.to_dict())
     assert page.entries[0]["error"]["message"] == "runtime provider log retrieval failed"
+
+
+def test_validation_messages_and_non_mapping_details_are_safe_and_retained():
+    class ValidationProvider(MockRuntimeProvider):
+        def validate(self, spec):
+            return [
+                {"code": "BAD_SPEC", "message": "token=raw-token", "details": ["raw", {"password": "raw-password"}]},
+                {"code": "MISSING_DETAILS", "message": "plain actionable message", "details": "raw-detail"},
+                "not-a-validation-map",
+            ]
+
+    validation = RuntimeProviderRegistry([ValidationProvider()]).validate("mock", {})
+    assert validation[0] == {
+        "code": "BAD_SPEC",
+        "message": "token=[REDACTED]",
+        "details": ["raw", {"password": "[REDACTED]"}],
+    }
+    assert validation[1] == {
+        "code": "MISSING_DETAILS",
+        "message": "plain actionable message",
+        "details": {"value": "raw-detail"},
+    }
+    assert validation[2]["message"] == "runtime provider validation failed"
+    assert validation[2]["details"]["value"] == "not-a-validation-map"
+    assert "raw-token" not in str(validation)
+    assert "raw-password" not in str(validation)
+
+
+@pytest.mark.parametrize("marker", ["true", 1])
+def test_timeout_marker_must_be_actual_bool_and_contract_must_be_explicit(marker):
+    class InvalidMarkerProvider(MockRuntimeProvider):
+        TIMEOUT_ENFORCED = marker
+
+    with pytest.raises(ProviderRegistryError, match="TIMEOUT_ENFORCED must be bool"):
+        RuntimeProviderRegistry([InvalidMarkerProvider()])
+
+    class KwargsOnlyProvider(MockRuntimeProvider):
+        def enforce_timeout(self, timeout):
+            pass
+
+        def deploy(self, operation_id, spec, **kwargs):
+            return ProviderResult.ok("deploy")
+
+    # The explicit enforce_timeout hook makes **kwargs acceptable.
+    RuntimeProviderRegistry([KwargsOnlyProvider()])
+
+    class MissingContractProvider(MockRuntimeProvider):
+        TIMEOUT_ENFORCED = True
+
+        def enforce_timeout(self, timeout):
+            pass
+
+        def deploy(self, operation_id, spec):
+            return ProviderResult.ok("deploy")
+
+    with pytest.raises(ProviderRegistryError, match="cannot accept timeout"):
+        RuntimeProviderRegistry([MissingContractProvider()])
 
 
 def test_timeout_is_forwarded_or_rejected_for_legacy_adapters():

@@ -13,7 +13,8 @@ from ..runtime_provider import ProviderLogPage, ProviderResult
 
 class LocalContainerProvider:
     id = "local-container"
-    TIMEOUT_ENFORCED: ClassVar[bool] = True
+    # This Phase 1 stub never executes calls, so it cannot enforce deadlines.
+    TIMEOUT_ENFORCED: ClassVar[bool] = False
 
     def __init__(self, *, config: dict[str, Any] | None = None, enabled: bool = False):
         self.config = dict(config or {})

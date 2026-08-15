@@ -89,18 +89,31 @@ def _public_provider_error(error: Mapping[str, Any] | None) -> dict[str, Any]:
     return {"code": code, "message": message, "details": redact(dict(details))}
 
 
+def _public_details(value: Any) -> dict[str, Any] | list[Any]:
+    """Normalize details without allowing arbitrary provider objects through."""
+    if isinstance(value, Mapping):
+        return redact(dict(value))
+    if isinstance(value, list):
+        return redact(value)
+    return {"value": redact(value)}
+
+
 def _public_validation_error(value: Any) -> dict[str, Any]:
-    """Normalize one provider validation item without exposing its message."""
+    """Normalize one provider validation item while retaining its safe message."""
     if isinstance(value, Mapping):
         safe = redact(dict(value))
         code = safe.get("code")
         if not isinstance(code, str) or not code:
             code = "PROVIDER_VALIDATION_ERROR"
-        details = safe.get("details", {})
-        if not isinstance(details, Mapping):
-            details = {"value": details}
-        return {"code": code, "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": redact(dict(details))}
-    return {"code": "PROVIDER_VALIDATION_ERROR", "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": {"value": redact(value)}}
+        message = safe.get("message")
+        if not isinstance(message, str) or not message:
+            message = PUBLIC_PROVIDER_VALIDATION_ERROR
+        return {"code": code, "message": message, "details": _public_details(safe.get("details", {}))}
+    return {
+        "code": "PROVIDER_VALIDATION_ERROR",
+        "message": PUBLIC_PROVIDER_VALIDATION_ERROR,
+        "details": {"value": redact(value)},
+    }
 
 
 @dataclass(frozen=True)
@@ -292,15 +305,21 @@ class RuntimeProvider(Protocol):
     Adapter calls are synchronous.  The registry never runs arbitrary Python
     calls in a worker/future and therefore cannot interrupt a blocked call.
     Every adapter that accepts a timeout must set ``TIMEOUT_ENFORCED = True``
-    and enforce that deadline in its own I/O/subprocess implementation.  An
-    adapter without that declaration is rejected before invocation when a
-    timeout is requested; this avoids silently dispatching an unbounded call.
+    (the value must be the actual bool ``True``) and enforce that deadline in
+    its own I/O/subprocess implementation.  An adapter with ``**kwargs`` must
+    also expose an explicit ``enforce_timeout(timeout)`` contract; ``**kwargs``
+    alone is not proof that a timeout is handled.  An adapter without that
+    declaration is rejected before invocation when a timeout is requested.
+    The elapsed-time check after a call is only a guard for late completion; it
+    reports a timeout but cannot interrupt a blocked adapter call.
     """
 
     id: str
     TIMEOUT_ENFORCED: ClassVar[bool]
 
     def capabilities(self) -> dict[str, bool]: ...
+
+    def enforce_timeout(self, timeout: float) -> None: ...
 
     def validate(self, spec: dict[str, Any]) -> list[dict[str, Any]]: ...
 

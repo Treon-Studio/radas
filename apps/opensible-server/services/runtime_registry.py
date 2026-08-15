@@ -18,6 +18,7 @@ from .runtime_provider import (
     PUBLIC_PROVIDER_ERROR,
     PUBLIC_PROVIDER_LOG_ERROR,
     PUBLIC_PROVIDER_VALIDATION_ERROR,
+    _public_details,
     _public_provider_error,
     _public_validation_error,
     redact,
@@ -62,6 +63,49 @@ class RuntimeProviderRegistry:
             raise DuplicateProviderError(f"provider '{provider_id}' is already registered")
         if not callable(getattr(provider, "capabilities", None)):
             raise ProviderRegistryError(f"provider '{provider_id}' is missing capabilities()")
+        timeout_marker = getattr(provider, "TIMEOUT_ENFORCED", False)
+        if not isinstance(timeout_marker, bool):
+            raise ProviderRegistryError(f"provider '{provider_id}' TIMEOUT_ENFORCED must be bool")
+        if timeout_marker:
+            enforce_timeout = getattr(provider, "enforce_timeout", None)
+            if not callable(enforce_timeout):
+                raise ProviderRegistryError(
+                    f"provider '{provider_id}' claims timeout support but is missing enforce_timeout(timeout)"
+                )
+            try:
+                enforce_parameters = inspect.signature(enforce_timeout).parameters
+            except (TypeError, ValueError) as exc:
+                raise ProviderRegistryError(
+                    f"provider '{provider_id}' timeout contract has no inspectable signature"
+                ) from exc
+            timeout_parameter = enforce_parameters.get("timeout")
+            if timeout_parameter is None or timeout_parameter.kind not in {
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            }:
+                raise ProviderRegistryError(
+                    f"provider '{provider_id}' timeout contract must accept enforce_timeout(timeout)"
+                )
+            for operation in _OPERATION_NAMES:
+                method = getattr(provider, operation, None)
+                if not callable(method):
+                    continue
+                try:
+                    parameters = inspect.signature(method).parameters
+                except (TypeError, ValueError) as exc:
+                    raise ProviderRegistryError(
+                        f"provider '{provider_id}' timeout-capable method '{operation}' has no inspectable signature"
+                    ) from exc
+                has_timeout = parameters.get("timeout")
+                has_kwargs = any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+                if has_timeout is None and not has_kwargs:
+                    raise ProviderRegistryError(
+                        f"provider '{provider_id}' timeout-capable method '{operation}' cannot accept timeout"
+                    )
+                if has_kwargs and has_timeout is None:
+                    # **kwargs is not proof that the adapter consumes timeout;
+                    # enforce_timeout is the explicit capability contract.
+                    continue
         self._providers[provider_id] = provider
         return provider
 
@@ -154,6 +198,7 @@ class RuntimeProviderRegistry:
 
     @staticmethod
     def _enforce_elapsed_timeout(started: float, timeout: float | None) -> None:
+        """Apply a post-call guard; this reports lateness but cannot interrupt."""
         if timeout is not None and time.monotonic() - started > timeout:
             raise RuntimeProviderTimeoutError()
 
@@ -263,9 +308,11 @@ class RuntimeProviderRegistry:
         operation_id = args[0] if args and operation not in {"status"} else None
         try:
             normalized_timeout = self._validate_timeout(timeout)
-            timeout_enforced = bool(getattr(provider, "TIMEOUT_ENFORCED", False))
+            timeout_enforced = getattr(provider, "TIMEOUT_ENFORCED", False) is True
             if normalized_timeout is not None and not timeout_enforced:
                 raise UnsupportedTimeoutError(operation)
+            if normalized_timeout is not None:
+                provider.enforce_timeout(normalized_timeout)
             started = time.monotonic()
             result = self._call(
                 getattr(provider, operation), *args,
@@ -294,9 +341,11 @@ class RuntimeProviderRegistry:
         try:
             normalized_timeout = self._validate_timeout(timeout)
             started = time.monotonic()
-            timeout_enforced = bool(getattr(provider, "TIMEOUT_ENFORCED", False))
+            timeout_enforced = getattr(provider, "TIMEOUT_ENFORCED", False) is True
             if normalized_timeout is not None and not timeout_enforced:
                 raise UnsupportedTimeoutError("logs")
+            if normalized_timeout is not None:
+                provider.enforce_timeout(normalized_timeout)
             result = self._call(
                 provider.logs,
                 instance,
@@ -329,8 +378,13 @@ class RuntimeProviderRegistry:
                 raise RuntimeProviderError("INVALID_PROVIDER_VALIDATION", "provider returned invalid validation details")
             return [_public_validation_error(item) for item in raw]
         except Exception as exc:
-            details = redact(getattr(exc, "details", {}))
-            return [{"code": getattr(exc, "code", "PROVIDER_ERROR"), "message": PUBLIC_PROVIDER_VALIDATION_ERROR, "details": details}]
+            code = getattr(exc, "code", "PROVIDER_ERROR")
+            if not isinstance(code, str) or not code:
+                code = "PROVIDER_ERROR"
+            message = redact(getattr(exc, "message", str(exc)))
+            if not isinstance(message, str) or not message:
+                message = PUBLIC_PROVIDER_VALIDATION_ERROR
+            return [{"code": code, "message": message, "details": _public_details(getattr(exc, "details", {}))}]
 
     def deploy(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
         return self.invoke(provider_id, "deploy", operation_id, spec, **kwargs)

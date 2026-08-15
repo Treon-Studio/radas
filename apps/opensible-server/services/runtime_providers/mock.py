@@ -35,6 +35,11 @@ class MockRuntimeProvider:
     def configure_failure(self, failure: BaseException | Mapping[str, Any] | None) -> None:
         self.failure = failure
 
+    def enforce_timeout(self, timeout: float) -> None:
+        """Declare the timeout hook required by the timeout-capable contract."""
+        if timeout < 0:
+            raise ValueError("timeout must be non-negative")
+
     def validate(self, spec: dict[str, Any]) -> list[dict[str, Any]]:
         errors: list[dict[str, Any]] = []
         if not isinstance(spec, dict):
