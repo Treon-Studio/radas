@@ -101,6 +101,31 @@ def test_v9_rejects_conflicting_terminal_duplicates(pg_db):
     assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 9") is None
 
 
+def test_v11_rejects_existing_cross_instance_revision_idempotency_row(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 11")
+    pg.execute("DROP INDEX IF EXISTS uq_service_revisions_instance_id_id")
+    pg.execute("ALTER TABLE service_revision_idempotency DROP CONSTRAINT IF EXISTS fk_service_revision_idempotency_revision_instance")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("v11-org", "v11-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("v11-project", "v11-org", "v11-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_instances (id,org_id,project_id,name,definition_slug,definition_version,environment,runtime_id,status,created_at,updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s),(%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s)",
+        ("v11-a", "v11-org", "v11-project", "a", "static-web", "1.0.0", "development", "mock", 1.0, 1.0,
+         "v11-b", "v11-org", "v11-project", "b", "static-web", "1.0.0", "development", "mock", 1.0, 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_revisions (id,instance_id,revision_number,spec,redacted_spec,created_at) VALUES (%s,%s,1,'{}','{}',1)",
+        ("v11-revision", "v11-a"),
+    )
+    pg.execute(
+        "INSERT INTO service_revision_idempotency(instance_id,idempotency_key,payload_fingerprint,revision_id,created_at) VALUES (%s,%s,%s,%s,1)",
+        ("v11-b", "corrupt", "fp", "v11-revision"),
+    )
+    with pytest.raises(pg_schema.RevisionIdempotencyMigrationError, match="revision idempotency"):
+        pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 11") is None
+
+
 def test_schema_migrate_idempotent(pg_db):
     # reset_schema applies all current migrations; calling migrate again is safe.
     pg_schema.migrate()

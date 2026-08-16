@@ -227,6 +227,48 @@ def test_operation_status_cas_and_terminal_transitions(pg_db):
         service_operations.transition_operation("project-a", operation["id"], "running", actor_id="owner")
 
 
+def test_concurrent_create_and_deploy_calls_share_one_instance_and_operation(pg_db):
+    _project()
+    results: list[tuple[dict, dict]] = []
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(2)
+
+    def create() -> None:
+        try:
+            barrier.wait(timeout=5)
+            results.append(service_operations.create_instance_and_deploy(
+                "project-a", "same-create", "static-web", "1.0.0", "development", "mock",
+                {"image": "example/demo:1"}, "same-create-key", requested_by="owner", actor_id="owner",
+            ))
+        except BaseException as exc:  # pragma: no cover - diagnostic path
+            errors.append(exc)
+
+    threads = [threading.Thread(target=create) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert not errors
+    assert len({item[0]["id"] for item in results}) == 1
+    assert len({item[1]["id"] for item in results}) == 1
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")['count'] == 1
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operations")['count'] == 1
+
+
+def test_create_and_deploy_conflicting_payload_is_controlled_conflict(pg_db):
+    _project()
+    service_operations.create_instance_and_deploy(
+        "project-a", "same-create", "static-web", "1.0.0", "development", "mock",
+        {"image": "example/demo:1"}, "same-create-key", requested_by="owner", actor_id="owner",
+    )
+    with pytest.raises(service_operations.OperationConflictError):
+        service_operations.create_instance_and_deploy(
+            "project-a", "same-create", "static-web", "1.0.0", "staging", "mock",
+            {"image": "example/demo:1"}, "same-create-key", requested_by="owner", actor_id="owner",
+        )
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")['count'] == 1
+
+
 def test_concurrent_operation_creators_share_one_idempotent_row(pg_db):
     _project()
     results: list[dict] = []
@@ -319,6 +361,19 @@ def test_operation_reads_and_lists_allow_explicit_internal_context(pg_db):
     )
     assert service_operations.get_operation("project-a", operation["id"], internal_context=context)["id"] == operation["id"]
     assert service_operations.list_operations("project-a", internal_context=context)[0]["id"] == operation["id"]
+
+
+def test_revision_idempotency_rejects_cross_instance_corruption(pg_db):
+    _project()
+    first = _instance(name="first")
+    second = _instance(name="second")
+    revision = service_instances.get_revision("project-a", first["id"], revision_number=1, actor_id="owner")
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_revision_idempotency(instance_id,idempotency_key,payload_fingerprint,revision_id,created_at) "
+            "VALUES (%s,%s,%s,%s,%s)",
+            (second["id"], "corrupt", "fp", revision["id"], time.time()),
+        )
 
 
 def test_specs_and_provider_outputs_never_persist_secret_values(pg_db):

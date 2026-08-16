@@ -93,6 +93,22 @@ export function unwrapOperation<T>(response: { operation?: T; data?: { operation
   return response as T;
 }
 
+export function stableFingerprint(value: unknown): string {
+  const encoded = JSON.stringify(value, (_key, child) => {
+    if (!child || typeof child !== "object" || Array.isArray(child)) return child;
+    return Object.keys(child as Record<string, unknown>).sort().reduce<Record<string, unknown>>((result, key) => {
+      result[key] = (child as Record<string, unknown>)[key];
+      return result;
+    }, {});
+  });
+  let hash = 2166136261;
+  for (let index = 0; index < encoded.length; index += 1) {
+    hash ^= encoded.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
 export function createAttemptKey(scope: string, attempt: string): string {
   return `radas:${scope}:${attempt}`;
 }

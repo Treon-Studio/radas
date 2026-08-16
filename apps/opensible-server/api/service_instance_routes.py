@@ -67,11 +67,18 @@ def _confirmation_token(instance: Mapping[str, Any]) -> str:
     return base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
 
 
+def _production_create_fingerprint(normalized: Mapping[str, Any]) -> str:
+    return service_instances.create_request_fingerprint(
+        str(normalized["name"]), str(normalized["catalog_slug"]),
+        str(normalized["catalog_version"]), str(normalized["environment"]),
+        str(normalized["runtime_id"]), normalized,
+    )
+
+
 def _production_create_token(project_id: str, normalized: Mapping[str, Any]) -> str:
-    fingerprint = hashlib.sha256(json.dumps(dict(normalized), sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
-    payload = f"create:{project_id}:{fingerprint}".encode()
-    secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
-    return base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
+    return service_instances.production_create_confirmation_token(
+        project_id, _production_create_fingerprint(normalized),
+    )
 
 
 def _production_confirmation_error(token: str | None = None):
@@ -615,8 +622,10 @@ def create_service(project_id: str):
     environment = str(normalized["environment"])
     runtime_id = str(normalized["runtime_id"])
     production_token = None
+    production_fingerprint = None
     if environment == "production":
         supplied = str(data.get("production_confirmation_token") or data.get("confirmation_token") or "")
+        production_fingerprint = _production_create_fingerprint(normalized)
         expected = _production_create_token(project_id, normalized)
         if not supplied or not hmac.compare_digest(supplied, expected) or data.get("production_confirmed") is not True:
             return _production_confirmation_error(expected)
@@ -630,7 +639,12 @@ def create_service(project_id: str):
             instance, operation = service_operations.create_instance_and_deploy(
                 project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
                 idem_key, requested_by=_actor_id(), org_id=org_id, **_auth_kwargs(project_id),
-                confirmation_context={"production_confirmed": environment == "production", "token": production_token},
+                confirmation_context={
+                    "production_confirmed": environment == "production",
+                    "token": production_token,
+                    "impact_fingerprint": production_fingerprint,
+                    "identity": _actor_id(),
+                },
             )
         except service_operations.OperationConflictError as exc:
             return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
@@ -643,6 +657,15 @@ def create_service(project_id: str):
         instance = service_instances.create_instance(
             project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
             created_by=_actor_id(), org_id=org_id, **_auth_kwargs(project_id),
+            confirmation_context=(
+                {
+                    "production_confirmed": True,
+                    "token": production_token,
+                    "impact_fingerprint": production_fingerprint,
+                    "identity": _actor_id(),
+                }
+                if environment == "production" else None
+            ),
         )
     except service_instances.InstanceConflictError as exc:
         return error_response("SERVICE_NAME_CONFLICT", str(exc), 409)

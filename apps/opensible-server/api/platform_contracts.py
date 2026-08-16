@@ -116,7 +116,12 @@ def redact_sensitive(value: Any) -> Any:
         output: dict[Any, Any] = {}
         for key, item in value.items():
             key_text = str(key)
-            if (
+            if key_text in {"confirmation_token", "production_confirmation_token", "impact_token"} and isinstance(item, str):
+                # These are short-lived, server-verifiable capability tokens,
+                # not credentials or provider secrets; callers must receive
+                # them to complete the explicit impact-confirmation flow.
+                output[key] = item
+            elif (
                 isinstance(item, Mapping)
                 and set(str(child_key) for child_key in item) == {"secret_ref"}
                 and isinstance(item.get("secret_ref"), str)

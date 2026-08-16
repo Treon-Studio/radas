@@ -312,16 +312,26 @@ def create_instance_and_deploy(
     if len(key) > 255:
         raise ServiceOperationError("idempotency key is too long")
     safe_spec = redact_spec(spec)
-    create_identity = {
-        "name": name, "definition_slug": definition_slug,
-        "definition_version": definition_version, "environment": environment,
-        "runtime_id": runtime_id, "spec": safe_spec,
-    }
-    create_fingerprint = hashlib.sha256(
-        json.dumps(create_identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-    ).hexdigest()
+    create_fingerprint = service_instances.create_request_fingerprint(
+        name, definition_slug, definition_version, environment, runtime_id, safe_spec,
+    )
     with pg.transaction() as conn:
         derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
+        if environment == "production":
+            confirmation_metadata = service_instances._production_confirmation_metadata(
+                project_id, create_fingerprint, confirmation_context,
+                expected_identity=actor_id or requested_by,
+            )
+        else:
+            confirmation_metadata = None
+        # Serialize the complete create+deploy unit by its project/key identity.
+        # This closes the window where two callers both pass the initial lookup,
+        # then one loses on the instance name unique constraint before its
+        # operation row can reconcile the winning request.
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"service-create-deploy:{project_id}:{key}",),
+        )
         existing = conn.execute(
             "SELECT * FROM service_operations WHERE project_id=%s AND idempotency_key=%s FOR UPDATE",
             (project_id, key),
@@ -392,13 +402,22 @@ def create_instance_and_deploy(
         _operation_event_tx(conn, operation_id, "queued", message="operation queued")
         service_instances._audit_instance(
             conn, "service.instance.created", actor_id=requested_by, row=instance,
-            after="draft", metadata={"definition_slug": definition_slug, "definition_version": definition_version,
-                                    "runtime_id": runtime_id, "deploy_queued": True},
+            after="draft", metadata={
+                "definition_slug": definition_slug,
+                "definition_version": definition_version,
+                "runtime_id": runtime_id,
+                "deploy_queued": True,
+                **({"confirmation": confirmation_metadata} if confirmation_metadata else {}),
+            },
         )
         _audit_lifecycle(
             conn, "service.operation.created", actor_id=requested_by, org_id=derived_org,
             project_id=project_id, instance_id=instance_id, operation=operation,
-            before=None, after="queued", metadata={"idempotency_key": key, "create_fingerprint": create_fingerprint},
+            before=None, after="queued", metadata={
+                "idempotency_key": key,
+                "create_fingerprint": create_fingerprint,
+                **({"confirmation": confirmation_metadata} if confirmation_metadata else {}),
+            },
         )
     return service_instances._row(instance), _row(operation)
 

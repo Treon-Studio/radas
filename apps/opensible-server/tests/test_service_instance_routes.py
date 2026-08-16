@@ -477,6 +477,34 @@ def test_operation_conflict_destroy_confirmation_and_capability_rejection(client
     assert conflict.get_json()["error"]["code"] == "SERVICE_OPERATION_CONFLICT"
 
 
+def test_production_create_confirmation_is_bound_to_identity_and_payload(client, data_dir, monkeypatch):
+    from api import service_instance_routes as routes
+
+    manifest = _manifest()
+    manifest.update({"slug": "route-prod", "version": "1.0.1", "production_ready": True, "metadata": {"production_policy": "allow"}})
+    service_catalog.publish_definition(manifest, USER_A, None, scope="platform")
+    monkeypatch.setenv("INTERNAL_CALL_SECRET", "stable-test-secret")
+    payload = {
+        "name": "prod-demo", "environment": "production", "catalog_slug": "route-prod",
+        "catalog_version": "1.0.1", "runtime_id": "mock", "spec": {"mode": "safe"},
+    }
+    preflight = client.post(f"/api/projects/{PROJECT_A}/services/preflight", json=payload, headers=_headers(USER_A, data_dir))
+    token = preflight.get_json()["data"]["impact"]["confirmation_token"]
+    response = client.post(
+        f"/api/projects/{PROJECT_A}/services", json={**payload, "production_confirmed": True, "production_confirmation_token": token},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "prod-create"},
+    )
+    assert response.status_code == 201, response.get_json()
+    audit = pg.query_one("SELECT meta_json FROM audit_log WHERE action='service.instance.created' ORDER BY id DESC")
+    assert "confirmation" in audit["meta_json"]
+    assert token not in audit["meta_json"]
+    wrong_identity = client.post(
+        f"/api/projects/{PROJECT_A}/services", json={**payload, "name": "prod-other", "production_confirmed": True, "production_confirmation_token": token},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "prod-other"},
+    )
+    assert wrong_identity.status_code == 400
+
+
 def test_impact_and_operations_are_project_scoped(client, data_dir):
     created = _create(client, data_dir).get_json()["data"]["service"]
     headers = {**_headers(USER_A, data_dir), "Idempotency-Key": "impact-deploy"}

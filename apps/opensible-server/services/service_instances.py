@@ -6,6 +6,7 @@ functions without gaining a way to bypass project tenancy.
 """
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import hmac
@@ -168,6 +169,68 @@ def _safe_provider(value: Any) -> Any:
     return redact(value) if value is not None else None
 
 
+def create_request_fingerprint(
+    name: str, definition_slug: str, definition_version: str,
+    environment: str, runtime_id: str, spec: Mapping[str, Any],
+) -> str:
+    """Return the stable fingerprint used by create idempotency and confirmation."""
+    identity = {
+        "name": _text(name, "name"),
+        "definition_slug": _text(definition_slug, "definition_slug"),
+        "definition_version": _text(definition_version, "definition_version"),
+        "environment": _text(environment, "environment"),
+        "runtime_id": _text(runtime_id, "runtime_id"),
+        "spec": redact_spec(spec),
+    }
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def production_create_confirmation_token(project_id: str, fingerprint: str) -> str:
+    """Build the route-compatible, non-persisted production impact token."""
+    secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
+    payload = f"create:{project_id}:{fingerprint}".encode()
+    return base64.urlsafe_b64encode(
+        hmac.new(secret, payload, hashlib.sha256).digest()
+    ).decode().rstrip("=")
+
+
+def _production_confirmation_metadata(
+    project_id: str, expected_fingerprint: str, confirmation_context: Mapping[str, Any] | None,
+    *, expected_identity: str | None,
+) -> dict[str, Any]:
+    """Validate production impact confirmation at the persistence boundary."""
+    if not isinstance(confirmation_context, Mapping):
+        raise ProjectAuthorizationError("explicit production confirmation context required")
+    identity = str(confirmation_context.get("identity") or "").strip()
+    if not identity or not expected_identity or not hmac.compare_digest(identity, str(expected_identity)):
+        raise ProjectAuthorizationError("current production confirmation identity is invalid")
+    supplied_fingerprint = str(
+        confirmation_context.get("impact_fingerprint")
+        or confirmation_context.get("fingerprint")
+        or ""
+    ).strip()
+    if not supplied_fingerprint or not hmac.compare_digest(supplied_fingerprint, expected_fingerprint):
+        raise ProjectAuthorizationError("production confirmation impact is stale or invalid")
+    if confirmation_context.get("production_confirmed") is not True:
+        raise ProjectAuthorizationError("explicit production impact confirmation required")
+    supplied_token = str(
+        confirmation_context.get("token")
+        or confirmation_context.get("confirmation_token")
+        or ""
+    ).strip()
+    expected_token = production_create_confirmation_token(project_id, expected_fingerprint)
+    if not supplied_token or not hmac.compare_digest(supplied_token, expected_token):
+        raise ProjectAuthorizationError("production confirmation token is invalid")
+    # Never return or persist the token. These fields are deliberately limited
+    # to redacted audit metadata.
+    return {
+        "identity": identity,
+        "impact_fingerprint": expected_fingerprint,
+        "production_confirmed": True,
+    }
+
+
 def _audit_instance(conn: Any, action: str, *, actor_id: str | None, row: Mapping[str, Any], before: Any = None, after: Any = None, metadata: Mapping[str, Any] | None = None) -> None:
     safe_meta = redact({
         "actor": actor_id, "org_id": row.get("org_id"), "project_id": row.get("project_id"),
@@ -253,6 +316,7 @@ def create_instance(
     created_by: str | None = None, *, org_id: str | None = None,
     actor_id: str | None = None,
     internal_context: TrustedInternalExecution | None = None,
+    confirmation_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a draft instance and its first immutable desired revision."""
     name = _text(name, "name")
@@ -261,12 +325,21 @@ def create_instance(
     definition_version = _text(definition_version, "definition_version")
     runtime_id = _text(runtime_id, "runtime_id")
     safe_spec = redact_spec(spec)
+    fingerprint = create_request_fingerprint(
+        name, definition_slug, definition_version, environment, runtime_id, safe_spec,
+    )
     instance_id, revision_id, now = str(uuid.uuid4()), str(uuid.uuid4()), time.time()
     with pg.transaction() as conn:
         derived_org = _authorize_project_access(
             conn, project_id, actor_id=actor_id, org_id=org_id,
             internal_context=internal_context,
         )
+        confirmation_metadata = None
+        if environment == "production":
+            confirmation_metadata = _production_confirmation_metadata(
+                project_id, fingerprint, confirmation_context,
+                expected_identity=actor_id or created_by,
+            )
         try:
             conn.execute(
                 "INSERT INTO service_instances "
@@ -285,7 +358,15 @@ def create_instance(
         except psycopg_errors.UniqueViolation as exc:
             raise InstanceConflictError("service name already exists in this project and environment") from exc
         row = conn.execute("SELECT * FROM service_instances WHERE id = %s", (instance_id,)).fetchone()
-        _audit_instance(conn, "service.instance.created", actor_id=created_by, row=row, after=row.get("status"), metadata={"definition_slug": definition_slug, "definition_version": definition_version, "runtime_id": runtime_id})
+        _audit_instance(
+            conn, "service.instance.created", actor_id=created_by, row=row,
+            after=row.get("status"), metadata={
+                "definition_slug": definition_slug,
+                "definition_version": definition_version,
+                "runtime_id": runtime_id,
+                **({"confirmation": confirmation_metadata} if confirmation_metadata else {}),
+            },
+        )
     return _row(row)
 
 

@@ -401,6 +401,19 @@ _V10_DDL: List[str] = [
     "ON service_revision_idempotency(revision_id)",
 ]
 
+# Version 11 — composite revision ownership for idempotency rows. Existing
+# rows are checked before the constraint is installed; invalid legacy data
+# aborts migration instead of being silently reassigned.
+_V11_DDL: List[str] = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_revisions_instance_id_id "
+    "ON service_revisions(instance_id, id)",
+    "ALTER TABLE service_revision_idempotency "
+    "DROP CONSTRAINT IF EXISTS fk_service_revision_idempotency_revision_instance",
+    "ALTER TABLE service_revision_idempotency "
+    "ADD CONSTRAINT fk_service_revision_idempotency_revision_instance "
+    "FOREIGN KEY (instance_id, revision_id) REFERENCES service_revisions(instance_id, id)",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
@@ -414,6 +427,7 @@ MIGRATIONS = (
     (8, _V8_DDL),
     (9, _V9_DDL),
     (10, _V10_DDL),
+    (11, _V11_DDL),
 )
 
 
@@ -423,6 +437,22 @@ class CatalogMigrationError(RuntimeError):
 
 class EventMigrationError(RuntimeError):
     """Raised when lifecycle event duplicates are not safely reconcilable."""
+
+
+class RevisionIdempotencyMigrationError(RuntimeError):
+    """Raised when legacy revision idempotency ownership is corrupt."""
+
+
+def _validate_revision_idempotency_ownership(conn: Any) -> None:
+    invalid = conn.execute(
+        "SELECT k.instance_id, k.revision_id FROM service_revision_idempotency k "
+        "LEFT JOIN service_revisions r ON r.instance_id = k.instance_id AND r.id = k.revision_id "
+        "WHERE r.id IS NULL LIMIT 1"
+    ).fetchone()
+    if invalid:
+        raise RevisionIdempotencyMigrationError(
+            "schema migration v11 found revision idempotency row whose revision belongs to another instance"
+        )
 
 
 def _reconcile_service_operation_event_duplicates(conn: Any) -> None:
@@ -637,6 +667,8 @@ def migrate(*, seed_catalog: bool = False) -> None:
                 _reconcile_platform_duplicates(conn)
             if version == 9:
                 _reconcile_service_operation_event_duplicates(conn)
+            if version == 11:
+                _validate_revision_idempotency_ownership(conn)
             for stmt in ddl:
                 conn.execute(stmt)
             conn.execute(
