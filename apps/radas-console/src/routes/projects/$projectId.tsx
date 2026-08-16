@@ -1,31 +1,26 @@
-import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { RiArrowRightLine as ArrowRight, RiCloudLine as Cloud, RiFolder2Line as FolderKanban, RiStackLine as ServicesIcon } from "@remixicon/react";
 import { Card, CardContent } from "@/components/ui/card";
+import { StateView } from "@/components/ui/StateView";
 import { useProjects } from "@/lib/project";
 
 export const Route = createFileRoute("/projects/$projectId")({ component: ProjectOverview });
 
 function ProjectOverview() {
-  const navigate = useNavigate();
   const { pathname } = useLocation();
   const { projectId } = Route.useParams();
   const { projects, current, loading, setCurrent } = useProjects();
   const project = projects.find((item) => item.id === projectId);
 
   useEffect(() => {
-    if (!loading && !project) {
-      void navigate({ to: "/dashboard", replace: true });
-      return;
-    }
     if (project && current?.id !== project.id) {
       void setCurrent(project.id);
     }
-  }, [current?.id, loading, navigate, project, setCurrent]);
+  }, [current?.id, project, setCurrent]);
 
-  if (loading || !project) {
-    return <div className="py-16 text-center text-sm text-[var(--color-muted-foreground)]">Loading project…</div>;
-  }
+  if (loading) return <StateView state="loading" title="Memuat project…" />;
+  if (!project) return <StateView state="error" title="Project tidak ditemukan atau akses ditolak" message="Project ini tidak tersedia untuk akun Anda. Periksa izin project atau pilih project lain." />;
 
   if (pathname !== `/projects/${projectId}`) return <Outlet />;
 

@@ -15,7 +15,7 @@ export type ServiceManifest = {
   persistence?: string;
   supported_runtimes?: string[];
   minimum_resources?: { cpu_millicores?: number; memory_mb?: number; storage_gb?: number };
-  storage?: Array<{ name?: string; size_gb?: number; required?: boolean }>;
+  storage?: Array<{ name?: string; size_gb?: number; required?: boolean; mount_path?: string; metadata?: Record<string, unknown> }>;
   secrets?: Array<{ name: string; required?: boolean; description?: string }>;
   inputs?: Array<{ name: string; type?: string; required?: boolean; default?: unknown; min?: number; max?: number; choices?: string[] }>;
   ports?: Array<{ name?: string; port?: number; public?: boolean }>;

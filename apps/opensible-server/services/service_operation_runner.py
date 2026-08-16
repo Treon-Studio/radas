@@ -265,6 +265,10 @@ def _instance_success_status(kind: str, current: str) -> tuple[str, ...]:
         if current in {"provisioning", "updating"}:
             return ("running",)
         return ("running",)
+    if kind == "rollback":
+        if current in {"failed", "stopped", "draft"}:
+            return ("updating", "running")
+        return ("updating", "running")
     if kind == "update":
         if current in {"failed", "stopped", "draft"}:
             return ("updating", "running")
@@ -475,7 +479,7 @@ def execute_claimed(operation_id: str, worker_id: str, *, registry: runtime_regi
         if registry is None:
             registry = runtime_registry.build_default_registry()
         operation_name = payload["operation"]
-        args = (operation_id, payload["spec"]) if operation_name in {"deploy", "update"} else (operation_id, payload["instance"])
+        args = (operation_id, payload["spec"]) if operation_name in {"deploy", "update", "rollback"} else (operation_id, payload["instance"])
         result = registry.invoke(
             payload["runtime_id"], operation_name, *args,
             idempotency_key=payload["idempotency_key"],

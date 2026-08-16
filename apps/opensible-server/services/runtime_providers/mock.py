@@ -26,6 +26,7 @@ class MockRuntimeProvider:
             "stop": True,
             "restart": True,
             "destroy": True,
+            "rollback": True,
             "logs": True,
             "status": True,
             "healthcheck": True,
@@ -110,6 +111,9 @@ class MockRuntimeProvider:
 
     def update(self, operation_id: str, spec: dict[str, Any], *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
         return self._call("update", operation_id, spec, idempotency_key=idempotency_key, timeout=timeout)
+
+    def rollback(self, operation_id: str, spec: dict[str, Any], *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
+        return self._call("rollback", operation_id, spec, idempotency_key=idempotency_key, timeout=timeout)
 
     def start(self, operation_id: str, instance: dict[str, Any], *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
         return self._call("start", operation_id, instance, idempotency_key=idempotency_key, timeout=timeout)

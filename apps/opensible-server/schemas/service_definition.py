@@ -122,6 +122,17 @@ class StorageDeclaration(StrictModel):
     required: bool = True
     mount_path: str = "/data"
     description: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def safe_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        # Metadata describes the volume contract; credential material belongs
+        # in secret references and is never part of a catalog manifest.
+        for key in value:
+            if re.search(r"(?:secret|password|token|credential|private.?key|api.?key)", str(key), re.IGNORECASE):
+                raise ValueError("storage metadata must not declare credential-like keys")
+        return value
 
     @field_validator("name")
     @classmethod

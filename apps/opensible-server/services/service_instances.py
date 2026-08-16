@@ -7,6 +7,7 @@ functions without gaining a way to bypass project tenancy.
 from __future__ import annotations
 
 import copy
+import hashlib
 import hmac
 import json
 import os
@@ -368,10 +369,14 @@ def get_revision(project_id: str, instance_id: str, revision_id: str | None = No
 
 def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str | None = None,
                     *, project_id: str | None = None, org_id: str | None = None,
-                    actor_id: str | None = None,
+                    actor_id: str | None = None, idempotency_key: str | None = None,
                     internal_context: TrustedInternalExecution | None = None) -> dict[str, Any]:
-    """Append a new immutable desired revision and point the instance at it."""
+    """Append an immutable desired revision, idempotently when keyed."""
     safe_spec = redact_spec(spec)
+    fingerprint = json.dumps(safe_spec, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    key = str(idempotency_key or "").strip()
+    if len(key) > 255:
+        raise ServiceInstanceError("idempotency key is too long")
     with pg.transaction() as conn:
         query = "SELECT i.*, COALESCE(i.org_id, p.org_id) AS derived_org FROM service_instances i JOIN projects p ON p.id = i.project_id WHERE i.id = %s"
         row = conn.execute(query, (instance_id,)).fetchone()
@@ -387,6 +392,17 @@ def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str |
         # Lock the owning instance before allocating the next revision number;
         # PostgreSQL does not permit FOR UPDATE on an aggregate query.
         conn.execute("SELECT id FROM service_instances WHERE id = %s FOR UPDATE", (instance_id,))
+        if key:
+            existing = conn.execute(
+                "SELECT r.*, k.payload_fingerprint, i.org_id, i.id AS owning_instance_id FROM service_revision_idempotency k "
+                "JOIN service_revisions r ON r.id = k.revision_id JOIN service_instances i ON i.id = r.instance_id "
+                "WHERE k.instance_id = %s AND k.idempotency_key = %s FOR UPDATE",
+                (instance_id, key),
+            ).fetchone()
+            if existing:
+                if existing.get("payload_fingerprint") != hashlib.sha256(fingerprint.encode()).hexdigest():
+                    raise RevisionConflictError("idempotency key was already used with a different revision")
+                return _revision_row(existing)
         locked = conn.execute(
             "SELECT COALESCE(MAX(revision_number),0) AS revision_number FROM service_revisions "
             "WHERE instance_id = %s", (instance_id,)
@@ -402,8 +418,14 @@ def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str |
             "UPDATE service_instances SET desired_revision_id = %s, updated_at = %s WHERE id = %s",
             (revision_id, now, instance_id),
         )
+        if key:
+            conn.execute(
+                "INSERT INTO service_revision_idempotency(instance_id,idempotency_key,payload_fingerprint,revision_id,created_at) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (instance_id, key, hashlib.sha256(fingerprint.encode()).hexdigest(), revision_id, now),
+            )
         created = conn.execute("SELECT * FROM service_revisions WHERE id = %s", (revision_id,)).fetchone()
-        _audit_instance(conn, "service.instance.revision_created", actor_id=created_by, row=row, before=row.get("desired_revision_id"), after=revision_id, metadata={"revision_number": number})
+        _audit_instance(conn, "service.instance.revision_created", actor_id=created_by, row=row, before=row.get("desired_revision_id"), after=revision_id, metadata={"revision_number": number, "idempotency_key": key or None})
     return _revision_row(created)
 
 

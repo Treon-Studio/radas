@@ -89,6 +89,10 @@ export function unwrapOperation<T>(response: { operation?: T } | T | null | unde
   return response as T;
 }
 
+export function createAttemptKey(scope: string, attempt: string): string {
+  return `radas:${scope}:${attempt}`;
+}
+
 export async function api<T = unknown>(method: string, path: string, body?: unknown, init?: RequestInit): Promise<T> {
   const token = getToken();
   const projectId = typeof window !== "undefined" ? window.localStorage.getItem("current_project_id") : null;

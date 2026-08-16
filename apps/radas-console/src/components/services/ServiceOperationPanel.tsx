@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { RiCheckLine as Check, RiCloseLine as Close, RiLoader4Line as Loader, RiStopCircleLine as Stop } from "@remixicon/react";
-import { api, isForbidden, unwrapData, unwrapOperation, ApiError } from "@/lib/api";
+import { api, createAttemptKey, isForbidden, unwrapData, unwrapOperation } from "@/lib/api";
 import { Badge, statusToVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export function ServiceOperationPanel({ projectId, serviceId, operation: initial
   const [events, setEvents] = useState<Event[]>([]);
   const [canceling, setCanceling] = useState(false);
   const [pollError, setPollError] = useState<unknown>(null);
+  const cancelKey = operation ? createAttemptKey(`${projectId}:${serviceId}:cancel`, operation.id) : "";
   const active = !!operation && !terminal.has(String(operation.status || "").toLowerCase());
   useEffect(() => setOperation(initial || null), [initial]);
   useEffect(() => {
@@ -48,7 +49,7 @@ export function ServiceOperationPanel({ projectId, serviceId, operation: initial
   if (!operation) return <Card><CardContent className="p-5 text-sm text-[var(--color-muted-foreground)]">Belum ada operasi layanan.</CardContent></Card>;
   const status = String(operation.status || "pending").toLowerCase();
   const progressLabel = useMemo(() => ({ queued: "Menunggu runtime", running: "Operasi runtime berjalan", succeeded: "Operasi selesai", failed: "Operasi gagal", canceled: "Operasi dibatalkan" }[status] || "Menyiapkan operasi"), [status]);
-  const cancel = async () => { setCanceling(true); try { const result = await api<OperationResponse>("POST", `/api/projects/${encodeURIComponent(projectId)}/services/${encodeURIComponent(serviceId)}/operations/${encodeURIComponent(operation.id)}/cancel`, {}); setOperation(readOperation(result) || { ...operation, status: "canceled" }); onChanged?.(); } catch (error) { setPollError(error); } finally { setCanceling(false); } };
+  const cancel = async () => { setCanceling(true); try { const result = await api<OperationResponse>("POST", `/api/projects/${encodeURIComponent(projectId)}/services/${encodeURIComponent(serviceId)}/operations/${encodeURIComponent(operation.id)}/cancel`, {}, { headers: { "Idempotency-Key": cancelKey } }); setOperation(readOperation(result) || { ...operation, status: "canceled" }); onChanged?.(); } catch (error) { setPollError(error); } finally { setCanceling(false); } };
   if (pollError && isForbidden(pollError)) return <Card><CardContent className="p-5"><StateView state="error" title="Akses operasi ditolak" message="Anda tidak memiliki akses ke project ini." /></CardContent></Card>;
   const resultData = operation.result?.data && typeof operation.result.data === "object" ? operation.result.data as Record<string, unknown> : operation.result || {};
   const endpointValue = operation.endpoint || (typeof resultData.endpoint === "string" ? resultData.endpoint : "");

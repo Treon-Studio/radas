@@ -32,7 +32,7 @@ register_platform_blueprint_contracts(bp)
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,62}$")
 _SECRET_REF_RE = re.compile(r"(?:secret://|ref:)[A-Za-z0-9][A-Za-z0-9._:/-]*")
 _ACTIVE_OPERATION_STATES = {"pending", "queued", "running"}
-_OPERATION_NAMES = {"deploy", "start", "stop", "restart", "destroy"}
+_OPERATION_NAMES = {"deploy", "start", "stop", "restart", "destroy", "rollback"}
 
 # Kept as a module-level seam for route tests and future application wiring.
 _RUNTIME_REGISTRY = None
@@ -179,6 +179,51 @@ def _type_error(name: str, message: str) -> dict[str, Any]:
     return {"path": f"spec.{name}", "code": "invalid", "message": message}
 
 
+def _validate_storage(manifest: Mapping[str, Any], storage: Any) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]]]:
+    declarations = {str(item.get("name")): item for item in manifest.get("storage", []) if isinstance(item, Mapping)}
+    if storage is None:
+        if any(bool(item.get("required")) for item in declarations.values()):
+            return None, [_type_error("storage", "required storage volumes are missing")]
+        return [], []
+    entries = [storage] if isinstance(storage, Mapping) else storage if isinstance(storage, list) else None
+    if entries is None:
+        return None, [_type_error("storage", "must be an object or list")]
+    normalized: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(entries):
+        path = f"storage[{index}]"
+        if not isinstance(item, Mapping):
+            errors.append(_type_error(path, "must be an object")); continue
+        name = str(item.get("name") or "")
+        declaration = declarations.get(name)
+        if not declaration:
+            errors.append(_type_error(f"{path}.name", "is not declared by the service catalog")); continue
+        if name in seen:
+            errors.append(_type_error(f"{path}.name", "is duplicated")); continue
+        seen.add(name)
+        size = item.get("size_gb", declaration.get("size_gb"))
+        mount = item.get("mount_path", declaration.get("mount_path"))
+        metadata = item.get("metadata", {})
+        if not isinstance(size, (int, float)) or isinstance(size, bool) or size <= 0:
+            errors.append(_type_error(f"{path}.size_gb", "must be a positive number"))
+        if not isinstance(mount, str) or not mount.startswith("/") or mount == "/" or ".." in mount.split("/"):
+            errors.append(_type_error(f"{path}.mount_path", "must be an absolute non-root path"))
+        if not isinstance(metadata, Mapping):
+            errors.append(_type_error(f"{path}.metadata", "must be an object")); metadata = {}
+        for key, value in metadata.items():
+            if re.search(r"(?:secret|password|token|credential|private.?key|api.?key|authorization|bearer|value)", str(key), re.IGNORECASE):
+                errors.append(_type_error(f"{path}.metadata.{key}", "credential-like metadata is not allowed"))
+            if isinstance(value, (Mapping, list)):
+                errors.append(_type_error(f"{path}.metadata.{key}", "must be scalar metadata"))
+        normalized.append({"name": name, "size_gb": size, "mount_path": mount, "metadata": dict(metadata)})
+    missing = set(declarations) - seen
+    for name in missing:
+        if declarations[name].get("required"):
+            errors.append(_type_error(f"storage.{name}", "is required"))
+    return normalized, errors
+
+
 def _secret_reference(value: Any) -> str | None:
     """Return the only accepted secret reference representation."""
     if (
@@ -283,9 +328,12 @@ def _validate_spec(manifest: Mapping[str, Any], spec: Any) -> tuple[dict[str, An
         normalized["secrets"] = canonical_secrets
     else:
         normalized.pop("secrets", None)
-    storage = normalized.get("storage")
-    if storage is not None and not isinstance(storage, (Mapping, list)):
-        errors.append(_type_error("storage", "must be an object or list"))
+    storage, storage_errors = _validate_storage(manifest, normalized.get("storage"))
+    errors.extend(storage_errors)
+    if storage:
+        normalized["storage"] = storage
+    elif "storage" in normalized:
+        normalized.pop("storage", None)
     return normalized, errors
 
 
@@ -355,12 +403,12 @@ def _active_conflict(project_id: str, instance_id: str) -> dict[str, Any] | None
     return next((row for row in rows if row.get("status") in _ACTIVE_OPERATION_STATES), None)
 
 
-def _operation_for(project_id: str, instance: Mapping[str, Any], kind: str):
+def _operation_for(project_id: str, instance: Mapping[str, Any], kind: str, *, desired_revision_id: str | None = None):
     key = request.headers.get("Idempotency-Key", "").strip()
     if not key or len(key) > 255:
         return None, error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required", 400)
     existing = _find_existing_operation(project_id, str(instance["id"]), key)
-    payload: dict[str, Any] = {"operation": kind, "desired_revision_id": instance.get("desired_revision_id")}
+    payload: dict[str, Any] = {"operation": kind, "desired_revision_id": desired_revision_id or instance.get("desired_revision_id")}
     if kind == "destroy":
         payload["confirmed"] = True
     if existing is None:
@@ -490,8 +538,13 @@ def patch_service(project_id: str, service_id: str):
     provider_errors = _provider_validation_errors(instance["runtime_id"], normalized)
     if provider_errors:
         return _manifest_error([{"path": "spec", **item} for item in provider_errors])
+    idem_key = request.headers.get("Idempotency-Key", "").strip()
+    if not idem_key or len(idem_key) > 255:
+        return error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required", 400)
     try:
-        revision = service_instances.create_revision(instance["id"], normalized, _actor_id(), project_id=project_id, org_id=instance["org_id"], **_auth_kwargs(project_id))
+        revision = service_instances.create_revision(instance["id"], normalized, _actor_id(), project_id=project_id, org_id=instance["org_id"], idempotency_key=idem_key, **_auth_kwargs(project_id))
+    except service_instances.RevisionConflictError as exc:
+        return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
     except service_instances.ServiceInstanceError as exc:
         return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
     updated = service_instances.get_instance(project_id, service_id, **_auth_kwargs(project_id))
@@ -520,7 +573,9 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
             message = "Destroy confirmation does not match the current service revision" if has_confirmation else "Destroy requires explicit confirmation with target_id and revision_id"
             return error_response(code, message, 409 if has_confirmation else 400, details={"service_id": service_id, "revision_id": instance.get("desired_revision_id")})
     idem_key = request.headers.get("Idempotency-Key", "").strip()
-    existing = _find_existing_operation(project_id, service_id, idem_key) if idem_key else None
+    if not idem_key or len(idem_key) > 255:
+        return error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required", 400)
+    existing = _find_existing_operation(project_id, service_id, idem_key)
     active = None if existing else _active_conflict(project_id, service_id)
     if active:
         return error_response(
@@ -530,10 +585,27 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
     if definition is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
+    if kind == "rollback":
+        target_id = str(data.get("revision_id") or "").strip()
+        if not target_id or target_id == str(instance.get("desired_revision_id") or ""):
+            return error_response("SERVICE_VALIDATION_FAILED", "a prior revision_id is required", 422)
+        target = service_instances.get_revision(project_id, service_id, revision_id=target_id, **_auth_kwargs(project_id))
+        if target is None:
+            return error_response("SERVICE_VALIDATION_FAILED", "revision is not part of this service", 404)
+        current = service_instances.get_revision(project_id, service_id, revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id))
+        if current and int(target.get("revision_number") or 0) >= int(current.get("revision_number") or 0):
+            return error_response("SERVICE_VALIDATION_FAILED", "rollback must target a prior immutable revision", 422)
+        try:
+            service_instances.create_revision(service_id, target.get("spec") or {}, _actor_id(), project_id=project_id, org_id=instance["org_id"], idempotency_key=f"{request.headers.get('Idempotency-Key','').strip()}:revision", **_auth_kwargs(project_id))
+        except service_instances.ServiceInstanceError as exc:
+            return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
+        instance, error = _load_instance(project_id, service_id)
+        if error:
+            return error
     revision = service_instances.get_revision(project_id, service_id, revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id))
     if revision is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Service desired revision is unavailable", 422)
-    if kind in {"deploy", "update"}:
+    if kind in {"deploy", "update", "rollback"}:
         provider_errors = _provider_validation_errors(instance["runtime_id"], revision.get("spec") or {})
         if provider_errors:
             return _manifest_error([{"path": "spec", **item} for item in provider_errors])
@@ -545,7 +617,7 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
             return error_response("RUNTIME_UNSUPPORTED", f"Runtime does not support {kind}", 422, details={"capability": kind})
     except runtime_registry.ProviderNotFoundError:
         return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422)
-    operation, error = _operation_for(project_id, instance, kind)
+    operation, error = _operation_for(project_id, instance, kind, desired_revision_id=(data.get("revision_id") if isinstance(data.get("revision_id"), str) else None))
     if error:
         return error
     return operation_response(_operation_view(project_id, operation), status=202)

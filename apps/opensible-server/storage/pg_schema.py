@@ -388,6 +388,19 @@ _V9_DDL: List[str] = [
     "WHERE event IN ('succeeded', 'failed', 'canceled')",
 ]
 
+# Version 10 — idempotent immutable desired-revision writes. The request key
+# is scoped to the service instance and stores only a safe spec fingerprint.
+_V10_DDL: List[str] = [
+    "CREATE TABLE IF NOT EXISTS service_revision_idempotency ("
+    "instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE, "
+    "idempotency_key TEXT NOT NULL, payload_fingerprint TEXT NOT NULL, "
+    "revision_id TEXT NOT NULL REFERENCES service_revisions(id), "
+    "created_at DOUBLE PRECISION NOT NULL, "
+    "PRIMARY KEY (instance_id, idempotency_key))",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_revision_idempotency_revision "
+    "ON service_revision_idempotency(revision_id)",
+]
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
@@ -595,7 +608,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL), (10, _V10_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue
