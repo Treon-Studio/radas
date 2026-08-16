@@ -17,6 +17,7 @@ import (
 
 	"github.com/opensible/worker-go/internal/config"
 	"github.com/opensible/worker-go/internal/logging"
+	"github.com/opensible/worker-go/internal/redaction"
 )
 
 // Client is the worker's HTTP client for the backend.
@@ -82,7 +83,7 @@ func (c *Client) saveToken(workerID, workerToken string) {
 func (c *Client) doJSON(method, url string, in any, headers map[string]string, timeout time.Duration) (*http.Response, []byte, error) {
 	var body io.Reader
 	if in != nil {
-		b, err := json.Marshal(in)
+		b, err := json.Marshal(redaction.Value(in))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -137,7 +138,7 @@ type HTTPError struct {
 	Message string
 }
 
-func (e *HTTPError) Error() string { return fmt.Sprintf("%d: %s", e.Status, e.Message) }
+func (e *HTTPError) Error() string { return fmt.Sprintf("%d: %s", e.Status, redaction.Text(e.Message)) }
 
 // Register self-registers this worker.
 func (c *Client) Register(name string, capabilities map[string]any) (map[string]any, error) {
@@ -155,11 +156,11 @@ func (c *Client) Register(name string, capabilities map[string]any) (map[string]
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, &HTTPError{Status: resp.StatusCode, Message: string(body)}
+		return nil, &HTTPError{Status: resp.StatusCode, Message: redaction.Text(string(body))}
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, errors.New("invalid backend response")
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
@@ -197,11 +198,11 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	case resp.StatusCode == 429:
 		return nil, &HTTPError{Status: 429, Message: "TOO MANY REQUESTS"}
 	case resp.StatusCode >= 400:
-		return nil, &HTTPError{Status: resp.StatusCode, Message: string(body)}
+		return nil, &HTTPError{Status: resp.StatusCode, Message: redaction.Text(string(body))}
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, errors.New("invalid backend response")
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
@@ -219,7 +220,7 @@ func (c *Client) SendLog(executionID, text string, ts float64) bool {
 // SendServiceLog streams a chunk of log text for a leased service operation.
 func (c *Client) SendServiceLog(executionID, leaseToken, text string, ts float64) bool {
 	url := fmt.Sprintf("%s/api/worker/executions/%s/log", c.ServerURL, executionID)
-	payload := map[string]any{"text": text}
+	payload := map[string]any{"text": redaction.Text(text)}
 	if leaseToken != "" {
 		payload["leaseToken"] = leaseToken
 	}
@@ -257,10 +258,10 @@ func (c *Client) FinishServiceExecution(executionID, leaseToken, status string, 
 		payload["returnCode"] = *returnCode
 	}
 	if errStr != "" {
-		payload["error"] = errStr
+		payload["error"] = redaction.Text(errStr)
 	}
 	if result != nil {
-		payload["result"] = result
+		payload["result"] = redaction.Value(result)
 		if code, ok := result["error_code"].(string); ok && code != "" {
 			payload["errorCode"] = safeErrorCode(code)
 		}

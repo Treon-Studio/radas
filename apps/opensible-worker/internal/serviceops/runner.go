@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/opensible/worker-go/internal/redaction"
 )
 
 type Operation struct {
@@ -174,62 +176,13 @@ func mapValue(m map[string]any, key string) map[string]any {
 	return value
 }
 
-func redactText(input string) string {
-	for _, key := range []string{"password", "secret", "token", "credential", "api_key", "access_key", "private_key"} {
-		lower := strings.ToLower(input)
-		for {
-			idx := strings.Index(lower, key+"=")
-			if idx < 0 {
-				break
-			}
-			start := idx + len(key) + 1
-			if strings.HasPrefix(lower[start:], "[redacted]") {
-				break
-			}
-			end := start
-			for end < len(input) && !strings.ContainsRune(" ,;\n\t", rune(input[end])) {
-				end++
-			}
-			input = input[:start] + "[REDACTED]" + input[end:]
-			lower = strings.ToLower(input)
-		}
-	}
-	return input
+func redactText(input string) string { return redaction.Text(input) }
+
+func redactMap(input map[string]any) map[string]any {
+	return redaction.Value(input).(map[string]any)
 }
 
-func redactMap(input map[string]any) map[string]any { return redactValue(input).(map[string]any) }
-
-func redactValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(typed))
-		for key, child := range typed {
-			lower := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(key, "-", "_"), ".", "_"))
-			if strings.Contains(lower, "secret") || strings.Contains(lower, "password") || strings.Contains(lower, "token") || strings.Contains(lower, "credential") || strings.Contains(lower, "api_key") || strings.Contains(lower, "access_key") || strings.Contains(lower, "private_key") {
-				out[key] = "[REDACTED]"
-			} else {
-				out[key] = redactValue(child)
-			}
-		}
-		return out
-	case []any:
-		out := make([]any, len(typed))
-		for i, child := range typed {
-			out[i] = redactValue(child)
-		}
-		return out
-	case []map[string]any:
-		out := make([]map[string]any, len(typed))
-		for i, child := range typed {
-			out[i] = redactMap(child)
-		}
-		return out
-	case string:
-		return redactText(typed)
-	default:
-		return typed
-	}
-}
+func redactValue(value any) any { return redaction.Value(value) }
 
 // MockProvider is deterministic and provider-neutral. It models lifecycle
 // state only; it never starts a process or contacts a runtime.

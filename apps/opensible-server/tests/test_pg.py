@@ -61,13 +61,85 @@ def test_transaction_commits(pg_db):
     assert pg.query_one("SELECT * FROM settings WHERE key = %s", ("tx2",)) is not None
 
 
+def test_v9_reconciles_identical_event_duplicates(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 9")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_queued_once")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_terminal_once")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("dup-org", "dup-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("dup-project", "dup-org", "dup-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_operations (id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("dup-op", "dup-org", "dup-project", "service.deploy", "dup-key", "fp", "queued", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,'queued','{}',%s),(%s,'queued','{}',%s),(%s,'failed','{}',%s),(%s,'failed','{}',%s)",
+        ("dup-op", 1.0, "dup-op", 2.0, "dup-op", 3.0, "dup-op", 4.0),
+    )
+    pg_schema.migrate()
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operation_events WHERE operation_id=%s AND event='queued'", ("dup-op",))["count"] == 1
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operation_events WHERE operation_id=%s AND event='failed'", ("dup-op",))["count"] == 1
+
+
+def test_v9_rejects_conflicting_terminal_duplicates(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 9")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_queued_once")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_terminal_once")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("conflict-org", "conflict-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("conflict-project", "conflict-org", "conflict-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_operations (id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("conflict-op", "conflict-org", "conflict-project", "service.deploy", "conflict-key", "fp", "failed", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,'failed','{}',1),(%s,'canceled','{}',2)",
+        ("conflict-op", "conflict-op"),
+    )
+    with pytest.raises(pg_schema.EventMigrationError, match="conflicting terminal events"):
+        pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 9") is None
+
+
 def test_schema_migrate_idempotent(pg_db):
     # reset_schema applies all current migrations; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
     assert versions == [
-        {"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}, {"version": 5}, {"version": 6}, {"version": 7}, {"version": 8},
+        {"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}, {"version": 5}, {"version": 6}, {"version": 7}, {"version": 8}, {"version": 9},
     ]
+
+
+def test_event_unique_indexes_enforce_queued_and_terminal_once(pg_db):
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("event-org", "event-org", 1.0))
+    pg.execute(
+        "INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-project", "event-org", "event-project", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operations "
+        "(id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("event-op", "event-org", "event-project", "service.deploy", "event-key", "fp", "queued", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-op", "queued", "{}", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+            ("event-op", "queued", "{}", 2.0),
+        )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-op", "failed", "{}", 3.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+            ("event-op", "failed", "{}", 4.0),
+        )
 
 
 def test_schema_v3_catalog_tables_exist(pg_db):

@@ -1,6 +1,7 @@
 """Worker protocol tests for queued service operations."""
 from __future__ import annotations
 
+import threading
 import time
 
 import flask
@@ -34,6 +35,32 @@ def _operation(instance, key="runner-key"):
         {"operation": "deploy", "desired_revision_id": instance["desired_revision_id"], "password": "never-persist"},
         instance_id=instance["id"], requested_by="owner", actor_id="owner", initial_status="queued",
     )
+
+
+def test_concurrent_terminal_event_writes_are_database_idempotent(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    barrier = threading.Barrier(8)
+    errors = []
+
+    def write_event():
+        try:
+            barrier.wait()
+            service_operation_runner.append_event(operation["id"], "failed", message="provider failed")
+        except Exception as exc:  # pragma: no cover - assertion below reports it
+            errors.append(exc)
+
+    threads = [threading.Thread(target=write_event) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert not errors
+    assert pg.query_one(
+        "SELECT COUNT(*) AS count FROM service_operation_events WHERE operation_id=%s AND event='failed'",
+        (operation["id"],),
+    )["count"] == 1
 
 
 def test_queued_and_terminal_events_are_emitted_once_across_retry_and_reclaim(pg_db):

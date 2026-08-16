@@ -377,9 +377,66 @@ _V8_DDL: List[str] = [
     "CREATE INDEX IF NOT EXISTS idx_service_operation_events_operation ON service_operation_events(operation_id, created_at)",
 ]
 
+# Version 9 — database-enforced exactly-once lifecycle events. Progress events
+# remain append-only (multiple provider_step/health_check/reclaimed rows are
+# meaningful), while queued and terminal events each have one canonical row.
+_V9_DDL: List[str] = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_operation_events_queued_once "
+    "ON service_operation_events(operation_id) WHERE event = 'queued'",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_service_operation_events_terminal_once "
+    "ON service_operation_events(operation_id) "
+    "WHERE event IN ('succeeded', 'failed', 'canceled')",
+]
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
+
+
+class EventMigrationError(RuntimeError):
+    """Raised when lifecycle event duplicates are not safely reconcilable."""
+
+
+def _reconcile_service_operation_event_duplicates(conn: Any) -> None:
+    """Collapse legacy lifecycle duplicates before creating unique indexes.
+
+    Duplicate queued rows are equivalent. Terminal rows are equivalent only
+    when their event is the same; conflicting terminal outcomes are retained
+    as an actionable migration failure instead of silently choosing a result.
+    The lowest event id is the deterministic canonical row.
+    """
+    groups = conn.execute(
+        "SELECT operation_id, event, COUNT(*) AS count FROM service_operation_events "
+        "WHERE event = 'queued' GROUP BY operation_id, event HAVING COUNT(*) > 1 "
+        "UNION ALL SELECT operation_id, 'terminal', COUNT(*) FROM service_operation_events "
+        "WHERE event IN ('succeeded', 'failed', 'canceled') GROUP BY operation_id "
+        "HAVING COUNT(*) > 1"
+    ).fetchall()
+    for group in groups:
+        operation_id = group["operation_id"]
+        event_group = group["event"]
+        if event_group == "terminal":
+            rows = conn.execute(
+                "SELECT id, event FROM service_operation_events "
+                "WHERE operation_id = %s AND event IN ('succeeded', 'failed', 'canceled') "
+                "ORDER BY id FOR UPDATE",
+                (operation_id,),
+            ).fetchall()
+            event_names = {row["event"] for row in rows}
+            if len(event_names) > 1:
+                raise EventMigrationError(
+                    "schema migration v9 found conflicting terminal events for operation "
+                    f"{operation_id!r}: {sorted(event_names)!r}; resolve service_operation_events "
+                    "manually and retry migration"
+                )
+        else:
+            rows = conn.execute(
+                "SELECT id, event FROM service_operation_events "
+                "WHERE operation_id = %s AND event = 'queued' ORDER BY id FOR UPDATE",
+                (operation_id,),
+            ).fetchall()
+        for duplicate in rows[1:]:
+            conn.execute("DELETE FROM service_operation_events WHERE id = %s", (duplicate["id"],))
 
 
 def _migration_semver_key(version: str) -> tuple[Any, ...]:
@@ -538,13 +595,15 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue
         with pg.transaction() as conn:
             if version == 4:
                 _reconcile_platform_duplicates(conn)
+            if version == 9:
+                _reconcile_service_operation_event_duplicates(conn)
             for stmt in ddl:
                 conn.execute(stmt)
             conn.execute(

@@ -58,9 +58,8 @@ def _event_tx(conn: Any, operation_id: str, event: str, *, message: str | None =
     if event in {"queued", "succeeded", "failed", "canceled"}:
         conn.execute(
             "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
-            "SELECT %s,%s,%s,%s,%s WHERE NOT EXISTS ("
-            "SELECT 1 FROM service_operation_events WHERE operation_id=%s AND event=%s)",
-            values + (operation_id, event),
+            "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            values,
         )
         return
     conn.execute(

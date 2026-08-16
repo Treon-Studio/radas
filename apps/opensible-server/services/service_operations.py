@@ -145,11 +145,10 @@ def _operation_event_tx(conn: Any, operation_id: str, event: str, *, message: st
     safe_details = redact(dict(details or {}))
     conn.execute(
         "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
-        "SELECT %s,%s,%s,%s,%s WHERE NOT EXISTS ("
-        "SELECT 1 FROM service_operation_events WHERE operation_id=%s AND event=%s)",
+        "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
         (
             operation_id, event, redact(message) if message is not None else None,
-            Jsonb(safe_details), time.time(), operation_id, event,
+            Jsonb(safe_details), time.time(),
         ),
     )
 
