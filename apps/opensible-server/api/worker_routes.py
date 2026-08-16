@@ -322,24 +322,41 @@ def api_worker_execution_finish(execution_id):
         if service_operation:
             data = request.json or {}
             lease_token = str(data.get('leaseToken') or '').strip()
-            if (not lease_token or service_operation.get('status') != 'running' or
-                    service_operation.get('worker_id') != worker_id or
-                    service_operation.get('lease_token') != lease_token or
-                    service_operation.get('lease_until') is None or
-                    float(service_operation.get('lease_until')) < time.time()):
-                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
+            lease_matches = bool(
+                lease_token and service_operation.get('status') == 'running' and
+                service_operation.get('worker_id') == worker_id and
+                service_operation.get('lease_token') == lease_token and
+                service_operation.get('lease_until') is not None and
+                float(service_operation.get('lease_until')) >= time.time()
+            )
+            if not lease_matches:
+                # Never return the stored row here: it can contain a newer
+                # worker's lease token, payload, or tenant-scoped fields.
+                return jsonify({
+                    'success': False,
+                    'error': 'Worker lease is no longer valid',
+                    'operation': {'id': execution_id},
+                }), 403
             status = data.get('status')
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
             from services.service_operation_runner import finish_operation
-            done = finish_operation(
+            done, applied = finish_operation(
                 execution_id, worker_id, success=status == 'SUCCESS', canceled=status == 'CANCELED',
                 result=data.get('result') if isinstance(data.get('result'), dict) else {},
                 error_code=data.get('errorCode'), error_message=data.get('error'),
-                lease_token=lease_token,
+                lease_token=lease_token, _with_outcome=True,
             )
             if done is None:
                 return jsonify({'success': False, 'error': 'Service operation not found'}), 404
+            if not applied:
+                # The lease may have been reclaimed after the preliminary
+                # check. Do not expose or return the newer worker's row.
+                return jsonify({
+                    'success': False,
+                    'error': 'Worker lease is no longer valid',
+                    'operation': {'id': execution_id},
+                }), 409
             update_worker_heartbeat(worker_id, current_execution_id=None)
             return jsonify({'success': True, 'operation': done})
 

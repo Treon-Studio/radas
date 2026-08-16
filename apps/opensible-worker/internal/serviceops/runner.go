@@ -63,7 +63,15 @@ func (r Runner) provider(runtimeID string) (Provider, bool) {
 func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) {
 	op, err := decode(raw)
 	if err != nil {
-		reporter.FinishServiceExecution(rawString(raw, "executionId"), rawString(raw, "leaseToken"), "FAILED", 0, 0, nil, redactText(err.Error()), nil)
+		executionID := op.OperationID
+		if executionID == "" {
+			executionID = rawString(raw, "executionId")
+		}
+		leaseToken := op.LeaseToken
+		if leaseToken == "" {
+			leaseToken = rawString(raw, "leaseToken")
+		}
+		reporter.FinishServiceExecution(executionID, leaseToken, "FAILED", 0, 0, nil, redactText(err.Error()), nil)
 		return
 	}
 	if op.OperationID == "" {
@@ -118,7 +126,7 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 func decode(raw map[string]any) (Operation, error) {
 	payload, ok := raw["serviceOperation"].(map[string]any)
 	if !ok {
-		return Operation{}, errors.New("service operation payload is missing")
+		return Operation{OperationID: rawString(raw, "executionId")}, errors.New("service operation payload is missing")
 	}
 	op := Operation{
 		OperationID:       rawString(payload, "operation_id"),
@@ -137,7 +145,7 @@ func decode(raw map[string]any) (Operation, error) {
 	}
 	op.RuntimeID = strings.ToLower(strings.TrimSpace(op.RuntimeID))
 	if op.Operation == "" || op.RuntimeID == "" || op.IdempotencyKey == "" {
-		return Operation{}, errors.New("service operation payload is incomplete")
+		return op, errors.New("service operation payload is incomplete")
 	}
 	return op, nil
 }

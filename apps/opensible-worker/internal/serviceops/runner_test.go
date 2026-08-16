@@ -6,17 +6,21 @@ import (
 )
 
 type reporter struct {
-	logs     []string
-	finished []string
-	result   map[string]any
+	logs         []string
+	finished     []string
+	finishIDs    []string
+	finishTokens []string
+	result       map[string]any
 }
 
 func (r *reporter) SendServiceLog(_ string, _ string, text string, _ float64) bool {
 	r.logs = append(r.logs, text)
 	return true
 }
-func (r *reporter) FinishServiceExecution(_ string, _ string, status string, _ float64, _ int, _ *int, _ string, result map[string]any) bool {
+func (r *reporter) FinishServiceExecution(id string, leaseToken string, status string, _ float64, _ int, _ *int, _ string, result map[string]any) bool {
 	r.finished = append(r.finished, status)
+	r.finishIDs = append(r.finishIDs, id)
+	r.finishTokens = append(r.finishTokens, leaseToken)
 	r.result = result
 	return true
 }
@@ -72,5 +76,19 @@ func TestRunRejectsLegacyPayloadWithoutServiceOperation(t *testing.T) {
 	(Runner{}).Run(context.Background(), map[string]any{"executionId": "legacy"}, rep)
 	if len(rep.finished) != 1 || rep.finished[0] != "FAILED" {
 		t.Fatalf("finished=%v", rep.finished)
+	}
+}
+
+func TestRunDecodeFailureFinishesWithNestedLeaseToken(t *testing.T) {
+	rep := &reporter{}
+	raw := payload()
+	raw["serviceOperation"].(map[string]any)["lease_token"] = "claim-token"
+	delete(raw["serviceOperation"].(map[string]any), "operation")
+	(Runner{}).Run(context.Background(), raw, rep)
+	if len(rep.finished) != 1 || rep.finished[0] != "FAILED" {
+		t.Fatalf("finished=%v", rep.finished)
+	}
+	if rep.finishIDs[0] != "op-1" || rep.finishTokens[0] != "claim-token" {
+		t.Fatalf("finish identity=%q token=%q", rep.finishIDs[0], rep.finishTokens[0])
 	}
 }

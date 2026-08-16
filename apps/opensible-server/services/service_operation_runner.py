@@ -270,26 +270,36 @@ def _result_metadata(result: Mapping[str, Any]) -> tuple[Any, Any]:
     return _safe(provider_ref), _safe(endpoint)
 
 
+def _finish_return(row: Mapping[str, Any] | None, applied: bool, with_outcome: bool) -> Any:
+    result = dict(row) if row is not None else None
+    return (result, applied) if with_outcome else result
+
+
 def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                      result: Mapping[str, Any] | None = None, error_code: str | None = None,
                      error_message: str | None = None, canceled: bool = False,
-                     lease_token: str | None = None) -> dict[str, Any] | None:
-    """Finish a claim idempotently and update observed instance state safely."""
+                     lease_token: str | None = None, _with_outcome: bool = False) -> Any:
+    """Finish a claim idempotently and update observed instance state safely.
+
+    ``_with_outcome`` is used by the worker route to distinguish an applied
+    finish from a stale/no-op result without exposing that implementation
+    detail in the normal operation response.
+    """
     context = _internal()
     with pg.transaction() as conn:
         row = conn.execute("SELECT * FROM service_operations WHERE id=%s FOR UPDATE", (operation_id,)).fetchone()
         if not row:
-            return None
+            return _finish_return(None, False, _with_outcome)
         current = str(row["status"])
         if current in {"succeeded", "failed", "canceled"}:
-            return dict(row)
+            return _finish_return(row, False, _with_outcome)
         supplied_token = str(lease_token or "").strip()
         if current != "running" or str(row.get("worker_id") or "") != str(worker_id):
-            return dict(row)
+            return _finish_return(row, False, _with_outcome)
         if not supplied_token or str(row.get("lease_token") or "") != supplied_token:
-            return dict(row)
+            return _finish_return(row, False, _with_outcome)
         if row.get("lease_until") is None or float(row["lease_until"]) < time.time():
-            return dict(row)
+            return _finish_return(row, False, _with_outcome)
         if canceled:
             success = False
             error_code = "OPERATION_CANCELED"
@@ -309,7 +319,7 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
         # Cancellation wins over a late provider result.  The terminal row is
         # immutable and no observed provider state is applied after cancel.
         if current == "canceled":
-            return dict(row)
+            return _finish_return(row, False, _with_outcome)
         # All instance mutations are protected by a savepoint. If the final
         # lease CAS loses a race with expiry/reclaim, rolling back this
         # savepoint prevents a stale worker from committing observed state.
@@ -380,10 +390,11 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
             conn.execute("ROLLBACK TO SAVEPOINT finish_instance")
             conn.execute("RELEASE SAVEPOINT finish_instance")
             latest = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
-            return dict(latest or row)
+            return _finish_return(latest or row, False, _with_outcome)
         conn.execute("RELEASE SAVEPOINT finish_instance")
         _event_tx(conn, operation_id, final_status, details={"result": safe_result} if success else {"error_code": safe_code})
-    return service_operations.get_operation(str(row["project_id"]), operation_id, internal_context=context)
+    finished = service_operations.get_operation(str(row["project_id"]), operation_id, internal_context=context)
+    return _finish_return(finished, True, _with_outcome)
 
 
 def cancel_operation(project_id: str, operation_id: str, *, actor_id: str | None = None) -> dict[str, Any]:

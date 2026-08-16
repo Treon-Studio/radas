@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 
+import flask
 import pytest
 
 from services import runtime_registry, service_instances, service_operation_runner, service_operations
@@ -125,6 +126,62 @@ def test_stale_lease_cannot_heartbeat_finish_or_log(pg_db):
     assert not service_operation_runner.heartbeat(operation["id"], "worker-a", lease_token=token)
     assert service_operation_runner.finish_operation(operation["id"], "worker-a", success=True, result={}, lease_token=token)["status"] == "running"
     assert service_operation_runner.append_worker_event(operation["id"], "worker-a", token, "worker_log", message="stale") is None
+
+
+def test_finish_outcome_distinguishes_stale_noop(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    pg.execute("UPDATE service_operations SET lease_until=%s WHERE id=%s", (time.time() - 1, operation["id"]))
+    done, applied = service_operation_runner.finish_operation(
+        operation["id"], "worker-a", success=True, result={}, lease_token=claim["lease_token"], _with_outcome=True,
+    )
+    assert done["id"] == operation["id"]
+    assert applied is False
+    current = pg.query_one("SELECT worker_id,lease_token,heartbeat_at FROM service_operations WHERE id=%s", (operation["id"],))
+    assert current["worker_id"] == "worker-a"
+    assert current["lease_token"] == claim["lease_token"]
+
+
+def test_worker_finish_stale_response_is_sanitized_and_does_not_clear_heartbeat(pg_db, workers_env, monkeypatch):
+    from api import register_blueprints
+    from services.worker_registry import update_worker_heartbeat
+
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    worker_id, worker_token = workers_env.create_worker("runner")
+    update_worker_heartbeat(worker_id, current_execution_id=operation["id"])
+    app = flask.Flask("worker-finish-test")
+    app.config.update(TESTING=True)
+    register_blueprints(app)
+    pg.execute("UPDATE service_operations SET worker_id=%s WHERE id=%s", (worker_id, operation["id"]))
+    original_finish = service_operation_runner.finish_operation
+    newer_claim = {}
+
+    def reclaim_before_finish(*args, **kwargs):
+        pg.execute("UPDATE service_operations SET lease_until=%s WHERE id=%s", (time.time() - 1, operation["id"]))
+        assert service_operation_runner.reclaim_expired() == 1
+        newer_claim.update(service_operation_runner.claim_next_operation("worker-b") or {})
+        assert newer_claim
+        return original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(service_operation_runner, "finish_operation", reclaim_before_finish)
+    response = app.test_client().post(
+        f"/api/worker/executions/{operation['id']}/finish",
+        json={"status": "SUCCESS", "leaseToken": claim["lease_token"], "result": {"secret": "must-not-leak"}},
+        headers={"Authorization": f"Bearer {worker_token}"},
+    )
+    assert response.status_code == 409
+    body = response.get_json()
+    assert body["operation"] == {"id": operation["id"]}
+    assert "new-token" not in str(body)
+    assert "must-not-leak" not in str(body)
+    current = pg.query_one("SELECT lease_token FROM service_operations WHERE id=%s", (operation["id"],))
+    assert current["lease_token"] == newer_claim["lease_token"]
+    assert workers_env.load_worker(worker_id)["currentExecutionId"] == operation["id"]
 
 
 def test_disconnect_reclaim_allows_restart_and_heartbeat_is_owned(pg_db, monkeypatch):
