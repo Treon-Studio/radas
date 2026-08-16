@@ -169,6 +169,84 @@ def test_create_rolls_back_filesystem_when_setup_fails(monkeypatch, tmp_path, pg
     assert list(project_root.iterdir()) == []
 
 
+def test_plain_list_replace_updates_existing_and_removes_omitted(pg_db):
+    config_db.create_project(Path("/tmp"), {
+        "id": "kept", "name": "kept", "description": "before",
+        "org_id": None, "owner_id": "u1", "isArchived": False,
+    })
+    config_db.create_project(Path("/tmp"), {
+        "id": "removed", "name": "removed", "description": "gone",
+        "org_id": None, "owner_id": "u1", "isArchived": False,
+    })
+
+    existing = config_db.get_project("kept")
+    replacement = [{**existing, "description": "after"}]
+    assert type(replacement) is list
+    assert config_db.replace_all_projects(Path("/tmp"), replacement) is True
+
+    assert config_db.get_project("kept")["description"] == "after"
+    assert config_db.get_project("removed") is None
+
+
+def test_nullable_updated_at_snapshot_can_remove_unchanged_row(pg_db):
+    pg.execute(
+        "INSERT INTO projects (id, name, description, owner_id, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,0,NULL)",
+        ("null-timestamp", "null-timestamp", "before", "u1"),
+    )
+    snapshot = config_db.list_projects(Path("/tmp"))
+    assert snapshot[0]["updatedAt"] is None
+
+    replacement = config_db.ProjectList(
+        [], snapshot_ids=snapshot.snapshot_ids, snapshot_versions=snapshot.snapshot_versions
+    )
+    assert config_db.replace_all_projects(Path("/tmp"), replacement) is True
+    assert config_db.get_project("null-timestamp") is None
+
+
+def test_nullable_updated_at_snapshot_does_not_remove_changed_row(pg_db):
+    pg.execute(
+        "INSERT INTO projects (id, name, description, owner_id, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,0,NULL)",
+        ("null-changed", "null-changed", "before", "u1"),
+    )
+    snapshot = config_db.list_projects(Path("/tmp"))
+    pg.execute("UPDATE projects SET description = %s WHERE id = %s", ("newer", "null-changed"))
+
+    assert config_db.replace_all_projects(Path("/tmp"), []) is True
+    current = config_db.get_project("null-changed")
+    assert current["description"] == "newer"
+
+
+def test_plain_replace_serializes_with_concurrent_update(pg_db):
+    config_db.create_project(Path("/tmp"), {
+        "id": "plain-race", "name": "plain-race", "description": "before",
+        "org_id": None, "owner_id": "u1", "isArchived": False,
+    })
+    replacement = [{**config_db.get_project("plain-race"), "description": "replacement"}]
+    barrier = threading.Barrier(2)
+    results = []
+
+    def replace():
+        barrier.wait()
+        results.append(("replace", config_db.replace_all_projects(Path("/tmp"), replacement)))
+
+    def update():
+        barrier.wait()
+        results.append(("update", config_db.update_project("plain-race", {"isArchived": True})))
+
+    threads = [threading.Thread(target=replace), threading.Thread(target=update)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(results, key=lambda item: item[0])[0][1] is True
+    current = config_db.get_project("plain-race")
+    assert current["description"] == "replacement"
+    assert current["isArchived"] in (False, True)
+
+
 def test_legacy_replace_preserves_concurrent_atomic_insert(pg_db):
     initial = {
         "id": "initial",
