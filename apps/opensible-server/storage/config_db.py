@@ -27,6 +27,16 @@ logger = logging.getLogger(__name__)
 _MIGRATED = False
 
 
+class ProjectNameExistsError(RuntimeError):
+    """Raised when an active project already uses the requested name."""
+
+
+# Project creation must not use the legacy replace-all read/modify/write path.
+# This advisory-lock key serializes creators across backend processes while the
+# active-name check and INSERT happen in one database transaction.
+_PROJECT_CREATE_LOCK_KEY = "radas.projects.create"
+
+
 def _now_iso() -> str:
     return datetime.utcnow().isoformat()
 
@@ -73,6 +83,38 @@ def list_projects(data_dir: Path) -> List[Dict[str, Any]]:
         "ORDER BY COALESCE(created_at, 0) ASC, id ASC"
     )
     return [_row_to_project(r) for r in rows]
+
+
+def create_project(data_dir: Path, project: Dict[str, Any]) -> Dict[str, Any]:
+    """Insert one project without a destructive read/modify/write cycle.
+
+    The advisory transaction lock keeps the legacy global active-name rule
+    correct across backend processes. The row insert itself is committed as a
+    single PostgreSQL transaction, so concurrent creators cannot overwrite one
+    another's projects.
+    """
+    row = _project_to_row(project)
+    with pg.transaction() as conn:
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (_PROJECT_CREATE_LOCK_KEY,),
+        )
+        existing = conn.execute(
+            "SELECT 1 FROM projects WHERE name = %s AND is_archived = 0 LIMIT 1",
+            (row["name"],),
+        ).fetchone()
+        if existing:
+            raise ProjectNameExistsError("Project with this name already exists")
+        inserted = conn.execute(
+            "INSERT INTO projects(id, org_id, owner_id, name, description, "
+            "is_archived, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) "
+            "RETURNING id, org_id, owner_id, name, description, is_archived, "
+            "created_at, updated_at",
+            (row["id"], row["org_id"], row["owner_id"], row["name"],
+             row["description"], row["is_archived"], row["created_at"],
+             row["updated_at"]),
+        ).fetchone()
+    return _row_to_project(inserted)
 
 
 def replace_all_projects(data_dir: Path, items: List[Dict[str, Any]]) -> bool:

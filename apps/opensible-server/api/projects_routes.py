@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import importlib
 import json
+import shutil
 import sys
 import time
 import uuid
 from flask import Blueprint, current_app, jsonify, request
 
 from auth.middleware import require_auth, require_project_access
+from storage import config_db
 from utils.host_status import HOST_STATUS_TTL_DEFAULT, get_host_check_status
 
 bp = Blueprint("projects_api", __name__)
@@ -38,6 +40,7 @@ _APP_NAMES = {
     "get_project_dir",
     "get_project_hosts_list",
     "create_minimal_ansible_config",
+    "DATA_DIR",
     "BASE_DIR",
     "HOST_STATUS_TTL_DEFAULT",
 }
@@ -122,23 +125,29 @@ def api_create_project():
         if not name:
             return jsonify({'success': False, 'error': 'Project name is required'}), 400
         
-        projects = load_projects()
-        if any(p.get('name') == name and not p.get('isArchived', False) for p in projects):
-            return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
-        
-        # Org assignment (Fase 7 — D2): default to user's first org.
+        # Org assignment (Fase 7 — D2): an explicitly requested organization
+        # must be one the authenticated user belongs to. Never downgrade an
+        # unauthorized request to an unscoped project.
         uid = (getattr(request, "current_user", {}) or {}).get("user_id")
-        org_id = None
+        requested_value = data.get("org_id")
+        requested = str(requested_value).strip() if requested_value else ""
         try:
             from services.org_service import list_orgs_for_user
             orgs = list_orgs_for_user(uid) if uid else []
-            requested = (data.get("org_id") or "").strip()
-            if requested:
-                org_id = requested if any(o["id"] == requested for o in orgs) else None
-            elif orgs:
-                org_id = orgs[0]["id"]
         except Exception:
-            org_id = None
+            orgs = []
+        authorized_org_ids = {str(org["id"]) for org in orgs}
+        if requested and requested not in authorized_org_ids:
+            return jsonify({
+                'success': False,
+                'error': 'Organization access denied',
+            }), 403
+        org_id = requested or (orgs[0]["id"] if orgs else None)
+        if not org_id and requested:
+            return jsonify({
+                'success': False,
+                'error': 'Organization access denied',
+            }), 403
         project = {
             'id': str(uuid.uuid4()),
             'name': name,
@@ -152,101 +161,90 @@ def api_create_project():
             'isArchived': False
         }
         
-        projects.append(project)
-        save_projects(projects)
-        
         project_dir = get_project_dir(project['id'])
-        project_dir.mkdir(exist_ok=True)
-        
-        # Create new structure directories
-        # repo/ - Git-synced workspace ( )
-        repo_dir = project_dir / 'repo'
-        repo_dir.mkdir(exist_ok=True)
-        (repo_dir / 'roles').mkdir(exist_ok=True)
-        (repo_dir / 'playbooks').mkdir(exist_ok=True)
-        (repo_dir / 'inventories').mkdir(exist_ok=True)
-        (repo_dir / 'group_vars').mkdir(exist_ok=True)  # optional shared
-        (repo_dir / 'host_vars').mkdir(exist_ok=True)    # optional shared
-        (repo_dir / 'scripts').mkdir(exist_ok=True)
-        
-        # prod/stage - Git
-        
-        # ansible.cfg: ansible-config/
-        ansible_config_dir = project_dir / 'ansible-config'
-        ansible_config_dir.mkdir(parents=True, exist_ok=True)
-        default_ansible_cfg = ansible_config_dir / 'ansible.cfg'
-        if not default_ansible_cfg.exists():
-            create_minimal_ansible_config(default_ansible_cfg)
+        project_dir_created = False
+        try:
+            # Prepare all project storage before committing the database row.
+            # A unique UUID directory is removed on any setup failure so a
+            # failed request cannot leave a partial project behind.
+            project_dir.mkdir(exist_ok=False)
+            project_dir_created = True
+
+            repo_dir = project_dir / 'repo'
+            repo_dir.mkdir()
+            for child in ('roles', 'playbooks', 'inventories', 'group_vars', 'host_vars', 'scripts'):
+                (repo_dir / child).mkdir()
+
+            ansible_config_dir = project_dir / 'ansible-config'
+            ansible_config_dir.mkdir()
+            default_ansible_cfg = ansible_config_dir / 'ansible.cfg'
+            if not create_minimal_ansible_config(default_ansible_cfg):
+                raise OSError(f"Failed to create {default_ansible_cfg}")
             app_logger.info(f"Created ansible-config/ansible.cfg for project {project['id']}")
-        
-        # ui/ - UI definitions ( Ansible)
-        ui_dir = project_dir / 'ui'
-        ui_dir.mkdir(exist_ok=True)
-        (ui_dir / 'playbooks').mkdir(exist_ok=True)
-        # Create empty folders.json
-        folders_json = ui_dir / 'folders.json'
-        if not folders_json.exists():
-            with open(folders_json, 'w', encoding='utf-8') as f:
+
+            ui_dir = project_dir / 'ui'
+            ui_dir.mkdir()
+            (ui_dir / 'playbooks').mkdir()
+            with open(ui_dir / 'folders.json', 'w', encoding='utf-8') as f:
                 json.dump({}, f, indent=2, ensure_ascii=False)
-        
-        # runtime/ - generated / ephemeral
-        runtime_dir = project_dir / 'runtime'
-        runtime_dir.mkdir(exist_ok=True)
-        (runtime_dir / 'generated_playbooks').mkdir(exist_ok=True)
-        (runtime_dir / 'inventory_snapshots').mkdir(exist_ok=True)
-        (runtime_dir / 'artifacts').mkdir(exist_ok=True)
-        
-        # history/ - immutable execution history
-        history_dir = project_dir / 'history'
-        history_dir.mkdir(exist_ok=True)
-        (history_dir / 'executions').mkdir(exist_ok=True)
-        (history_dir / 'logs').mkdir(exist_ok=True)
-        
-        # secrets/ - credentials store ( Git)
-        secrets_dir = project_dir / 'secrets'
-        secrets_dir.mkdir(exist_ok=True)
-        (secrets_dir / 'ssh_keys').mkdir(exist_ok=True)
-        (secrets_dir / 'vault').mkdir(exist_ok=True)
-        (secrets_dir / 'vault_keys').mkdir(exist_ok=True)
-        (secrets_dir / 'git_auth').mkdir(exist_ok=True)
-        
-        # Initialize project.json with new structure: single repo source
-        # repo/ - Git-synced workspace
-        initial_config = {
-            'sources': {
-                'repo': {
-                    'mode': 'local',
-                    'localPath': 'repo',
-                    'syncDirection': 'pull',  # : Pull only (Git → Project Storage)
-                    'syncStatus': {
-                        'push': {'status': 'idle', 'lastSyncAt': None, 'error': None},
-                        'pull': {'status': 'idle', 'lastSyncAt': None, 'error': None}
-                    },
-                    'syncState': {
-                        'lastPullAt': None,
-                        'lastPullStatus': 'idle',
-                        'lastPullRevision': None,
-                        'lastPullError': None,
-                        'lastPushAt': None,
-                        'lastPushStatus': 'idle',
-                        'lastPushRevision': None,
-                        'lastPushError': None
+
+            runtime_dir = project_dir / 'runtime'
+            runtime_dir.mkdir()
+            for child in ('generated_playbooks', 'inventory_snapshots', 'artifacts'):
+                (runtime_dir / child).mkdir()
+
+            history_dir = project_dir / 'history'
+            history_dir.mkdir()
+            for child in ('executions', 'logs'):
+                (history_dir / child).mkdir()
+
+            secrets_dir = project_dir / 'secrets'
+            secrets_dir.mkdir()
+            for child in ('ssh_keys', 'vault', 'vault_keys', 'git_auth'):
+                (secrets_dir / child).mkdir()
+
+            initial_config = {
+                'sources': {
+                    'repo': {
+                        'mode': 'local',
+                        'localPath': 'repo',
+                        'syncDirection': 'pull',
+                        'syncStatus': {
+                            'push': {'status': 'idle', 'lastSyncAt': None, 'error': None},
+                            'pull': {'status': 'idle', 'lastSyncAt': None, 'error': None}
+                        },
+                        'syncState': {
+                            'lastPullAt': None,
+                            'lastPullStatus': 'idle',
+                            'lastPullRevision': None,
+                            'lastPullError': None,
+                            'lastPushAt': None,
+                            'lastPushStatus': 'idle',
+                            'lastPushRevision': None,
+                            'lastPushError': None
+                        }
                     }
-                }
-            },
-            'syncTimestamps': {},
-            'syncStatus': {}
-        }
-        save_project_config(project['id'], initial_config)
-        
-        # Initialize .sync_state.json as empty file
-        sync_state_file = project_dir / '.sync_state.json'
-        if not sync_state_file.exists():
-            with open(sync_state_file, 'w', encoding='utf-8') as f:
+                },
+                'syncTimestamps': {},
+                'syncStatus': {}
+            }
+            save_project_config(project['id'], initial_config)
+            with open(project_dir / '.sync_state.json', 'w', encoding='utf-8') as f:
                 json.dump({}, f, indent=2, ensure_ascii=False)
-        
-        app_logger.info(f"Project created: {project['id']} - {project['name']} (empty, deterministic)")
-        return jsonify({'success': True, 'project': project})
+
+            created_project = config_db.create_project(DATA_DIR, project)
+        except Exception:
+            if project_dir_created:
+                shutil.rmtree(project_dir, ignore_errors=True)
+            raise
+
+        app_logger.info(f"Project created: {created_project['id']} - {created_project['name']} (empty, deterministic)")
+        return jsonify({'success': True, 'project': created_project})
+    except config_db.ProjectNameExistsError:
+        # The storage layer performs the name check and insert under one
+        # transaction, so this remains correct when requests race.
+        app_logger.info("Project creation rejected because the name already exists")
+        return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
     except Exception as e:
         app_logger.error(f"Error creating project: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
