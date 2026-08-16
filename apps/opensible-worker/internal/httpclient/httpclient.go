@@ -140,6 +140,36 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string { return fmt.Sprintf("%d: %s", e.Status, redaction.Text(e.Message)) }
 
+func redactedBackendBody(body []byte) string {
+	var payload any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		encoded, marshalErr := json.Marshal(redaction.Value(payload))
+		if marshalErr == nil {
+			return redaction.Text(string(encoded))
+		}
+	}
+	return redaction.Text(string(body))
+}
+
+func backendFailure(operation string, payload map[string]any) error {
+	encoded, err := json.Marshal(redaction.Value(payload))
+	if err != nil {
+		return errors.New(operation + " failed: " + redaction.Text(fmt.Sprint(payload)))
+	}
+	return errors.New(operation + " failed: " + redaction.Text(string(encoded)))
+}
+
+func newHTTPError(status int, body []byte) *HTTPError {
+	return &HTTPError{Status: status, Message: redactedBackendBody(body)}
+}
+
+func redactedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(redaction.Text(err.Error()))
+}
+
 // Register self-registers this worker.
 func (c *Client) Register(name string, capabilities map[string]any) (map[string]any, error) {
 	url := c.ServerURL + "/api/worker/register"
@@ -153,10 +183,10 @@ func (c *Client) Register(name string, capabilities map[string]any) (map[string]
 	}
 	resp, body, err := c.doJSON("POST", url, payload, headers, 10*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, redactedError(err)
 	}
 	if resp.StatusCode >= 400 {
-		return nil, &HTTPError{Status: resp.StatusCode, Message: redaction.Text(string(body))}
+		return nil, newHTTPError(resp.StatusCode, body)
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -164,8 +194,7 @@ func (c *Client) Register(name string, capabilities map[string]any) (map[string]
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
-		msg, _ := result["error"].(string)
-		return nil, errors.New("registration failed: " + msg)
+		return nil, backendFailure("registration", result)
 	}
 	wid, _ := result["workerId"].(string)
 	wtok, _ := result["workerToken"].(string)
@@ -188,7 +217,7 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	}
 	resp, body, err := c.doJSON("POST", url, payload, nil, 10*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, redactedError(err)
 	}
 	switch {
 	case resp.StatusCode == 204:
@@ -198,7 +227,7 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	case resp.StatusCode == 429:
 		return nil, &HTTPError{Status: 429, Message: "TOO MANY REQUESTS"}
 	case resp.StatusCode >= 400:
-		return nil, &HTTPError{Status: resp.StatusCode, Message: redaction.Text(string(body))}
+		return nil, newHTTPError(resp.StatusCode, body)
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -206,8 +235,7 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
-		msg, _ := result["error"].(string)
-		return nil, errors.New("claim failed: " + msg)
+		return nil, backendFailure("claim", result)
 	}
 	return result, nil
 }

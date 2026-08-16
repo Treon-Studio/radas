@@ -16,6 +16,7 @@ import (
 	"github.com/opensible/worker-go/internal/execute"
 	"github.com/opensible/worker-go/internal/httpclient"
 	"github.com/opensible/worker-go/internal/logging"
+	"github.com/opensible/worker-go/internal/redaction"
 	"github.com/opensible/worker-go/internal/serviceops"
 	"github.com/opensible/worker-go/internal/systeminfo"
 )
@@ -70,7 +71,7 @@ func Run(opts Options) {
 	if client.WorkerToken == "" {
 		log.Info("No token found, registering worker...")
 		if _, err := client.Register(opts.WorkerName, opts.Capabilities); err != nil {
-			log.Error("Failed to register worker", "err", err)
+			log.Error("Failed to register worker", "err", redaction.Text(err.Error()))
 			return
 		}
 	}
@@ -168,7 +169,7 @@ func Run(opts Options) {
 			if is401 {
 				log.Warn("Claim returned 401, re-registering...")
 				if _, err := client.Register(opts.WorkerName, opts.Capabilities); err != nil {
-					log.Error("Failed to re-register worker", "err", err)
+					log.Error("Failed to re-register worker", "err", redaction.Text(err.Error()))
 					needReregister = true
 					time.Sleep(pollInterval)
 					continue
@@ -186,7 +187,7 @@ func Run(opts Options) {
 				continue
 			}
 			rateLimitRetries = 0
-			log.Error("Claim failed", "err", err)
+			log.Error("Claim failed", "err", redaction.Text(err.Error()))
 			time.Sleep(pollInterval)
 			continue
 		}
