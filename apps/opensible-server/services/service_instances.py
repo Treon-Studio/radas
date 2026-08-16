@@ -367,6 +367,22 @@ def get_revision(project_id: str, instance_id: str, revision_id: str | None = No
     return _revision_row(row) if row else None
 
 
+def list_revisions(project_id: str, instance_id: str, *, org_id: str | None = None,
+                   actor_id: str | None = None,
+                   internal_context: TrustedInternalExecution | None = None) -> list[dict[str, Any]]:
+    with pg.transaction() as conn:
+        _authorize_project_access(conn, project_id, actor_id=actor_id, org_id=org_id, internal_context=internal_context)
+        rows = conn.execute(
+            "SELECT r.*, i.org_id, i.id AS owning_instance_id FROM service_revisions r "
+            "JOIN service_instances i ON i.id = r.instance_id "
+            "WHERE r.instance_id = %s AND i.project_id = %s ORDER BY r.revision_number DESC",
+            (instance_id, project_id),
+        ).fetchall()
+        for row in rows:
+            _validate_instance_row(conn, {"id": row["owning_instance_id"], "project_id": project_id, "org_id": row["org_id"], "desired_revision_id": None})
+    return [_revision_row(row) for row in rows]
+
+
 def create_revision(instance_id: str, spec: Mapping[str, Any], created_by: str | None = None,
                     *, project_id: str | None = None, org_id: str | None = None,
                     actor_id: str | None = None, idempotency_key: str | None = None,

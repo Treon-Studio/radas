@@ -349,6 +349,8 @@ def _manifest(
     license_policy: str | None = None, inputs: list[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     metadata = {"license_policy": license_policy} if license_policy else {}
+    if production_ready:
+        metadata["production_policy"] = "catalog-approved"
     return {
         "schema_version": 1, "slug": slug, "name": name, "version": "1.0.0",
         "category": category, "summary": summary, "runtime": "container", "image": image,

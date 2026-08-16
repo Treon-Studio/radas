@@ -38,7 +38,7 @@ class ProviderNotFoundError(ProviderRegistryError):
     """Raised when a provider ID is not registered."""
 
 
-_OPERATION_NAMES = ("deploy", "update", "start", "stop", "restart", "destroy", "status", "logs")
+_OPERATION_NAMES = ("deploy", "update", "rollback", "start", "stop", "restart", "destroy", "status", "logs")
 
 
 class RuntimeProviderRegistry:
