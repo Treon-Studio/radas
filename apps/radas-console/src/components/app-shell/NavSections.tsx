@@ -5,7 +5,7 @@ import {
   RiRocketLine as Rocket, RiArchiveLine as Library, RiNodeTree as Network,
   RiBookOpenLine as BookOpen, RiShieldCheckLine as ShieldCheck, RiTeamLine as Users,
   RiCpuLine as Cpu, RiPlugLine as Plug, RiFlagLine as Flag, RiFlaskLine as Flask,
-  RiGithubLine as Github, RiCloudLine as Cloud, RiCodeBoxLine as CodeBox,
+  RiGithubLine as Github, RiCloudLine as Cloud, RiCodeBoxLine as CodeBox, RiStackLine as Services,
 } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,9 @@ type Item = { to: string; label: string; icon: typeof Home };
 const SECTIONS = (t: ReturnType<typeof useT>) => ({
   overview: [
     { to: "/dashboard", label: t("nav.homeDashboard"), icon: Home },
+  ] as Item[],
+  services: [
+    { to: "/projects/$projectId/services/", label: "Services", icon: Services },
   ] as Item[],
   cloud: [
     { to: "/cloud/summary", label: t("nav.summary"), icon: PieChart },
@@ -45,7 +48,8 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
   ] as Item[],
 });
 
-export function getActiveSection(pathname: string): "overview" | "cloud" | "infrastructure" | "system" {
+export function getActiveSection(pathname: string): "overview" | "services" | "cloud" | "infrastructure" | "system" {
+  if (pathname.startsWith("/projects/") && pathname.includes("/services")) return "services";
   if (pathname.startsWith("/cloud")) return "cloud";
   if (pathname.startsWith("/infrastructure") || pathname === "/settings") return "infrastructure";
   if (pathname.startsWith("/system")) return "system";

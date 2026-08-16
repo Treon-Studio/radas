@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { RiArrowRightLine as ArrowRight, RiCloudLine as Cloud, RiFolder2Line as FolderKanban } from "@remixicon/react";
+import { RiArrowRightLine as ArrowRight, RiCloudLine as Cloud, RiFolder2Line as FolderKanban, RiStackLine as ServicesIcon } from "@remixicon/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useProjects } from "@/lib/project";
 
@@ -8,6 +8,7 @@ export const Route = createFileRoute("/projects/$projectId")({ component: Projec
 
 function ProjectOverview() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { projectId } = Route.useParams();
   const { projects, current, loading, setCurrent } = useProjects();
   const project = projects.find((item) => item.id === projectId);
@@ -26,6 +27,8 @@ function ProjectOverview() {
     return <div className="py-16 text-center text-sm text-[var(--color-muted-foreground)]">Loading project…</div>;
   }
 
+  if (pathname !== `/projects/${projectId}`) return <Outlet />;
+
   return (
     <div className="space-y-8 animate-enter">
       <div>
@@ -34,7 +37,13 @@ function ProjectOverview() {
         <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">{project.description || "Your project workspace"}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <ProjectAreaCard
+          icon={<ServicesIcon className="h-5 w-5" />}
+          title="Services"
+          description="Choose, deploy, and operate project-scoped services from the RADAS catalog."
+          onClick={() => void navigate({ to: "/projects/$projectId/services", params: { projectId } })}
+        />
         <ProjectAreaCard
           icon={<Cloud className="h-5 w-5" />}
           title="Cloud"
