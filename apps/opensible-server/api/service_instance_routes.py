@@ -62,9 +62,25 @@ def _confirmation_token(instance: Mapping[str, Any]) -> str:
         **_auth_kwargs(str(instance["project_id"])),
     ) if revision_id else None
     revision_number = str((revision or {}).get("revision_number") or "")
-    payload = f"{instance['id']}:{revision_id}:{revision_number}".encode()
+    payload = f"instance:{instance['id']}:{revision_id}:{revision_number}".encode()
     secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
     return base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
+
+
+def _production_create_token(project_id: str, normalized: Mapping[str, Any]) -> str:
+    fingerprint = hashlib.sha256(json.dumps(dict(normalized), sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+    payload = f"create:{project_id}:{fingerprint}".encode()
+    secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
+    return base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
+
+
+def _production_confirmation_error(token: str | None = None):
+    return error_response(
+        "SERVICE_PRODUCTION_CONFIRMATION_REQUIRED",
+        "Explicit production impact confirmation is required",
+        400,
+        details={"confirmation_token": token} if token else {},
+    )
 
 
 def _destroy_confirmation(instance: Mapping[str, Any], data: Mapping[str, Any]) -> tuple[bool, str]:
@@ -402,7 +418,7 @@ def _draft_preflight(data: Mapping[str, Any], org_id: str):
         return None, None, error_response("RUNTIME_UNSUPPORTED", "Runtime is not supported by this catalog service", 422, details={"runtime_id": runtime_id})
     try:
         capabilities = _runtime().capabilities(runtime_id)
-    except runtime_registry.ProviderNotFoundError:
+    except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
         return None, None, error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422, details={"runtime_id": runtime_id})
     if not capabilities.get("deploy", False):
         return None, None, error_response("RUNTIME_UNSUPPORTED", "Runtime does not support deploy", 422, details={"capability": "deploy"})
@@ -438,7 +454,7 @@ def _draft_impact(project_id: str, definition: Mapping[str, Any], normalized: Ma
         "project_id": project_id,
         "environment": normalized.get("environment"),
         "runtime_id": normalized.get("runtime_id"),
-        "dependencies": [dict(item) if isinstance(item, Mapping) else item for item in manifest.get("dependencies", [])],
+        "dependencies": [dict(item) if isinstance(item, Mapping) else {"name": str(item)} for item in manifest.get("dependencies", [])],
         "active_operations": [_operation_view(project_id, item) for item in operations if item.get("status") in _ACTIVE_OPERATION_STATES],
         "resources": resources,
         "persistence": manifest.get("persistence"),
@@ -563,6 +579,11 @@ def create_service(project_id: str):
     name = str(normalized["name"])
     environment = str(normalized["environment"])
     runtime_id = str(normalized["runtime_id"])
+    if environment == "production":
+        supplied = str(data.get("production_confirmation_token") or data.get("confirmation_token") or "")
+        expected = _production_create_token(project_id, normalized)
+        if not supplied or not hmac.compare_digest(supplied, expected) or data.get("production_confirmed") is not True:
+            return _production_confirmation_error(expected)
     try:
         instance = service_instances.create_instance(
             project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
@@ -599,14 +620,24 @@ def patch_service(project_id: str, service_id: str):
     instance, error = _load_instance(project_id, service_id)
     if error:
         return error
-    if _active_conflict(project_id, service_id):
-        return error_response("SERVICE_OPERATION_CONFLICT", "Another service operation is already running", 409)
     definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
     if definition is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
     policy_error = _production_policy_error(definition["manifest"], str(instance.get("environment") or ""))
     if policy_error:
         return policy_error
+    if str(instance.get("environment") or "") == "production":
+        supplied = str(data.get("production_confirmation_token") or data.get("confirmation_token") or "")
+        current_id = str(instance.get("desired_revision_id") or "")
+        current = service_instances.get_revision(project_id, service_id, revision_id=current_id, **_auth_kwargs(project_id))
+        current_number = str((current or {}).get("revision_number") or "")
+        payload = f"update:{service_id}:{current_id}:{current_number}".encode()
+        secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
+        expected = base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
+        snapshot_matches = str(data.get("current_revision_id") or data.get("revision_id") or "") == current_id
+        token_matches = bool(supplied and hmac.compare_digest(supplied, expected))
+        if data.get("production_confirmed") is not True or (not snapshot_matches and not token_matches):
+            return _production_confirmation_error(expected)
     spec = data.get("spec", data.get("inputs"))
     if spec is None:
         return error_response("SERVICE_VALIDATION_FAILED", "spec is required", 422)
@@ -629,13 +660,17 @@ def patch_service(project_id: str, service_id: str):
     if len(idem_key) > 255:
         return error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is too long", 400)
     try:
-        revision = service_instances.create_revision(instance["id"], normalized, _actor_id(), project_id=project_id, org_id=instance["org_id"], idempotency_key=idem_key, **_auth_kwargs(project_id))
+        revision, operation = service_operations.create_revision_and_operation(
+            project_id, service_id, "service.update", idem_key, normalized,
+            requested_by=_actor_id(), org_id=instance["org_id"], **_auth_kwargs(project_id),
+        )
+    except service_operations.OperationConflictError as exc:
+        return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
     except service_instances.RevisionConflictError as exc:
         return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
     except service_instances.ServiceInstanceError as exc:
         return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
-    updated = service_instances.get_instance(project_id, service_id, **_auth_kwargs(project_id))
-    return success_response({"service": _instance_view(project_id, updated, detail=True), "revision": revision})
+    return operation_response(_operation_view(project_id, operation), status=202)
 
 
 @bp.post("/api/projects/<project_id>/services/preflight")
@@ -650,7 +685,10 @@ def service_preflight(project_id: str):
     definition, normalized, preflight_error = _draft_preflight(data, org_id)
     if preflight_error:
         return preflight_error
-    return success_response({"impact": _draft_impact(project_id, definition, normalized)})
+    impact = _draft_impact(project_id, definition, normalized)
+    if str(normalized.get("environment") or "") == "production":
+        impact["confirmation_token"] = _production_create_token(project_id, normalized)
+    return success_response({"impact": impact})
 
 
 def _lifecycle(kind: str, project_id: str, service_id: str):
@@ -678,7 +716,7 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     if not idem_key or len(idem_key) > 255:
         return error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required", 400)
     existing = _find_existing_operation(project_id, service_id, idem_key)
-    active = None if existing else _active_conflict(project_id, service_id)
+    active = None if existing or kind in {"update", "rollback"} else _active_conflict(project_id, service_id)
     if active:
         return error_response(
             "SERVICE_OPERATION_CONFLICT", "Another service operation is already running", 409,
@@ -711,18 +749,16 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
         if provider_errors:
             return _manifest_error([{"path": "spec", **item} for item in provider_errors])
         try:
-            created_revision = service_instances.create_revision(
-                service_id, rollback_spec, _actor_id(), project_id=project_id, org_id=instance["org_id"],
-                idempotency_key=f"{idem_key}:revision", **_auth_kwargs(project_id),
+            created_revision, operation = service_operations.create_revision_and_operation(
+                project_id, service_id, "service.rollback", idem_key, rollback_spec,
+                target_revision_id=target_id, requested_by=_actor_id(), org_id=instance["org_id"],
+                **_auth_kwargs(project_id),
             )
-        except service_instances.RevisionConflictError as exc:
+        except (service_instances.RevisionConflictError, service_operations.OperationConflictError) as exc:
             return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
         except service_instances.ServiceInstanceError as exc:
             return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
-        desired_revision_id = created_revision["id"]
-        instance, error = _load_instance(project_id, service_id)
-        if error:
-            return error
+        return operation_response(_operation_view(project_id, operation), status=202)
     revision = service_instances.get_revision(project_id, service_id, revision_id=instance.get("desired_revision_id"), **_auth_kwargs(project_id))
     if revision is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Service desired revision is unavailable", 422)
@@ -736,7 +772,7 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     try:
         if not _runtime().capabilities(instance["runtime_id"]).get(kind, False):
             return error_response("RUNTIME_UNSUPPORTED", f"Runtime does not support {kind}", 422, details={"capability": kind})
-    except runtime_registry.ProviderNotFoundError:
+    except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
         return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422)
     operation, error = _operation_for(project_id, instance, kind, desired_revision_id=(data.get("revision_id") if isinstance(data.get("revision_id"), str) else None))
     if error:

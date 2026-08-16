@@ -281,18 +281,59 @@ def test_project_org_mismatch_and_duplicate_name(client, data_dir):
     assert duplicate.get_json()["error"]["code"] == "SERVICE_NAME_CONFLICT"
 
 
-def test_patch_creates_immutable_revision(client, data_dir):
+def test_patch_queues_update_operation_and_is_idempotent(client, data_dir):
     created = _create(client, data_dir).get_json()["data"]["service"]
+    headers = {**_headers(USER_A, data_dir), "Idempotency-Key": "patch-update-1"}
     response = client.patch(
         f"/api/projects/{PROJECT_A}/services/{created['id']}",
         json={"spec": {"mode": "fast", "memory_mb": 1024}},
-        headers=_headers(USER_A, data_dir),
+        headers=headers,
     )
-    assert response.status_code == 200
-    revision = response.get_json()["data"]["revision"]
-    assert revision["revision_number"] == 2
-    assert response.get_json()["data"]["service"]["desired_revision_id"] == revision["id"]
+    assert response.status_code == 202
+    operation = response.get_json()["operation"]
+    assert operation["kind"] == "service.update"
+    retry = client.patch(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}",
+        json={"spec": {"mode": "fast", "memory_mb": 1024}},
+        headers=headers,
+    )
+    assert retry.status_code == 202
+    assert retry.get_json()["operation"]["id"] == operation["id"]
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_revisions WHERE instance_id = %s", (created["id"],))["count"] == 2
+
+
+def test_rollback_rejection_is_atomic_and_success_targets_created_revision(client, data_dir):
+    created = _create(client, data_dir).get_json()["data"]["service"]
+    patch = client.patch(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}",
+        json={"spec": {"mode": "fast", "memory_mb": 1024}},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "rollback-prep"},
+    )
+    assert patch.status_code == 202
+    pg.execute("DELETE FROM service_operations WHERE instance_id = %s", (created["id"],))
+    revisions = client.get(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/revisions",
+        headers=_headers(USER_A, data_dir),
+    ).get_json()["data"]["revisions"]
+    target = next(item for item in revisions if item["revision_number"] == 1)
+    before = pg.query_one("SELECT COUNT(*) AS count FROM service_revisions WHERE instance_id = %s", (created["id"],))["count"]
+    rejected = client.post(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/rollback",
+        json={"revision_id": "not-owned"},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "rollback-rejected"},
+    )
+    assert rejected.status_code in {404, 422}
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_revisions WHERE instance_id = %s", (created["id"],))["count"] == before
+    queued = client.post(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/rollback",
+        json={"revision_id": target["id"]},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "rollback-good"},
+    )
+    assert queued.status_code == 202
+    operation = queued.get_json()["operation"]
+    payload = pg.query_one("SELECT payload FROM service_operations WHERE id = %s", (operation["id"],))["payload"]
+    assert payload["desired_revision_id"] != target["id"]
+    assert payload["rollback_target_revision_id"] == target["id"]
 
 
 def test_lifecycle_is_queued_idempotent_and_does_not_execute_provider(client, data_dir, monkeypatch):

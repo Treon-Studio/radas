@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 
 from storage import pg
 from services.runtime_provider import RUNTIME_ERROR_CODES, redact
+from services import service_instances
 from services.service_instances import (
     ProjectAuthorizationError,
     ProjectNotFoundError,
@@ -278,6 +279,142 @@ def create_operation(
                 _validate_operation_row(conn, existing)
             return _existing_or_conflict(existing, fingerprint, instance_id)
         raise
+
+
+def create_revision_and_operation(
+    project_id: str,
+    instance_id: str,
+    kind: str,
+    idempotency_key: str,
+    spec: Mapping[str, Any],
+    *,
+    target_revision_id: str | None = None,
+    requested_by: str | None = None,
+    org_id: str | None = None,
+    actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Atomically append a desired revision and queue its operation.
+
+    This is used by update and rollback so a rejected/conflicting request cannot
+    leave an orphan desired revision. The instance lock serializes revision
+    numbering, target validation, active-operation checks, and operation insert.
+    Retries resolve both rows through the same idempotency key.
+    """
+    project_id = _text(project_id, "project_id")
+    instance_id = _text(instance_id, "instance_id")
+    kind = _text(kind, "kind")
+    key = _text(idempotency_key, "idempotency_key")
+    if len(key) > 255:
+        raise ServiceOperationError("idempotency key is too long")
+    if kind not in {"service.update", "service.rollback"}:
+        raise ServiceOperationError("revision-backed operation kind is unsupported")
+    safe_spec = redact_spec(spec)
+    revision_fingerprint = hashlib.sha256(
+        json.dumps(safe_spec, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+    with pg.transaction() as conn:
+        derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
+        instance = conn.execute(
+            "SELECT * FROM service_instances WHERE id=%s AND project_id=%s FOR UPDATE",
+            (instance_id, project_id),
+        ).fetchone()
+        if not instance or str(instance.get("org_id")) != str(derived_org):
+            raise ProjectAuthorizationError("instance does not belong to this project")
+
+        existing_operation = conn.execute(
+            "SELECT * FROM service_operations WHERE project_id=%s AND idempotency_key=%s FOR UPDATE",
+            (project_id, key),
+        ).fetchone()
+        if existing_operation:
+            _validate_operation_row(conn, existing_operation)
+            payload = existing_operation.get("payload") or {}
+            expected_target = payload.get("rollback_target_revision_id") if isinstance(payload, Mapping) else None
+            if kind == "service.rollback" and str(expected_target or "") != str(target_revision_id or ""):
+                raise OperationConflictError("idempotency key was already used with a different rollback target")
+            if str(existing_operation.get("kind")) != kind:
+                raise OperationConflictError("idempotency key was already used with a different operation identity")
+            revision_id = payload.get("desired_revision_id") if isinstance(payload, Mapping) else None
+            revision = conn.execute(
+                "SELECT * FROM service_revisions WHERE id=%s AND instance_id=%s",
+                (revision_id, instance_id),
+            ).fetchone()
+            if not revision:
+                raise OperationConflictError("idempotent operation revision is unavailable")
+            return service_instances._revision_row(revision), _row(existing_operation)
+
+        active = conn.execute(
+            "SELECT id,kind FROM service_operations WHERE project_id=%s AND instance_id=%s "
+            "AND status IN ('pending','queued','running') ORDER BY created_at DESC LIMIT 1",
+            (project_id, instance_id),
+        ).fetchone()
+        if active:
+            raise OperationConflictError(f"another service operation is already active ({active['id']})")
+
+        current_revision_id = instance.get("desired_revision_id")
+        if kind == "service.rollback":
+            target = conn.execute(
+                "SELECT * FROM service_revisions WHERE id=%s AND instance_id=%s",
+                (target_revision_id, instance_id),
+            ).fetchone()
+            current = conn.execute(
+                "SELECT revision_number FROM service_revisions WHERE id=%s AND instance_id=%s",
+                (current_revision_id, instance_id),
+            ).fetchone()
+            if not target or not current or str(target["id"]) == str(current_revision_id) or int(target["revision_number"]) >= int(current["revision_number"]):
+                raise RevisionConflictError("rollback must target a prior immutable revision")
+
+        revision_key = f"{key}:revision"
+        existing_revision = conn.execute(
+            "SELECT r.*, k.payload_fingerprint FROM service_revision_idempotency k "
+            "JOIN service_revisions r ON r.id=k.revision_id "
+            "WHERE k.instance_id=%s AND k.idempotency_key=%s FOR UPDATE",
+            (instance_id, revision_key),
+        ).fetchone()
+        if existing_revision:
+            if existing_revision.get("payload_fingerprint") != revision_fingerprint:
+                raise RevisionConflictError("idempotency key was already used with a different revision")
+            revision_id = str(existing_revision["id"])
+            revision = existing_revision
+        else:
+            max_row = conn.execute(
+                "SELECT COALESCE(MAX(revision_number),0) AS revision_number FROM service_revisions WHERE instance_id=%s",
+                (instance_id,),
+            ).fetchone()
+            revision_id, now = str(uuid.uuid4()), time.time()
+            number = int(max_row["revision_number"]) + 1
+            conn.execute(
+                "INSERT INTO service_revisions (id,instance_id,revision_number,spec,redacted_spec,created_by,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (revision_id, instance_id, number, Jsonb(safe_spec), Jsonb(safe_spec), requested_by, now),
+            )
+            conn.execute(
+                "INSERT INTO service_revision_idempotency(instance_id,idempotency_key,payload_fingerprint,revision_id,created_at) VALUES (%s,%s,%s,%s,%s)",
+                (instance_id, revision_key, revision_fingerprint, revision_id, now),
+            )
+            conn.execute(
+                "UPDATE service_instances SET desired_revision_id=%s,updated_at=%s WHERE id=%s",
+                (revision_id, now, instance_id),
+            )
+            revision = conn.execute("SELECT * FROM service_revisions WHERE id=%s", (revision_id,)).fetchone()
+
+        payload: dict[str, Any] = {"operation": kind.removeprefix("service."), "desired_revision_id": revision_id}
+        if kind == "service.rollback":
+            payload["rollback_target_revision_id"] = str(target_revision_id)
+        fingerprint = payload_fingerprint(kind, payload, instance_id=instance_id)
+        operation_id, now = str(uuid.uuid4()), time.time()
+        conn.execute(
+            "INSERT INTO service_operations (id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,payload,status,requested_by,error_code,error_message,started_at,finished_at,created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s,NULL,NULL,NULL,NULL,%s)",
+            (operation_id, derived_org, project_id, instance_id, kind, key, fingerprint, Jsonb(payload), requested_by, now),
+        )
+        operation = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
+        _operation_event_tx(conn, operation_id, "queued", message="operation queued")
+        _audit_lifecycle(
+            conn, "service.operation.created", actor_id=requested_by, org_id=derived_org,
+            project_id=project_id, instance_id=instance_id, operation=operation,
+            before=None, after="queued", metadata={"idempotency_key": key, "revision_id": revision_id},
+        )
+    return service_instances._revision_row(revision), _row(operation)
 
 
 def get_operation(project_id: str, operation_id: str, *, org_id: str | None = None,

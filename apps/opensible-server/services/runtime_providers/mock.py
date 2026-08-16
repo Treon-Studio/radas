@@ -98,7 +98,7 @@ class MockRuntimeProvider:
         provider_ref = {"provider": self.id, "resource_id": f"mock-{instance_id}"}
         return ProviderResult.ok(
             operation,
-            {"instance": {"id": instance_id, "status": state_value}, "provider_ref": provider_ref,
+            {"instance": {**redact(dict(payload)), "id": instance_id, "status": state_value}, "provider_ref": provider_ref,
              "endpoint": endpoint, "endpoint_summary": {"url": endpoint, "public": True}, "health": health,
              "redacted_result": True},
             provider_id=self.id,
