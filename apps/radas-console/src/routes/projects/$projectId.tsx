@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { RiArrowRightLine as ArrowRight, RiCloudLine as Cloud, RiFolder2Line as FolderKanban, RiStackLine as ServicesIcon } from "@remixicon/react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,19 +42,20 @@ function ProjectOverview() {
           icon={<ServicesIcon className="h-5 w-5" />}
           title="Services"
           description="Choose, deploy, and operate project-scoped services from the RADAS catalog."
-          onClick={() => void navigate({ to: "/projects/$projectId/services", params: { projectId } })}
+          to="/projects/$projectId/services"
+          params={{ projectId }}
         />
         <ProjectAreaCard
           icon={<Cloud className="h-5 w-5" />}
           title="Cloud"
           description="Manage OpenTofu stacks, runs, costs, and providers."
-          onClick={() => void navigate({ to: "/cloud/summary" })}
+          to="/cloud/summary"
         />
         <ProjectAreaCard
           icon={<FolderKanban className="h-5 w-5" />}
           title="Infrastructure"
           description="Manage Ansible playbooks, hosts, secrets, and templates."
-          onClick={() => void navigate({ to: "/infrastructure/deployment" })}
+          to="/infrastructure/deployment"
         />
       </div>
     </div>
@@ -65,23 +66,25 @@ function ProjectAreaCard({
   icon,
   title,
   description,
-  onClick,
+  to,
+  params,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
-  onClick: () => void;
+  to: "/projects/$projectId/services" | "/cloud/summary" | "/infrastructure/deployment";
+  params?: { projectId: string };
 }) {
   return (
-    <Card className="group cursor-pointer transition-all hover:border-[var(--color-primary)]/50" onClick={onClick}>
-      <CardContent className="p-5">
+    <Card className="group transition-all hover:border-[var(--color-primary)]/50">
+      <Link to={to} params={params as never} className="block rounded-[inherit] p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]" aria-label={`${title}: ${description}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="h-10 w-10 rounded-lg bg-[var(--color-muted)] flex items-center justify-center">{icon}</div>
           <ArrowRight className="h-4 w-4 text-[var(--color-muted-foreground)] transition-transform group-hover:translate-x-1" />
         </div>
         <h2 className="mt-5 text-base font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{description}</p>
-      </CardContent>
+      </Link>
     </Card>
   );
 }

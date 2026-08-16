@@ -88,9 +88,18 @@ class MockRuntimeProvider:
         elif operation == "destroy":
             self.state.setdefault(instance_id, {"id": instance_id})["status"] = "destroyed"
         current = self.state.get(instance_id, {"id": instance_id, "status": "unknown"})
+        # The mock slice deliberately returns stable, non-sensitive runtime
+        # metadata so the console can render endpoint/health/progress without
+        # probing or launching Docker/Podman.
+        state_value = str(current.get("status") or "unknown")
+        endpoint = f"https://mock.radas.local/services/{instance_id}"
+        health = {"status": "healthy" if state_value == "running" else state_value, "checked_at": "2026-01-01T00:00:00Z"}
+        provider_ref = {"provider": self.id, "resource_id": f"mock-{instance_id}"}
         return ProviderResult.ok(
             operation,
-            {"instance": current},
+            {"instance": {"id": instance_id, "status": state_value}, "provider_ref": provider_ref,
+             "endpoint": endpoint, "endpoint_summary": {"url": endpoint, "public": True}, "health": health,
+             "redacted_result": True},
             provider_id=self.id,
             operation_id=operation_id,
             idempotency_key=idempotency_key,
@@ -121,7 +130,10 @@ class MockRuntimeProvider:
             raise self.failure
         if isinstance(self.failure, Mapping):
             return ProviderResult.failed("status", str(self.failure.get("code", "PROVIDER_ERROR")), str(self.failure.get("message", "mock provider failure")), details=self.failure.get("details", {}), provider_id=self.id)
-        return ProviderResult.ok("status", {"instance": self.state.get(instance_id, {"id": instance_id, "status": "unknown"})}, provider_id=self.id)
+        current = self.state.get(instance_id, {"id": instance_id, "status": "unknown"})
+        state_value = str(current.get("status") or "unknown")
+        endpoint = f"https://mock.radas.local/services/{instance_id}"
+        return ProviderResult.ok("status", {"instance": {"id": instance_id, "status": state_value}, "provider_ref": {"provider": self.id, "resource_id": f"mock-{instance_id}"}, "endpoint": endpoint, "endpoint_summary": {"url": endpoint, "public": True}, "health": {"status": "healthy" if state_value == "running" else state_value, "checked_at": "2026-01-01T00:00:00Z"}, "redacted_result": True}, provider_id=self.id)
 
     def logs(self, instance: dict[str, Any], cursor: str | None = None, *, timeout: float | None = None) -> ProviderLogPage:
         instance_id = str(instance.get("id") or instance.get("instance_id") or "unknown")

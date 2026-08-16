@@ -3,36 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ServiceDefinition } from "./ServiceCatalogCard";
 
-export type ServiceSpec = {
-  name: string;
-  environment: string;
-  runtime_id: string;
-  spec: Record<string, unknown>;
-};
-
-type Props = {
-  definition: ServiceDefinition;
-  value: ServiceSpec;
-  onChange: (value: ServiceSpec) => void;
-  onReview: () => void;
-  busy?: boolean;
-};
-
-const ENVIRONMENTS = [
-  { value: "development", label: "Development" },
-  { value: "staging", label: "Staging" },
-  { value: "production", label: "Production" },
-];
-const RUNTIMES = [
-  { value: "mock", label: "Mock runtime", description: "Safe deterministic runtime for development and acceptance checks" },
-  { value: "docker", label: "Docker" },
-  { value: "podman", label: "Podman" },
-  { value: "kubernetes", label: "Kubernetes" },
-];
-
-function fieldLabel(name: string) {
-  return name.replace(/_/g, " ").replace(/\b\w/g, (value) => value.toUpperCase());
-}
+export type ServiceSpec = { name: string; environment: string; runtime_id: string; spec: Record<string, unknown> };
+type Props = { definition: ServiceDefinition; value: ServiceSpec; onChange: (value: ServiceSpec) => void; onReview: () => void; busy?: boolean };
+const ENVIRONMENTS = [{ value: "development", label: "Development" }, { value: "staging", label: "Staging" }, { value: "production", label: "Production" }];
+const RUNTIMES = [{ value: "mock", label: "Mock runtime", description: "Runtime deterministik aman untuk pengembangan dan acceptance" }, { value: "docker", label: "Docker", description: "Belum tersedia di server ini", disabled: true }, { value: "podman", label: "Podman", description: "Belum tersedia di server ini", disabled: true }, { value: "kubernetes", label: "Kubernetes", description: "Belum tersedia di server ini", disabled: true }];
+function fieldLabel(name: string) { return name.replace(/_/g, " ").replace(/\b\w/g, (value) => value.toUpperCase()); }
 
 export function ServiceSpecForm({ definition, value, onChange, onReview, busy }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -43,44 +18,17 @@ export function ServiceSpecForm({ definition, value, onChange, onReview, busy }:
   const updateSecret = (key: string, next: string) => onChange({ ...value, spec: { ...value.spec, secrets: { ...((value.spec.secrets as Record<string, unknown> | undefined) || {}), [key]: { secret_ref: next } } } });
   const validate = () => {
     const next: Record<string, string> = {};
-    if (!/^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(value.name.trim())) next.name = "Use 1–63 characters: letters, numbers, hyphens, or underscores.";
-    if (!value.environment) next.environment = "Choose an environment.";
-    if (!value.runtime_id) next.runtime_id = "Choose a runtime.";
-    for (const input of declaredInputs) {
-      if (input.required && (value.spec[input.name] === undefined || value.spec[input.name] === "")) next[input.name] = "This field is required.";
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(value.name.trim())) next.name = "Gunakan 1–63 karakter: huruf, angka, tanda hubung, atau garis bawah.";
+    if (!value.environment) next.environment = "Pilih environment.";
+    if (value.runtime_id !== "mock") next.runtime_id = "Runtime ini belum terdaftar di server.";
+    for (const input of declaredInputs) if (input.required && (value.spec[input.name] === undefined || value.spec[input.name] === "")) next[input.name] = "Field ini wajib diisi.";
+    for (const secret of manifest.secrets || []) {
+      const reference = (value.spec.secrets as Record<string, { secret_ref?: string }> | undefined)?.[secret.name]?.secret_ref;
+      if (secret.required !== false && !reference) next[`secret:${secret.name}`] = "Referensi secret wajib diisi.";
+      else if (reference && !/^(secret:\/\/|ref:)[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(reference)) next[`secret:${secret.name}`] = "Gunakan referensi secret:// atau ref:, bukan nilai rahasia mentah.";
     }
-    setErrors(next);
-    if (!Object.keys(next).length) onReview();
+    for (const storage of manifest.storage || []) if (storage.required && !value.spec.storage) next.storage = "Konfigurasi storage wajib diisi.";
+    setErrors(next); if (!Object.keys(next).length) onReview();
   };
-  return (
-    <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); validate(); }} noValidate>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="service-name" className="text-sm font-medium">Service name</label>
-          <Input id="service-name" className="mt-1" value={value.name} onChange={(event) => update({ name: event.target.value })} aria-invalid={!!errors.name} aria-describedby={errors.name ? "service-name-error" : undefined} placeholder="my-service" />
-          {errors.name && <p id="service-name-error" className="mt-1 text-xs text-[var(--color-destructive)]">{errors.name}</p>}
-        </div>
-        <div>
-          <label htmlFor="service-environment" className="text-sm font-medium">Environment</label>
-          <Select value={value.environment} onChange={(next) => update({ environment: next })} options={ENVIRONMENTS} className="mt-1" label="Environment" />
-          {errors.environment && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors.environment}</p>}
-        </div>
-      </div>
-      <div>
-        <label htmlFor="service-runtime" className="text-sm font-medium">Runtime</label>
-        <Select value={value.runtime_id} onChange={(next) => update({ runtime_id: next })} options={RUNTIMES.filter((option) => option.value === "mock" || manifest.supported_runtimes?.includes(option.value))} className="mt-1" label="Runtime" />
-        {errors.runtime_id && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors.runtime_id}</p>}
-        <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Runtime availability is checked by the server before the instance is created.</p>
-      </div>
-      {declaredInputs.length > 0 && <div className="space-y-4 rounded-md border border-[var(--color-border)] p-4"><div><h2 className="text-sm font-semibold">Service settings</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Only settings declared by {manifest.name} are shown.</p></div>{declaredInputs.map((input) => {
-        const inputId = `service-input-${input.name}`;
-        const current = value.spec[input.name] ?? input.default ?? "";
-        const numeric = input.type === "integer" || input.type === "number" || input.type === "port";
-        return <div key={input.name}><label htmlFor={inputId} className="text-sm font-medium">{fieldLabel(input.name)}{input.required ? " *" : ""}</label><Input id={inputId} className="mt-1" type={numeric ? "number" : input.type === "url" || input.type === "domain" ? "text" : "text"} value={String(current)} min={input.min} max={input.max} onChange={(event) => updateSpec(input.name, numeric ? Number(event.target.value) : event.target.value)} aria-invalid={!!errors[input.name]} />{errors[input.name] && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors[input.name]}</p>}</div>;
-      })}</div>}
-      {manifest.storage?.length ? <div className="rounded-md border border-[var(--color-border)] p-4"><h2 className="text-sm font-semibold">Persistent storage</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">This service declares {manifest.storage.map((item) => `${item.name || "data"} (${item.size_gb || 0} GB)`).join(", ")}. Storage is provisioned by the selected runtime.</p></div> : null}
-      {manifest.secrets?.length ? <div className="rounded-md border border-[var(--color-border)] p-4"><h2 className="text-sm font-semibold">Secret references</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Select or create project secret references. Raw secret values are never entered here or sent to the browser.</p><div className="mt-3 space-y-3">{manifest.secrets.map((secret) => <div key={secret.name}><label htmlFor={`service-secret-${secret.name}`} className="text-sm font-medium">{secret.name}{secret.required === false ? " (optional)" : ""}</label><Input id={`service-secret-${secret.name}`} className="mt-1" placeholder="secret://project/name" value={String(((value.spec.secrets as Record<string, { secret_ref?: string }> | undefined)?.[secret.name]?.secret_ref) || "")} onChange={(event) => updateSecret(secret.name, event.target.value)} aria-describedby={`service-secret-help-${secret.name}`} /><p id={`service-secret-help-${secret.name}`} className="mt-1 text-xs text-[var(--color-muted-foreground)]">Reference only; the secret value is never entered here.</p></div>)}</div></div> : null}
-      <div className="flex justify-end"><button type="submit" className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-50" disabled={busy}>Review deployment</button></div>
-    </form>
-  );
+  return <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); validate(); }} noValidate><div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="service-name" className="text-sm font-medium">Nama layanan</label><Input id="service-name" className="mt-1" value={value.name} onChange={(event) => update({ name: event.target.value })} aria-invalid={!!errors.name} aria-describedby={errors.name ? "service-name-error" : undefined} placeholder="my-service" />{errors.name && <p id="service-name-error" className="mt-1 text-xs text-[var(--color-destructive)]">{errors.name}</p>}</div><div><label className="text-sm font-medium" htmlFor="service-environment">Environment</label><Select value={value.environment} onChange={(next) => update({ environment: next })} options={ENVIRONMENTS} className="mt-1" label="Environment" aria-invalid={!!errors.environment} aria-describedby={errors.environment ? "service-environment-error" : undefined} />{errors.environment && <p id="service-environment-error" className="mt-1 text-xs text-[var(--color-destructive)]">{errors.environment}</p>}</div></div><div><label className="text-sm font-medium" htmlFor="service-runtime">Runtime</label><Select value={value.runtime_id} onChange={(next) => update({ runtime_id: next })} options={RUNTIMES} className="mt-1" label="Runtime" /><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Hanya mock runtime yang terdaftar dan tidak menjalankan Docker atau Podman.</p>{errors.runtime_id && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors.runtime_id}</p>}</div>{declaredInputs.length > 0 && <div className="space-y-4 rounded-md border border-[var(--color-border)] p-4"><div><h2 className="text-sm font-semibold">Pengaturan {manifest.name}</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Field mengikuti manifest layanan ini.</p></div>{declaredInputs.map((input) => { const inputId = `service-input-${input.name}`; const current = value.spec[input.name] ?? input.default ?? ""; const numeric = input.type === "integer" || input.type === "number" || input.type === "port"; return <div key={input.name}><label htmlFor={inputId} className="text-sm font-medium">{fieldLabel(input.name)}{input.required ? " *" : ""}</label>{input.type === "enum" ? <Select value={String(current)} onChange={(next) => updateSpec(input.name, next)} options={(input.choices || []).map((choice) => ({ value: choice, label: choice }))} className="mt-1" label={fieldLabel(input.name)} aria-invalid={!!errors[input.name]} /> : <Input id={inputId} className="mt-1" type={numeric ? "number" : "text"} value={String(current)} min={input.min} max={input.max} onChange={(event) => updateSpec(input.name, numeric ? Number(event.target.value) : event.target.value)} aria-invalid={!!errors[input.name]} />}{errors[input.name] && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors[input.name]}</p>}</div>; })}</div>}{manifest.storage?.length ? <div className="rounded-md border border-[var(--color-border)] p-4"><h2 className="text-sm font-semibold">Storage persisten</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{manifest.storage.map((item) => `${item.name || "data"} (${item.size_gb || 0} GB${item.required ? ", wajib" : ""})`).join(", ")}</p><Input className="mt-3" aria-label="Konfigurasi storage" placeholder="storage://project/service/data" value={String(value.spec.storage || "")} onChange={(event) => updateSpec("storage", event.target.value)} aria-invalid={!!errors.storage} />{errors.storage && <p className="mt-1 text-xs text-[var(--color-destructive)]">{errors.storage}</p>}</div> : null}{manifest.secrets?.length ? <div className="rounded-md border border-[var(--color-border)] p-4"><h2 className="text-sm font-semibold">Referensi secret</h2><p className="mt-1 text-xs text-[var(--color-muted-foreground)]">Masukkan nama referensi saja. Nilai rahasia mentah ditolak dan tidak pernah dikirim.</p><div className="mt-3 space-y-3">{manifest.secrets.map((secret) => { const errorId = `service-secret-error-${secret.name}`; const error = errors[`secret:${secret.name}`]; return <div key={secret.name}><label htmlFor={`service-secret-${secret.name}`} className="text-sm font-medium">{secret.name}{secret.required === false ? " (opsional)" : " *"}</label><Input id={`service-secret-${secret.name}`} className="mt-1" placeholder="secret://project/name" value={String(((value.spec.secrets as Record<string, { secret_ref?: string }> | undefined)?.[secret.name]?.secret_ref) || "")} onChange={(event) => updateSecret(secret.name, event.target.value)} aria-describedby={error ? errorId : undefined} aria-invalid={!!error} />{error && <p id={errorId} className="mt-1 text-xs text-[var(--color-destructive)]">{error}</p>}</div>; })}</div></div> : null}<div className="flex justify-end"><button type="submit" className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-50" disabled={busy}>Tinjau deployment</button></div></form>;
 }

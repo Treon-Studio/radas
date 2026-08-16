@@ -26,6 +26,8 @@ type Props = {
   prefix?: React.ReactNode;
   /** Render an action at the bottom of the options panel. */
   action?: { label: string; icon?: React.ReactNode; onClick: () => void };
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
 };
 
 /** A keyboard-accessible, single-select combobox that preserves the existing Select API. */
@@ -43,6 +45,8 @@ export function Select({
   side = "bottom",
   prefix,
   action,
+  "aria-describedby": ariaDescribedby,
+  "aria-invalid": ariaInvalid,
 }: Props) {
   const id = useId();
   const triggerId = `${id}-trigger`;
@@ -186,6 +190,9 @@ export function Select({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         aria-activedescendant={activeOptionId}
+        aria-label={label ? undefined : placeholder}
+        aria-describedby={ariaDescribedby}
+        aria-invalid={ariaInvalid || undefined}
         className={cn(
           "w-full inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md",
           "bg-[var(--color-card)] border border-[var(--color-border)] text-sm text-[var(--color-foreground)]",
