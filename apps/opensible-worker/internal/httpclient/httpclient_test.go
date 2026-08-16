@@ -2,10 +2,12 @@ package httpclient
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestServiceFailureTransmissionRedactsNaturalLanguageNestedValues(t *testing.T) {
@@ -123,6 +125,38 @@ func TestRegisterAndClaimErrorsRedactBackendMessages(t *testing.T) {
 		})
 	}
 }
+
+func TestTransportErrorsAreRedactedBeforeHTTPClientPathsLogOrReturn(t *testing.T) {
+	const transportError = `dial failed: password=raw-transport-password Bearer raw-transport-bearer api_key=raw-transport-key`
+
+	client := New("http://worker.invalid")
+	client.HTTP = &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New(transportError)
+	})}
+
+	if _, _, err := client.doJSON("POST", client.ServerURL, nil, nil, time.Second); err == nil {
+		t.Fatal("expected transport error")
+	} else if strings.Contains(err.Error(), "raw-transport-") {
+		t.Fatalf("transport secret leaked from doJSON error: %q", err)
+	}
+	if client.SendServiceLog("op", "lease", "safe", 0) {
+		t.Fatal("send service log unexpectedly succeeded")
+	}
+	if client.FinishServiceExecution("op", "lease", "FAILED", 0, 0, nil, "safe", nil) {
+		t.Fatal("finish service execution unexpectedly succeeded")
+	}
+	if ok, _ := client.HeartbeatWithLease("op", "lease"); ok {
+		t.Fatal("heartbeat unexpectedly succeeded")
+	}
+	if client.SendSystemInfo(map[string]any{"platform": "test"}) {
+		t.Fatal("send system info unexpectedly succeeded")
+	}
+}
+
+// roundTripperFunc makes a deterministic transport failure without opening a socket.
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestSendServiceLogRedactsNaturalLanguage(t *testing.T) {
 	var body map[string]any

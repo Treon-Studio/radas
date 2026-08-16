@@ -67,12 +67,12 @@ func (c *Client) loadToken() {
 
 func (c *Client) saveToken(workerID, workerToken string) {
 	if err := os.MkdirAll(filepath.Dir(c.TokenFile), 0o755); err != nil {
-		logging.L().Error("Failed to create token dir", "err", err)
+		logging.L().Error("Failed to create token dir", "err", redactedError(err))
 		return
 	}
 	body := fmt.Sprintf("%s\n%s\n", workerID, workerToken)
 	if err := os.WriteFile(c.TokenFile, []byte(body), 0o600); err != nil {
-		logging.L().Error("Failed to save token", "err", err)
+		logging.L().Error("Failed to save token", "err", redactedError(err))
 		return
 	}
 	c.WorkerID = workerID
@@ -91,7 +91,7 @@ func (c *Client) doJSON(method, url string, in any, headers map[string]string, t
 	}
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, redactedError(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.WorkerToken != "" {
@@ -106,7 +106,7 @@ func (c *Client) doJSON(method, url string, in any, headers map[string]string, t
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, redactedError(err)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
@@ -257,7 +257,7 @@ func (c *Client) SendServiceLog(executionID, leaseToken, text string, ts float64
 	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 10*time.Second)
 	if err != nil {
-		logging.L().Warn("send_log failed", "err", err)
+		logging.L().Warn("send_log failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400
@@ -311,7 +311,7 @@ func (c *Client) FinishServiceExecution(executionID, leaseToken, status string, 
 	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 15*time.Second)
 	if err != nil {
-		logging.L().Error("finish_execution failed", "err", err)
+		logging.L().Error("finish_execution failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400
@@ -347,7 +347,7 @@ func (c *Client) HeartbeatWithLease(currentExecutionID, leaseToken string) (ok b
 	}
 	resp, body, err := c.doJSON("POST", url, payload, nil, 5*time.Second)
 	if err != nil {
-		logging.L().Warn("heartbeat failed", "err", err)
+		logging.L().Warn("heartbeat failed", "err", redactedError(err))
 		return false, false
 	}
 	if resp.StatusCode == 401 {
@@ -407,7 +407,7 @@ func (c *Client) SendSystemInfo(info map[string]any) bool {
 	url := c.ServerURL + "/api/worker/system-info"
 	resp, _, err := c.doJSON("POST", url, map[string]any{"systemInfo": info}, nil, 10*time.Second)
 	if err != nil {
-		logging.L().Warn("send_system_info failed", "err", err)
+		logging.L().Warn("send_system_info failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400

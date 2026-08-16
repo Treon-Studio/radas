@@ -173,6 +173,34 @@ def test_error_code_is_allowlisted_in_operation_and_events(pg_db):
     assert "top-secret" not in str(service_operation_runner.list_events(operation["id"]))
 
 
+def test_event_details_redact_sensitive_keys_recursively_before_persist_and_return(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    raw_values = ["raw-api-key", "raw-access-token", "raw-password", "raw-secret", "raw-private-key"]
+    details = {
+        "api_key": raw_values[0],
+        "nested": {
+            "access_token": raw_values[1],
+            "safe": "token: raw-inline-token",
+            "items": [{"password": raw_values[2]}, {"metadata": {"private_key": raw_values[4]}}],
+        },
+        "credentials": {"secret": raw_values[3]},
+        "message": "authorization=raw-authorization",
+    }
+
+    event = service_operation_runner.append_event(operation["id"], "provider_step", details=details)
+    stored = pg.query_one(
+        "SELECT details FROM service_operation_events WHERE operation_id=%s AND event='provider_step'",
+        (operation["id"],),
+    )
+    for value in raw_values + ["raw-inline-token", "raw-authorization"]:
+        assert value not in str(stored["details"])
+        assert value not in str(event)
+    assert stored["details"]["api_key"] == "[REDACTED]"
+    assert stored["details"]["nested"]["items"][1]["metadata"]["private_key"] == "[REDACTED]"
+
+
 def test_provider_failure_preserves_desired_revision(pg_db):
     _project()
     instance = _instance()

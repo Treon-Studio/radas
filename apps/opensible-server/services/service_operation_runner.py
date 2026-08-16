@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import uuid
 from collections.abc import Mapping
@@ -21,18 +22,33 @@ from services import runtime_registry, service_instances, service_operations
 from services.runtime_provider import ProviderResult, redact
 
 _DEFAULT_LEASE_SECONDS = 90.0
+_EVENT_REDACTED = "[REDACTED]"
+_EVENT_SENSITIVE_KEY = re.compile(
+    r"(?:api[_ -]?key|access[_ -]?key|access[_ -]?token|refresh[_ -]?token|"
+    r"client[_ -]?secret|client[_ -]?token|password|secret|credential|token|"
+    r"private[_ -]?key|authorization|bearer)",
+    re.IGNORECASE,
+)
 
 
 def _safe_event_value(value: Any, *, key: str = "") -> Any:
-    """Redact event data and normalize worker-controlled error codes."""
+    """Redact event data and normalize worker-controlled error codes.
+
+    Event details are persisted as JSON and can contain arbitrary nested
+    provider data, so redact credential-bearing keys before traversing values.
+    String values still pass through the shared natural-language sanitizer.
+    """
     normalized_key = key.lower().replace("-", "_")
     if normalized_key in {"error_code", "errorcode"}:
         return service_operations._safe_error_code(value)
+    if key and _EVENT_SENSITIVE_KEY.search(key):
+        return _EVENT_REDACTED
     if isinstance(value, Mapping):
-        return {str(child_key): _safe_event_value(child, key=str(child_key)) for child_key, child in value.items()}
-    if isinstance(value, list):
-        return [_safe_event_value(child) for child in value]
-    if isinstance(value, tuple):
+        return {
+            str(child_key): _safe_event_value(child, key=str(child_key))
+            for child_key, child in value.items()
+        }
+    if isinstance(value, (list, tuple)):
         return [_safe_event_value(child) for child in value]
     return _safe(value)
 
