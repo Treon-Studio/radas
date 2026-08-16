@@ -257,7 +257,7 @@ def api_worker_execution_log(execution_id):
         from storage import pg
         service_operation = pg.query_one("SELECT * FROM service_operations WHERE id = %s", (execution_id,))
         if service_operation:
-            if service_operation.get('worker_id') != worker_id:
+            if service_operation.get('worker_id') != worker_id or not service_operation.get('lease_token'):
                 return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
             data = request.json or {}
             text = data.get('text', '')
@@ -321,10 +321,12 @@ def api_worker_execution_finish(execution_id):
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
             from services.service_operation_runner import finish_operation
+            lease_token = data.get('leaseToken') or service_operation.get('lease_token')
             done = finish_operation(
-                execution_id, worker_id, success=status == 'SUCCESS',
+                execution_id, worker_id, success=status == 'SUCCESS', canceled=status == 'CANCELED',
                 result=data.get('result') if isinstance(data.get('result'), dict) else {},
                 error_code=data.get('errorCode'), error_message=data.get('error'),
+                lease_token=lease_token,
             )
             if done is None:
                 return jsonify({'success': False, 'error': 'Service operation not found'}), 404
@@ -458,7 +460,8 @@ def api_worker_heartbeat():
             service_operation = pg.query_one("SELECT id FROM service_operations WHERE id = %s", (current_execution_id,))
             if service_operation:
                 from services.service_operation_runner import heartbeat as service_heartbeat
-                service_heartbeat(current_execution_id, worker_id)
+                operation_row = pg.query_one("SELECT lease_token FROM service_operations WHERE id = %s", (current_execution_id,))
+                service_heartbeat(current_execution_id, worker_id, lease_token=(operation_row or {}).get("lease_token"))
 
         update_worker_heartbeat(worker_id, current_execution_id=current_execution_id)
 

@@ -34,11 +34,11 @@ INSTANCE_TRANSITIONS: dict[str, frozenset[str]] = {
     "provisioning": frozenset({"provisioning", "running", "degraded", "failed", "destroying"}),
     "running": frozenset({"running", "degraded", "stopped", "updating", "destroying", "failed"}),
     "degraded": frozenset({"degraded", "running", "stopped", "updating", "destroying", "failed"}),
-    "stopped": frozenset({"stopped", "running", "updating", "destroying", "destroyed", "failed"}),
+    "stopped": frozenset({"stopped", "provisioning", "running", "updating", "destroying", "destroyed", "failed"}),
     "updating": frozenset({"updating", "running", "degraded", "failed", "destroying"}),
     "destroying": frozenset({"destroying", "destroyed", "failed"}),
-    "destroyed": frozenset({"destroyed"}),
-    "failed": frozenset({"failed", "draft", "provisioning", "updating", "destroying"}),
+    "destroyed": frozenset({"destroyed", "draft", "provisioning"}),
+    "failed": frozenset({"failed", "draft", "provisioning", "running", "updating", "destroying"}),
 }
 
 _SENSITIVE_KEY = re.compile(

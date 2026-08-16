@@ -26,7 +26,7 @@ from services.service_instances import (
 )
 
 _ERROR_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
-_ALLOWED_ERROR_CODES = RUNTIME_ERROR_CODES | frozenset({"OPERATION_FAILED"})
+_ALLOWED_ERROR_CODES = RUNTIME_ERROR_CODES | frozenset({"OPERATION_FAILED", "OPERATION_CANCELED"})
 _SAFE_ERROR_CODE = "OPERATION_FAILED"
 
 

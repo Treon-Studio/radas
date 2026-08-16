@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Operation struct {
@@ -30,6 +31,8 @@ type Result struct {
 	Message string
 }
 
+type ProviderFactory func() Provider
+
 type Provider interface {
 	Execute(context.Context, Operation) Result
 }
@@ -39,12 +42,17 @@ type Reporter interface {
 	FinishExecution(executionID, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool
 }
 
+type heartbeatReporter interface {
+	Heartbeat(currentExecutionID string) (bool, bool)
+}
+
 type Runner struct {
 	Providers map[string]Provider
 }
 
 func (r Runner) provider(runtimeID string) (Provider, bool) {
-	p, ok := r.Providers[strings.TrimSpace(runtimeID)]
+	id := strings.ToLower(strings.TrimSpace(runtimeID))
+	p, ok := r.Providers[id]
 	return p, ok
 }
 
@@ -67,17 +75,36 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 		return
 	}
 	reporter.SendLog(op.OperationID, "service operation started\n", 0)
+	if heartbeater, ok := reporter.(heartbeatReporter); ok {
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			ticker := time.NewTicker(20 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					heartbeater.Heartbeat(op.OperationID)
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
 	result := provider.Execute(ctx, op)
 	if result.Success {
 		reporter.SendLog(op.OperationID, "service operation provider succeeded\n", 0)
 		reporter.FinishExecution(op.OperationID, "SUCCESS", 0, 0, nil, "", redactMap(result.Data))
 		return
 	}
-	code := result.Code
+	code := strings.ToUpper(strings.TrimSpace(result.Code))
 	if code == "" {
 		code = "PROVIDER_ERROR"
 	}
 	message := result.Message
+
 	if message == "" {
 		message = "runtime provider operation failed"
 	}
@@ -105,6 +132,7 @@ func decode(raw map[string]any) (Operation, error) {
 	if op.OperationID == "" {
 		op.OperationID = rawString(raw, "executionId")
 	}
+	op.RuntimeID = strings.ToLower(strings.TrimSpace(op.RuntimeID))
 	if op.Operation == "" || op.RuntimeID == "" || op.IdempotencyKey == "" {
 		return Operation{}, errors.New("service operation payload is incomplete")
 	}
@@ -125,7 +153,7 @@ func mapValue(m map[string]any, key string) map[string]any {
 }
 
 func redactText(input string) string {
-	for _, key := range []string{"password", "secret", "token", "credential", "api_key", "private_key"} {
+	for _, key := range []string{"password", "secret", "token", "credential", "api_key", "access_key", "private_key"} {
 		lower := strings.ToLower(input)
 		for {
 			idx := strings.Index(lower, key+"=")
@@ -147,21 +175,38 @@ func redactText(input string) string {
 	return input
 }
 
-func redactMap(input map[string]any) map[string]any {
-	out := make(map[string]any, len(input))
-	for key, value := range input {
-		lower := strings.ToLower(key)
-		if strings.Contains(lower, "secret") || strings.Contains(lower, "password") || strings.Contains(lower, "token") || strings.Contains(lower, "credential") || strings.Contains(lower, "private") {
-			out[key] = "[REDACTED]"
-			continue
+func redactMap(input map[string]any) map[string]any { return redactValue(input).(map[string]any) }
+
+func redactValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, child := range typed {
+			lower := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(key, "-", "_"), ".", "_"))
+			if strings.Contains(lower, "secret") || strings.Contains(lower, "password") || strings.Contains(lower, "token") || strings.Contains(lower, "credential") || strings.Contains(lower, "api_key") || strings.Contains(lower, "access_key") || strings.Contains(lower, "private_key") {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactValue(child)
+			}
 		}
-		if nested, ok := value.(map[string]any); ok {
-			out[key] = redactMap(nested)
-		} else {
-			out[key] = value
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, child := range typed {
+			out[i] = redactValue(child)
 		}
+		return out
+	case []map[string]any:
+		out := make([]map[string]any, len(typed))
+		for i, child := range typed {
+			out[i] = redactMap(child)
+		}
+		return out
+	case string:
+		return redactText(typed)
+	default:
+		return typed
 	}
-	return out
 }
 
 // MockProvider is deterministic and provider-neutral. It models lifecycle

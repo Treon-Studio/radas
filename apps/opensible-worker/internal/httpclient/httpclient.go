@@ -245,6 +245,17 @@ func (c *Client) FinishExecution(executionID, status string, finishedAt float64,
 	}
 	if result != nil {
 		payload["result"] = result
+		if code, ok := result["error_code"].(string); ok && code != "" {
+			payload["errorCode"] = code
+		}
+		if code, ok := result["code"].(string); ok && code != "" {
+			payload["errorCode"] = code
+		}
+		if nested, ok := result["error"].(map[string]any); ok {
+			if code, ok := nested["code"].(string); ok && code != "" {
+				payload["errorCode"] = code
+			}
+		}
 	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 15*time.Second)
 	if err != nil {

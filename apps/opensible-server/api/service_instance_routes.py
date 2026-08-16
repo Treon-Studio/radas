@@ -320,6 +320,9 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
     operation_id = str(operation["id"])
     instance_id = operation.get("instance_id")
     suffix = f"/services/{instance_id}" if instance_id else ""
+    result = operation.get("provider_result") or {}
+    if not isinstance(result, Mapping):
+        result = {}
     return redact_sensitive({
         "id": operation_id,
         "kind": operation.get("kind"),
@@ -331,6 +334,9 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
         "created_at": operation.get("created_at"),
         "started_at": operation.get("started_at"),
         "finished_at": operation.get("finished_at"),
+        "result": result,
+        "endpoint": result.get("data", {}).get("endpoint") if isinstance(result.get("data"), Mapping) else None,
+        "health": result.get("data", {}).get("health") if isinstance(result.get("data"), Mapping) else None,
         "poll_url": f"/api/projects/{project_id}{suffix}/operations/{operation_id}",
     })
 
@@ -585,6 +591,46 @@ def get_service_operation(project_id: str, service_id: str, operation_id: str):
     if not operation or operation.get("instance_id") != service_id:
         return error_response("SERVICE_NOT_FOUND", "Service operation not found", 404)
     return success_response({"operation": _operation_view(project_id, operation)})
+
+
+@bp.get("/api/projects/<project_id>/services/<service_id>/operations/<operation_id>/events")
+@require_project_access
+def get_service_operation_events(project_id: str, service_id: str, operation_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    _, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    operation = service_operations.get_operation(project_id, operation_id, **_auth_kwargs(project_id))
+    if not operation or operation.get("instance_id") != service_id:
+        return error_response("SERVICE_NOT_FOUND", "Service operation not found", 404)
+    from services.service_operation_runner import list_events
+    try:
+        limit = max(1, min(int(request.args.get("limit", 100)), 500))
+    except (TypeError, ValueError):
+        return error_response("SERVICE_VALIDATION_FAILED", "limit must be an integer", 400)
+    return success_response({"operation_id": operation_id, "events": list_events(operation_id, limit=limit)})
+
+
+@bp.post("/api/projects/<project_id>/services/<service_id>/operations/<operation_id>/cancel")
+@require_project_access
+def cancel_service_operation(project_id: str, service_id: str, operation_id: str):
+    _, error = _context(project_id)
+    if error:
+        return error
+    _, error = _load_instance(project_id, service_id)
+    if error:
+        return error
+    operation = service_operations.get_operation(project_id, operation_id, **_auth_kwargs(project_id))
+    if not operation or operation.get("instance_id") != service_id:
+        return error_response("SERVICE_NOT_FOUND", "Service operation not found", 404)
+    try:
+        from services.service_operation_runner import cancel_operation
+        canceled = cancel_operation(project_id, operation_id, actor_id=_actor_id())
+    except service_operations.OperationConflictError:
+        canceled = service_operations.get_operation(project_id, operation_id, **_auth_kwargs(project_id))
+    return operation_response(_operation_view(project_id, canceled), status=200)
 
 
 @bp.get("/api/projects/<project_id>/services/<service_id>/impact")

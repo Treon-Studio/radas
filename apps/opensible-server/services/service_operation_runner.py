@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 from collections.abc import Mapping
 from typing import Any
 
@@ -83,6 +84,7 @@ def _payload(conn: Any, operation: Mapping[str, Any]) -> dict[str, Any] | None:
     provider_operation = kind.removeprefix("service.")
     return {
         "operation_id": str(operation["id"]),
+        "lease_token": str(operation.get("lease_token") or ""),
         "operation": provider_operation,
         "kind": kind,
         "idempotency_key": str(operation.get("idempotency_key") or ""),
@@ -110,7 +112,7 @@ def _reclaim_expired(conn: Any, *, project_id: str | None = None) -> int:
     ).fetchall()
     for row in rows:
         conn.execute(
-            "UPDATE service_operations SET status='queued', worker_id=NULL, lease_until=NULL, heartbeat_at=NULL "
+            "UPDATE service_operations SET status='queued', worker_id=NULL, lease_token=NULL, lease_until=NULL, heartbeat_at=NULL "
             "WHERE id=%s AND status='running'",
             (row["id"],),
         )
@@ -144,11 +146,12 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
         if not row:
             return None
         now = time.time()
+        lease_token = str(uuid.uuid4())
         updated = conn.execute(
-            "UPDATE service_operations SET status='running', worker_id=%s, heartbeat_at=%s, "
+            "UPDATE service_operations SET status='running', worker_id=%s, lease_token=%s, heartbeat_at=%s, "
             "lease_until=%s, attempt=COALESCE(attempt,0)+1, started_at=COALESCE(started_at,%s) "
             "WHERE id=%s AND status='queued' RETURNING *",
-            (worker_id, now, now + lease_seconds, now, row["id"]),
+            (worker_id, lease_token, now, now + lease_seconds, now, row["id"]),
         ).fetchone()
         if not updated:
             return None
@@ -165,29 +168,54 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
         return payload
 
 
-def heartbeat(operation_id: str, worker_id: str, *, lease_seconds: float = _DEFAULT_LEASE_SECONDS) -> bool:
+def heartbeat(operation_id: str, worker_id: str, *, lease_token: str | None = None,
+              lease_seconds: float = _DEFAULT_LEASE_SECONDS) -> bool:
     now = time.time()
+    clauses = ["id=%s", "status='running'", "worker_id=%s", "lease_until >= %s"]
+    params: list[Any] = [operation_id, worker_id, now]
+    if lease_token:
+        clauses.append("lease_token=%s")
+        params.append(lease_token)
     result = pg.query_one(
-        "UPDATE service_operations SET heartbeat_at=%s, lease_until=%s "
-        "WHERE id=%s AND status='running' AND worker_id=%s RETURNING id",
-        (now, now + max(10.0, float(lease_seconds)), operation_id, worker_id),
+        "UPDATE service_operations SET heartbeat_at=%s, lease_until=%s WHERE "
+        + " AND ".join(clauses) + " RETURNING id",
+        (now, now + max(10.0, float(lease_seconds)), *params),
     )
     return bool(result)
 
 
 def _instance_success_status(kind: str, current: str) -> tuple[str, ...]:
-    if kind in {"deploy", "update"}:
-        if kind == "deploy" and current == "draft":
+    """Return the observed-state path for a successful provider operation.
+
+    A retry is allowed to re-enter provisioning/updating from a failed or
+    stopped instance, while a fresh deploy from draft still follows the normal
+    provisioning path.  Every intermediate state is checked against the
+    canonical transition graph by ``finish_operation``.
+    """
+    if kind == "deploy":
+        if current in {"draft", "failed", "stopped"}:
             return ("provisioning", "running")
-        if kind == "update" and current in {"running", "degraded", "stopped"}:
+        if current in {"provisioning", "updating"}:
+            return ("running",)
+        return ("running",)
+    if kind == "update":
+        if current in {"failed", "stopped", "draft"}:
             return ("updating", "running")
-        return ("running",) if current != "running" else ("running",)
-    if kind == "start":
+        if current == "updating":
+            return ("running",)
+        return ("running",)
+    if kind in {"start", "restart"}:
+        if current in {"draft", "failed", "stopped", "degraded"}:
+            return ("running",)
         return ("running",)
     if kind == "stop":
         return ("stopped",)
     if kind == "destroy":
-        return ("destroying", "destroyed")
+        if current in {"draft", "failed", "stopped", "running", "degraded"}:
+            return ("destroying", "destroyed")
+        if current == "destroying":
+            return ("destroyed",)
+        return ("destroyed",)
     return (current,)
 
 
@@ -202,7 +230,8 @@ def _result_metadata(result: Mapping[str, Any]) -> tuple[Any, Any]:
 
 def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                      result: Mapping[str, Any] | None = None, error_code: str | None = None,
-                     error_message: str | None = None) -> dict[str, Any] | None:
+                     error_message: str | None = None, canceled: bool = False,
+                     lease_token: str | None = None) -> dict[str, Any] | None:
     """Finish a claim idempotently and update observed instance state safely."""
     context = _internal()
     with pg.transaction() as conn:
@@ -214,9 +243,30 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
             return dict(row)
         if current != "running" or str(row.get("worker_id") or "") != str(worker_id):
             return dict(row)
+        if lease_token and str(row.get("lease_token") or "") != str(lease_token):
+            return dict(row)
+        if row.get("lease_until") is not None and float(row["lease_until"]) < time.time():
+            return dict(row)
+        if canceled:
+            success = False
+            error_code = "OPERATION_CANCELED"
+            error_message = "service operation was canceled"
         kind = str(row.get("kind") or "").removeprefix("service.")
         safe_result = _safe(dict(result or {}))
         provider_ref, endpoint = _result_metadata(safe_result)
+        # Always initialize the instance before any provider/validation path.
+        # Failure handling must never raise UnboundLocalError and must retain
+        # the immutable desired revision on the instance.
+        instance = None
+        if row.get("instance_id"):
+            instance = conn.execute(
+                "SELECT * FROM service_instances WHERE id=%s FOR UPDATE",
+                (row.get("instance_id"),),
+            ).fetchone()
+        # Cancellation wins over a late provider result.  The terminal row is
+        # immutable and no observed provider state is applied after cancel.
+        if current == "canceled":
+            return dict(row)
         # Clear the lease first; the operation CAS below remains authoritative.
         if success:
             instance = conn.execute("SELECT * FROM service_instances WHERE id=%s FOR UPDATE", (row.get("instance_id"),)).fetchone()
@@ -253,7 +303,7 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                         break
                     instance = changed
                     current_instance_status = next_status
-        if not success and instance is not None:
+        if not success and not canceled and instance is not None:
             current_instance_status = str(instance["status"])
             if "failed" in service_instances.INSTANCE_TRANSITIONS.get(current_instance_status, frozenset()) and current_instance_status != "failed":
                 changed = conn.execute(
@@ -267,15 +317,18 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                         metadata={"operation_id": operation_id, "error_code": error_code},
                     )
                     instance = changed
-        final_status = "succeeded" if success else "failed"
-        safe_code = error_code if not success else None
-        safe_message = error_message if not success else None
+        final_status = "canceled" if canceled else ("succeeded" if success else "failed")
+        safe_code = error_code if final_status != "succeeded" else None
+        safe_message = error_message if final_status != "succeeded" else None
         # A second worker can never overwrite this row: worker ownership and
         # running status are part of the compare-and-set predicate.
         updated = conn.execute(
             "UPDATE service_operations SET status=%s,error_code=%s,error_message=%s,finished_at=%s,"
-            "worker_id=NULL,lease_until=NULL,heartbeat_at=NULL WHERE id=%s AND status='running' AND worker_id=%s RETURNING *",
-            (final_status, safe_code, _safe(safe_message) if safe_message else None, time.time(), operation_id, worker_id),
+            "provider_result=%s,worker_id=NULL,lease_token=NULL,lease_until=NULL,heartbeat_at=NULL "
+            "WHERE id=%s AND status='running' AND worker_id=%s "
+            "AND (lease_token IS NULL OR lease_token=%s) AND (lease_until IS NULL OR lease_until >= %s) RETURNING *",
+            (final_status, safe_code, _safe(safe_message) if safe_message else None, time.time(),
+             Jsonb(safe_result), operation_id, worker_id, lease_token or row.get("lease_token"), time.time()),
         ).fetchone()
         if not updated:
             return dict(row)
@@ -284,51 +337,88 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
 
 
 def cancel_operation(project_id: str, operation_id: str, *, actor_id: str | None = None) -> dict[str, Any]:
-    """Cancel queued/running work using the canonical operation CAS path."""
-    result = service_operations.transition_operation(
-        project_id, operation_id, "canceled", expected_status=None,
-        actor_id=actor_id, internal_context=None if actor_id else _internal(),
-    )
+    """Cancel queued/running work using one auditable, idempotent CAS path."""
     with pg.transaction() as conn:
-        conn.execute(
-            "UPDATE service_operations SET worker_id=NULL,lease_until=NULL,heartbeat_at=NULL "
-            "WHERE id=%s", (operation_id,)
+        service_operations._project_access(
+            conn, project_id, org_id=None, actor_id=actor_id,
+            internal_context=None if actor_id else _internal(),
         )
+        row = conn.execute(
+            "SELECT * FROM service_operations WHERE id=%s AND project_id=%s FOR UPDATE",
+            (operation_id, project_id),
+        ).fetchone()
+        if not row:
+            raise service_operations.OperationNotFoundError("service operation not found")
+        if str(row.get("status")) in {"succeeded", "failed", "canceled"}:
+            return service_operations._row(row)
+        now = time.time()
+        updated = conn.execute(
+            "UPDATE service_operations SET status='canceled',error_code='OPERATION_CANCELED',"
+            "error_message='service operation was canceled',finished_at=%s,worker_id=NULL,"
+            "lease_token=NULL,lease_until=NULL,heartbeat_at=NULL WHERE id=%s AND project_id=%s "
+            "AND status IN ('pending','queued','running') RETURNING *",
+            (now, operation_id, project_id),
+        ).fetchone()
+        if not updated:
+            updated = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
         _event_tx(conn, operation_id, "canceled", message="operation canceled")
-    return result
+        service_operations._audit_lifecycle(
+            conn, "service.operation.canceled", actor_id=actor_id,
+            org_id=updated.get("org_id"), project_id=project_id,
+            instance_id=updated.get("instance_id"), operation=updated,
+            before=row.get("status"), after="canceled",
+        )
+    return service_operations._row(updated)
 
 
 def execute_claimed(operation_id: str, worker_id: str, *, registry: runtime_registry.RuntimeProviderRegistry | None = None) -> dict[str, Any] | None:
-    """Invoke the registered provider for a worker-owned claim."""
-    context = _internal()
+    """Invoke a provider for a live claim and fail safely on every boundary."""
     row = pg.query_one("SELECT * FROM service_operations WHERE id=%s", (operation_id,))
     if not row or row.get("status") != "running" or str(row.get("worker_id") or "") != str(worker_id):
         return row
-    with pg.transaction() as conn:
-        payload = _payload(conn, row)
-    if not payload:
-        return finish_operation(operation_id, worker_id, success=False, error_code="OPERATION_FAILED", error_message="operation payload unavailable")
-    append_event(operation_id, "provider_step", message=f"invoking {payload['operation']}", details={"runtime_id": payload["runtime_id"]})
-    if registry is None:
-        registry = runtime_registry.build_default_registry()
-    operation_name = payload["operation"]
-    if operation_name in {"deploy", "update"}:
-        args = (operation_id, payload["spec"])
-    else:
-        args = (operation_id, payload["instance"])
-    result = registry.invoke(
-        payload["runtime_id"], operation_name, *args,
-        idempotency_key=payload["idempotency_key"],
-    )
-    if not isinstance(result, ProviderResult):
-        return finish_operation(operation_id, worker_id, success=False, error_code="PROVIDER_ERROR", error_message="invalid provider result")
-    if result.success:
-        append_event(operation_id, "health_check", message="provider reported success")
-        return finish_operation(operation_id, worker_id, success=True, result=result.to_dict())
-    error = result.error or {}
-    return finish_operation(
-        operation_id, worker_id, success=False,
-        error_code=str(error.get("code") or "PROVIDER_ERROR"),
-        error_message=str(error.get("message") or "runtime provider operation failed"),
-        result=result.to_dict(),
-    )
+    lease_token = str(row.get("lease_token") or "") or None
+    try:
+        with pg.transaction() as conn:
+            payload = _payload(conn, row)
+        if not payload:
+            return finish_operation(operation_id, worker_id, success=False,
+                                    error_code="OPERATION_FAILED",
+                                    error_message="operation payload unavailable",
+                                    lease_token=lease_token)
+        append_event(operation_id, "provider_step", message=f"invoking {payload['operation']}", details={"runtime_id": payload["runtime_id"]})
+        if registry is None:
+            registry = runtime_registry.build_default_registry()
+        operation_name = payload["operation"]
+        args = (operation_id, payload["spec"]) if operation_name in {"deploy", "update"} else (operation_id, payload["instance"])
+        result = registry.invoke(
+            payload["runtime_id"], operation_name, *args,
+            idempotency_key=payload["idempotency_key"],
+        )
+        if not isinstance(result, ProviderResult):
+            return finish_operation(operation_id, worker_id, success=False,
+                                    error_code="INVALID_PROVIDER_RESULT",
+                                    error_message="invalid provider result",
+                                    lease_token=lease_token)
+        if result.success:
+            append_event(operation_id, "health_check", message="provider reported success")
+            return finish_operation(operation_id, worker_id, success=True,
+                                    result=result.to_dict(), lease_token=lease_token)
+        error = result.error or {}
+        return finish_operation(
+            operation_id, worker_id, success=False,
+            error_code=str(error.get("code") or "PROVIDER_ERROR"),
+            error_message=str(error.get("message") or "runtime provider operation failed"),
+            result=result.to_dict(), lease_token=lease_token,
+        )
+    except BaseException as exc:
+        # Provider adapters and event persistence are untrusted boundaries. Do
+        # not expose exception text; finish through the same ownership CAS.
+        try:
+            return finish_operation(
+                operation_id, worker_id, success=False,
+                error_code="OPERATION_FAILED",
+                error_message="service operation failed",
+                lease_token=lease_token,
+            )
+        except Exception:
+            return pg.query_one("SELECT * FROM service_operations WHERE id=%s", (operation_id,))

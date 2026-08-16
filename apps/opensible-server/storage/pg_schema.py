@@ -368,6 +368,8 @@ _V8_DDL: List[str] = [
     "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS heartbeat_at DOUBLE PRECISION",
     "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS lease_until DOUBLE PRECISION",
     "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS attempt INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS lease_token TEXT",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS provider_result JSONB",
     "CREATE INDEX IF NOT EXISTS idx_service_operations_claim ON service_operations(status, lease_until, created_at)",
     "CREATE TABLE IF NOT EXISTS service_operation_events ("
     "id BIGSERIAL PRIMARY KEY, operation_id TEXT NOT NULL REFERENCES service_operations(id) ON DELETE CASCADE, "
