@@ -9,6 +9,8 @@ import time
 import uuid
 from flask import Blueprint, current_app, jsonify, request
 
+from api.platform_contracts import error_response, get_request_id
+
 from auth.middleware import require_auth, require_project_access
 from storage import config_db
 from utils.host_status import HOST_STATUS_TTL_DEFAULT, get_host_check_status
@@ -44,6 +46,11 @@ _APP_NAMES = {
     "BASE_DIR",
     "HOST_STATUS_TTL_DEFAULT",
 }
+
+
+def _project_error(message, status, code="PROJECT_ERROR"):
+    """Use the standard request-correlated envelope for integrity failures."""
+    return error_response(code, message, status, request_id_value=get_request_id())
 
 
 def __getattr__(name):
@@ -86,16 +93,17 @@ for _name in _APP_NAMES - {"HOST_STATUS_TTL_DEFAULT"}:
 def api_list_projects():
     """API: """
     try:
-        projects = load_projects()
+        projects = load_projects(strict=True)
         # Org-scope: only projects in orgs the user belongs to (Fase 7 — D2).
         uid = (getattr(request, "current_user", {}) or {}).get("user_id")
         try:
             from services.org_service import list_orgs_for_user
             my_org_ids = {o["id"] for o in list_orgs_for_user(uid)} if uid else set()
-            projects = [p for p in projects
-                        if (not p.get("org_id")) or p.get("org_id") in my_org_ids]
-        except Exception:
-            pass
+        except Exception as exc:
+            app_logger.error("Error loading organizations for project list", exc_info=True)
+            return _project_error("Unable to resolve organization access", 503, "ORG_LOOKUP_FAILED")
+        projects = [p for p in projects
+                    if (not p.get("org_id")) or p.get("org_id") in my_org_ids]
         # ( include_archived)
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
         if not include_archived:
@@ -104,7 +112,7 @@ def api_list_projects():
         return jsonify({'success': True, 'projects': projects})
     except Exception as e:
         app_logger.error(f"Error listing projects: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _project_error("Unable to load projects", 500, "PROJECTS_LOOKUP_FAILED")
 
 
 @bp.route('/api/projects', methods=['POST'])
@@ -135,7 +143,8 @@ def api_create_project():
             from services.org_service import list_orgs_for_user
             orgs = list_orgs_for_user(uid) if uid else []
         except Exception:
-            orgs = []
+            app_logger.error("Error loading organizations for project creation", exc_info=True)
+            return _project_error("Unable to resolve organization access", 503, "ORG_LOOKUP_FAILED")
         authorized_org_ids = {str(org["id"]) for org in orgs}
         if requested and requested not in authorized_org_ids:
             return jsonify({
@@ -235,7 +244,16 @@ def api_create_project():
             created_project = config_db.create_project(DATA_DIR, project)
         except Exception:
             if project_dir_created:
-                shutil.rmtree(project_dir, ignore_errors=True)
+                try:
+                    shutil.rmtree(project_dir)
+                except Exception as cleanup_error:
+                    app_logger.error(
+                        "Project filesystem rollback failed for %s",
+                        project['id'], exc_info=True,
+                    )
+                    raise RuntimeError(
+                        f"Project creation failed and filesystem rollback failed: {cleanup_error}"
+                    ) from cleanup_error
             raise
 
         app_logger.info(f"Project created: {created_project['id']} - {created_project['name']} (empty, deterministic)")
@@ -255,7 +273,7 @@ def api_create_project():
 def api_get_project(project_id):
     """API: ID"""
     try:
-        projects = load_projects()
+        projects = load_projects(strict=True)
         project = next((p for p in projects if p.get('id') == project_id), None)
         
         if not project:
@@ -273,7 +291,7 @@ def api_update_project(project_id):
     """API: """
     try:
         data = request.json or {}
-        projects = load_projects()
+        projects = load_projects(strict=True)
         
         project = next((p for p in projects if p.get('id') == project_id), None)
         if not project:
@@ -298,9 +316,11 @@ def api_update_project(project_id):
         
         project['updatedAt'] = time.time()
         
-        save_projects(projects)
+        updated_project = config_db.update_project(project_id, project)
+        if updated_project is None:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
         app_logger.info(f"Project updated: {project_id}")
-        return jsonify({'success': True, 'project': project})
+        return jsonify({'success': True, 'project': updated_project})
     except Exception as e:
         app_logger.error(f"Error updating project: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -405,9 +425,11 @@ def api_delete_project(project_id):
         # Default Project ( , )
         # frontend
         
-        # Hard delete: 
-        projects = [p for p in projects if p.get('id') != project_id]
-        save_projects(projects)
+        # Delete the database row under the same mutation lock used by all
+        # project persistence paths. The filesystem is removed only after the
+        # row is gone, and only for this project's own directory.
+        if not config_db.delete_project(project_id):
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
         
         # (, )
         project_dir = get_project_dir(project_id)
@@ -444,9 +466,11 @@ def api_restore_project(project_id):
         project['isArchived'] = False
         project['updatedAt'] = time.time()
         
-        save_projects(projects)
+        updated_project = config_db.update_project(project_id, project)
+        if updated_project is None:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
         app_logger.info(f"Project restored: {project_id}")
-        return jsonify({'success': True, 'project': project})
+        return jsonify({'success': True, 'project': updated_project})
     except Exception as e:
         app_logger.error(f"Error restoring project: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

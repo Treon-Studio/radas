@@ -31,10 +31,23 @@ class ProjectNameExistsError(RuntimeError):
     """Raised when an active project already uses the requested name."""
 
 
-# Project creation must not use the legacy replace-all read/modify/write path.
-# This advisory-lock key serializes creators across backend processes while the
-# active-name check and INSERT happen in one database transaction.
-_PROJECT_CREATE_LOCK_KEY = "radas.projects.create"
+class ProjectList(list):
+    """Project list carrying the snapshot used by a legacy replace operation.
+
+    Older callers still receive a normal list API, but the marker lets
+    ``replace_all_projects`` distinguish rows that existed when the caller
+    read from rows inserted concurrently afterwards.
+    """
+
+    def __init__(self, items, *, snapshot_ids=()):
+        super().__init__(items)
+        self.snapshot_ids = frozenset(snapshot_ids)
+
+
+# All project mutations use one transaction-level advisory lock.  This keeps
+# the legacy replace-all API coordinated with atomic create/update/delete
+# operations across backend processes.
+_PROJECT_MUTATION_LOCK_KEY = "radas.projects.mutation"
 
 
 def _now_iso() -> str:
@@ -64,10 +77,14 @@ def _project_to_row(p: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _row_to_project(r: Dict[str, Any]) -> Dict[str, Any]:
+    org_id = r.get("org_id")
+    owner_id = r.get("owner_id")
     return {
         "id": r["id"],
-        "org_id": r.get("org_id"),
-        "owner_id": r.get("owner_id"),
+        "org_id": org_id,
+        "orgId": org_id,
+        "owner_id": owner_id,
+        "createdBy": owner_id,
         "name": r.get("name"),
         "description": r.get("description"),
         "isArchived": bool(r.get("is_archived")),
@@ -82,7 +99,8 @@ def list_projects(data_dir: Path) -> List[Dict[str, Any]]:
         "created_at, updated_at FROM projects "
         "ORDER BY COALESCE(created_at, 0) ASC, id ASC"
     )
-    return [_row_to_project(r) for r in rows]
+    projects = [_row_to_project(r) for r in rows]
+    return ProjectList(projects, snapshot_ids=(p["id"] for p in projects))
 
 
 def create_project(data_dir: Path, project: Dict[str, Any]) -> Dict[str, Any]:
@@ -97,7 +115,7 @@ def create_project(data_dir: Path, project: Dict[str, Any]) -> Dict[str, Any]:
     with pg.transaction() as conn:
         conn.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            (_PROJECT_CREATE_LOCK_KEY,),
+            (_PROJECT_MUTATION_LOCK_KEY,),
         )
         existing = conn.execute(
             "SELECT 1 FROM projects WHERE name = %s AND is_archived = 0 LIMIT 1",
@@ -118,10 +136,26 @@ def create_project(data_dir: Path, project: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def replace_all_projects(data_dir: Path, items: List[Dict[str, Any]]) -> bool:
-    """Overwrite the projects table with the supplied list."""
+    """Persist a legacy snapshot without erasing concurrent atomic inserts."""
     try:
+        snapshot_ids = getattr(items, "snapshot_ids", None)
         with pg.transaction() as conn:
-            conn.execute("DELETE FROM projects")
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (_PROJECT_MUTATION_LOCK_KEY,),
+            )
+            if snapshot_ids is None:
+                # Direct legacy callers do not provide a read snapshot. Retain
+                # the old replacement semantics, but coordinate the mutation.
+                conn.execute("DELETE FROM projects")
+            else:
+                # Remove only rows present in the caller's read snapshot that
+                # are absent from its replacement list. Rows created after the
+                # read are intentionally preserved.
+                supplied_ids = {p.get("id") for p in (items or []) if p.get("id")}
+                removed_ids = set(snapshot_ids) - supplied_ids
+                if removed_ids:
+                    conn.execute("DELETE FROM projects WHERE id = ANY(%s)", (list(removed_ids),))
             for p in items or []:
                 pid = p.get("id")
                 if not pid:
@@ -150,6 +184,50 @@ def get_project(project_id: str) -> Optional[Dict[str, Any]]:
         "SELECT id, org_id, owner_id, name, description, is_archived, "
         "created_at, updated_at FROM projects WHERE id = %s", (project_id,))
     return _row_to_project(r) if r else None
+
+
+def update_project(project_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Atomically update one project under the shared mutation lock."""
+    allowed = {"name", "description", "isArchived", "is_archived", "updatedAt", "updated_at"}
+    values = {key: value for key, value in updates.items() if key in allowed}
+    if "isArchived" in values:
+        values["is_archived"] = values.pop("isArchived")
+    if "updatedAt" in values:
+        values["updated_at"] = values.pop("updatedAt")
+    if not values:
+        return get_project(project_id)
+    try:
+        with pg.transaction() as conn:
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (_PROJECT_MUTATION_LOCK_KEY,),
+            )
+            if "name" in values:
+                duplicate = conn.execute(
+                    "SELECT 1 FROM projects WHERE name = %s AND is_archived = 0 AND id <> %s LIMIT 1",
+                    (values["name"], project_id),
+                ).fetchone()
+                if duplicate:
+                    raise ProjectNameExistsError("Project with this name already exists")
+            assignments = ", ".join(f"{key} = %s" for key in values)
+            row = conn.execute(
+                f"UPDATE projects SET {assignments} WHERE id = %s RETURNING id, org_id, owner_id, name, description, is_archived, created_at, updated_at",
+                (*values.values(), project_id),
+            ).fetchone()
+        return _row_to_project(row) if row else None
+    except ProjectNameExistsError:
+        raise
+
+
+def delete_project(project_id: str) -> bool:
+    """Atomically delete one project under the shared mutation lock."""
+    with pg.transaction() as conn:
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (_PROJECT_MUTATION_LOCK_KEY,),
+        )
+        result = conn.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+        return result.rowcount > 0
 
 
 # ---------------------------------------------------------------------------

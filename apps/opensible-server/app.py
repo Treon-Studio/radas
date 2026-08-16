@@ -493,14 +493,21 @@ from utils.yaml_io import (
 # PROJECT MANAGEMENT
 # ============================================================================
 
-def load_projects():
-    """Load projects list from the config DB (SQLite + WAL)."""
+def load_projects(*, strict=False):
+    """Load projects from the config DB.
+
+    Legacy callers retain the historical empty-list fallback. Integrity
+    sensitive API routes pass ``strict=True`` so a database outage cannot be
+    mistaken for an empty project set.
+    """
     try:
         from storage import config_db as _cfg
         _cfg.migrate_from_json_if_needed(DATA_DIR)
         return _cfg.list_projects(DATA_DIR)
     except Exception as e:
         app.logger.error(f"Error loading projects: {e}", exc_info=True)
+        if strict:
+            raise
         return []
 
 
