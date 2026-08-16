@@ -2991,8 +2991,11 @@ if __name__ == '__main__':
         from storage import pg as _pg
         from storage import pg_schema as _pg_schema
         _pg.ping()
-        _pg_schema.migrate()
-        app.logger.info("PostgreSQL connected and schema up-to-date")
+        # The supported fresh-schema startup path applies migrations and then
+        # explicitly seeds only the pinned catalog definitions. This never
+        # creates a service instance or invokes a runtime provider.
+        _pg_schema.migrate(seed_catalog=True)
+        app.logger.info("PostgreSQL connected and schema/catalog are ready")
     except Exception as e:
         app.logger.error(
             "DATABASE_URL is required and must point at a reachable PostgreSQL "

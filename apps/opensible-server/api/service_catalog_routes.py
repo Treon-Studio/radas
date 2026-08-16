@@ -216,6 +216,10 @@ def _publish(manifest: Any, org_id: str | None, scope: str):
         return error_response("VALIDATION_ERROR", "Service definition manifest is invalid", 422, details={"errors": errors})
     try:
         published = service_catalog.publish_definition(manifest, _user(), org_id, scope=scope)
+    except service_catalog.CatalogStorageError:
+        # Unexpected DB/audit/storage failures remain internal errors; do not
+        # mislabel them as duplicate publication conflicts.
+        return error_response("INTERNAL_SERVER_ERROR", "Internal server error", 500)
     except service_catalog.CatalogConflictError as exc:
         return error_response("CONFLICT", str(exc), 409)
     except service_catalog.CatalogValidationError as exc:

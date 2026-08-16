@@ -101,6 +101,18 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 		return
 	}
 	reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation started\n", 0)
+	if err := ctx.Err(); err != nil {
+		reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation canceled before provider execution\n", 0)
+		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "CANCELED", 0, 0, nil, "service operation was canceled before provider execution", map[string]any{"code": "OPERATION_CANCELED"})
+		return
+	}
+
+	// The provider contract is synchronous, so cancellation is cooperative:
+	// providers receive ctx and should check it at safe boundaries. The
+	// heartbeat loop also cancels ctx when the server rejects the lease, which
+	// prevents a stale worker from reporting a successful result.
+	providerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if heartbeater, ok := reporter.(heartbeatReporter); ok {
 		done := make(chan struct{})
 		defer close(done)
@@ -110,16 +122,28 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 			for {
 				select {
 				case <-ticker.C:
-					heartbeater.HeartbeatWithLease(op.OperationID, op.LeaseToken)
+					if ok, _ := heartbeater.HeartbeatWithLease(op.OperationID, op.LeaseToken); !ok {
+						cancel()
+						return
+					}
 				case <-done:
 					return
-				case <-ctx.Done():
+				case <-providerCtx.Done():
 					return
 				}
 			}
 		}()
 	}
-	result := provider.Execute(ctx, op)
+
+	result := provider.Execute(providerCtx, op)
+	// A synchronous/non-cancelable provider may return after cancellation. Do
+	// not claim that its result was applied; the server's lease/terminal CAS
+	// remains authoritative and the result is marked as late/canceled.
+	if err := providerCtx.Err(); err != nil {
+		reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation cancellation observed after provider result\n", 0)
+		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "CANCELED", 0, 0, nil, "service operation was canceled", map[string]any{"code": "OPERATION_CANCELED", "provider_result_available": true})
+		return
+	}
 	if result.Success {
 		reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation provider succeeded\n", 0)
 		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "SUCCESS", 0, 0, nil, "", redactMap(result.Data))

@@ -117,6 +117,20 @@ def test_claim_payload_failure_terminalizes_and_clears_lease(pg_db, monkeypatch)
     assert service_operation_runner.list_events(operation["id"])[-1]["event"] == "failed"
 
 
+def test_claim_preserves_secret_ref_metadata_without_secret_values(pg_db):
+    _project()
+    instance = service_instances.create_instance(
+        "runner-project", "secret-ref-service", "static-web", "1.0.0", "development", "mock",
+        {"name": "secret-ref-service", "secrets": {"admin_password": {"secret_ref": "secret://vault/admin"}}},
+        created_by="owner", actor_id="owner",
+    )
+    operation = _operation(instance, key="secret-ref-key")
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    assert claim["spec"]["secrets"]["admin_password"] == {"secret_ref": "secret://vault/admin"}
+    assert "raw-secret" not in str(claim)
+    assert claim["spec"]["secrets"]["admin_password"].get("value") is None
+
+
 def test_claim_is_exclusive_and_payload_is_redacted(pg_db):
     _project()
     instance = _instance()

@@ -288,6 +288,121 @@ def create_operation(
         raise
 
 
+def create_instance_and_deploy(
+    project_id: str, name: str, definition_slug: str, definition_version: str,
+    environment: str, runtime_id: str, spec: Mapping[str, Any],
+    idempotency_key: str, *, requested_by: str | None = None,
+    org_id: str | None = None, actor_id: str | None = None,
+    internal_context: TrustedInternalExecution | None = None,
+    confirmation_context: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Atomically create a draft revision and queue its first deploy.
+
+    The create idempotency key covers both rows. A retry returns the original
+    instance/operation only when the normalized create request is identical.
+    No provider is invoked here; workers consume the queued operation later.
+    """
+    project_id = _text(project_id, "project_id")
+    name = service_instances._text(name, "name")
+    environment = service_instances._text(environment, "environment")
+    runtime_id = service_instances._text(runtime_id, "runtime_id")
+    definition_slug = service_instances._text(definition_slug, "definition_slug")
+    definition_version = service_instances._text(definition_version, "definition_version")
+    key = _text(idempotency_key, "idempotency_key")
+    if len(key) > 255:
+        raise ServiceOperationError("idempotency key is too long")
+    safe_spec = redact_spec(spec)
+    create_identity = {
+        "name": name, "definition_slug": definition_slug,
+        "definition_version": definition_version, "environment": environment,
+        "runtime_id": runtime_id, "spec": safe_spec,
+    }
+    create_fingerprint = hashlib.sha256(
+        json.dumps(create_identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+    with pg.transaction() as conn:
+        derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
+        existing = conn.execute(
+            "SELECT * FROM service_operations WHERE project_id=%s AND idempotency_key=%s FOR UPDATE",
+            (project_id, key),
+        ).fetchone()
+        if existing:
+            _validate_operation_row(conn, existing)
+            payload = existing.get("payload") or {}
+            if str(existing.get("kind")) != "service.deploy" or payload.get("create_fingerprint") != create_fingerprint:
+                raise OperationConflictError("idempotency key was already used with a different create request")
+            instance = conn.execute(
+                "SELECT * FROM service_instances WHERE id=%s AND project_id=%s",
+                (existing.get("instance_id"), project_id),
+            ).fetchone()
+            revision_id = payload.get("desired_revision_id")
+            revision = conn.execute(
+                "SELECT * FROM service_revisions WHERE id=%s AND instance_id=%s",
+                (revision_id, existing.get("instance_id")),
+            ).fetchone()
+            if not instance or not revision:
+                raise OperationConflictError("idempotent create operation is unavailable")
+            return service_instances._row(instance), _row(existing)
+
+        # Serialize the name and operation identity together with the insert.
+        active = conn.execute(
+            "SELECT id FROM service_operations WHERE project_id=%s AND instance_id IN "
+            "(SELECT id FROM service_instances WHERE project_id=%s AND environment=%s AND name=%s) "
+            "AND status IN ('pending','queued','running') LIMIT 1",
+            (project_id, project_id, environment, name),
+        ).fetchone()
+        if active:
+            raise OperationConflictError(f"another service operation is already active ({active['id']})")
+        instance_id, revision_id, now = str(uuid.uuid4()), str(uuid.uuid4()), time.time()
+        try:
+            conn.execute(
+                "INSERT INTO service_instances "
+                "(id,org_id,project_id,name,definition_slug,definition_version,environment,runtime_id,status,"
+                "desired_revision_id,provider_ref,endpoint_summary,archived,created_by,created_at,updated_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,NULL,NULL,FALSE,%s,%s,%s)",
+                (instance_id, derived_org, project_id, name, definition_slug, definition_version,
+                 environment, runtime_id, revision_id, requested_by, now, now),
+            )
+            conn.execute(
+                "INSERT INTO service_revisions "
+                "(id,instance_id,revision_number,spec,redacted_spec,created_by,created_at) "
+                "VALUES (%s,%s,1,%s,%s,%s,%s)",
+                (revision_id, instance_id, Jsonb(safe_spec), Jsonb(safe_spec), requested_by, now),
+            )
+        except psycopg_errors.UniqueViolation as exc:
+            raise service_instances.InstanceConflictError(
+                "service name already exists in this project and environment"
+            ) from exc
+        payload = {
+            "operation": "deploy", "desired_revision_id": revision_id,
+            "create_fingerprint": create_fingerprint,
+        }
+        operation_id = str(uuid.uuid4())
+        fingerprint = payload_fingerprint("service.deploy", payload, instance_id=instance_id)
+        conn.execute(
+            "INSERT INTO service_operations "
+            "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,payload,status,requested_by,"
+            "error_code,error_message,started_at,finished_at,created_at) "
+            "VALUES (%s,%s,%s,%s,'service.deploy',%s,%s,%s,'queued',%s,NULL,NULL,NULL,NULL,%s)",
+            (operation_id, derived_org, project_id, instance_id, key, fingerprint,
+             Jsonb(payload), requested_by, now),
+        )
+        instance = conn.execute("SELECT * FROM service_instances WHERE id=%s", (instance_id,)).fetchone()
+        operation = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
+        _operation_event_tx(conn, operation_id, "queued", message="operation queued")
+        service_instances._audit_instance(
+            conn, "service.instance.created", actor_id=requested_by, row=instance,
+            after="draft", metadata={"definition_slug": definition_slug, "definition_version": definition_version,
+                                    "runtime_id": runtime_id, "deploy_queued": True},
+        )
+        _audit_lifecycle(
+            conn, "service.operation.created", actor_id=requested_by, org_id=derived_org,
+            project_id=project_id, instance_id=instance_id, operation=operation,
+            before=None, after="queued", metadata={"idempotency_key": key, "create_fingerprint": create_fingerprint},
+        )
+    return service_instances._row(instance), _row(operation)
+
+
 def create_revision_and_operation(
     project_id: str,
     instance_id: str,

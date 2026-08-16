@@ -614,11 +614,31 @@ def create_service(project_id: str):
     name = str(normalized["name"])
     environment = str(normalized["environment"])
     runtime_id = str(normalized["runtime_id"])
+    production_token = None
     if environment == "production":
         supplied = str(data.get("production_confirmation_token") or data.get("confirmation_token") or "")
         expected = _production_create_token(project_id, normalized)
         if not supplied or not hmac.compare_digest(supplied, expected) or data.get("production_confirmed") is not True:
             return _production_confirmation_error(expected)
+        production_token = supplied
+    deploy_requested = data.get("deploy") is True or data.get("deploy_now") is True
+    if deploy_requested:
+        idem_key = request.headers.get("Idempotency-Key", "").strip()
+        if not idem_key or len(idem_key) > 255:
+            return error_response("SERVICE_VALIDATION_FAILED", "Idempotency-Key is required for deploy", 400)
+        try:
+            instance, operation = service_operations.create_instance_and_deploy(
+                project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
+                idem_key, requested_by=_actor_id(), org_id=org_id, **_auth_kwargs(project_id),
+                confirmation_context={"production_confirmed": environment == "production", "token": production_token},
+            )
+        except service_operations.OperationConflictError as exc:
+            return error_response("SERVICE_OPERATION_CONFLICT", str(exc), 409)
+        except service_instances.InstanceConflictError as exc:
+            return error_response("SERVICE_NAME_CONFLICT", str(exc), 409)
+        except service_instances.ServiceInstanceError as exc:
+            return error_response("SERVICE_VALIDATION_FAILED", str(exc), 422)
+        return operation_response(_operation_view(project_id, operation), status=202)
     try:
         instance = service_instances.create_instance(
             project_id, name, definition["slug"], definition["version"], environment, runtime_id, normalized,
@@ -856,7 +876,7 @@ def get_service_operation(project_id: str, service_id: str, operation_id: str):
     operation = service_operations.get_operation(project_id, operation_id, **_auth_kwargs(project_id))
     if not operation or operation.get("instance_id") != service_id:
         return error_response("SERVICE_NOT_FOUND", "Service operation not found", 404)
-    return success_response({"operation": _operation_view(project_id, operation)})
+    return operation_response(_operation_view(project_id, operation), status=200)
 
 
 @bp.get("/api/projects/<project_id>/services/<service_id>/operations/<operation_id>/events")

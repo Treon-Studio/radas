@@ -182,8 +182,13 @@ def operation_envelope(
     missing = [field for field in required if field not in operation]
     if missing:
         raise ValueError(f"operation is missing required fields: {', '.join(missing)}")
+    safe_operation = redact_sensitive(dict(operation))
     return {
-        "operation": redact_sensitive(dict(operation)),
+        "operation": safe_operation,
+        # Compatibility alias for older console clients that unwrapped
+        # successful responses through data.operation. New clients should use
+        # the canonical top-level operation field.
+        "data": {"operation": safe_operation},
         "request_id": _set_request_id(request_id_value),
     }
 

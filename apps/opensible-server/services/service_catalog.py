@@ -42,7 +42,26 @@ class CatalogValidationError(ValueError):
 
 
 class CatalogConflictError(ValueError):
-    pass
+    """A known duplicate publication conflict."""
+
+
+class CatalogStorageError(RuntimeError):
+    """An unexpected publication failure, never a duplicate/conflict."""
+
+
+_KNOWN_DUPLICATE_CONSTRAINTS = frozenset({
+    "uq_service_definitions_platform_slug",
+    "uq_service_definitions_org_slug",
+    "service_definition_versions_pkey",
+})
+
+
+def _is_known_duplicate_violation(exc: BaseException) -> bool:
+    """Classify only catalog's documented duplicate constraints as conflicts."""
+    if not isinstance(exc, psycopg_errors.UniqueViolation):
+        return False
+    constraint = getattr(getattr(exc, "diag", None), "constraint_name", None)
+    return constraint in _KNOWN_DUPLICATE_CONSTRAINTS
 
 
 class CatalogNotFoundError(LookupError):
@@ -309,10 +328,13 @@ def publish_definition(
     except CatalogConflictError:
         raise
     except psycopg_errors.UniqueViolation as exc:
-        raise CatalogConflictError("definition or version already exists") from exc
+        if _is_known_duplicate_violation(exc):
+            raise CatalogConflictError("definition or version already exists") from exc
+        raise CatalogStorageError("publication could not be committed") from exc
     except Exception as exc:
-        # Audit/storage failures must not be reported as a successful publish.
-        raise CatalogConflictError("publication could not be committed") from exc
+        # Only duplicate/unique violations are conflicts. Audit, storage, and
+        # other unexpected failures must stay platform-internal (500).
+        raise CatalogStorageError("publication could not be committed") from exc
     result = get_definition(
         normalized["slug"], normalized["version"],
         org_id=scoped_org_id if scope_type == "organization" else None,

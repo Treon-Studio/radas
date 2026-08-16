@@ -93,6 +93,7 @@ def _role_headers(user_id: str, data_dir: Path, roles: list[str]) -> dict[str, s
 
 
 def _create(client, data_dir: Path, **overrides):
+    request_headers = overrides.pop("request_headers", {})
     payload = {
         "name": "demo",
         "environment": "development",
@@ -105,7 +106,7 @@ def _create(client, data_dir: Path, **overrides):
     return client.post(
         f"/api/projects/{PROJECT_A}/services",
         json=payload,
-        headers=_headers(USER_A, data_dir),
+        headers={**_headers(USER_A, data_dir), **request_headers},
     )
 
 
@@ -215,6 +216,28 @@ def test_secret_references_are_canonicalized_and_nested_values_are_rejected(clie
     )
     assert raw_nested.status_code == 422
     assert "raw-secret" not in raw_nested.get_data(as_text=True)
+
+
+def test_create_review_default_deploy_queues_operation_and_get_poll_matches_envelope(client, data_dir):
+    response = _create(
+        client, data_dir, deploy=True, request_headers={"Idempotency-Key": "create-deploy-1"},
+    )
+    assert response.status_code == 202
+    body = response.get_json()
+    assert set(body) == {"operation", "data", "request_id"}
+    operation = body["operation"]
+    assert operation["kind"] == "service.deploy"
+    assert operation["status"] == "queued"
+    assert body["data"]["operation"] == operation
+
+    polled = client.get(
+        f"/api/projects/{PROJECT_A}/services/{operation['instance_id']}/operations/{operation['id']}",
+        headers=_headers(USER_A, data_dir),
+    )
+    assert polled.status_code == 200
+    poll_body = polled.get_json()
+    assert poll_body["operation"] == operation
+    assert poll_body["data"]["operation"] == operation
 
 
 def test_create_list_detail_envelopes_and_redaction(client, data_dir):

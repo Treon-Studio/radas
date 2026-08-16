@@ -31,9 +31,17 @@ func (r *reporter) FinishServiceExecution(id string, leaseToken string, status s
 	return true
 }
 
-type provider struct{ result Result }
+type provider struct{ result Result; started chan struct{}; release chan struct{} }
 
-func (p provider) Execute(context.Context, Operation) Result { return p.result }
+func (p provider) Execute(ctx context.Context, _ Operation) Result {
+	if p.started != nil {
+		close(p.started)
+	}
+	if p.release != nil {
+		<-p.release
+	}
+	return p.result
+}
 
 func payload() map[string]any {
 	return map[string]any{
@@ -58,6 +66,34 @@ func TestRunSuccessUsesInjectedProviderAndRedactsOutput(t *testing.T) {
 	}
 	if rep.result["password"] != "[REDACTED]" {
 		t.Fatalf("result was not redacted: %#v", rep.result)
+	}
+}
+
+func TestRunCanceledBeforeProviderExecution(t *testing.T) {
+	rep := &reporter{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runner := Runner{Providers: map[string]Provider{"mock": provider{result: Result{Success: true}}}}
+	runner.Run(ctx, payload(), rep)
+	if len(rep.finished) != 1 || rep.finished[0] != "CANCELED" || rep.errorCode != "OPERATION_CANCELED" {
+		t.Fatalf("finished=%v code=%q", rep.finished, rep.errorCode)
+	}
+}
+
+func TestRunCanceledAfterNonCancelableProviderResult(t *testing.T) {
+	rep := &reporter{}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runner := Runner{Providers: map[string]Provider{"mock": provider{result: Result{Success: true}, started: started, release: release}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { runner.Run(ctx, payload(), rep); close(done) }()
+	<-started
+	cancel()
+	close(release)
+	<-done
+	if len(rep.finished) != 1 || rep.finished[0] != "CANCELED" || rep.result["provider_result_available"] != true {
+		t.Fatalf("finished=%v result=%#v", rep.finished, rep.result)
 	}
 }
 

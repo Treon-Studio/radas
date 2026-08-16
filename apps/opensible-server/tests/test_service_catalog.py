@@ -12,7 +12,7 @@ from api import register_blueprints
 from auth.service import generate_token
 from services import service_catalog
 from services.org_service import add_member, create_org
-from storage import pg
+from storage import pg, pg_schema
 
 
 def _manifest(slug: str = "demo-service", version: str = "1.0.0") -> dict:
@@ -75,6 +75,13 @@ def test_manifest_validation_covers_required_rules():
     }
 
 
+def test_schema_migration_seed_path_is_explicit_and_idempotent(pg_db):
+    pg_schema.migrate(seed_catalog=True)
+    pg_schema.migrate(seed_catalog=True)
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_definitions")["count"] == 11
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_instances")["count"] == 0
+
+
 def test_recommended_seed_is_explicit_and_idempotent(pg_db):
     first = service_catalog.seed_recommended_definitions()
     pg.execute("UPDATE service_definitions SET disabled = TRUE WHERE slug = %s", ("n8n",))
@@ -122,7 +129,7 @@ def test_nested_metadata_is_redacted_before_persistence(pg_db):
 
 def test_audit_failure_rolls_back_publication(pg_db, monkeypatch):
     monkeypatch.setattr(service_catalog, "_audit_publication", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("audit down")))
-    with pytest.raises(service_catalog.CatalogConflictError):
+    with pytest.raises(service_catalog.CatalogStorageError):
         service_catalog.publish_definition(_manifest("audit-failure"), "u1", None)
     assert pg.query_one("SELECT 1 FROM service_definitions WHERE slug = %s", ("audit-failure",)) is None
 
@@ -235,6 +242,22 @@ def test_private_org_isolation_and_owner_admin_authorization(data_dir):
         "/api/platform/catalog", json={"manifest": _manifest("permission-demo")}, headers=tokens["admin"]
     )
     assert permission_publish.status_code == 201
+
+
+def test_catalog_storage_failure_is_internal_server_error(data_dir, monkeypatch):
+    _seed_users(data_dir)
+    client = _app(data_dir).test_client()
+    monkeypatch.setattr(
+        service_catalog, "publish_definition",
+        lambda *args, **kwargs: (_ for _ in ()).throw(service_catalog.CatalogStorageError("storage down")),
+    )
+    response = client.post(
+        "/api/platform/catalog",
+        json={"manifest": _manifest("storage-failure")},
+        headers=_headers("admin", "admin", ["admin"], data_dir),
+    )
+    assert response.status_code == 500
+    assert response.get_json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
 
 
 def test_catalog_rbac_permissions_grant_and_deny_platform_publish(data_dir):

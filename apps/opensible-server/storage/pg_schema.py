@@ -597,8 +597,14 @@ def _reconcile_platform_duplicates(conn: Any) -> None:
             conn.execute("DELETE FROM service_definitions WHERE id = %s", (row["id"],))
 
 
-def migrate() -> None:
-    """Apply pending schema migrations (idempotent)."""
+def migrate(*, seed_catalog: bool = False) -> None:
+    """Apply pending schema migrations (idempotent).
+
+    ``seed_catalog`` is an explicit initialization choice used by the supported
+    server startup path. It publishes only the pinned, provider-independent
+    catalog definitions and never creates an instance or invokes a provider.
+    Keeping it opt-in avoids surprising test/tools that only need schema DDL.
+    """
     pg.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
@@ -624,6 +630,10 @@ def migrate() -> None:
                 (version, time.time()),
             )
         logger.info("Applied schema migration v%d", version)
+    if seed_catalog:
+        from services.service_catalog import seed_recommended_definitions
+        seeded = seed_recommended_definitions()
+        logger.info("Recommended service catalog ready (%d definitions)", len(seeded))
 
 
 def reset_schema() -> None:

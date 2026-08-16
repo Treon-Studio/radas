@@ -80,11 +80,15 @@ export function unwrapData<T>(response: { data?: T } | T | null | undefined): T 
   return response as T;
 }
 
-/** Operation responses use `{operation, request_id}` rather than `{data: ...}`. */
-export function unwrapOperation<T>(response: { operation?: T } | T | null | undefined): T | undefined {
+/** Operation responses use the canonical `{operation, request_id}` envelope. */
+export function unwrapOperation<T>(response: { operation?: T; data?: { operation?: T } } | T | null | undefined): T | undefined {
   if (response == null) return undefined;
   if (typeof response === "object" && response !== null && "operation" in response) {
     return (response as { operation?: T }).operation;
+  }
+  if (typeof response === "object" && response !== null && "data" in response) {
+    const data = (response as { data?: { operation?: T } }).data;
+    if (data && typeof data === "object" && "operation" in data) return data.operation;
   }
   return response as T;
 }

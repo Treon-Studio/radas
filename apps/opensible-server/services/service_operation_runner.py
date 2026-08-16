@@ -146,7 +146,11 @@ def _payload(conn: Any, operation: Mapping[str, Any]) -> dict[str, Any] | None:
         "SELECT id,revision_number,redacted_spec FROM service_revisions WHERE id = %s AND instance_id = %s",
         (revision_id, instance_id),
     ).fetchone() if revision_id else None
-    spec = dict((revision or {}).get("redacted_spec") or {})
+    # ``redacted_spec`` is safe for persistence and deliberately retains
+    # validated secret_ref metadata for provider lookup. Do not pass it through
+    # the generic provider redactor again: that redactor treats the
+    # ``secret_ref`` field name as sensitive and would erase the reference.
+    spec = service_instances.redact_spec((revision or {}).get("redacted_spec") or {})
     kind = str(operation.get("kind") or "")
     provider_operation = kind.removeprefix("service.")
     return {
@@ -162,7 +166,10 @@ def _payload(conn: Any, operation: Mapping[str, Any]) -> dict[str, Any] | None:
         "environment": str(instance["environment"]),
         "desired_revision_id": str(revision["id"]) if revision else None,
         "desired_revision_number": revision.get("revision_number") if revision else None,
-        "spec": _safe(spec),
+        # ``spec`` has already passed the service-instance sanitizer. Keep
+        # validated secret_ref metadata intact while ensuring values were
+        # replaced with redaction markers before the worker boundary.
+        "spec": spec,
         "instance": _safe(dict(instance)),
     }
 

@@ -341,6 +341,7 @@ def test_operation_response_contains_consistent_request_id(app: Flask):
     assert response.status_code == 202
     body = response.get_json()
     assert body["operation"]["id"] == "op-123"
+    assert body["data"]["operation"]["id"] == "op-123"
     assert body["request_id"] == "operation-id"
     assert response.headers[REQUEST_ID_HEADER] == "operation-id"
 
