@@ -152,10 +152,10 @@ def api_create_project():
                 'error': 'Organization access denied',
             }), 403
         org_id = requested or (orgs[0]["id"] if orgs else None)
-        if not org_id and requested:
+        if not org_id:
             return jsonify({
                 'success': False,
-                'error': 'Organization access denied',
+                'error': 'An organization membership is required to create a project',
             }), 403
         project = {
             'id': str(uuid.uuid4()),
@@ -291,36 +291,30 @@ def api_update_project(project_id):
     """API: """
     try:
         data = request.json or {}
-        projects = load_projects(strict=True)
-        
-        project = next((p for p in projects if p.get('id') == project_id), None)
-        if not project:
+        if config_db.get_project(project_id) is None:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
-        
+
+        updates = {}
         if 'name' in data:
             new_name = data['name'].strip()
             if not new_name:
                 return jsonify({'success': False, 'error': 'Project name cannot be empty'}), 400
-            
-            # ( )
-            if any(p.get('id') != project_id and p.get('name') == new_name and not p.get('isArchived', False) for p in projects):
-                return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
-            
-            project['name'] = new_name
-        
+            updates['name'] = new_name
         if 'description' in data:
-            project['description'] = data['description'].strip()
-        
+            updates['description'] = data['description'].strip()
         if 'isArchived' in data:
-            project['isArchived'] = bool(data['isArchived'])
-        
-        project['updatedAt'] = time.time()
-        
-        updated_project = config_db.update_project(project_id, project)
+            updates['isArchived'] = bool(data['isArchived'])
+        if updates:
+            updates['updatedAt'] = time.time()
+
+        updated_project = config_db.update_project(project_id, updates)
         if updated_project is None:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
         app_logger.info(f"Project updated: {project_id}")
         return jsonify({'success': True, 'project': updated_project})
+    except config_db.ProjectNameExistsError:
+        app_logger.info("Project update rejected because the name already exists")
+        return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
     except Exception as e:
         app_logger.error(f"Error updating project: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -453,24 +447,22 @@ def api_delete_project(project_id):
 def api_restore_project(project_id):
     """API: """
     try:
-        projects = load_projects()
-        
-        project = next((p for p in projects if p.get('id') == project_id), None)
+        project = config_db.get_project(project_id)
         if not project:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
-        
-        # , 
         if not project.get('isArchived', False):
             return jsonify({'success': False, 'error': 'Project is not archived'}), 400
-        
-        project['isArchived'] = False
-        project['updatedAt'] = time.time()
-        
-        updated_project = config_db.update_project(project_id, project)
+
+        updated_project = config_db.update_project(
+            project_id, {'isArchived': False, 'updatedAt': time.time()}
+        )
         if updated_project is None:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
         app_logger.info(f"Project restored: {project_id}")
         return jsonify({'success': True, 'project': updated_project})
+    except config_db.ProjectNameExistsError:
+        app_logger.info("Project restore rejected because the name already exists")
+        return jsonify({'success': False, 'error': 'Project with this name already exists'}), 400
     except Exception as e:
         app_logger.error(f"Error restoring project: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
