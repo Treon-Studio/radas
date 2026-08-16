@@ -199,6 +199,13 @@ def _existing_or_conflict(row: Mapping[str, Any], fingerprint: str, instance_id:
     return _row(row)
 
 
+def _revision_fingerprint(spec: Any) -> str:
+    """Fingerprint the normalized, redacted desired spec for retry identity."""
+    safe_spec = redact_spec(spec if isinstance(spec, Mapping) else {})
+    encoded = json.dumps(safe_spec, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def create_operation(
     project_id: str, kind: str, idempotency_key: str, payload: Any = None,
     *, instance_id: str | None = None, requested_by: str | None = None,
@@ -310,9 +317,7 @@ def create_revision_and_operation(
     if kind not in {"service.update", "service.rollback"}:
         raise ServiceOperationError("revision-backed operation kind is unsupported")
     safe_spec = redact_spec(spec)
-    revision_fingerprint = hashlib.sha256(
-        json.dumps(safe_spec, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-    ).hexdigest()
+    revision_fingerprint = _revision_fingerprint(safe_spec)
     with pg.transaction() as conn:
         derived_org = _project_access(conn, project_id, org_id, actor_id, internal_context)
         instance = conn.execute(
@@ -341,6 +346,17 @@ def create_revision_and_operation(
             ).fetchone()
             if not revision:
                 raise OperationConflictError("idempotent operation revision is unavailable")
+            if _revision_fingerprint(revision.get("spec") or {}) != revision_fingerprint:
+                raise OperationConflictError("idempotency key was already used with a different revision")
+            expected_payload: dict[str, Any] = {
+                "operation": kind.removeprefix("service."),
+                "desired_revision_id": str(revision_id),
+            }
+            if kind == "service.rollback":
+                expected_payload["rollback_target_revision_id"] = str(target_revision_id)
+            expected_fingerprint = payload_fingerprint(kind, expected_payload, instance_id=instance_id)
+            if existing_operation.get("payload_fingerprint") != expected_fingerprint:
+                raise OperationConflictError("idempotency key was already used with a different operation payload")
             return service_instances._revision_row(revision), _row(existing_operation)
 
         active = conn.execute(

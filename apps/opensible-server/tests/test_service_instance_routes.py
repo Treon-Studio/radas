@@ -52,6 +52,7 @@ def _manifest() -> dict:
         "inputs": [
             {"name": "memory_mb", "type": "integer", "default": 256, "min": 128, "max": 4096},
             {"name": "mode", "type": "enum", "choices": ["safe", "fast"], "default": "safe"},
+            {"name": "enabled", "type": "boolean", "default": False},
         ],
         "secrets": [{"name": "admin_password", "required": False}],
         "storage": [],
@@ -259,6 +260,15 @@ def test_provider_validation_rejection_does_not_insert_operation(client, data_di
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_operations")["count"] == 0
 
 
+def test_boolean_manifest_input_is_normalized_as_boolean(client, data_dir):
+    enabled = _create(client, data_dir, spec={"mode": "safe", "enabled": True})
+    assert enabled.status_code == 201
+    revision = enabled.get_json()["data"]["service"]["revision"]
+    assert revision["spec"]["enabled"] is True
+    invalid = _create(client, data_dir, name="invalid-boolean", spec={"mode": "safe", "enabled": "true"})
+    assert invalid.status_code == 422
+
+
 def test_catalog_runtime_and_spec_validation(client, data_dir):
     bad_catalog = _create(client, data_dir, catalog_slug="missing")
     assert bad_catalog.status_code == 422
@@ -299,6 +309,13 @@ def test_patch_queues_update_operation_and_is_idempotent(client, data_dir):
     )
     assert retry.status_code == 202
     assert retry.get_json()["operation"]["id"] == operation["id"]
+    changed = client.patch(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}",
+        json={"spec": {"mode": "safe", "memory_mb": 1024}},
+        headers=headers,
+    )
+    assert changed.status_code == 409
+    assert changed.get_json()["error"]["code"] == "SERVICE_OPERATION_CONFLICT"
     assert pg.query_one("SELECT COUNT(*) AS count FROM service_revisions WHERE instance_id = %s", (created["id"],))["count"] == 2
 
 
@@ -334,6 +351,37 @@ def test_rollback_rejection_is_atomic_and_success_targets_created_revision(clien
     payload = pg.query_one("SELECT payload FROM service_operations WHERE id = %s", (operation["id"],))["payload"]
     assert payload["desired_revision_id"] != target["id"]
     assert payload["rollback_target_revision_id"] == target["id"]
+
+
+def test_failed_rollback_exposes_retry_revision_context(client, data_dir):
+    created = _create(client, data_dir).get_json()["data"]["service"]
+    patch = client.patch(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}",
+        json={"spec": {"mode": "fast", "memory_mb": 1024}},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "rollback-context-prep"},
+    )
+    assert patch.status_code == 202
+    pg.execute("DELETE FROM service_operations WHERE instance_id = %s", (created["id"],))
+    revisions = client.get(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/revisions",
+        headers=_headers(USER_A, data_dir),
+    ).get_json()["data"]["revisions"]
+    target = next(item for item in revisions if item["revision_number"] == 1)
+    queued = client.post(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/rollback",
+        json={"revision_id": target["id"]},
+        headers={**_headers(USER_A, data_dir), "Idempotency-Key": "rollback-context"},
+    )
+    assert queued.status_code == 202
+    operation_id = queued.get_json()["operation"]["id"]
+    pg.execute("UPDATE service_operations SET status='failed', error_code='PROVIDER_ERROR', error_message='temporary' WHERE id=%s", (operation_id,))
+    failed = client.get(
+        f"/api/projects/{PROJECT_A}/services/{created['id']}/operations/{operation_id}",
+        headers=_headers(USER_A, data_dir),
+    )
+    assert failed.status_code == 200
+    operation_view = failed.get_json()["data"]["operation"]
+    assert operation_view["retry_context"]["revision_id"] == target["id"]
 
 
 def test_lifecycle_is_queued_idempotent_and_does_not_execute_provider(client, data_dir, monkeypatch):

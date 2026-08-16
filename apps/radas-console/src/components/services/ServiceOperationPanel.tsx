@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StateView } from "@/components/ui/StateView";
 
-export type ServiceOperation = { id: string; kind?: string; status?: string; error_code?: string; error_message?: string; created_at?: string | number; started_at?: string | number; finished_at?: string | number; endpoint?: string | null; health?: unknown; result?: Record<string, unknown>; poll_url?: string; retryable?: boolean };
+export type ServiceOperation = { id: string; kind?: string; status?: string; error_code?: string; error_message?: string; created_at?: string | number; started_at?: string | number; finished_at?: string | number; endpoint?: string | null; health?: unknown; result?: Record<string, unknown>; poll_url?: string; retryable?: boolean; retry_context?: { revision_id?: string; current_revision_id?: string; impact_token?: string; production_confirmation_token?: string; identity?: string; requested_by?: string } };
 type Event = { event?: string; message?: string; created_at?: string | number; details?: Record<string, unknown> };
 function epochDate(value?: string | number) { if (value == null) return null; const number = typeof value === "number" ? value : Number(value); const ms = Number.isFinite(number) ? (number < 1e12 ? number * 1000 : number) : Date.parse(String(value)); return Number.isFinite(ms) ? new Date(ms) : null; }
 type Props = { projectId: string; serviceId: string; operation?: ServiceOperation | null; onChanged?: () => void; onRetry?: (operation: ServiceOperation) => void };

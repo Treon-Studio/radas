@@ -496,6 +496,21 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
     result_data = result.get("data") if isinstance(result.get("data"), Mapping) else {}
     result_error = result.get("error") if isinstance(result.get("error"), Mapping) else {}
     result_details = result_error.get("details") if isinstance(result_error.get("details"), Mapping) else {}
+    payload = operation.get("payload") if isinstance(operation.get("payload"), Mapping) else {}
+    retry_context: dict[str, Any] = {}
+    if operation.get("kind") == "service.rollback":
+        target_revision_id = payload.get("rollback_target_revision_id")
+        if target_revision_id:
+            retry_context["revision_id"] = str(target_revision_id)
+        if payload.get("desired_revision_id"):
+            retry_context["current_revision_id"] = str(payload["desired_revision_id"])
+        if operation.get("requested_by"):
+            retry_context["identity"] = str(operation["requested_by"])
+        if instance_id:
+            retry_instance = service_instances.get_instance(project_id, str(instance_id), **_auth_kwargs(project_id))
+            if retry_instance and retry_instance.get("environment") == "production":
+                retry_context["impact_token"] = _confirmation_token(retry_instance)
+                retry_context["production_confirmation_token"] = retry_context["impact_token"]
     retryable = result_data.get("retryable") if isinstance(result_data, Mapping) else None
     if retryable is None:
         retryable = result_details.get("retryable") if isinstance(result_details, Mapping) else None
@@ -517,6 +532,7 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
         "health": result_data.get("health"),
         "poll_url": f"/api/projects/{project_id}{suffix}/operations/{operation_id}",
         "retryable": bool(retryable) if operation.get("status") == "failed" else False,
+        "retry_context": retry_context,
         "timestamps": {"created_at": operation.get("created_at"), "started_at": operation.get("started_at"), "finished_at": operation.get("finished_at")},
     })
 
