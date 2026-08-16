@@ -202,6 +202,10 @@ def test_evaluate_project_without_org_id_uses_project_organization(data_dir):
     from services.feature_flag_registry import create_flag, evaluate
     from storage import pg
 
+    pg.execute(
+        "INSERT INTO orgs (id, name, created_at) VALUES (%s,%s,%s)",
+        ("org-derived", "Org Derived", 0),
+    )
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) VALUES (%s,%s,%s,%s,%s,0,%s)",
                ("project-org", "org-derived", "owner", "Project", "", 0))
     create_flag({"key": "derived.org.flag"}, "organization", "org-derived")
@@ -241,6 +245,10 @@ def test_lifecycle_dependents_resolve_to_exact_target_without_cross_tenant_leaks
     from services.feature_flag_registry import archive_flag, create_flag, delete_flag, find_dependents, impact
     from storage import pg
 
+    pg.execute(
+        "INSERT INTO orgs (id, name, created_at) VALUES (%s,%s,%s), (%s,%s,%s)",
+        ("org-a", "Org A", 0, "org-b", "Org B", 0),
+    )
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
                "VALUES (%s,%s,%s,%s,%s,0,%s)", ("project-a", "org-a", "owner", "A", "", 0))
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "

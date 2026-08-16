@@ -401,6 +401,21 @@ _V10_DDL: List[str] = [
     "ON service_revision_idempotency(revision_id)",
 ]
 
+# Ordered source of truth for the schema's applied versions. Tests and tooling
+# use this registry instead of duplicating a stale list of migration numbers.
+MIGRATIONS = (
+    (1, _V1_DDL),
+    (2, _V2_DDL),
+    (3, _V3_DDL),
+    (4, _V4_DDL),
+    (5, _V5_DDL),
+    (6, _V6_DDL),
+    (7, _V7_DDL),
+    (8, _V8_DDL),
+    (9, _V9_DDL),
+    (10, _V10_DDL),
+)
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
@@ -614,8 +629,7 @@ def migrate(*, seed_catalog: bool = False) -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL), (10, _V10_DDL)]
-    for version, ddl in versions:
+    for version, ddl in MIGRATIONS:
         if version in applied:
             continue
         with pg.transaction() as conn:

@@ -105,9 +105,11 @@ def test_schema_migrate_idempotent(pg_db):
     # reset_schema applies all current migrations; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
-    assert versions == [
-        {"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}, {"version": 5}, {"version": 6}, {"version": 7}, {"version": 8}, {"version": 9},
+    expected_versions = [
+        {"version": version}
+        for version, _ in pg_schema.MIGRATIONS
     ]
+    assert versions == expected_versions
 
 
 def test_event_unique_indexes_enforce_queued_and_terminal_once(pg_db):
