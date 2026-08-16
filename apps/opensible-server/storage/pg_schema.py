@@ -359,6 +359,22 @@ _V7_DDL: List[str] = [
     "FOREIGN KEY (org_id, project_id, instance_id) REFERENCES service_instances(org_id, project_id, id)",
 ]
 
+# Version 8 — worker lease metadata, redacted service-operation payloads, and
+# append-only progress events. These fields extend the existing worker protocol;
+# they are not a second queue.
+_V8_DDL: List[str] = [
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS worker_id TEXT",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS heartbeat_at DOUBLE PRECISION",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS lease_until DOUBLE PRECISION",
+    "ALTER TABLE service_operations ADD COLUMN IF NOT EXISTS attempt INTEGER NOT NULL DEFAULT 0",
+    "CREATE INDEX IF NOT EXISTS idx_service_operations_claim ON service_operations(status, lease_until, created_at)",
+    "CREATE TABLE IF NOT EXISTS service_operation_events ("
+    "id BIGSERIAL PRIMARY KEY, operation_id TEXT NOT NULL REFERENCES service_operations(id) ON DELETE CASCADE, "
+    "event TEXT NOT NULL, message TEXT, details JSONB NOT NULL DEFAULT '{}'::jsonb, created_at DOUBLE PRECISION NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS idx_service_operation_events_operation ON service_operation_events(operation_id, created_at)",
+]
+
 
 class CatalogMigrationError(RuntimeError):
     """Raised when legacy catalog rows cannot be merged without data loss."""
@@ -520,7 +536,7 @@ def migrate() -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL)]
+    versions = [(1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL), (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL)]
     for version, ddl in versions:
         if version in applied:
             continue

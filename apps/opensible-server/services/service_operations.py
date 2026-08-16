@@ -235,11 +235,12 @@ def create_operation(
                     )
             conn.execute(
                 "INSERT INTO service_operations "
-                "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,status,requested_by,"
+                "(id,org_id,project_id,instance_id,kind,idempotency_key,payload_fingerprint,payload,status,requested_by,"
                 "error_code,error_message,started_at,finished_at,created_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL,NULL,NULL,NULL,%s)",
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL,NULL,NULL,NULL,%s)",
                 (operation_id, derived_org, project_id, instance_id, kind, idempotency_key,
-                 fingerprint, initial_status, requested_by, now),
+                 fingerprint, Jsonb(redact(_canonical_payload(payload))),
+                 initial_status, requested_by, now),
             )
             row = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
             _audit_lifecycle(

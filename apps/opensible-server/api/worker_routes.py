@@ -172,6 +172,29 @@ def api_worker_claim():
         max_concurrency = data.get('maxConcurrency', 1)
         tags = data.get('tags')
 
+        # Service operations share this claim endpoint and lease/heartbeat
+        # protocol. Claiming here, before the legacy file queue, preserves the
+        # existing execution path while giving the worker one unified poll.
+        try:
+            from services.service_operation_runner import claim_next_operation
+            service_payload = claim_next_operation(worker_id, project_id=project_id)
+        except Exception as service_claim_error:
+            current_app.logger.warning("Service operation claim unavailable: %s", service_claim_error)
+            service_payload = None
+        if service_payload:
+            execution_id = service_payload["operation_id"]
+            proj_id = service_payload["project_id"]
+            update_worker_heartbeat(worker_id, current_execution_id=execution_id)
+            return jsonify({
+                "success": True,
+                "executionId": execution_id,
+                "projectId": proj_id,
+                "kind": "service_operation",
+                "serviceOperation": service_payload,
+                "queuedAt": None,
+                "createdAt": None,
+            })
+
         server_claim_next_execution = _app_module().server_claim_next_execution
         execution_id, execution, proj_id = server_claim_next_execution(
             worker_id=worker_id,
@@ -229,6 +252,21 @@ def api_worker_execution_log(execution_id):
 
         worker_id, _worker_data = result
 
+        # Service operations use the same authenticated worker route and do not
+        # expose their payload through the legacy execution log store.
+        from storage import pg
+        service_operation = pg.query_one("SELECT * FROM service_operations WHERE id = %s", (execution_id,))
+        if service_operation:
+            if service_operation.get('worker_id') != worker_id:
+                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
+            data = request.json or {}
+            text = data.get('text', '')
+            if not text:
+                return jsonify({'success': False, 'error': 'Log text is required'}), 400
+            from services.service_operation_runner import append_event
+            append_event(execution_id, 'worker_log', message=str(text))
+            return jsonify({'success': True})
+
         data = request.json or {}
         text = data.get('text', '')
         if not text:
@@ -270,6 +308,28 @@ def api_worker_execution_finish(execution_id):
             return jsonify({'success': False, 'error': 'Invalid worker token'}), 401
 
         worker_id, _worker_data = vresult
+
+        # Finish service operations through their CAS/lease implementation;
+        # legacy execution records continue through the code below unchanged.
+        from storage import pg
+        service_operation = pg.query_one("SELECT * FROM service_operations WHERE id = %s", (execution_id,))
+        if service_operation:
+            if service_operation.get('worker_id') != worker_id and service_operation.get('status') == 'running':
+                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
+            data = request.json or {}
+            status = data.get('status')
+            if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
+                return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
+            from services.service_operation_runner import finish_operation
+            done = finish_operation(
+                execution_id, worker_id, success=status == 'SUCCESS',
+                result=data.get('result') if isinstance(data.get('result'), dict) else {},
+                error_code=data.get('errorCode'), error_message=data.get('error'),
+            )
+            if done is None:
+                return jsonify({'success': False, 'error': 'Service operation not found'}), 404
+            update_worker_heartbeat(worker_id, current_execution_id=None)
+            return jsonify({'success': True, 'operation': done})
 
         data = request.json or {}
         status = data.get('status')
@@ -393,6 +453,12 @@ def api_worker_heartbeat():
 
         data = request.json or {}
         current_execution_id = data.get('currentExecutionId') if 'currentExecutionId' in data else None
+        if current_execution_id:
+            from storage import pg
+            service_operation = pg.query_one("SELECT id FROM service_operations WHERE id = %s", (current_execution_id,))
+            if service_operation:
+                from services.service_operation_runner import heartbeat as service_heartbeat
+                service_heartbeat(current_execution_id, worker_id)
 
         update_worker_heartbeat(worker_id, current_execution_id=current_execution_id)
 

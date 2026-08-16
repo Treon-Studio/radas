@@ -3,6 +3,7 @@
 package loop
 
 import (
+	"context"
 	"errors"
 	"math"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/opensible/worker-go/internal/execute"
 	"github.com/opensible/worker-go/internal/httpclient"
 	"github.com/opensible/worker-go/internal/logging"
+	"github.com/opensible/worker-go/internal/serviceops"
 	"github.com/opensible/worker-go/internal/systeminfo"
 )
 
@@ -190,6 +192,12 @@ func Run(opts Options) {
 		log.Debug("Claimed execution", "id", execID, "project", projID)
 		go func(id string, data map[string]any, pid string) {
 			defer func() { <-sem }()
+			if _, isServiceOperation := data["serviceOperation"]; isServiceOperation {
+				serviceops.Runner{Providers: map[string]serviceops.Provider{"mock": serviceops.MockProvider{}}}.Run(
+					context.Background(), data, client,
+				)
+				return
+			}
 			execute.Run(id, data, pid, client)
 		}(execID, execData, projID)
 	}
