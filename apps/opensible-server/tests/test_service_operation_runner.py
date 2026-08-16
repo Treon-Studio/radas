@@ -35,6 +35,19 @@ def _operation(instance, key="runner-key"):
     )
 
 
+def test_claim_payload_failure_terminalizes_and_clears_lease(pg_db, monkeypatch):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    monkeypatch.setattr(service_operation_runner, "_payload", lambda conn, row: None)
+    assert service_operation_runner.claim_next_operation("worker-a") is None
+    stored = pg.query_one("SELECT status,finished_at,worker_id,lease_token,lease_until,heartbeat_at FROM service_operations WHERE id=%s", (operation["id"],))
+    assert stored["status"] == "failed"
+    assert stored["finished_at"] is not None
+    assert all(stored[key] is None for key in ("worker_id", "lease_token", "lease_until", "heartbeat_at"))
+    assert service_operation_runner.list_events(operation["id"])[-1]["event"] == "failed"
+
+
 def test_claim_is_exclusive_and_payload_is_redacted(pg_db):
     _project()
     instance = _instance()
@@ -63,6 +76,19 @@ def test_mock_provider_success_updates_instance_and_is_idempotent(pg_db):
     assert len(service_operation_runner.list_events(operation["id"])) >= 3
 
 
+def test_error_code_is_allowlisted_in_operation_and_events(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    done = service_operation_runner.finish_operation(
+        operation["id"], "worker-a", success=False, error_code="password=top-secret",
+        error_message="password=top-secret", lease_token=claim["lease_token"],
+    )
+    assert done["error_code"] == "OPERATION_FAILED"
+    assert "top-secret" not in str(service_operation_runner.list_events(operation["id"]))
+
+
 def test_provider_failure_preserves_desired_revision(pg_db):
     _project()
     instance = _instance()
@@ -89,15 +115,27 @@ def test_cancellation_is_terminal_and_rejects_late_finish(pg_db):
     assert late["status"] == "canceled"
 
 
+def test_stale_lease_cannot_heartbeat_finish_or_log(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    token = claim["lease_token"]
+    pg.execute("UPDATE service_operations SET lease_until=%s WHERE id=%s", (time.time() - 1, operation["id"]))
+    assert not service_operation_runner.heartbeat(operation["id"], "worker-a", lease_token=token)
+    assert service_operation_runner.finish_operation(operation["id"], "worker-a", success=True, result={}, lease_token=token)["status"] == "running"
+    assert service_operation_runner.append_worker_event(operation["id"], "worker-a", token, "worker_log", message="stale") is None
+
+
 def test_disconnect_reclaim_allows_restart_and_heartbeat_is_owned(pg_db, monkeypatch):
     _project()
     instance = _instance()
     operation = _operation(instance)
-    service_operation_runner.claim_next_operation("worker-a", lease_seconds=10)
-    assert service_operation_runner.heartbeat(operation["id"], "worker-a")
+    claim = service_operation_runner.claim_next_operation("worker-a", lease_seconds=10)
+    assert service_operation_runner.heartbeat(operation["id"], "worker-a", lease_token=claim["lease_token"])
     pg.execute("UPDATE service_operations SET lease_until=%s WHERE id=%s", (time.time() - 1, operation["id"]))
     assert service_operation_runner.reclaim_expired() == 1
-    assert not service_operation_runner.heartbeat(operation["id"], "worker-a")
+    assert not service_operation_runner.heartbeat(operation["id"], "worker-a", lease_token=claim["lease_token"])
     restarted = service_operation_runner.claim_next_operation("worker-b")
     assert restarted["operation_id"] == operation["id"]
     assert restarted["idempotency_key"] == "runner-key"

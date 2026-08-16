@@ -13,7 +13,9 @@ import (
 )
 
 type Operation struct {
-	OperationID       string
+	OperationID string
+	LeaseToken  string
+
 	Operation         string
 	IdempotencyKey    string
 	RuntimeID         string
@@ -38,12 +40,12 @@ type Provider interface {
 }
 
 type Reporter interface {
-	SendLog(executionID, text string, ts float64) bool
-	FinishExecution(executionID, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool
+	SendServiceLog(executionID, leaseToken, text string, ts float64) bool
+	FinishServiceExecution(executionID, leaseToken, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool
 }
 
 type heartbeatReporter interface {
-	Heartbeat(currentExecutionID string) (bool, bool)
+	HeartbeatWithLease(currentExecutionID, leaseToken string) (bool, bool)
 }
 
 type Runner struct {
@@ -61,20 +63,20 @@ func (r Runner) provider(runtimeID string) (Provider, bool) {
 func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) {
 	op, err := decode(raw)
 	if err != nil {
-		reporter.FinishExecution(rawString(raw, "executionId"), "FAILED", 0, 0, nil, redactText(err.Error()), nil)
+		reporter.FinishServiceExecution(rawString(raw, "executionId"), rawString(raw, "leaseToken"), "FAILED", 0, 0, nil, redactText(err.Error()), nil)
 		return
 	}
 	if op.OperationID == "" {
-		reporter.FinishExecution("", "FAILED", 0, 0, nil, "service operation id is required", nil)
+		reporter.FinishServiceExecution("", op.LeaseToken, "FAILED", 0, 0, nil, "service operation id is required", nil)
 		return
 	}
 	provider, ok := r.provider(op.RuntimeID)
 	if !ok {
-		reporter.SendLog(op.OperationID, "service operation provider is unavailable\n", 0)
-		reporter.FinishExecution(op.OperationID, "FAILED", 0, 0, nil, "runtime provider is unavailable", map[string]any{"code": "INVALID_RUNTIME"})
+		reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation provider is unavailable\n", 0)
+		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "FAILED", 0, 0, nil, "runtime provider is unavailable", map[string]any{"code": "INVALID_RUNTIME"})
 		return
 	}
-	reporter.SendLog(op.OperationID, "service operation started\n", 0)
+	reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation started\n", 0)
 	if heartbeater, ok := reporter.(heartbeatReporter); ok {
 		done := make(chan struct{})
 		defer close(done)
@@ -84,7 +86,7 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 			for {
 				select {
 				case <-ticker.C:
-					heartbeater.Heartbeat(op.OperationID)
+					heartbeater.HeartbeatWithLease(op.OperationID, op.LeaseToken)
 				case <-done:
 					return
 				case <-ctx.Done():
@@ -95,8 +97,8 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 	}
 	result := provider.Execute(ctx, op)
 	if result.Success {
-		reporter.SendLog(op.OperationID, "service operation provider succeeded\n", 0)
-		reporter.FinishExecution(op.OperationID, "SUCCESS", 0, 0, nil, "", redactMap(result.Data))
+		reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation provider succeeded\n", 0)
+		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "SUCCESS", 0, 0, nil, "", redactMap(result.Data))
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(result.Code))
@@ -109,8 +111,8 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 		message = "runtime provider operation failed"
 	}
 	safeMessage := redactText(message)
-	reporter.SendLog(op.OperationID, "service operation provider failed: "+safeMessage+"\n", 0)
-	reporter.FinishExecution(op.OperationID, "FAILED", 0, 0, nil, safeMessage, map[string]any{"code": code})
+	reporter.SendServiceLog(op.OperationID, op.LeaseToken, "service operation provider failed: "+safeMessage+"\n", 0)
+	reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "FAILED", 0, 0, nil, safeMessage, map[string]any{"code": code})
 }
 
 func decode(raw map[string]any) (Operation, error) {
@@ -120,6 +122,7 @@ func decode(raw map[string]any) (Operation, error) {
 	}
 	op := Operation{
 		OperationID:       rawString(payload, "operation_id"),
+		LeaseToken:        rawString(payload, "lease_token"),
 		Operation:         rawString(payload, "operation"),
 		IdempotencyKey:    rawString(payload, "idempotency_key"),
 		RuntimeID:         rawString(payload, "runtime_id"),

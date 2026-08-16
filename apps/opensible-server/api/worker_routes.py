@@ -257,14 +257,20 @@ def api_worker_execution_log(execution_id):
         from storage import pg
         service_operation = pg.query_one("SELECT * FROM service_operations WHERE id = %s", (execution_id,))
         if service_operation:
-            if service_operation.get('worker_id') != worker_id or not service_operation.get('lease_token'):
-                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
             data = request.json or {}
+            lease_token = str(data.get('leaseToken') or '').strip()
+            if (not lease_token or service_operation.get('worker_id') != worker_id or
+                    service_operation.get('lease_token') != lease_token or
+                    service_operation.get('status') != 'running' or
+                    service_operation.get('lease_until') is None or
+                    float(service_operation.get('lease_until')) < time.time()):
+                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
             text = data.get('text', '')
             if not text:
                 return jsonify({'success': False, 'error': 'Log text is required'}), 400
-            from services.service_operation_runner import append_event
-            append_event(execution_id, 'worker_log', message=str(text))
+            from services.service_operation_runner import append_worker_event
+            if append_worker_event(execution_id, worker_id, lease_token, 'worker_log', message=str(text)) is None:
+                return jsonify({'success': False, 'error': 'Worker lease is no longer valid'}), 403
             return jsonify({'success': True})
 
         data = request.json or {}
@@ -314,14 +320,18 @@ def api_worker_execution_finish(execution_id):
         from storage import pg
         service_operation = pg.query_one("SELECT * FROM service_operations WHERE id = %s", (execution_id,))
         if service_operation:
-            if service_operation.get('worker_id') != worker_id and service_operation.get('status') == 'running':
-                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
             data = request.json or {}
+            lease_token = str(data.get('leaseToken') or '').strip()
+            if (not lease_token or service_operation.get('status') != 'running' or
+                    service_operation.get('worker_id') != worker_id or
+                    service_operation.get('lease_token') != lease_token or
+                    service_operation.get('lease_until') is None or
+                    float(service_operation.get('lease_until')) < time.time()):
+                return jsonify({'success': False, 'error': 'Worker does not own this service operation'}), 403
             status = data.get('status')
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
             from services.service_operation_runner import finish_operation
-            lease_token = data.get('leaseToken') or service_operation.get('lease_token')
             done = finish_operation(
                 execution_id, worker_id, success=status == 'SUCCESS', canceled=status == 'CANCELED',
                 result=data.get('result') if isinstance(data.get('result'), dict) else {},
@@ -455,13 +465,14 @@ def api_worker_heartbeat():
 
         data = request.json or {}
         current_execution_id = data.get('currentExecutionId') if 'currentExecutionId' in data else None
+        lease_token = str(data.get('leaseToken') or '').strip()
         if current_execution_id:
             from storage import pg
             service_operation = pg.query_one("SELECT id FROM service_operations WHERE id = %s", (current_execution_id,))
             if service_operation:
                 from services.service_operation_runner import heartbeat as service_heartbeat
-                operation_row = pg.query_one("SELECT lease_token FROM service_operations WHERE id = %s", (current_execution_id,))
-                service_heartbeat(current_execution_id, worker_id, lease_token=(operation_row or {}).get("lease_token"))
+                if not service_heartbeat(current_execution_id, worker_id, lease_token=lease_token):
+                    return jsonify({'success': False, 'error': 'Worker lease is no longer valid'}), 403
 
         update_worker_heartbeat(worker_id, current_execution_id=current_execution_id)
 

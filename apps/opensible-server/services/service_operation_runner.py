@@ -23,6 +23,24 @@ from services.runtime_provider import ProviderResult, redact
 _DEFAULT_LEASE_SECONDS = 90.0
 
 
+def _safe_event_value(value: Any, *, key: str = "") -> Any:
+    """Redact event data and normalize worker-controlled error codes."""
+    normalized_key = key.lower().replace("-", "_")
+    if normalized_key in {"error_code", "errorcode"}:
+        return service_operations._safe_error_code(value)
+    if isinstance(value, Mapping):
+        return {str(child_key): _safe_event_value(child, key=str(child_key)) for child_key, child in value.items()}
+    if isinstance(value, list):
+        return [_safe_event_value(child) for child in value]
+    if isinstance(value, tuple):
+        return [_safe_event_value(child) for child in value]
+    return _safe(value)
+
+
+def _safe_error_code(value: Any) -> str | None:
+    return service_operations._safe_error_code(value)
+
+
 def _internal() -> service_instances.TrustedInternalExecution:
     return service_instances.internal_execution_context()
 
@@ -37,18 +55,42 @@ def _event_tx(conn: Any, operation_id: str, event: str, *, message: str | None =
         "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
         "VALUES (%s,%s,%s,%s,%s)",
         (operation_id, event, _safe(message) if message is not None else None,
-         Jsonb(_safe(dict(details or {}))), time.time()),
+         Jsonb(_safe_event_value(dict(details or {}))), time.time()),
     )
 
 
 def append_event(operation_id: str, event: str, *, message: str | None = None,
                  details: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """Append a redacted progress event; safe for worker retries."""
+    """Append an internal redacted progress event."""
     with pg.transaction() as conn:
         _event_tx(conn, operation_id, event, message=message, details=details)
         row = conn.execute(
             "SELECT operation_id,event,message,details,created_at FROM service_operation_events "
             "WHERE operation_id = %s ORDER BY created_at DESC LIMIT 1", (operation_id,)
+        ).fetchone()
+    return dict(row) if row else {}
+
+
+def append_worker_event(operation_id: str, worker_id: str, lease_token: str, event: str,
+                        *, message: str | None = None,
+                        details: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    """Append an event only while the exact worker lease is live."""
+    token = str(lease_token or "").strip()
+    if not token:
+        return None
+    now = time.time()
+    with pg.transaction() as conn:
+        owner = conn.execute(
+            "SELECT id FROM service_operations WHERE id=%s AND status='running' "
+            "AND worker_id=%s AND lease_token=%s AND lease_until >= %s FOR UPDATE",
+            (operation_id, worker_id, token, now),
+        ).fetchone()
+        if not owner:
+            return None
+        _event_tx(conn, operation_id, event, message=message, details=details)
+        row = conn.execute(
+            "SELECT operation_id,event,message,details,created_at FROM service_operation_events "
+            "WHERE operation_id=%s ORDER BY created_at DESC LIMIT 1", (operation_id,),
         ).fetchone()
     return dict(row) if row else {}
 
@@ -159,8 +201,10 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
         if payload is None:
             conn.execute(
                 "UPDATE service_operations SET status='failed', error_code='OPERATION_FAILED', "
-                "error_message='service instance or desired revision is unavailable', finished_at=%s "
-                "WHERE id=%s AND status='running'", (now, updated["id"])
+                "error_message='service instance or desired revision is unavailable', finished_at=%s, "
+                "worker_id=NULL, lease_token=NULL, lease_until=NULL, heartbeat_at=NULL "
+                "WHERE id=%s AND status='running' AND worker_id=%s AND lease_token=%s",
+                (now, updated["id"], worker_id, lease_token),
             )
             _event_tx(conn, updated["id"], "failed", message="service instance or desired revision is unavailable")
             return None
@@ -168,18 +212,16 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
         return payload
 
 
-def heartbeat(operation_id: str, worker_id: str, *, lease_token: str | None = None,
+def heartbeat(operation_id: str, worker_id: str, *, lease_token: str,
               lease_seconds: float = _DEFAULT_LEASE_SECONDS) -> bool:
+    token = str(lease_token or "").strip()
+    if not token:
+        return False
     now = time.time()
-    clauses = ["id=%s", "status='running'", "worker_id=%s", "lease_until >= %s"]
-    params: list[Any] = [operation_id, worker_id, now]
-    if lease_token:
-        clauses.append("lease_token=%s")
-        params.append(lease_token)
     result = pg.query_one(
         "UPDATE service_operations SET heartbeat_at=%s, lease_until=%s WHERE "
-        + " AND ".join(clauses) + " RETURNING id",
-        (now, now + max(10.0, float(lease_seconds)), *params),
+        "id=%s AND status='running' AND worker_id=%s AND lease_token=%s AND lease_until >= %s RETURNING id",
+        (now, now + max(10.0, float(lease_seconds)), operation_id, worker_id, token, now),
     )
     return bool(result)
 
@@ -241,11 +283,12 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
         current = str(row["status"])
         if current in {"succeeded", "failed", "canceled"}:
             return dict(row)
+        supplied_token = str(lease_token or "").strip()
         if current != "running" or str(row.get("worker_id") or "") != str(worker_id):
             return dict(row)
-        if lease_token and str(row.get("lease_token") or "") != str(lease_token):
+        if not supplied_token or str(row.get("lease_token") or "") != supplied_token:
             return dict(row)
-        if row.get("lease_until") is not None and float(row["lease_until"]) < time.time():
+        if row.get("lease_until") is None or float(row["lease_until"]) < time.time():
             return dict(row)
         if canceled:
             success = False
@@ -267,7 +310,10 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
         # immutable and no observed provider state is applied after cancel.
         if current == "canceled":
             return dict(row)
-        # Clear the lease first; the operation CAS below remains authoritative.
+        # All instance mutations are protected by a savepoint. If the final
+        # lease CAS loses a race with expiry/reclaim, rolling back this
+        # savepoint prevents a stale worker from committing observed state.
+        conn.execute("SAVEPOINT finish_instance")
         if success:
             instance = conn.execute("SELECT * FROM service_instances WHERE id=%s FOR UPDATE", (row.get("instance_id"),)).fetchone()
             if not instance:
@@ -318,20 +364,24 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                     )
                     instance = changed
         final_status = "canceled" if canceled else ("succeeded" if success else "failed")
-        safe_code = error_code if final_status != "succeeded" else None
-        safe_message = error_message if final_status != "succeeded" else None
+        safe_code = _safe_error_code(error_code) if final_status != "succeeded" else None
+        safe_message = service_operations._safe_error_message(error_message) if final_status != "succeeded" else None
         # A second worker can never overwrite this row: worker ownership and
         # running status are part of the compare-and-set predicate.
         updated = conn.execute(
             "UPDATE service_operations SET status=%s,error_code=%s,error_message=%s,finished_at=%s,"
             "provider_result=%s,worker_id=NULL,lease_token=NULL,lease_until=NULL,heartbeat_at=NULL "
             "WHERE id=%s AND status='running' AND worker_id=%s "
-            "AND (lease_token IS NULL OR lease_token=%s) AND (lease_until IS NULL OR lease_until >= %s) RETURNING *",
+            "AND lease_token=%s AND lease_until >= %s RETURNING *",
             (final_status, safe_code, _safe(safe_message) if safe_message else None, time.time(),
-             Jsonb(safe_result), operation_id, worker_id, lease_token or row.get("lease_token"), time.time()),
+             Jsonb(safe_result), operation_id, worker_id, supplied_token, time.time()),
         ).fetchone()
         if not updated:
-            return dict(row)
+            conn.execute("ROLLBACK TO SAVEPOINT finish_instance")
+            conn.execute("RELEASE SAVEPOINT finish_instance")
+            latest = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
+            return dict(latest or row)
+        conn.execute("RELEASE SAVEPOINT finish_instance")
         _event_tx(conn, operation_id, final_status, details={"result": safe_result} if success else {"error_code": safe_code})
     return service_operations.get_operation(str(row["project_id"]), operation_id, internal_context=context)
 

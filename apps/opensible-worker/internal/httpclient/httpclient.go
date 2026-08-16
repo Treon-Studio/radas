@@ -211,10 +211,18 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	return result, nil
 }
 
-// SendLog streams a chunk of log text for an execution.
+// SendLog streams a chunk of log text for the legacy execution protocol.
 func (c *Client) SendLog(executionID, text string, ts float64) bool {
+	return c.SendServiceLog(executionID, "", text, ts)
+}
+
+// SendServiceLog streams a chunk of log text for a leased service operation.
+func (c *Client) SendServiceLog(executionID, leaseToken, text string, ts float64) bool {
 	url := fmt.Sprintf("%s/api/worker/executions/%s/log", c.ServerURL, executionID)
 	payload := map[string]any{"text": text}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
+	}
 	if ts > 0 {
 		payload["ts"] = ts
 	}
@@ -226,8 +234,13 @@ func (c *Client) SendLog(executionID, text string, ts float64) bool {
 	return resp.StatusCode < 400
 }
 
-// FinishExecution marks the execution as complete.
+// FinishExecution marks a legacy execution as complete.
 func (c *Client) FinishExecution(executionID, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool {
+	return c.FinishServiceExecution(executionID, "", status, finishedAt, duration, returnCode, errStr, result)
+}
+
+// FinishServiceExecution marks a leased service operation as complete.
+func (c *Client) FinishServiceExecution(executionID, leaseToken, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool {
 	url := fmt.Sprintf("%s/api/worker/executions/%s/finish", c.ServerURL, executionID)
 	if finishedAt == 0 {
 		finishedAt = float64(time.Now().Unix())
@@ -236,6 +249,9 @@ func (c *Client) FinishExecution(executionID, status string, finishedAt float64,
 		"status":     status,
 		"finishedAt": finishedAt,
 		"duration":   duration,
+	}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
 	}
 	if returnCode != nil {
 		payload["returnCode"] = *returnCode
@@ -246,14 +262,14 @@ func (c *Client) FinishExecution(executionID, status string, finishedAt float64,
 	if result != nil {
 		payload["result"] = result
 		if code, ok := result["error_code"].(string); ok && code != "" {
-			payload["errorCode"] = code
+			payload["errorCode"] = safeErrorCode(code)
 		}
 		if code, ok := result["code"].(string); ok && code != "" {
-			payload["errorCode"] = code
+			payload["errorCode"] = safeErrorCode(code)
 		}
 		if nested, ok := result["error"].(map[string]any); ok {
 			if code, ok := nested["code"].(string); ok && code != "" {
-				payload["errorCode"] = code
+				payload["errorCode"] = safeErrorCode(code)
 			}
 		}
 	}
@@ -265,10 +281,23 @@ func (c *Client) FinishExecution(executionID, status string, finishedAt float64,
 	return resp.StatusCode < 400
 }
 
-// Heartbeat pings the backend; may return a workerId for later use.
-// If the response contains requestSystemInfo=true the caller should
-// re-send system info.
+func safeErrorCode(value string) string {
+	candidate := strings.ToUpper(strings.TrimSpace(value))
+	allowed := map[string]bool{"PROVIDER_ERROR": true, "PROVIDER_TIMEOUT": true, "PROVIDER_DISABLED": true, "INVALID_RUNTIME": true, "UNSUPPORTED_CAPABILITY": true, "UNSUPPORTED_TIMEOUT": true, "UNSUPPORTED_IDEMPOTENCY": true, "IDEMPOTENCY_MISMATCH": true, "INVALID_PROVIDER_RESULT": true, "INVALID_PROVIDER_LOG": true, "INVALID_PROVIDER_VALIDATION": true, "INVALID_SPEC": true, "PROVIDER_VALIDATION_ERROR": true, "REMOTE_ERROR": true, "BAD_SPEC": true, "MISSING_DETAILS": true, "OPERATION_FAILED": true, "OPERATION_CANCELED": true}
+	if allowed[candidate] {
+		return candidate
+	}
+	return "OPERATION_FAILED"
+}
+
+// Heartbeat pings the backend using the legacy worker protocol.
 func (c *Client) Heartbeat(currentExecutionID string) (ok bool, requestSystemInfo bool) {
+	return c.HeartbeatWithLease(currentExecutionID, "")
+}
+
+// HeartbeatWithLease renews a service operation lease with its claim token.
+// If the response contains requestSystemInfo=true the caller should re-send system info.
+func (c *Client) HeartbeatWithLease(currentExecutionID, leaseToken string) (ok bool, requestSystemInfo bool) {
 	url := c.ServerURL + "/api/worker/heartbeat"
 	payload := map[string]any{"ts": float64(time.Now().Unix())}
 	if c.WorkerID != "" {
@@ -276,6 +305,9 @@ func (c *Client) Heartbeat(currentExecutionID string) (ok bool, requestSystemInf
 	}
 	if currentExecutionID != "" {
 		payload["currentExecutionId"] = currentExecutionID
+	}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
 	}
 	resp, body, err := c.doJSON("POST", url, payload, nil, 5*time.Second)
 	if err != nil {

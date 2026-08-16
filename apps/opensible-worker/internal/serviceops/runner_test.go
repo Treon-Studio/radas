@@ -11,11 +11,11 @@ type reporter struct {
 	result   map[string]any
 }
 
-func (r *reporter) SendLog(_ string, text string, _ float64) bool {
+func (r *reporter) SendServiceLog(_ string, _ string, text string, _ float64) bool {
 	r.logs = append(r.logs, text)
 	return true
 }
-func (r *reporter) FinishExecution(_ string, status string, _ float64, _ int, _ *int, _ string, result map[string]any) bool {
+func (r *reporter) FinishServiceExecution(_ string, _ string, status string, _ float64, _ int, _ *int, _ string, result map[string]any) bool {
 	r.finished = append(r.finished, status)
 	r.result = result
 	return true

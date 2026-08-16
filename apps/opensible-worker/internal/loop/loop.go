@@ -21,6 +21,18 @@ import (
 )
 
 // Options configures the worker loop.
+type serviceReporter struct{ client *httpclient.Client }
+
+func (r serviceReporter) SendServiceLog(id, token, text string, ts float64) bool {
+	return r.client.SendServiceLog(id, token, text, ts)
+}
+func (r serviceReporter) FinishServiceExecution(id, token, status string, at float64, duration int, code *int, err string, result map[string]any) bool {
+	return r.client.FinishServiceExecution(id, token, status, at, duration, code, err, result)
+}
+func (r serviceReporter) HeartbeatWithLease(id, token string) (bool, bool) {
+	return r.client.HeartbeatWithLease(id, token)
+}
+
 type Options struct {
 	ServerURL      string
 	PollInterval   int
@@ -194,7 +206,7 @@ func Run(opts Options) {
 			defer func() { <-sem }()
 			if _, isServiceOperation := data["serviceOperation"]; isServiceOperation {
 				serviceops.Runner{Providers: map[string]serviceops.Provider{"mock": serviceops.MockProvider{}}}.Run(
-					context.Background(), data, client,
+					context.Background(), data, serviceReporter{client},
 				)
 				return
 			}
