@@ -361,8 +361,13 @@ def create_revision_and_operation(
                 "SELECT revision_number FROM service_revisions WHERE id=%s AND instance_id=%s",
                 (current_revision_id, instance_id),
             ).fetchone()
-            if not target or not current or str(target["id"]) == str(current_revision_id) or int(target["revision_number"]) >= int(current["revision_number"]):
-                raise RevisionConflictError("rollback must target a prior immutable revision")
+            # Validate the target while the instance lock is held. This keeps
+            # rejection entirely inside the transaction: no revision, desired
+            # pointer, or operation can survive an invalid rollback request.
+            if not target:
+                raise service_instances.RevisionConflictError("rollback target revision is not part of this service")
+            if not current or str(target["id"]) == str(current_revision_id) or int(target["revision_number"]) >= int(current["revision_number"]):
+                raise service_instances.RevisionConflictError("rollback must target a prior immutable revision")
 
         revision_key = f"{key}:revision"
         existing_revision = conn.execute(

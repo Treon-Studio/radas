@@ -355,7 +355,15 @@ def _manifest(
         "schema_version": 1, "slug": slug, "name": name, "version": "1.0.0",
         "category": category, "summary": summary, "runtime": "container", "image": image,
         "production_ready": production_ready, "persistence": persistence,
-        "inputs": [{"name": "memory_mb", "type": "integer", "required": False, "default": memory_mb, "min": 128}, *list(inputs)],
+        # Secret inputs are declared twice intentionally: ``inputs`` drives
+        # service-specific forms, while ``secrets`` is the canonical reference
+        # contract consumed by validation and providers. Neither declaration
+        # contains credential material or a default value.
+        "inputs": [
+            {"name": "memory_mb", "type": "integer", "required": False, "default": memory_mb, "min": 128},
+            *list(inputs),
+            *[{"name": name, "type": "secret", "required": True} for name in secrets],
+        ],
         "secrets": [{"name": name} for name in secrets], "storage": list(storage),
         "ports": [{"name": "http", "port": health_port, "protocol": "tcp", "public": True}],
         "endpoints": [{"name": "endpoint", "port": "http", "path": health_path, "public": True}],

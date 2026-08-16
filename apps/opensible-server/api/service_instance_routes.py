@@ -50,7 +50,7 @@ def _provider_validation_errors(runtime_id: str, spec: Mapping[str, Any]) -> lis
         return []
     try:
         errors = validator(runtime_id, dict(spec))
-    except runtime_registry.ProviderNotFoundError:
+    except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
         return [{"code": "RUNTIME_UNSUPPORTED", "message": "Runtime is not registered", "details": {"runtime_id": runtime_id}}]
     return [dict(item) for item in errors if isinstance(item, Mapping)]
 
@@ -81,6 +81,17 @@ def _production_confirmation_error(token: str | None = None):
         400,
         details={"confirmation_token": token} if token else {},
     )
+
+
+def _production_operation_confirmed(instance: Mapping[str, Any], data: Mapping[str, Any]) -> bool:
+    """Require a server-verifiable production impact acknowledgement."""
+    if data.get("production_confirmed") is not True:
+        return False
+    current_revision = str(instance.get("desired_revision_id") or "")
+    supplied_revision = str(data.get("current_revision_id") or data.get("revision_id") or "")
+    supplied_token = str(data.get("production_confirmation_token") or data.get("confirmation_token") or data.get("impact_token") or "")
+    token_matches = bool(supplied_token and hmac.compare_digest(supplied_token, _confirmation_token(instance)))
+    return bool((supplied_revision and hmac.compare_digest(supplied_revision, current_revision)) or token_matches)
 
 
 def _destroy_confirmation(instance: Mapping[str, Any], data: Mapping[str, Any]) -> tuple[bool, str]:
@@ -482,6 +493,14 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
     result = operation.get("provider_result") or {}
     if not isinstance(result, Mapping):
         result = {}
+    result_data = result.get("data") if isinstance(result.get("data"), Mapping) else {}
+    result_error = result.get("error") if isinstance(result.get("error"), Mapping) else {}
+    result_details = result_error.get("details") if isinstance(result_error.get("details"), Mapping) else {}
+    retryable = result_data.get("retryable") if isinstance(result_data, Mapping) else None
+    if retryable is None:
+        retryable = result_details.get("retryable") if isinstance(result_details, Mapping) else None
+    if retryable is None:
+        retryable = result_error.get("code") in {"PROVIDER_TIMEOUT", "REMOTE_ERROR", "PROVIDER_ERROR"}
     return redact_sensitive({
         "id": operation_id,
         "kind": operation.get("kind"),
@@ -495,9 +514,9 @@ def _operation_view(project_id: str, operation: Mapping[str, Any]) -> dict[str, 
         "finished_at": operation.get("finished_at"),
         "result": result,
         "endpoint": result.get("data", {}).get("endpoint") if isinstance(result.get("data"), Mapping) else None,
-        "health": result.get("data", {}).get("health") if isinstance(result.get("data"), Mapping) else None,
+        "health": result_data.get("health"),
         "poll_url": f"/api/projects/{project_id}{suffix}/operations/{operation_id}",
-        "retryable": operation.get("status") == "failed",
+        "retryable": bool(retryable) if operation.get("status") == "failed" else False,
         "timestamps": {"created_at": operation.get("created_at"), "started_at": operation.get("started_at"), "finished_at": operation.get("finished_at")},
     })
 
@@ -627,17 +646,8 @@ def patch_service(project_id: str, service_id: str):
     if policy_error:
         return policy_error
     if str(instance.get("environment") or "") == "production":
-        supplied = str(data.get("production_confirmation_token") or data.get("confirmation_token") or "")
-        current_id = str(instance.get("desired_revision_id") or "")
-        current = service_instances.get_revision(project_id, service_id, revision_id=current_id, **_auth_kwargs(project_id))
-        current_number = str((current or {}).get("revision_number") or "")
-        payload = f"update:{service_id}:{current_id}:{current_number}".encode()
-        secret = (os.environ.get("INTERNAL_CALL_SECRET") or "confirmation").encode()
-        expected = base64.urlsafe_b64encode(hmac.new(secret, payload, hashlib.sha256).digest()).decode().rstrip("=")
-        snapshot_matches = str(data.get("current_revision_id") or data.get("revision_id") or "") == current_id
-        token_matches = bool(supplied and hmac.compare_digest(supplied, expected))
-        if data.get("production_confirmed") is not True or (not snapshot_matches and not token_matches):
-            return _production_confirmation_error(expected)
+        if not _production_operation_confirmed(instance, data):
+            return _production_confirmation_error(_confirmation_token(instance))
     spec = data.get("spec", data.get("inputs"))
     if spec is None:
         return error_response("SERVICE_VALIDATION_FAILED", "spec is required", 422)
@@ -651,7 +661,7 @@ def patch_service(project_id: str, service_id: str):
     try:
         if not definition["manifest"].get("lifecycle", {}).get("update", False) or not _runtime().capabilities(instance["runtime_id"]).get("update", False):
             return error_response("RUNTIME_UNSUPPORTED", "Service or runtime does not support update", 422, details={"capability": "update"})
-    except runtime_registry.ProviderNotFoundError:
+    except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
         return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422, details={"runtime_id": instance["runtime_id"]})
     idem_key = request.headers.get("Idempotency-Key", "").strip()
     if not idem_key:
@@ -703,6 +713,9 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     instance, error = _load_instance(project_id, service_id)
     if error:
         return error
+    if str(instance.get("environment") or "") == "production" and kind in {"deploy", "update", "rollback"}:
+        if not _production_operation_confirmed(instance, data):
+            return _production_confirmation_error(_confirmation_token(instance))
     if kind == "destroy":
         confirmed, confirmation_mode = _destroy_confirmation(instance, data)
         if not confirmed and request.headers.get("X-Confirm-Destroy", "").lower() == "true":
@@ -725,12 +738,20 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
     definition = service_catalog.get_definition(instance["definition_slug"], instance["definition_version"], org_id=instance["org_id"])
     if definition is None:
         return error_response("SERVICE_VALIDATION_FAILED", "Catalog definition is no longer available", 422)
+    policy_error = _production_policy_error(definition["manifest"], str(instance.get("environment") or ""))
+    if policy_error:
+        return policy_error
     desired_revision_id = instance.get("desired_revision_id")
-    if kind == "update":
-        if not bool(definition["manifest"].get("lifecycle", {}).get("update", False)):
-            return error_response("RUNTIME_UNSUPPORTED", "Service does not support update", 422, details={"capability": "update"})
-        if not _runtime().capabilities(instance["runtime_id"]).get("update", False):
-            return error_response("RUNTIME_UNSUPPORTED", "Runtime does not support update", 422, details={"capability": "update"})
+    if kind in {"update", "rollback"}:
+        capability = "update" if kind == "update" else "rollback"
+        if not bool(definition["manifest"].get("lifecycle", {}).get(capability, False)):
+            return error_response("RUNTIME_UNSUPPORTED", f"Service does not support {capability}", 422, details={"capability": capability})
+        try:
+            supported = _runtime().capabilities(instance["runtime_id"]).get(capability, False)
+        except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
+            return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422, details={"runtime_id": instance["runtime_id"]})
+        if not supported:
+            return error_response("RUNTIME_UNSUPPORTED", f"Runtime does not support {capability}", 422, details={"capability": capability})
     if kind == "rollback":
         target_id = str(data.get("revision_id") or "").strip()
         if not target_id or target_id == str(desired_revision_id or ""):
@@ -773,7 +794,7 @@ def _lifecycle(kind: str, project_id: str, service_id: str):
         if not _runtime().capabilities(instance["runtime_id"]).get(kind, False):
             return error_response("RUNTIME_UNSUPPORTED", f"Runtime does not support {kind}", 422, details={"capability": kind})
     except (runtime_registry.ProviderNotFoundError, KeyError, ValueError):
-        return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422)
+        return error_response("RUNTIME_UNSUPPORTED", "Runtime is not registered", 422, details={"runtime_id": instance["runtime_id"]})
     operation, error = _operation_for(project_id, instance, kind, desired_revision_id=(data.get("revision_id") if isinstance(data.get("revision_id"), str) else None))
     if error:
         return error

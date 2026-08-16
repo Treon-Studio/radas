@@ -21,7 +21,7 @@ export type ServiceManifest = {
   ports?: Array<{ name?: string; port?: number; public?: boolean }>;
   endpoints?: Array<{ name?: string; path?: string; public?: boolean }>;
   lifecycle?: Record<string, boolean>;
-  dependencies?: string[];
+  dependencies?: Array<string | { name?: string; kind?: string; required?: boolean; description?: string }>;
 };
 
 export type ServiceDefinition = { id?: string; slug: string; version: string; manifest: ServiceManifest };
