@@ -273,6 +273,13 @@ func (c *Client) FinishServiceExecution(executionID, leaseToken, status string, 
 			}
 		}
 	}
+	// Service-operation failures must always carry a stable, allowlisted code,
+	// including decode failures and providers that return a nil/malformed result.
+	if status == "FAILED" && leaseToken != "" {
+		if code, ok := payload["errorCode"].(string); !ok || code == "" {
+			payload["errorCode"] = "OPERATION_FAILED"
+		}
+	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 15*time.Second)
 	if err != nil {
 		logging.L().Error("finish_execution failed", "err", err)

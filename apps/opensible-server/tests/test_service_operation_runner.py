@@ -36,6 +36,47 @@ def _operation(instance, key="runner-key"):
     )
 
 
+def test_queued_and_terminal_events_are_emitted_once_across_retry_and_reclaim(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+
+    queued_events = pg.query_all(
+        "SELECT event FROM service_operation_events WHERE operation_id=%s AND event='queued'",
+        (operation["id"],),
+    )
+    assert len(queued_events) == 1
+
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    assert claim["operation_id"] == operation["id"]
+    before_running = pg.query_all(
+        "SELECT event FROM service_operation_events WHERE operation_id=%s ORDER BY id",
+        (operation["id"],),
+    )
+    assert [row["event"] for row in before_running] == ["queued", "running"]
+    pg.execute("UPDATE service_operations SET lease_until=%s WHERE id=%s", (time.time() - 1, operation["id"]))
+    assert service_operation_runner.reclaim_expired() == 1
+    restarted = service_operation_runner.claim_next_operation("worker-b")
+    assert restarted["operation_id"] == operation["id"]
+    done = service_operation_runner.finish_operation(
+        operation["id"], "worker-b", success=False, error_message="provider failed",
+        lease_token=restarted["lease_token"],
+    )
+    assert done["status"] == "failed"
+
+    # Repeated finish and queued/terminal event paths are idempotent.
+    repeated = service_operation_runner.finish_operation(
+        operation["id"], "worker-b", success=False, lease_token=restarted["lease_token"],
+    )
+    assert repeated["status"] == "failed"
+    events = pg.query_all(
+        "SELECT event FROM service_operation_events WHERE operation_id=%s ORDER BY id",
+        (operation["id"],),
+    )
+    assert [row["event"] for row in events].count("queued") == 1
+    assert [row["event"] for row in events].count("failed") == 1
+
+
 def test_claim_payload_failure_terminalizes_and_clears_lease(pg_db, monkeypatch):
     _project()
     instance = _instance()
@@ -75,6 +116,21 @@ def test_mock_provider_success_updates_instance_and_is_idempotent(pg_db):
     repeated = service_operation_runner.finish_operation(operation["id"], "worker-a", success=True, result={})
     assert repeated["status"] == "succeeded"
     assert len(service_operation_runner.list_events(operation["id"])) >= 3
+
+
+def test_finish_without_result_persists_operation_failed_code(pg_db):
+    _project()
+    instance = _instance()
+    operation = _operation(instance)
+    claim = service_operation_runner.claim_next_operation("worker-a")
+    done = service_operation_runner.finish_operation(
+        operation["id"], "worker-a", success=False, result=None,
+        error_code=None, error_message="malformed provider result", lease_token=claim["lease_token"],
+    )
+    assert done["status"] == "failed"
+    assert done["error_code"] == "OPERATION_FAILED"
+    stored = pg.query_one("SELECT error_code FROM service_operations WHERE id=%s", (operation["id"],))
+    assert stored["error_code"] == "OPERATION_FAILED"
 
 
 def test_error_code_is_allowlisted_in_operation_and_events(pg_db):

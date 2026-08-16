@@ -58,6 +58,20 @@ func (r Runner) provider(runtimeID string) (Provider, bool) {
 	return p, ok
 }
 
+func operationErrorCode(value string) string {
+	candidate := strings.ToUpper(strings.TrimSpace(value))
+	switch candidate {
+	case "PROVIDER_ERROR", "PROVIDER_TIMEOUT", "PROVIDER_DISABLED", "INVALID_RUNTIME",
+		"UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "UNSUPPORTED_IDEMPOTENCY",
+		"IDEMPOTENCY_MISMATCH", "INVALID_PROVIDER_RESULT", "INVALID_PROVIDER_LOG",
+		"INVALID_PROVIDER_VALIDATION", "INVALID_SPEC", "PROVIDER_VALIDATION_ERROR",
+		"REMOTE_ERROR", "BAD_SPEC", "MISSING_DETAILS", "OPERATION_FAILED", "OPERATION_CANCELED":
+		return candidate
+	default:
+		return "OPERATION_FAILED"
+	}
+}
+
 // Run executes exactly one already-claimed service operation. Finish is safe
 // to repeat because the server owns terminal-state CAS and idempotency.
 func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) {
@@ -71,11 +85,11 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 		if leaseToken == "" {
 			leaseToken = rawString(raw, "leaseToken")
 		}
-		reporter.FinishServiceExecution(executionID, leaseToken, "FAILED", 0, 0, nil, redactText(err.Error()), nil)
+		reporter.FinishServiceExecution(executionID, leaseToken, "FAILED", 0, 0, nil, redactText(err.Error()), map[string]any{"code": "OPERATION_FAILED"})
 		return
 	}
 	if op.OperationID == "" {
-		reporter.FinishServiceExecution("", op.LeaseToken, "FAILED", 0, 0, nil, "service operation id is required", nil)
+		reporter.FinishServiceExecution("", op.LeaseToken, "FAILED", 0, 0, nil, "service operation id is required", map[string]any{"code": "OPERATION_FAILED"})
 		return
 	}
 	provider, ok := r.provider(op.RuntimeID)
@@ -109,10 +123,7 @@ func (r Runner) Run(ctx context.Context, raw map[string]any, reporter Reporter) 
 		reporter.FinishServiceExecution(op.OperationID, op.LeaseToken, "SUCCESS", 0, 0, nil, "", redactMap(result.Data))
 		return
 	}
-	code := strings.ToUpper(strings.TrimSpace(result.Code))
-	if code == "" {
-		code = "PROVIDER_ERROR"
-	}
+	code := operationErrorCode(result.Code)
 	message := result.Message
 
 	if message == "" {

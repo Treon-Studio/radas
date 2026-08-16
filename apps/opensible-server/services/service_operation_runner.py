@@ -51,11 +51,21 @@ def _safe(value: Any) -> Any:
 
 def _event_tx(conn: Any, operation_id: str, event: str, *, message: str | None = None,
               details: Mapping[str, Any] | None = None) -> None:
+    values = (
+        operation_id, event, _safe(message) if message is not None else None,
+        Jsonb(_safe_event_value(dict(details or {}))), time.time(),
+    )
+    if event in {"queued", "succeeded", "failed", "canceled"}:
+        conn.execute(
+            "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
+            "SELECT %s,%s,%s,%s,%s WHERE NOT EXISTS ("
+            "SELECT 1 FROM service_operation_events WHERE operation_id=%s AND event=%s)",
+            values + (operation_id, event),
+        )
+        return
     conn.execute(
         "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
-        "VALUES (%s,%s,%s,%s,%s)",
-        (operation_id, event, _safe(message) if message is not None else None,
-         Jsonb(_safe_event_value(dict(details or {}))), time.time()),
+        "VALUES (%s,%s,%s,%s,%s)", values,
     )
 
 
@@ -374,7 +384,7 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
                     )
                     instance = changed
         final_status = "canceled" if canceled else ("succeeded" if success else "failed")
-        safe_code = _safe_error_code(error_code) if final_status != "succeeded" else None
+        safe_code = (_safe_error_code(error_code) or "OPERATION_FAILED") if final_status != "succeeded" else None
         safe_message = service_operations._safe_error_message(error_message) if final_status != "succeeded" else None
         # A second worker can never overwrite this row: worker ownership and
         # running status are part of the compare-and-set predicate.

@@ -139,6 +139,21 @@ def _row(row: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _operation_event_tx(conn: Any, operation_id: str, event: str, *, message: str | None = None,
+                        details: Mapping[str, Any] | None = None) -> None:
+    """Append one safe lifecycle event while the operation row is locked."""
+    safe_details = redact(dict(details or {}))
+    conn.execute(
+        "INSERT INTO service_operation_events(operation_id,event,message,details,created_at) "
+        "SELECT %s,%s,%s,%s,%s WHERE NOT EXISTS ("
+        "SELECT 1 FROM service_operation_events WHERE operation_id=%s AND event=%s)",
+        (
+            operation_id, event, redact(message) if message is not None else None,
+            Jsonb(safe_details), time.time(), operation_id, event,
+        ),
+    )
+
+
 def _audit_lifecycle(
     conn: Any,
     action: str,
@@ -243,6 +258,8 @@ def create_operation(
                  initial_status, requested_by, now),
             )
             row = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
+            if initial_status == "queued":
+                _operation_event_tx(conn, operation_id, "queued", message="operation queued")
             _audit_lifecycle(
                 conn, "service.operation.created", actor_id=requested_by,
                 org_id=derived_org, project_id=project_id, instance_id=instance_id,
@@ -362,6 +379,13 @@ def transition_operation(
             (status, safe_code, safe_error, started_at, finished_at, operation_id, project_id, current),
         )
         updated = conn.execute("SELECT * FROM service_operations WHERE id = %s", (operation_id,)).fetchone()
+        if status == "queued":
+            _operation_event_tx(conn, operation_id, "queued", message="operation queued")
+        elif status in {"succeeded", "failed", "canceled"}:
+            _operation_event_tx(
+                conn, operation_id, status,
+                details={"error_code": safe_code} if status != "succeeded" else {},
+            )
         _audit_lifecycle(
             conn, "service.operation.transitioned", actor_id=actor_id,
             org_id=updated.get("org_id"), project_id=project_id,

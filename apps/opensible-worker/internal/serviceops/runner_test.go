@@ -11,6 +11,7 @@ type reporter struct {
 	finishIDs    []string
 	finishTokens []string
 	result       map[string]any
+	errorCode    string
 }
 
 func (r *reporter) SendServiceLog(_ string, _ string, text string, _ float64) bool {
@@ -19,6 +20,11 @@ func (r *reporter) SendServiceLog(_ string, _ string, text string, _ float64) bo
 }
 func (r *reporter) FinishServiceExecution(id string, leaseToken string, status string, _ float64, _ int, _ *int, _ string, result map[string]any) bool {
 	r.finished = append(r.finished, status)
+	if result != nil {
+		if code, ok := result["code"].(string); ok {
+			r.errorCode = code
+		}
+	}
 	r.finishIDs = append(r.finishIDs, id)
 	r.finishTokens = append(r.finishTokens, leaseToken)
 	r.result = result
@@ -90,5 +96,19 @@ func TestRunDecodeFailureFinishesWithNestedLeaseToken(t *testing.T) {
 	}
 	if rep.finishIDs[0] != "op-1" || rep.finishTokens[0] != "claim-token" {
 		t.Fatalf("finish identity=%q token=%q", rep.finishIDs[0], rep.finishTokens[0])
+	}
+	if rep.errorCode != "OPERATION_FAILED" {
+		t.Fatalf("error code=%q; want OPERATION_FAILED", rep.errorCode)
+	}
+}
+
+func TestRunRejectsMalformedProviderCodeWithAllowlistedFailure(t *testing.T) {
+	rep := &reporter{}
+	runner := Runner{Providers: map[string]Provider{
+		"mock": provider{result: Result{Code: "password=secret", Message: "malformed"}},
+	}}
+	runner.Run(context.Background(), payload(), rep)
+	if rep.errorCode != "OPERATION_FAILED" {
+		t.Fatalf("error code=%q; want OPERATION_FAILED", rep.errorCode)
 	}
 }
