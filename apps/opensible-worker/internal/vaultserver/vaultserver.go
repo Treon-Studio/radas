@@ -33,11 +33,8 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 }
 
 func checkAuth(secret string, r *http.Request) bool {
-	if secret == "" {
-		return true
-	}
 	provided := r.Header.Get("X-Vault-Secret")
-	return subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) == 1
+	return secret != "" && subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) == 1
 }
 
 // Run starts the HTTP server. Returns when the server exits.
@@ -52,11 +49,8 @@ func Run() error {
 		port = "9999"
 	}
 	if secret == "" {
-		logging.L().Warn("VAULT_SERVER_SECRET is not set — accepting any loopback client")
-	}
-	if host != "127.0.0.1" && host != "localhost" && host != "::1" && secret == "" {
-		logging.L().Error("REFUSING to bind on non-loopback without VAULT_SERVER_SECRET", "host", host)
-		return fmt.Errorf("refuse insecure bind")
+		logging.L().Error("VAULT_SERVER_SECRET must be configured when the vault server is enabled")
+		return fmt.Errorf("VAULT_SERVER_SECRET is required")
 	}
 
 	mux := http.NewServeMux()

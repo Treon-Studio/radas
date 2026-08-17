@@ -3,6 +3,7 @@
 package loop
 
 import (
+	"context"
 	"errors"
 	"math"
 	"os"
@@ -15,10 +16,24 @@ import (
 	"github.com/opensible/worker-go/internal/execute"
 	"github.com/opensible/worker-go/internal/httpclient"
 	"github.com/opensible/worker-go/internal/logging"
+	"github.com/opensible/worker-go/internal/redaction"
+	"github.com/opensible/worker-go/internal/serviceops"
 	"github.com/opensible/worker-go/internal/systeminfo"
 )
 
 // Options configures the worker loop.
+type serviceReporter struct{ client *httpclient.Client }
+
+func (r serviceReporter) SendServiceLog(id, token, text string, ts float64) bool {
+	return r.client.SendServiceLog(id, token, text, ts)
+}
+func (r serviceReporter) FinishServiceExecution(id, token, status string, at float64, duration int, code *int, err string, result map[string]any) bool {
+	return r.client.FinishServiceExecution(id, token, status, at, duration, code, err, result)
+}
+func (r serviceReporter) HeartbeatWithLease(id, token string) (bool, bool) {
+	return r.client.HeartbeatWithLease(id, token)
+}
+
 type Options struct {
 	ServerURL      string
 	PollInterval   int
@@ -56,7 +71,7 @@ func Run(opts Options) {
 	if client.WorkerToken == "" {
 		log.Info("No token found, registering worker...")
 		if _, err := client.Register(opts.WorkerName, opts.Capabilities); err != nil {
-			log.Error("Failed to register worker", "err", err)
+			log.Error("Failed to register worker", "err", redaction.Text(err.Error()))
 			return
 		}
 	}
@@ -154,7 +169,7 @@ func Run(opts Options) {
 			if is401 {
 				log.Warn("Claim returned 401, re-registering...")
 				if _, err := client.Register(opts.WorkerName, opts.Capabilities); err != nil {
-					log.Error("Failed to re-register worker", "err", err)
+					log.Error("Failed to re-register worker", "err", redaction.Text(err.Error()))
 					needReregister = true
 					time.Sleep(pollInterval)
 					continue
@@ -172,7 +187,7 @@ func Run(opts Options) {
 				continue
 			}
 			rateLimitRetries = 0
-			log.Error("Claim failed", "err", err)
+			log.Error("Claim failed", "err", redaction.Text(err.Error()))
 			time.Sleep(pollInterval)
 			continue
 		}
@@ -190,6 +205,12 @@ func Run(opts Options) {
 		log.Debug("Claimed execution", "id", execID, "project", projID)
 		go func(id string, data map[string]any, pid string) {
 			defer func() { <-sem }()
+			if _, isServiceOperation := data["serviceOperation"]; isServiceOperation {
+				serviceops.Runner{Providers: map[string]serviceops.Provider{"mock": serviceops.MockProvider{}}}.Run(
+					context.Background(), data, serviceReporter{client},
+				)
+				return
+			}
 			execute.Run(id, data, pid, client)
 		}(execID, execData, projID)
 	}

@@ -994,6 +994,13 @@ def stacks_action(name):
     _cu = getattr(request, "current_user", {}) or {}
     _tb = _cu.get("username") or _cu.get("email") or _cu.get("user_id") or ""
     _tbid = _cu.get("user_id") or ""
+    _org_id = None
+    if pid:
+        try:
+            from auth.middleware import _org_id_of_project
+            _org_id = _org_id_of_project(pid)
+        except Exception:
+            _org_id = None
 
     _mutating = action in _cloud_state.MUTATING_ACTIONS
     _dd = _stack_data_dir(pid, name)
@@ -1042,6 +1049,10 @@ def stacks_action(name):
     if _mutating:
         try:
             from services.feature_flags import enforcement as _ff_enforcement
+            from services.flag_gate import mutation_blocked as _mutation_blocked
+            _gate = _mutation_blocked(action, env="prod", user=(_cu.get("username") or ""), project_id=pid, org_id=_org_id if pid else None)
+            if _gate.get("blocked"):
+                return jsonify({"error": f"Operation blocked by safety flag ({_gate.get('reason')}).", "flag": _gate}), 423
             _env = None
             try:
                 _env = _load_meta(pid, name).get("env")

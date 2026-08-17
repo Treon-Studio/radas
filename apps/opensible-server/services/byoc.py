@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import uuid
 from pathlib import Path
@@ -81,6 +82,20 @@ _PROVIDER_META: Dict[str, Dict[str, Any]] = {
         "api": "",
     },
 }
+
+
+def detect_provider(data: Dict[str, Any]) -> Dict[str, Any]:
+    creds = data.get("credentials") or data
+    endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").lower()
+    keys = set(creds)
+    if "hcloud_token" in keys or "hetzner" in endpoint: provider = "hetzner"
+    elif "api_token" in keys or "idcloudhost" in endpoint: provider = "idcloudhost"
+    elif {"access_key", "secret_key"} <= keys: provider = "aws"
+    elif "service_account_json" in keys: provider = "gcp"
+    elif {"tenant_id", "subscription_id", "client_id", "client_secret"} <= keys: provider = "azure"
+    elif "os_auth_url" in keys or "keystone" in endpoint: provider = "openstack"
+    else: return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape"}
+    return {"provider": provider, "confidence": 1.0, "reason": "credential shape matched"}
 
 
 def providers() -> List[Dict[str, Any]]:
@@ -182,6 +197,13 @@ def delete_account(account_id: str) -> bool:
 # Validation & discovery (lightweight API probes — best effort)
 # --------------------------------------------------------------------------
 
+def _safe_probe_detail(value: Any) -> str:
+    text = str(value or "")
+    for marker in ("password", "token", "secret", "apikey", "authorization"):
+        text = re.sub(rf"({marker}\s*[=:]\s*)[^,;\s}}]+", r"\1[REDACTED]", text, flags=re.I)
+    return text[:200]
+
+
 def _probe(provider: str, creds: Dict[str, str]) -> Dict[str, Any]:
     import requests
     if provider == "hetzner":
@@ -197,17 +219,15 @@ def _probe(provider: str, creds: Dict[str, str]) -> Dict[str, Any]:
                          "domain": {"name": "Default"}}}},
                 "scope": {"project": {"name": creds.get("os_project_name", ""), "domain": {"name": "Default"}}}},
         }, timeout=15)
-        return {"ok": r.status_code in (200, 201), "status": r.status_code, "detail": r.headers.get("X-Subject-Token", "")[:40] if r.status_code in (200, 201) else r.text[:200]}
+        return {"ok": r.status_code in (200, 201), "status": r.status_code,
+                "detail": "credentials accepted" if r.status_code in (200, 201) else _safe_probe_detail(r.text)}
     if provider == "idcloudhost":
         r = requests.get("https://api.idcloudhost.com/v1/user-resource/vps",
                          headers={"apikey": creds.get("api_token", "")}, timeout=15)
         return {"ok": r.status_code == 200, "status": r.status_code, "detail": r.text[:200]}
-    if provider == "aws":
-        return {"ok": True, "status": 200, "detail": "local check only — gunakan aws cli (sts get-caller-identity) untuk verifikasi penuh"}
-    if provider == "gcp":
-        return {"ok": True, "status": 200, "detail": "local check only — gunakan gcloud auth untuk verifikasi penuh"}
-    if provider == "azure":
-        return {"ok": True, "status": 200, "detail": "local check only — gunakan az cli untuk verifikasi penuh"}
+    if provider in ("aws", "gcp", "azure"):
+        return {"ok": False, "status": 501,
+                "detail": f"credential probe unavailable for {provider}; validation was not performed"}
     return {"ok": False, "status": 0, "detail": "no probe available"}
 
 
@@ -225,6 +245,8 @@ def validate_account(account_id: str) -> Dict[str, Any]:
             a["status"] = "verified" if probe["ok"] else "error"
             a["last_check"] = int(time.time())
             a["validate_detail"] = probe.get("detail", "")
+            if not probe.get("ok"):
+                a["last_notification"] = {"kind": "byoc.credential_failure", "status": probe.get("status", 0), "at": int(time.time()), "redacted": True}
     _save(items)
     return {"account_id": account_id, **probe}
 
@@ -263,6 +285,17 @@ def rotate_credentials(account_id: str, new_creds: Dict[str, str]) -> Dict[str, 
         a["updated_at"] = int(time.time())
     _save(items)
     return {"account_id": account_id, "status": "unverified"}
+
+
+def get_inventory_page(account_id: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    inventory = get_inventory(account_id)
+    limit = max(1, min(500, int(limit)))
+    offset = max(0, int(offset))
+    resources = inventory.get("resources") or []
+    page = resources[offset:offset + limit]
+    next_offset = offset + limit if offset + limit < len(resources) else None
+    return {**inventory, "resources": page, "limit": limit, "offset": offset,
+            "next_offset": next_offset, "has_more": next_offset is not None}
 
 
 def get_inventory(account_id: str) -> Dict[str, Any]:
@@ -311,19 +344,186 @@ def get_inventory(account_id: str) -> Dict[str, Any]:
                                       "region": v.get("location"), "status": v.get("status"), "created": ""})
     except Exception:
         pass
+    now = int(time.time())
+    snapshot = {"id": str(uuid.uuid4()), "captured_at": now, "count": len(resources),
+                "resources": [dict(resource) for resource in resources]}
     items = _load()
     for a in items:
         if a["id"] == account_id:
             a["resource_count"] = len(resources)
-            a["last_inventory"] = int(time.time())
+            a["last_inventory"] = now
+            snapshots = list(a.get("inventory_snapshots") or [])
+            snapshots.append(snapshot)
+            a["inventory_snapshots"] = snapshots[-20:]
     _save(items)
+    managed = {str(item.get("resource_id")): item for item in (acct.get("managed_resources") or [])}
+    for resource in resources:
+        tracking = managed.get(str(resource.get("id")))
+        resource["managed"] = bool(tracking and tracking.get("status") == "managed")
+        resource["managed_at"] = tracking.get("managed_at") if tracking else None
     return {"account_id": account_id, "provider": acct["provider"], "resources": resources,
-            "count": len(resources), "meta": meta}
+            "count": len(resources), "managed_count": sum(1 for r in resources if r.get("managed")), "meta": meta}
+
+
+def inventory_drift(account_id: str) -> Dict[str, Any]:
+    snapshots = list_inventory_snapshots(account_id, 2)
+    if len(snapshots) < 2:
+        return {"account_id": account_id, "comparable": False, "added": [], "removed": [], "changed": [], "drifted": False}
+    previous = {str(item.get("id")): item for item in snapshots[1].get("resources") or []}
+    current = {str(item.get("id")): item for item in snapshots[0].get("resources") or []}
+    added = sorted(set(current) - set(previous))
+    removed = sorted(set(previous) - set(current))
+    changed = sorted(key for key in set(current) & set(previous) if current[key] != previous[key])
+    return {"account_id": account_id, "comparable": True, "added": added, "removed": removed,
+            "changed": changed, "drifted": bool(added or removed or changed),
+            "from_snapshot": snapshots[1].get("id"), "to_snapshot": snapshots[0].get("id")}
+
+
+def list_inventory_snapshots(account_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    return list((acct.get("inventory_snapshots") or [])[-max(1, min(int(limit), 20)):][::-1])
+
+
+def list_managed_resources(account_id: str) -> List[Dict[str, Any]]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    return [dict(item) for item in (acct.get("managed_resources") or []) if item.get("status") == "managed"]
+
+
+def set_resource_management(account_id: str, resource_ids: List[str], managed: bool = True) -> Dict[str, Any]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    inventory = get_inventory(account_id)
+    available = {str(item.get("id")): item for item in inventory.get("resources") or []}
+    ids = sorted({str(value).strip() for value in (resource_ids or []) if str(value).strip()})
+    if not ids:
+        raise ValueError("resource_ids required")
+    missing = [value for value in ids if value not in available]
+    if missing:
+        raise ValueError("resource ids are not in the latest inventory")
+    now = int(time.time())
+    items = _load()
+    updated = None
+    for item in items:
+        if item.get("id") != account_id:
+            continue
+        current = {str(row.get("resource_id")): dict(row) for row in (item.get("managed_resources") or [])}
+        for resource_id in ids:
+            if managed:
+                current[resource_id] = {"resource_id": resource_id, "address": available[resource_id].get("address"),
+                                        "type": available[resource_id].get("type"), "status": "managed", "managed_at": now}
+            else:
+                current.pop(resource_id, None)
+        item["managed_resources"] = list(current.values())
+        item["updated_at"] = now
+        updated = item
+    _save(items)
+    return {"account_id": account_id, "managed": managed, "resources": list_managed_resources(account_id),
+            "managed_count": len(updated.get("managed_resources") or []) if updated else 0}
 
 
 # --------------------------------------------------------------------------
 # Import generation
 # --------------------------------------------------------------------------
+
+def set_account_budget(account_id: str, amount: float, currency: str = "USD", alert_at_pct: float = 80.0) -> Dict[str, Any]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    amount = max(0.0, float(amount))
+    if amount <= 0:
+        raise ValueError("budget amount must be positive")
+    config = {"amount": amount, "currency": str(currency or "USD")[:8],
+              "alert_at_pct": min(100.0, max(1.0, float(alert_at_pct))), "updated_at": int(time.time())}
+    items = _load()
+    for item in items:
+        if item.get("id") == account_id:
+            item["budget"] = config
+            item["updated_at"] = int(time.time())
+    _save(items)
+    return {"account_id": account_id, **config}
+
+
+def check_account_budget(account_id: str) -> Dict[str, Any]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    budget = acct.get("budget")
+    estimate = estimate_account_cost(account_id)
+    monthly = float(estimate.get("monthly") or 0)
+    if not budget:
+        return {"account_id": account_id, "configured": False, "monthly": monthly, "alerted": False}
+    pct = monthly / float(budget["amount"]) * 100 if budget["amount"] else 0.0
+    alerted = pct >= float(budget["alert_at_pct"])
+    if alerted:
+        try:
+            from services.webhook_dispatcher import dispatch_event
+            sent = dispatch_event("byoc.budget_alert", {"account_id": account_id, "provider": acct["provider"],
+                "monthly": round(monthly, 2), "budget": budget["amount"], "currency": budget["currency"], "usage_pct": round(pct, 1)})
+        except Exception:
+            sent = 0
+    else:
+        sent = 0
+    return {"account_id": account_id, "configured": True, "monthly": round(monthly, 2),
+            "budget": budget["amount"], "currency": budget["currency"], "usage_pct": round(pct, 1),
+            "alerted": alerted, "sent": sent}
+
+
+def estimate_account_cost(account_id: str, resources: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    if resources is None:
+        resources = list_managed_resources(account_id)
+    provider = acct["provider"]
+    from storage.cost_store import estimate_cost
+    normalized = []
+    for resource in resources:
+        kind = "instance" if "server" in str(resource.get("type", "")) or "instance" in str(resource.get("type", "")) else "instance"
+        normalized.append({"kind": kind, "name": resource.get("address") or resource.get("resource_id"),
+                           "quantity": 1, "vcpu": resource.get("vcpu", 0), "ram_gb": resource.get("ram_gb", 0)})
+    estimate = estimate_cost(provider, normalized)
+    return {"account_id": account_id, "provider": provider, "resource_count": len(normalized),
+            "currency": estimate.get("currency", "USD"), "monthly": estimate.get("monthly", estimate.get("total_monthly", 0)),
+            "yearly": estimate.get("yearly", estimate.get("total_yearly", 0)), "estimate": estimate}
+
+
+def sync_state_resources(account_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+    """Sync sanitized resource metadata from an existing Terraform state payload."""
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+    raw_resources = state.get("resources") if isinstance(state, dict) else None
+    if not isinstance(raw_resources, list):
+        raise ValueError("state.resources must be a list")
+    resources = []
+    for item in raw_resources[:1000]:
+        if not isinstance(item, dict):
+            continue
+        resource_id = str(item.get("id") or item.get("name") or "").strip()
+        address = str(item.get("address") or "").strip()
+        resource_type = str(item.get("type") or "").strip()
+        if not resource_id or not address or not resource_type or len(address) > 300:
+            continue
+        resources.append({"resource_id": resource_id, "address": address, "type": resource_type,
+                          "status": "managed", "managed_at": int(time.time()), "source": "terraform_state"})
+    if not resources:
+        raise ValueError("state contains no usable resources")
+    items = _load()
+    now = int(time.time())
+    for item in items:
+        if item.get("id") == account_id:
+            item["managed_resources"] = resources
+            item["state_sync"] = {"at": now, "resource_count": len(resources), "source": "terraform_state"}
+            item["updated_at"] = now
+    _save(items)
+    return {"account_id": account_id, "source": "terraform_state", "resource_count": len(resources),
+            "resources": resources, "synced_at": now}
+
 
 def generate_import(account_id: str, resource_ids: List[str]) -> Dict[str, Any]:
     acct = get_account(account_id)
@@ -331,7 +531,11 @@ def generate_import(account_id: str, resource_ids: List[str]) -> Dict[str, Any]:
         raise ValueError("account not found")
     inv = get_inventory(account_id)
     all_res = {str(r["id"]): r for r in inv["resources"]}
-    selected = [all_res[i] for i in resource_ids if i in all_res]
+    if len(resource_ids) != len(set(str(i) for i in resource_ids)):
+        raise ValueError("duplicate resource ids are not allowed")
+    if any(str(i) not in all_res for i in resource_ids):
+        raise ValueError("one or more selected resources are not in the latest inventory")
+    selected = [all_res[str(i)] for i in resource_ids]
     if not selected:
         raise ValueError("no matching resources found in inventory")
     # Import addresses are provider-address style; user refines after adoption.

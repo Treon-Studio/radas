@@ -53,6 +53,9 @@ import { Route as CloudStacksNewHetznerRouteImport } from './routes/cloud/stacks
 import { Route as CloudStacksNewIdcloudhostRouteImport } from './routes/cloud/stacks/new.idcloudhost'
 import { Route as CloudStacksNewImportRouteImport } from './routes/cloud/stacks/new.import'
 import { Route as CloudStacksNewKubernetesRouteImport } from './routes/cloud/stacks/new.kubernetes'
+import { Route as ProjectsProjectIdServicesIndexRouteImport } from './routes/projects/$projectId/services/index'
+import { Route as ProjectsProjectIdServicesServiceIdRouteImport } from './routes/projects/$projectId/services/$serviceId'
+import { Route as ProjectsProjectIdServicesNewRouteImport } from './routes/projects/$projectId/services/new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -280,6 +283,24 @@ const CloudStacksNewKubernetesRoute =
     path: '/kubernetes',
     getParentRoute: () => CloudStacksNewRoute,
   } as any)
+const ProjectsProjectIdServicesIndexRoute =
+  ProjectsProjectIdServicesIndexRouteImport.update({
+    id: '/services/',
+    path: '/services/',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdServicesServiceIdRoute =
+  ProjectsProjectIdServicesServiceIdRouteImport.update({
+    id: '/services/$serviceId',
+    path: '/services/$serviceId',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdServicesNewRoute =
+  ProjectsProjectIdServicesNewRouteImport.update({
+    id: '/services/new',
+    path: '/services/new',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -305,7 +326,7 @@ export interface FileRoutesByFullPath {
   '/infrastructure/templates': typeof InfrastructureTemplatesRoute
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -326,6 +347,9 @@ export interface FileRoutesByFullPath {
   '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
+  '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
+  '/projects/$projectId/services/new': typeof ProjectsProjectIdServicesNewRoute
+  '/projects/$projectId/services/': typeof ProjectsProjectIdServicesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -351,7 +375,7 @@ export interface FileRoutesByTo {
   '/infrastructure/templates': typeof InfrastructureTemplatesRoute
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -372,6 +396,9 @@ export interface FileRoutesByTo {
   '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
+  '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
+  '/projects/$projectId/services/new': typeof ProjectsProjectIdServicesNewRoute
+  '/projects/$projectId/services': typeof ProjectsProjectIdServicesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -398,7 +425,7 @@ export interface FileRoutesById {
   '/infrastructure/templates': typeof InfrastructureTemplatesRoute
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -419,6 +446,9 @@ export interface FileRoutesById {
   '/cloud/stacks/new/idcloudhost': typeof CloudStacksNewIdcloudhostRoute
   '/cloud/stacks/new/import': typeof CloudStacksNewImportRoute
   '/cloud/stacks/new/kubernetes': typeof CloudStacksNewKubernetesRoute
+  '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
+  '/projects/$projectId/services/new': typeof ProjectsProjectIdServicesNewRoute
+  '/projects/$projectId/services/': typeof ProjectsProjectIdServicesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -467,6 +497,9 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
+    | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/services/new'
+    | '/projects/$projectId/services/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -513,6 +546,9 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
+    | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/services/new'
+    | '/projects/$projectId/services'
   id:
     | '__root__'
     | '/'
@@ -559,6 +595,9 @@ export interface FileRouteTypes {
     | '/cloud/stacks/new/idcloudhost'
     | '/cloud/stacks/new/import'
     | '/cloud/stacks/new/kubernetes'
+    | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/services/new'
+    | '/projects/$projectId/services/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -585,7 +624,7 @@ export interface RootRouteChildren {
   InfrastructureTemplatesRoute: typeof InfrastructureTemplatesRoute
   InfrastructureVaultsRoute: typeof InfrastructureVaultsRoute
   InfrastructureVaultsSecretsRoute: typeof InfrastructureVaultsSecretsRoute
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
   SystemApiRoute: typeof SystemApiRoute
   SystemGithubActionsRoute: typeof SystemGithubActionsRoute
   SystemSecretsRoute: typeof SystemSecretsRoute
@@ -907,8 +946,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CloudStacksNewKubernetesRouteImport
       parentRoute: typeof CloudStacksNewRoute
     }
+    '/projects/$projectId/services/': {
+      id: '/projects/$projectId/services/'
+      path: '/services'
+      fullPath: '/projects/$projectId/services/'
+      preLoaderRoute: typeof ProjectsProjectIdServicesIndexRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/services/$serviceId': {
+      id: '/projects/$projectId/services/$serviceId'
+      path: '/services/$serviceId'
+      fullPath: '/projects/$projectId/services/$serviceId'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/services/new': {
+      id: '/projects/$projectId/services/new'
+      path: '/services/new'
+      fullPath: '/projects/$projectId/services/new'
+      preLoaderRoute: typeof ProjectsProjectIdServicesNewRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
   }
 }
+
+interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdServicesServiceIdRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+  ProjectsProjectIdServicesNewRoute: typeof ProjectsProjectIdServicesNewRoute
+  ProjectsProjectIdServicesIndexRoute: typeof ProjectsProjectIdServicesIndexRoute
+}
+
+const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdServicesServiceIdRoute:
+    ProjectsProjectIdServicesServiceIdRoute,
+  ProjectsProjectIdServicesNewRoute: ProjectsProjectIdServicesNewRoute,
+  ProjectsProjectIdServicesIndexRoute: ProjectsProjectIdServicesIndexRoute,
+}
+
+const ProjectsProjectIdRouteWithChildren =
+  ProjectsProjectIdRoute._addFileChildren(ProjectsProjectIdRouteChildren)
 
 interface CloudStacksNewRouteChildren {
   CloudStacksNewAwsRoute: typeof CloudStacksNewAwsRoute
@@ -966,7 +1042,7 @@ const rootRouteChildren: RootRouteChildren = {
   InfrastructureTemplatesRoute: InfrastructureTemplatesRoute,
   InfrastructureVaultsRoute: InfrastructureVaultsRoute,
   InfrastructureVaultsSecretsRoute: InfrastructureVaultsSecretsRoute,
-  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+  ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
   SystemApiRoute: SystemApiRoute,
   SystemGithubActionsRoute: SystemGithubActionsRoute,
   SystemSecretsRoute: SystemSecretsRoute,

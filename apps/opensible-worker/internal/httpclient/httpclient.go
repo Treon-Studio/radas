@@ -17,6 +17,7 @@ import (
 
 	"github.com/opensible/worker-go/internal/config"
 	"github.com/opensible/worker-go/internal/logging"
+	"github.com/opensible/worker-go/internal/redaction"
 )
 
 // Client is the worker's HTTP client for the backend.
@@ -66,12 +67,12 @@ func (c *Client) loadToken() {
 
 func (c *Client) saveToken(workerID, workerToken string) {
 	if err := os.MkdirAll(filepath.Dir(c.TokenFile), 0o755); err != nil {
-		logging.L().Error("Failed to create token dir", "err", err)
+		logging.L().Error("Failed to create token dir", "err", redactedError(err))
 		return
 	}
 	body := fmt.Sprintf("%s\n%s\n", workerID, workerToken)
 	if err := os.WriteFile(c.TokenFile, []byte(body), 0o600); err != nil {
-		logging.L().Error("Failed to save token", "err", err)
+		logging.L().Error("Failed to save token", "err", redactedError(err))
 		return
 	}
 	c.WorkerID = workerID
@@ -82,7 +83,7 @@ func (c *Client) saveToken(workerID, workerToken string) {
 func (c *Client) doJSON(method, url string, in any, headers map[string]string, timeout time.Duration) (*http.Response, []byte, error) {
 	var body io.Reader
 	if in != nil {
-		b, err := json.Marshal(in)
+		b, err := json.Marshal(redaction.Value(in))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -90,7 +91,7 @@ func (c *Client) doJSON(method, url string, in any, headers map[string]string, t
 	}
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, redactedError(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.WorkerToken != "" {
@@ -105,7 +106,7 @@ func (c *Client) doJSON(method, url string, in any, headers map[string]string, t
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, redactedError(err)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
@@ -137,7 +138,37 @@ type HTTPError struct {
 	Message string
 }
 
-func (e *HTTPError) Error() string { return fmt.Sprintf("%d: %s", e.Status, e.Message) }
+func (e *HTTPError) Error() string { return fmt.Sprintf("%d: %s", e.Status, redaction.Text(e.Message)) }
+
+func redactedBackendBody(body []byte) string {
+	var payload any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		encoded, marshalErr := json.Marshal(redaction.Value(payload))
+		if marshalErr == nil {
+			return redaction.Text(string(encoded))
+		}
+	}
+	return redaction.Text(string(body))
+}
+
+func backendFailure(operation string, payload map[string]any) error {
+	encoded, err := json.Marshal(redaction.Value(payload))
+	if err != nil {
+		return errors.New(operation + " failed: " + redaction.Text(fmt.Sprint(payload)))
+	}
+	return errors.New(operation + " failed: " + redaction.Text(string(encoded)))
+}
+
+func newHTTPError(status int, body []byte) *HTTPError {
+	return &HTTPError{Status: status, Message: redactedBackendBody(body)}
+}
+
+func redactedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(redaction.Text(err.Error()))
+}
 
 // Register self-registers this worker.
 func (c *Client) Register(name string, capabilities map[string]any) (map[string]any, error) {
@@ -152,19 +183,18 @@ func (c *Client) Register(name string, capabilities map[string]any) (map[string]
 	}
 	resp, body, err := c.doJSON("POST", url, payload, headers, 10*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, redactedError(err)
 	}
 	if resp.StatusCode >= 400 {
-		return nil, &HTTPError{Status: resp.StatusCode, Message: string(body)}
+		return nil, newHTTPError(resp.StatusCode, body)
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, errors.New("invalid backend response")
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
-		msg, _ := result["error"].(string)
-		return nil, errors.New("registration failed: " + msg)
+		return nil, backendFailure("registration", result)
 	}
 	wid, _ := result["workerId"].(string)
 	wtok, _ := result["workerToken"].(string)
@@ -187,7 +217,7 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	}
 	resp, body, err := c.doJSON("POST", url, payload, nil, 10*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, redactedError(err)
 	}
 	switch {
 	case resp.StatusCode == 204:
@@ -197,37 +227,49 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 	case resp.StatusCode == 429:
 		return nil, &HTTPError{Status: 429, Message: "TOO MANY REQUESTS"}
 	case resp.StatusCode >= 400:
-		return nil, &HTTPError{Status: resp.StatusCode, Message: string(body)}
+		return nil, newHTTPError(resp.StatusCode, body)
 	}
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, errors.New("invalid backend response")
 	}
 	ok, _ := result["success"].(bool)
 	if !ok {
-		msg, _ := result["error"].(string)
-		return nil, errors.New("claim failed: " + msg)
+		return nil, backendFailure("claim", result)
 	}
 	return result, nil
 }
 
-// SendLog streams a chunk of log text for an execution.
+// SendLog streams a chunk of log text for the legacy execution protocol.
 func (c *Client) SendLog(executionID, text string, ts float64) bool {
+	return c.SendServiceLog(executionID, "", text, ts)
+}
+
+// SendServiceLog streams a chunk of log text for a leased service operation.
+func (c *Client) SendServiceLog(executionID, leaseToken, text string, ts float64) bool {
 	url := fmt.Sprintf("%s/api/worker/executions/%s/log", c.ServerURL, executionID)
-	payload := map[string]any{"text": text}
+	payload := map[string]any{"text": redaction.Text(text)}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
+	}
 	if ts > 0 {
 		payload["ts"] = ts
 	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 10*time.Second)
 	if err != nil {
-		logging.L().Warn("send_log failed", "err", err)
+		logging.L().Warn("send_log failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400
 }
 
-// FinishExecution marks the execution as complete.
+// FinishExecution marks a legacy execution as complete.
 func (c *Client) FinishExecution(executionID, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool {
+	return c.FinishServiceExecution(executionID, "", status, finishedAt, duration, returnCode, errStr, result)
+}
+
+// FinishServiceExecution marks a leased service operation as complete.
+func (c *Client) FinishServiceExecution(executionID, leaseToken, status string, finishedAt float64, duration int, returnCode *int, errStr string, result map[string]any) bool {
 	url := fmt.Sprintf("%s/api/worker/executions/%s/finish", c.ServerURL, executionID)
 	if finishedAt == 0 {
 		finishedAt = float64(time.Now().Unix())
@@ -237,27 +279,61 @@ func (c *Client) FinishExecution(executionID, status string, finishedAt float64,
 		"finishedAt": finishedAt,
 		"duration":   duration,
 	}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
+	}
 	if returnCode != nil {
 		payload["returnCode"] = *returnCode
 	}
 	if errStr != "" {
-		payload["error"] = errStr
+		payload["error"] = redaction.Text(errStr)
 	}
 	if result != nil {
-		payload["result"] = result
+		payload["result"] = redaction.Value(result)
+		if code, ok := result["error_code"].(string); ok && code != "" {
+			payload["errorCode"] = safeErrorCode(code)
+		}
+		if code, ok := result["code"].(string); ok && code != "" {
+			payload["errorCode"] = safeErrorCode(code)
+		}
+		if nested, ok := result["error"].(map[string]any); ok {
+			if code, ok := nested["code"].(string); ok && code != "" {
+				payload["errorCode"] = safeErrorCode(code)
+			}
+		}
+	}
+	// Service-operation failures must always carry a stable, allowlisted code,
+	// including decode failures and providers that return a nil/malformed result.
+	if status == "FAILED" && leaseToken != "" {
+		if code, ok := payload["errorCode"].(string); !ok || code == "" {
+			payload["errorCode"] = "OPERATION_FAILED"
+		}
 	}
 	resp, _, err := c.doJSON("POST", url, payload, nil, 15*time.Second)
 	if err != nil {
-		logging.L().Error("finish_execution failed", "err", err)
+		logging.L().Error("finish_execution failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400
 }
 
-// Heartbeat pings the backend; may return a workerId for later use.
-// If the response contains requestSystemInfo=true the caller should
-// re-send system info.
+func safeErrorCode(value string) string {
+	candidate := strings.ToUpper(strings.TrimSpace(value))
+	allowed := map[string]bool{"PROVIDER_ERROR": true, "PROVIDER_TIMEOUT": true, "PROVIDER_DISABLED": true, "INVALID_RUNTIME": true, "UNSUPPORTED_CAPABILITY": true, "UNSUPPORTED_TIMEOUT": true, "UNSUPPORTED_IDEMPOTENCY": true, "IDEMPOTENCY_MISMATCH": true, "INVALID_PROVIDER_RESULT": true, "INVALID_PROVIDER_LOG": true, "INVALID_PROVIDER_VALIDATION": true, "INVALID_SPEC": true, "PROVIDER_VALIDATION_ERROR": true, "REMOTE_ERROR": true, "BAD_SPEC": true, "MISSING_DETAILS": true, "OPERATION_FAILED": true, "OPERATION_CANCELED": true}
+	if allowed[candidate] {
+		return candidate
+	}
+	return "OPERATION_FAILED"
+}
+
+// Heartbeat pings the backend using the legacy worker protocol.
 func (c *Client) Heartbeat(currentExecutionID string) (ok bool, requestSystemInfo bool) {
+	return c.HeartbeatWithLease(currentExecutionID, "")
+}
+
+// HeartbeatWithLease renews a service operation lease with its claim token.
+// If the response contains requestSystemInfo=true the caller should re-send system info.
+func (c *Client) HeartbeatWithLease(currentExecutionID, leaseToken string) (ok bool, requestSystemInfo bool) {
 	url := c.ServerURL + "/api/worker/heartbeat"
 	payload := map[string]any{"ts": float64(time.Now().Unix())}
 	if c.WorkerID != "" {
@@ -266,9 +342,12 @@ func (c *Client) Heartbeat(currentExecutionID string) (ok bool, requestSystemInf
 	if currentExecutionID != "" {
 		payload["currentExecutionId"] = currentExecutionID
 	}
+	if leaseToken != "" {
+		payload["leaseToken"] = leaseToken
+	}
 	resp, body, err := c.doJSON("POST", url, payload, nil, 5*time.Second)
 	if err != nil {
-		logging.L().Warn("heartbeat failed", "err", err)
+		logging.L().Warn("heartbeat failed", "err", redactedError(err))
 		return false, false
 	}
 	if resp.StatusCode == 401 {
@@ -328,7 +407,7 @@ func (c *Client) SendSystemInfo(info map[string]any) bool {
 	url := c.ServerURL + "/api/worker/system-info"
 	resp, _, err := c.doJSON("POST", url, map[string]any{"systemInfo": info}, nil, 10*time.Second)
 	if err != nil {
-		logging.L().Warn("send_system_info failed", "err", err)
+		logging.L().Warn("send_system_info failed", "err", redactedError(err))
 		return false
 	}
 	return resp.StatusCode < 400

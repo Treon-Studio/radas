@@ -1,0 +1,5 @@
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+export function GithubRunDetail({ owner, repo, runId }: { owner: string; repo: string; runId: number }) { const [jobs,setJobs]=useState<any[]>([]); const [logs,setLogs]=useState(""); const load=async()=>{const r=await api<{jobs?:any[]}>("GET",`/api/github/repos/${owner}/${repo}/runs/${runId}/jobs`);setJobs(r.jobs||[])}; return <Card data-testid="github-run-detail"><CardHeader><CardTitle className="text-sm">Run #{runId} jobs</CardTitle></CardHeader><CardContent className="space-y-2 text-xs"><Button size="sm" onClick={()=>void load()}>Load jobs</Button>{jobs.map(j=><div key={j.id} className="flex justify-between"><span>{j.name}</span><Button size="sm" variant="ghost" onClick={async()=>setLogs(await api<string>("GET",`/api/github/repos/${owner}/${repo}/jobs/${j.id}/logs`))}>Logs</Button></div>)}{logs&&<pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted p-2">{logs}</pre>}</CardContent></Card> }

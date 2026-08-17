@@ -1,9 +1,10 @@
 """
 Encryption utilities for the Global Secrets Manager.
 
-Uses AES-GCM (authenticated encryption). The wrapping key is derived from a
-server secret (GLOBAL_SECRETS_ENCRYPTION_KEY env var, or a file-stored key as
-last resort).
+Uses AES-GCM (authenticated encryption). The wrapping key is derived from
+GLOBAL_SECRETS_ENCRYPTION_KEY. In production this environment-managed key is
+mandatory; no file or generated fallback is permitted. File and ephemeral
+fallbacks are explicitly limited to development/test processes.
 
 Storage format:
   - New ("v2"): base64( b"v2" || salt(16) || nonce(12) || ciphertext+tag )
@@ -13,13 +14,16 @@ Storage format:
                 secrets remain decryptable. Re-encryption upgrades to v2.
 
 In production, GLOBAL_SECRETS_ENCRYPTION_KEY must be set as a real secret
-(Docker/K8s secret) and never stored on the data volume.
+(Docker/K8s secret) and never stored on the data volume. Development/test may
+use the data-volume fallback or an ephemeral generated key explicitly.
 """
 import os
 import base64
 import secrets
 from pathlib import Path
 from typing import Optional, Tuple
+
+from utils.runtime_secrets import is_production_environment, validate_secret_value
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -46,14 +50,27 @@ class SecretEncryption:
     """Encrypts/decrypts secret material with AES-GCM and a per-secret salt."""
 
     def __init__(self, server_key: Optional[str] = None):
-        if server_key is None:
-            server_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
+        configured_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
+        if is_production_environment():
+            # Production accepts only the validated, operator-managed
+            # environment key. Explicit arguments cannot smuggle in a file or
+            # caller-generated replacement.
+            configured_key = validate_secret_value(
+                "GLOBAL_SECRETS_ENCRYPTION_KEY", configured_key
+            )
+            if server_key is not None and server_key != configured_key:
+                raise RuntimeError(
+                    "GLOBAL_SECRETS_ENCRYPTION_KEY must be environment-managed in production"
+                )
+            server_key = configured_key
+        elif server_key is None:
+            server_key = configured_key
 
         if not server_key:
             import warnings
             warnings.warn(
                 "GLOBAL_SECRETS_ENCRYPTION_KEY not set. Using generated key "
-                "(NOT SECURE for production).",
+                "(development/test only).",
                 UserWarning,
             )
             server_key = secrets.token_urlsafe(32)
@@ -116,18 +133,24 @@ _encryption_instance: Optional[SecretEncryption] = None
 
 
 def get_encryption_key_file_path(data_dir: Optional[Path] = None) -> Path:
+    """Return the dev/test key path without creating production directories."""
     if data_dir is None:
         data_dir = Path(os.environ.get('DATA_DIR', os.getcwd()))
     key_dir = Path(data_dir) / 'global' / 'secrets'
-    key_dir.mkdir(parents=True, exist_ok=True)
+    if not is_production_environment():
+        key_dir.mkdir(parents=True, exist_ok=True)
     return key_dir / '.encryption_key'
 
 
 def load_encryption_key(data_dir: Optional[Path] = None) -> Optional[str]:
-    """Resolve key. Prefers env var; warns if falling back to on-disk file."""
+    """Resolve the key; disk fallback is development/test only."""
     env_key = os.environ.get('GLOBAL_SECRETS_ENCRYPTION_KEY')
     if env_key:
-        return env_key
+        return validate_secret_value(
+            "GLOBAL_SECRETS_ENCRYPTION_KEY", env_key
+        ) if is_production_environment() else env_key
+    if is_production_environment():
+        return None
 
     key_file = get_encryption_key_file_path(data_dir)
     if key_file.exists():
@@ -150,6 +173,11 @@ def load_encryption_key(data_dir: Optional[Path] = None) -> Optional[str]:
 
 
 def save_encryption_key(key: str, data_dir: Optional[Path] = None) -> bool:
+    """Persist a development/test key; production keys must come from env."""
+    if is_production_environment():
+        raise RuntimeError(
+            "GLOBAL_SECRETS_ENCRYPTION_KEY must be configured in the environment in production"
+        )
     try:
         key_file = get_encryption_key_file_path(data_dir)
         with open(key_file, 'w', encoding='utf-8') as f:
@@ -161,6 +189,11 @@ def save_encryption_key(key: str, data_dir: Optional[Path] = None) -> bool:
 
 
 def generate_and_save_encryption_key(data_dir: Optional[Path] = None) -> str:
+    """Generate a persisted key only for development/test processes."""
+    if is_production_environment():
+        raise RuntimeError(
+            "GLOBAL_SECRETS_ENCRYPTION_KEY must be configured in the environment in production"
+        )
     key = secrets.token_urlsafe(32)
     save_encryption_key(key, data_dir)
     return key
@@ -171,12 +204,16 @@ def get_encryption(data_dir: Optional[Path] = None) -> SecretEncryption:
     if _encryption_instance is None:
         server_key = load_encryption_key(data_dir)
         if not server_key:
+            if is_production_environment():
+                # Do not generate or persist a replacement key in production.
+                validate_secret_value(
+                    "GLOBAL_SECRETS_ENCRYPTION_KEY", os.environ.get("GLOBAL_SECRETS_ENCRYPTION_KEY")
+                )
             server_key = generate_and_save_encryption_key(data_dir)
             import warnings
             warnings.warn(
                 "GLOBAL_SECRETS_ENCRYPTION_KEY not set and no saved key found. "
-                "Generated and saved new encryption key. All existing secrets "
-                "encrypted with a previous key will not be decryptable.",
+                "Generated and saved new encryption key for development/test only.",
                 UserWarning,
             )
         _encryption_instance = SecretEncryption(server_key)

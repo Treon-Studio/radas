@@ -3,9 +3,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 var (
@@ -16,6 +19,62 @@ var (
 	LogFile     string
 	initOnce    sync.Once
 )
+
+// ValidateProductionSecrets enforces the same fail-closed secret policy as
+// the Python server for direct worker/container startup.
+const repositoryKnownSecret = "dev-only-change-me-0123456789abcdef"
+
+func ValidateProductionSecrets() error {
+	// FLASK_ENV=production is the sole supported production indicator. Keep
+	// normalization identical to ecosystem.config.cjs and runtime_secrets.py.
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("FLASK_ENV")))
+	if mode != "production" {
+		return nil
+	}
+	for _, name := range []string{
+		"JWT_SECRET_KEY",
+		"INTERNAL_CALL_SECRET",
+		"GLOBAL_SECRETS_ENCRYPTION_KEY",
+		"WORKER_REGISTRATION_SECRET",
+		"VAULT_SERVER_SECRET",
+	} {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value == repositoryKnownSecret || utf8.RuneCountInString(value) < 32 || len(uniqueRunes(value)) < 16 || !hasLetter(value) || !hasDigit(value) {
+			return fmt.Errorf("%s must be a strong secret in production", name)
+
+		}
+	}
+	if strings.TrimSpace(os.Getenv("DATABASE_URL")) == "" {
+		return fmt.Errorf("DATABASE_URL must be configured in production")
+	}
+	return nil
+}
+
+func uniqueRunes(value string) map[rune]struct{} {
+	result := make(map[rune]struct{})
+	for _, char := range value {
+		result[char] = struct{}{}
+	}
+	return result
+}
+
+func hasLetter(value string) bool {
+	for _, char := range value {
+		if (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDigit(value string) bool {
+	for _, char := range value {
+		if char >= '0' && char <= '9' {
+			return true
+		}
+	}
+	return false
+}
 
 // Init resolves paths from environment variables and creates the base dirs.
 func Init() {

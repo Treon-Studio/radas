@@ -6,6 +6,21 @@ from pathlib import Path
 import flask
 
 
+def test_state_lock_is_exclusive_and_owner_checked(tmp_path):
+    from services.cloud_state import acquire_lock, release_lock, read_lock
+    dd = Path(tmp_path) / "stack-data"
+    first = acquire_lock(dd, actor="alice", operation="apply")
+    assert first["ok"] is True
+    second = acquire_lock(dd, actor="bob", operation="apply")
+    assert second["ok"] is False
+    assert second["lock"]["who"] == "alice"
+    wrong = release_lock(dd, lock_id="wrong", actor="bob")
+    assert wrong["ok"] is False
+    assert read_lock(dd)["who"] == "alice"
+    released = release_lock(dd, lock_id=first["lock"]["id"], actor="alice")
+    assert released["released"] is True
+
+
 def test_blocker_evaluation_error_refuses_mutating_action(monkeypatch, tmp_path):
     from services import cloud_provisioning as cloud
 

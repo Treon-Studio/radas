@@ -134,6 +134,7 @@ def seed_default_roles(role_service, permission_service, data_dir: Path) -> bool
             {'name': 'workers.read', 'description': 'View workers', 'resource': 'workers', 'action': 'read'},
             {'name': 'workers.create', 'description': 'Register workers', 'resource': 'workers', 'action': 'create'},
             {'name': 'workers.delete', 'description': 'Delete workers', 'resource': 'workers', 'action': 'delete'},
+            {'name': 'catalog.admin', 'description': 'Publish and administer the platform service catalog', 'resource': 'catalog', 'action': 'admin'},
         ]
 
         permission_ids = {}
@@ -205,6 +206,10 @@ def seed_default_roles(role_service, permission_service, data_dir: Path) -> bool
             try:
                 existing_role = role_service.get_role_by_name(role_data['name'])
                 if existing_role:
+                    # Keep existing installations authoritative and idempotently
+                    # add newly introduced catalog administration permission.
+                    if role_data['name'] == 'admin' and permission_ids.get('catalog.admin'):
+                        role_service.add_permission_to_role(existing_role.id, permission_ids['catalog.admin'])
                     logger.debug(f"Role {role_data['name']} already exists")
                     continue
                 role = role_service.create_role(

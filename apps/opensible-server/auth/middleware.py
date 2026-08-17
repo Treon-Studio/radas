@@ -4,11 +4,9 @@ Authentication middleware for protecting API endpoints with JWT.
 
 Security notes
 --------------
-* `INTERNAL_CALL_SECRET`: NEVER falls back to a known string. If unset, the
-  module generates a random secret at process start and exposes it via
-  `get_internal_call_secret()` so in-process callers (e.g. the host-status
-  scheduler using `app.test_client()`) can still pass the check. External
-  callers cannot know this value. In production you may also set it via env.
+* `INTERNAL_CALL_SECRET`: must be configured explicitly and is never generated
+  per process. This keeps internal authentication valid across workers and
+  restarts; startup fails closed when it is missing.
 * Access tokens are accepted in the query string ONLY for a small allow-list
   of streaming endpoints (SSE), where the browser EventSource API cannot set
   Authorization headers.
@@ -16,10 +14,27 @@ Security notes
 from functools import wraps
 from flask import request, jsonify
 from typing import Any, Optional, Callable
+import re
+
+
+_SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
+
+
+def _service_route() -> bool:
+    return bool(_SERVICE_ROUTE_RE.match(request.path))
+
+
+def _service_error(code: str, message: str, status: int, *, details: dict[str, Any] | None = None):
+    # Use the same builder as service handlers. This keeps middleware failures
+    # in the platform contract without changing unrelated legacy routes.
+    from api.platform_contracts import error_response
+    return error_response(code, message, status, details=details)
 from pathlib import Path
 import logging
 import os
-import secrets as _secrets
+import hmac
+
+from utils.runtime_secrets import is_production_environment, resolve_secret
 
 try:
     from .auth import verify_token, get_token_from_header
@@ -36,31 +51,24 @@ _access_control_service = None
 # ---------------------------------------------------------------------------
 # Internal-call secret
 # ---------------------------------------------------------------------------
-_env_internal = os.environ.get('INTERNAL_CALL_SECRET') or ''
-_flask_env = (os.environ.get('FLASK_ENV') or '').lower()
-_is_production = _flask_env == 'production'
+_INTERNAL_CALL_SECRET = resolve_secret(
+    "INTERNAL_CALL_SECRET", generate_in_nonproduction=True
+)
+if not _INTERNAL_CALL_SECRET:
+    raise RuntimeError("INTERNAL_CALL_SECRET is required to initialize authentication")
+if len(_INTERNAL_CALL_SECRET) < 32:
+    logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure outside production.")
 
-if _env_internal and len(_env_internal) < 32:
-    if _is_production:
-        raise RuntimeError(
-            "INTERNAL_CALL_SECRET must be at least 32 characters long in production."
-        )
-    logger.warning("INTERNAL_CALL_SECRET is shorter than 32 chars — insecure.")
-
-if not _env_internal:
-    # Random per-process value. In-process callers (test_client) read it via
-    # get_internal_call_secret(); no external caller can guess it.
-    _env_internal = _secrets.token_urlsafe(48)
-    logger.info(
-        "INTERNAL_CALL_SECRET not provided; using a random per-process value. "
-        "External X-Internal-Call requests will be rejected."
-    )
-
-_INTERNAL_CALL_SECRET: str = _env_internal
+# Registration is consumed by both the server and worker. Validate it at
+# server import/startup so direct Python/container startup has the same gate as
+# PM2; do not generate it here because the worker must share the exact value.
+if is_production_environment():
+    resolve_secret("WORKER_REGISTRATION_SECRET")
+    resolve_secret("VAULT_SERVER_SECRET")
 
 
 def get_internal_call_secret() -> str:
-    """Return the in-process internal-call secret (use only for app.test_client)."""
+    """Return the configured internal-call secret for trusted local callers."""
     return _INTERNAL_CALL_SECRET
 
 
@@ -112,7 +120,7 @@ def require_auth(f: Callable) -> Callable:
     def decorated_function(*args, **kwargs):
         # In-process internal call (scheduler, background jobs via test_client).
         provided_internal = request.headers.get('X-Internal-Call')
-        if provided_internal and _secrets.compare_digest(
+        if provided_internal and hmac.compare_digest(
             provided_internal, _INTERNAL_CALL_SECRET
         ):
             request.current_user = {
@@ -129,6 +137,8 @@ def require_auth(f: Callable) -> Callable:
         if not token and request.method == 'GET' and _path_allows_query_token(request.path):
             token = request.args.get('access_token') or request.args.get('token')
         if not token:
+            if _service_route():
+                return _service_error('UNAUTHORIZED', 'Access token missing', 401)
             return jsonify({
                 'error': 'Authentication required',
                 'message': 'Access token missing',
@@ -169,6 +179,8 @@ def require_auth(f: Callable) -> Callable:
             request.current_org_id = payload.get('org_id')
             request.token = token
             if 'readonly' in (payload.get('roles') or []) and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                if _service_route():
+                    return _service_error('READ_ONLY', 'This account has read-only access.', 403, details={'method': request.method})
                 return jsonify({'error': 'Read-only access',
                                 'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
@@ -196,10 +208,14 @@ def require_auth(f: Callable) -> Callable:
             }
             request.token = token
             if 'readonly' in roles and request.method not in ('GET', 'HEAD', 'OPTIONS') and not request.path.startswith('/api/auth/'):
+                if _service_route():
+                    return _service_error('READ_ONLY', 'This account has read-only access.', 403, details={'method': request.method})
                 return jsonify({'error': 'Read-only access',
                                 'message': 'This account has read-only access.'}), 403
             return f(*args, **kwargs)
 
+        if _service_route():
+            return _service_error('UNAUTHORIZED', 'Access token is invalid or expired', 401)
         return jsonify({
             'error': 'Invalid token',
             'message': 'Access token is invalid or expired',
@@ -349,6 +365,8 @@ def require_project_access(f: Callable) -> Callable:
             # "default" project (pre-org stacks).
             if pid in ("default", "legacy", "_template"):
                 return f(*args, **kwargs)
+            if _service_route():
+                return _service_error('PROJECT_NOT_FOUND', 'Project not found', 404)
             return jsonify({
                 'error': 'Project not found or not tenant-bound',
                 'message': 'The project you tried to access does not exist or is not bound to an organization.',
@@ -357,11 +375,15 @@ def require_project_access(f: Callable) -> Callable:
         try:
             from services.org_service import is_member
             if not is_member(org_id, uid):
+                if _service_route():
+                    return _service_error('FORBIDDEN', 'Access denied: you are not a member of the organization that owns this project.', 403)
                 return jsonify({
                     'error': 'Access denied',
                     'message': 'You are not a member of the organization that owns this project.',
                 }), 403
         except Exception:
+            if _service_route():
+                return _service_error('INTERNAL_SERVER_ERROR', 'Membership check failed', 500)
             return jsonify({'error': 'Membership check failed'}), 500
         return f(*args, **kwargs)
     return decorated_function

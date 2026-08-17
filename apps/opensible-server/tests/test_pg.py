@@ -61,11 +61,247 @@ def test_transaction_commits(pg_db):
     assert pg.query_one("SELECT * FROM settings WHERE key = %s", ("tx2",)) is not None
 
 
+def test_v9_reconciles_identical_event_duplicates(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 9")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_queued_once")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_terminal_once")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("dup-org", "dup-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("dup-project", "dup-org", "dup-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_operations (id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("dup-op", "dup-org", "dup-project", "service.deploy", "dup-key", "fp", "queued", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,'queued','{}',%s),(%s,'queued','{}',%s),(%s,'failed','{}',%s),(%s,'failed','{}',%s)",
+        ("dup-op", 1.0, "dup-op", 2.0, "dup-op", 3.0, "dup-op", 4.0),
+    )
+    pg_schema.migrate()
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operation_events WHERE operation_id=%s AND event='queued'", ("dup-op",))["count"] == 1
+    assert pg.query_one("SELECT COUNT(*) AS count FROM service_operation_events WHERE operation_id=%s AND event='failed'", ("dup-op",))["count"] == 1
+
+
+def test_v9_rejects_conflicting_terminal_duplicates(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 9")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_queued_once")
+    pg.execute("DROP INDEX IF EXISTS uq_service_operation_events_terminal_once")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("conflict-org", "conflict-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("conflict-project", "conflict-org", "conflict-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_operations (id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("conflict-op", "conflict-org", "conflict-project", "service.deploy", "conflict-key", "fp", "failed", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,'failed','{}',1),(%s,'canceled','{}',2)",
+        ("conflict-op", "conflict-op"),
+    )
+    with pytest.raises(pg_schema.EventMigrationError, match="conflicting terminal events"):
+        pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 9") is None
+
+
+def test_v11_rejects_existing_cross_instance_revision_idempotency_row(pg_db):
+    pg.execute("DELETE FROM schema_migrations WHERE version = 11")
+    pg.execute("DROP INDEX IF EXISTS uq_service_revisions_instance_id_id")
+    pg.execute("ALTER TABLE service_revision_idempotency DROP CONSTRAINT IF EXISTS fk_service_revision_idempotency_revision_instance")
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("v11-org", "v11-org", 1.0))
+    pg.execute("INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)", ("v11-project", "v11-org", "v11-project", 1.0))
+    pg.execute(
+        "INSERT INTO service_instances (id,org_id,project_id,name,definition_slug,definition_version,environment,runtime_id,status,created_at,updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s),(%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s)",
+        ("v11-a", "v11-org", "v11-project", "a", "static-web", "1.0.0", "development", "mock", 1.0, 1.0,
+         "v11-b", "v11-org", "v11-project", "b", "static-web", "1.0.0", "development", "mock", 1.0, 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_revisions (id,instance_id,revision_number,spec,redacted_spec,created_at) VALUES (%s,%s,1,'{}','{}',1)",
+        ("v11-revision", "v11-a"),
+    )
+    pg.execute(
+        "INSERT INTO service_revision_idempotency(instance_id,idempotency_key,payload_fingerprint,revision_id,created_at) VALUES (%s,%s,%s,%s,1)",
+        ("v11-b", "corrupt", "fp", "v11-revision"),
+    )
+    with pytest.raises(pg_schema.RevisionIdempotencyMigrationError, match="revision idempotency"):
+        pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 11") is None
+
+
 def test_schema_migrate_idempotent(pg_db):
-    # reset_schema already applied v1+v2; calling migrate again is safe.
+    # reset_schema applies all current migrations; calling migrate again is safe.
     pg_schema.migrate()
     versions = pg.query_all("SELECT version FROM schema_migrations ORDER BY version")
-    assert versions == [{"version": 1}, {"version": 2}]
+    expected_versions = [
+        {"version": version}
+        for version, _ in pg_schema.MIGRATIONS
+    ]
+    assert versions == expected_versions
+
+
+def test_event_unique_indexes_enforce_queued_and_terminal_once(pg_db):
+    pg.execute("INSERT INTO orgs (id,name,created_at) VALUES (%s,%s,%s)", ("event-org", "event-org", 1.0))
+    pg.execute(
+        "INSERT INTO projects (id,org_id,name,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-project", "event-org", "event-project", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operations "
+        "(id,org_id,project_id,kind,idempotency_key,payload_fingerprint,status,created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        ("event-op", "event-org", "event-project", "service.deploy", "event-key", "fp", "queued", 1.0),
+    )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-op", "queued", "{}", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+            ("event-op", "queued", "{}", 2.0),
+        )
+    pg.execute(
+        "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+        ("event-op", "failed", "{}", 3.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_operation_events(operation_id,event,details,created_at) VALUES (%s,%s,%s,%s)",
+            ("event-op", "failed", "{}", 4.0),
+        )
+
+
+def test_schema_v3_catalog_tables_exist(pg_db):
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 3") == {"version": 3}
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") == {"version": 4}
+    for table in ("service_definitions", "service_definition_versions"):
+        assert pg.query_one("SELECT to_regclass(%s) AS name", (f"public.{table}",))["name"] == table
+
+
+def test_catalog_v1_v2_upgrade_applies_v3_v4(pg_db):
+    pg.execute("DELETE FROM schema_migrations")
+    pg.execute("DROP TABLE IF EXISTS service_definition_versions CASCADE")
+    pg.execute("DROP TABLE IF EXISTS service_definitions CASCADE")
+    pg.execute("CREATE TABLE service_definitions (id TEXT PRIMARY KEY, slug TEXT NOT NULL, scope_type TEXT NOT NULL, org_id TEXT, owner_id TEXT, current_version TEXT NOT NULL, disabled BOOLEAN NOT NULL DEFAULT FALSE, created_at DOUBLE PRECISION NOT NULL)")
+    pg.execute("CREATE TABLE service_definition_versions (definition_id TEXT NOT NULL REFERENCES service_definitions(id) ON DELETE CASCADE, version TEXT NOT NULL, manifest JSONB NOT NULL, published_by TEXT, published_at DOUBLE PRECISION NOT NULL, PRIMARY KEY (definition_id, version))")
+    pg.execute("INSERT INTO schema_migrations (version, applied_at) VALUES (1, 1), (2, 2)")
+    pg_schema.migrate()
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 3")
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4")
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
+
+
+def test_catalog_v4_reconciles_legacy_duplicates_and_preserves_all_versions(pg_db):
+    # Recreate the actual legacy v3 shape: UNIQUE(slug, scope_type, org_id)
+    # permits duplicate platform rows because PostgreSQL treats NULLs as
+    # distinct. v4 must repair that state before creating its partial index.
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_platform_slug")
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_org_slug")
+    pg.execute(
+        "ALTER TABLE service_definitions ADD CONSTRAINT "
+        "service_definitions_slug_scope_type_org_id_key UNIQUE (slug, scope_type, org_id)"
+    )
+    pg.execute("DELETE FROM schema_migrations WHERE version = 4")
+    pg.execute(
+        "INSERT INTO service_definitions "
+        "(id, slug, scope_type, owner_id, current_version, disabled, created_at) "
+        "VALUES (%s,%s,'platform',%s,%s,FALSE,%s), (%s,%s,'platform',%s,%s,TRUE,%s)",
+        # 1.10.0 must beat 1.9.0 semantically (not lexically), but the lower
+        # duplicate's disabled state must still restrict the canonical row.
+        # Its owner metadata must also survive even though the winner is NULL.
+        ("legacy-a", "duplicate", None, "1.10.0", 10.0,
+         "legacy-b", "duplicate", "owner-a", "1.9.0", 20.0),
+    )
+    pg.execute(
+        "INSERT INTO service_definition_versions "
+        "(definition_id, version, manifest, published_by, published_at) "
+        "VALUES "
+        "(%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s), "
+        "(%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s)",
+        ("legacy-a", "1.10.0", '{"version":"1.10.0","image":"example/a:1.10.0"}', "a", 10.0,
+         "legacy-a", "1.11.0", '{"version":"1.11.0","image":"example/a:1.11.0"}', "a", 11.0,
+         "legacy-b", "1.5.0", '{"version":"1.5.0","image":"example/b:1.5.0"}', "b", 15.0,
+         "legacy-b", "1.9.0", '{"version":"1.9.0","image":"example/b:1.9.0"}', "b", 20.0),
+    )
+    pg.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, meta_json, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s), (%s,%s,%s,%s,%s,%s)",
+        ("a", "catalog.publish", "service_definition", "legacy-a", "{}", "now",
+         "b", "catalog.publish", "service_definition", "legacy-b", "{}", "now"),
+    )
+
+    pg_schema.migrate()
+
+    rows = pg.query_all(
+        "SELECT id, owner_id, current_version, disabled "
+        "FROM service_definitions WHERE slug = %s AND scope_type = 'platform'",
+        ("duplicate",),
+    )
+    assert rows == [{
+        "id": "legacy-a", "owner_id": "owner-a", "current_version": "1.11.0", "disabled": True,
+    }]
+    versions = pg.query_all(
+        "SELECT definition_id, version FROM service_definition_versions WHERE definition_id = %s ORDER BY version",
+        ("legacy-a",),
+    )
+    assert {row["version"] for row in versions} == {"1.5.0", "1.9.0", "1.10.0", "1.11.0"}
+    assert all(row["definition_id"] == "legacy-a" for row in versions)
+    assert pg.query_one(
+        "SELECT COUNT(*) AS count FROM audit_log "
+        "WHERE target_type = %s AND target_id = %s",
+        ("service_definition", "legacy-a"),
+    )["count"] == 2
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") == {"version": 4}
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",))
+
+
+def test_catalog_v4_rejects_conflicting_duplicate_owners(pg_db):
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_platform_slug")
+    pg.execute("DROP INDEX IF EXISTS uq_service_definitions_org_slug")
+    pg.execute(
+        "ALTER TABLE service_definitions ADD CONSTRAINT "
+        "service_definitions_slug_scope_type_org_id_key UNIQUE (slug, scope_type, org_id)"
+    )
+    pg.execute("DELETE FROM schema_migrations WHERE version = 4")
+    pg.execute(
+        "INSERT INTO service_definitions "
+        "(id, slug, scope_type, owner_id, current_version, created_at) "
+        "VALUES (%s,%s,'platform',%s,%s,%s), (%s,%s,'platform',%s,%s,%s)",
+        ("owner-a-row", "conflicting-owners", "owner-a", "1.0.0", 1.0,
+         "owner-b-row", "conflicting-owners", "owner-b", "1.1.0", 2.0),
+    )
+    pg.execute(
+        "INSERT INTO service_definition_versions "
+        "(definition_id, version, manifest, published_at) VALUES "
+        "(%s,%s,%s,%s), (%s,%s,%s,%s)",
+        ("owner-a-row", "1.0.0", '{"version":"1.0.0"}', 1.0,
+         "owner-b-row", "1.1.0", '{"version":"1.1.0"}', 2.0),
+    )
+
+    with pytest.raises(pg_schema.CatalogMigrationError, match="conflicting owners"):
+        pg_schema.migrate()
+
+    assert pg.query_one("SELECT version FROM schema_migrations WHERE version = 4") is None
+    assert pg.query_one("SELECT indexname FROM pg_indexes WHERE indexname = %s", ("uq_service_definitions_platform_slug",)) is None
+
+
+def test_catalog_partial_unique_indexes_enforce_scope(pg_db):
+    pg.execute(
+        "INSERT INTO service_definitions (id, slug, scope_type, current_version, created_at) "
+        "VALUES (%s,%s,%s,%s,%s)", ("platform-1", "same", "platform", "1.0.0", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_definitions (id, slug, scope_type, current_version, created_at) "
+            "VALUES (%s,%s,%s,%s,%s)", ("platform-2", "same", "platform", "1.0.0", 2.0),
+        )
+    pg.execute(
+        "INSERT INTO service_definitions (id, slug, scope_type, org_id, current_version, created_at) "
+        "VALUES (%s,%s,%s,%s,%s,%s)", ("org-1", "same", "organization", "org-a", "1.0.0", 1.0),
+    )
+    with pytest.raises(Exception):
+        pg.execute(
+            "INSERT INTO service_definitions (id, slug, scope_type, org_id, current_version, created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s)", ("org-2", "same", "organization", "org-a", "1.0.0", 2.0),
+        )
 
 
 def test_schema_tables_exist(pg_db):
@@ -74,7 +310,8 @@ def test_schema_tables_exist(pg_db):
     for t in ("users", "roles", "permissions", "projects", "settings",
               "queued_executions", "kv_store", "executions", "execution_logs",
               "stack_meta", "stack_secrets", "stack_state", "snapshots",
-              "orgs", "org_members", "schema_migrations"):
+              "orgs", "org_members", "service_definitions", "service_definition_versions",
+              "schema_migrations"):
         assert t in names, f"table {t} missing"
 
 

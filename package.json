@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "test:e2e": "playwright test",
     "dev:radas": "pm2 start ecosystem.config.cjs",
     "dev:radas:stop": "pm2 stop ecosystem.config.cjs",
     "dev:radas:restart": "pm2 restart ecosystem.config.cjs",
@@ -45,6 +46,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@types/react": "19.0.12",
     "firebase-tools": "^14.27.0"
   }

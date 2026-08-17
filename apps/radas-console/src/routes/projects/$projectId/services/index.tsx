@@ -1,0 +1,28 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { RiAddLine as Plus, RiArrowLeftLine as Back } from "@remixicon/react";
+import { api, isForbidden, unwrapData } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { qk } from "@/lib/query";
+import { Badge, statusToVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StateView } from "@/components/ui/StateView";
+
+export const Route = createFileRoute("/projects/$projectId/services/")({ component: ServicesPage });
+type Service = { id: string; name: string; definition_slug?: string; definition_version?: string; environment?: string; runtime_id?: string; status?: string; endpoint_summary?: unknown };
+type Response = { data?: { services?: Service[] }; services?: Service[] };
+type Environment = { name: string; protected?: boolean };
+type EnvironmentResponse = { data?: { environments?: Environment[] }; environments?: Environment[] };
+function ServicesPage() {
+  const { projectId } = Route.useParams(); const navigate = useNavigate();
+  const [environment, setEnvironment] = useState("");
+  const query = useQuery({ queryKey: qk.projectServices(projectId, environment), queryFn: () => api<Response>("GET", `/api/projects/${encodeURIComponent(projectId)}/services${environment ? `?environment=${encodeURIComponent(environment)}` : ""}`) });
+  const environmentsQ = useQuery({ queryKey: ["projects", projectId, "environments"], queryFn: () => api<EnvironmentResponse>("GET", `/api/projects/${encodeURIComponent(projectId)}/environments`) });
+  const environments = unwrapData<EnvironmentResponse>(environmentsQ.data)?.environments || environmentsQ.data?.environments || [];
+  useEffect(() => { const first = environments[0]; if (!environment && first) setEnvironment(first.name); }, [environment, environments]);
+  if (query.isLoading) return <StateView state="loading" title="Memuat layanan project…" />;
+  if (query.isError) return <StateView state="error" title={isForbidden(query.error) ? "Akses project ditolak" : "Layanan tidak tersedia"} message={isForbidden(query.error) ? "Anda tidak memiliki akses ke project ini." : (query.error as Error).message} onRetry={() => void query.refetch()} action={<Link to="/projects/$projectId" params={{ projectId }}><Button size="sm" variant="ghost"><Back className="h-3.5 w-3.5" /> Kembali ke project</Button></Link>} />;
+  const services = unwrapData<Response>(query.data)?.services || query.data?.services || [];
+  return <div className="space-y-6 animate-enter"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><Link to="/projects/$projectId" params={{ projectId }} className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"><Back className="h-3.5 w-3.5" /> Ringkasan project</Link><p className="text-xs font-mono uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">Layanan project</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Services</h1><p className="mt-2 text-sm text-[var(--color-muted-foreground)]">Deploy dan kelola workload di project <span className="font-medium text-[var(--color-foreground)]">{projectId}</span>.</p></div><label className="text-xs text-[var(--color-muted-foreground)]">Environment<select aria-label="Environment" value={environment} onChange={(event) => setEnvironment(event.target.value)} className="ml-2 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-sm text-[var(--color-foreground)]">{environments.map((item) => <option key={item.name} value={item.name}>{item.name}{item.protected ? " · protected" : ""}</option>)}</select></label><Button onClick={() => void navigate({ to: "/projects/$projectId/services/new", params: { projectId } })}><Plus className="h-4 w-4" /> Layanan baru</Button></div>{services.length === 0 ? <Card><CardContent className="p-2"><StateView state="empty" title="Belum ada layanan" message="Pilih layanan rekomendasi untuk membuat deployment pertama." action={<Button size="sm" onClick={() => void navigate({ to: "/projects/$projectId/services/new", params: { projectId } })}><Plus className="h-3.5 w-3.5" /> Buka katalog</Button>} /></CardContent></Card> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{services.map((service) => <Card key={service.id} className="transition-colors hover:border-[var(--color-primary)]/60"><Link to="/projects/$projectId/services/$serviceId" params={{ projectId, serviceId: service.id }} className="block h-full rounded-[inherit] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"><CardHeader className="pb-3"><div className="flex items-start justify-between gap-3"><CardTitle className="text-sm">{service.name}</CardTitle><Badge variant={statusToVariant(service.status)}>{service.status || "draft"}</Badge></div><p className="text-xs text-[var(--color-muted-foreground)]">{service.definition_slug || "Service"} · {service.environment || "No environment"}</p></CardHeader><CardContent className="space-y-2 pt-0 text-xs text-[var(--color-muted-foreground)]"><div>Runtime: <span className="text-[var(--color-foreground)]">{service.runtime_id || "—"}</span></div><div>Desired version: <span className="text-[var(--color-foreground)]">{service.definition_version || "—"}</span></div><div className="pt-2 text-[var(--color-primary)]">Buka detail layanan →</div></CardContent></Link></Card>)}</div>}</div>;
+}

@@ -24,6 +24,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+# Validate production credentials before any worker, scheduler, or service
+# initialization. This applies equally to direct Python and container startup.
+from utils.runtime_secrets import validate_runtime_secrets
+validate_runtime_secrets(require_database=True)
+
 # Import GitSourceManager
 try:
     from services.git_source_manager import GitSourceManager, GitSourceError
@@ -488,14 +493,21 @@ from utils.yaml_io import (
 # PROJECT MANAGEMENT
 # ============================================================================
 
-def load_projects():
-    """Load projects list from the config DB (SQLite + WAL)."""
+def load_projects(*, strict=False):
+    """Load projects from the config DB.
+
+    Legacy callers retain the historical empty-list fallback. Integrity
+    sensitive API routes pass ``strict=True`` so a database outage cannot be
+    mistaken for an empty project set.
+    """
     try:
         from storage import config_db as _cfg
         _cfg.migrate_from_json_if_needed(DATA_DIR)
         return _cfg.list_projects(DATA_DIR)
     except Exception as e:
         app.logger.error(f"Error loading projects: {e}", exc_info=True)
+        if strict:
+            raise
         return []
 
 
@@ -2986,8 +2998,11 @@ if __name__ == '__main__':
         from storage import pg as _pg
         from storage import pg_schema as _pg_schema
         _pg.ping()
-        _pg_schema.migrate()
-        app.logger.info("PostgreSQL connected and schema up-to-date")
+        # The supported fresh-schema startup path applies migrations and then
+        # explicitly seeds only the pinned catalog definitions. This never
+        # creates a service instance or invokes a runtime provider.
+        _pg_schema.migrate(seed_catalog=True)
+        app.logger.info("PostgreSQL connected and schema/catalog are ready")
     except Exception as e:
         app.logger.error(
             "DATABASE_URL is required and must point at a reachable PostgreSQL "
@@ -3024,13 +3039,11 @@ if __name__ == '__main__':
     app.logger.info(f"PROJECTS: {PROJECTS_DIR}")
     app.logger.info("Note: All data (executions, drafts, vars, configs) are now project-scoped in Project Storage")
     
-    # debug 
+    # Debug is explicit in development and fail-closed in production. Production
+    # must not fall back to a persisted setting or an implicit Flask default.
     settings = load_execution_settings()
-    debug_mode = os.getenv('FLASK_DEBUG', str(settings.get('debug_mode', False))).lower()
-    if debug_mode == 'true' or debug_mode == '1':
-        debug_mode = True
-    else:
-        debug_mode = False
+    from utils.runtime_secrets import resolve_debug_mode
+    debug_mode = resolve_debug_mode(settings)
     
     initial_log_level = os.getenv('FLASK_LOG_LEVEL', settings.get('log_level', 'INFO'))
     set_log_level(initial_log_level)

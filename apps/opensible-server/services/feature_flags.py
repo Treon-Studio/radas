@@ -123,8 +123,34 @@ def _bucket(key: str, entity: str) -> int:
     return int(digest[:6], 16) % 1000
 
 
+DEFAULT_FLAGS = ("block_apply", "block_destroy", "preview", "auto_scale")
+
+def seed_default_flags() -> int:
+    created = 0
+    for key in DEFAULT_FLAGS:
+        if not get_flag(key):
+            create_flag({"key": key, "name": key.replace("_", " ").title(), "rollout_percent": 100, "enabled": False})
+            created += 1
+    return created
+
 def list_flags() -> List[Dict[str, Any]]:
     return _load()
+
+def rollback_flag(key: str, audit_entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    after = audit_entry.get("before") if isinstance(audit_entry, dict) else None
+    if not isinstance(after, dict): return None
+    return update_flag(key, after)
+
+def export_flags() -> List[Dict[str, Any]]:
+    return _load()
+
+def import_flags(items: List[Dict[str, Any]]) -> int:
+    if not isinstance(items, list): raise ValueError("flags must be a list")
+    for item in items:
+        if not isinstance(item, dict) or not item.get("key"): raise ValueError("each flag must have a key")
+        if get_flag(str(item["key"])): update_flag(str(item["key"]), item)
+        else: create_flag(item)
+    return len(items)
 
 
 def get_flag(key: str) -> Optional[Dict[str, Any]]:

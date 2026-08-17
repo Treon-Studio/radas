@@ -1,3 +1,7 @@
+# Production contract: copy .env.example to .env beside this file, generate and
+# fill every required value, then run `docker compose up`. This file intentionally
+# has no development secret defaults. For local development without containers,
+# use the PM2 configuration in ecosystem.config.cjs with the same .env contract.
 services:
   opensible-server:
     image: docker.io/ossopensible/opensible-server:latest
@@ -10,12 +14,15 @@ services:
     environment:
       TZ: Asia/Phnom_Penh
       FLASK_ENV: production
+      FLASK_DEBUG: "0"
       DATA_DIR: /app/data
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-${JWT_SECRET}}
-      JWT_SECRET: ${JWT_SECRET:-${JWT_SECRET_KEY}}
-      INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET}
-      GLOBAL_SECRETS_ENCRYPTION_KEY: ${GLOBAL_SECRETS_ENCRYPTION_KEY}
-      WORKER_REGISTRATION_SECRET: ${WORKER_REGISTRATION_SECRET:-}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET:?INTERNAL_CALL_SECRET must be set}
+      GLOBAL_SECRETS_ENCRYPTION_KEY: ${GLOBAL_SECRETS_ENCRYPTION_KEY:?GLOBAL_SECRETS_ENCRYPTION_KEY must be set}
+      WORKER_REGISTRATION_SECRET: ${WORKER_REGISTRATION_SECRET:?WORKER_REGISTRATION_SECRET must be set}
+      VAULT_SERVER_SECRET: ${VAULT_SERVER_SECRET:?VAULT_SERVER_SECRET must be set}
+      PREVIEW_WEBHOOK_SECRET: ${PREVIEW_WEBHOOK_SECRET:?PREVIEW_WEBHOOK_SECRET must be set}
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://opensible.example.com}
 
@@ -48,11 +55,17 @@ services:
       WORKER_SERVER_URL: http://127.0.0.1:5000
       WORKER_TOKEN_FILE: /app/data/worker.token
       DATA_DIR: /app/data
-      WORKER_REGISTRATION_SECRET: ${WORKER_REGISTRATION_SECRET:-}
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET:?INTERNAL_CALL_SECRET must be set}
+      GLOBAL_SECRETS_ENCRYPTION_KEY: ${GLOBAL_SECRETS_ENCRYPTION_KEY:?GLOBAL_SECRETS_ENCRYPTION_KEY must be set}
+      WORKER_REGISTRATION_SECRET: ${WORKER_REGISTRATION_SECRET:?WORKER_REGISTRATION_SECRET must be set}
       WORKER_MAX_CONCURRENCY: ${WORKER_MAX_CONCURRENCY:-3}
       VAULT_SERVER_HOST: 127.0.0.1
       VAULT_SERVER_PORT: 9998
-      VAULT_SERVER_SECRET: ${VAULT_SERVER_SECRET:-}
+      VAULT_SERVER_SECRET: ${VAULT_SERVER_SECRET:?VAULT_SERVER_SECRET must be set}
     depends_on:
       - opensible-server
 

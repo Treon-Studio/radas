@@ -30,6 +30,10 @@ export const qk = {
   run: (stack: string, runId: string) => ["cloud", "run", stack, runId] as const,
   syncState: ["cloud", "sync-state"] as const,
   projects: ["projects"] as const,
+  projectCatalog: (projectId: string) => ["projects", projectId, "catalog"] as const,
+  projectServices: (projectId: string, environment?: string) => ["projects", projectId, "services", environment || "all"] as const,
+  projectService: (projectId: string, serviceId: string) => ["projects", projectId, "services", serviceId] as const,
+  serviceOperations: (projectId: string, serviceId: string) => ["projects", projectId, "services", serviceId, "operations"] as const,
   pipelines: ["cicd", "pipelines"] as const,
   cicdRuns: ["cicd", "runs"] as const,
 };

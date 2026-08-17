@@ -198,10 +198,104 @@ def test_evaluation_trace_uses_the_relationship_for_each_diamond_path(data_dir):
     ]
 
 
+def test_flag_key_length_has_clear_validation(data_dir):
+    from services.feature_flag_registry import create_flag
+    with pytest.raises(ValueError, match="at most 128 chars"):
+        create_flag({"key": "a" * 129})
+    flag = create_flag({"key": "valid.name", "name": "n" * 200})
+    assert len(flag["name"]) == 128
+
+
+def test_expired_flags_are_auto_archived(data_dir):
+    from services.feature_flag_registry import create_flag, expire_due_flags, get_flag
+    create_flag({"key": "expire.flag", "enabled": True, "scheduled_expire_at": 100})
+    assert expire_due_flags(101) == 1
+    assert get_flag("expire.flag")["enabled"] is False
+    assert get_flag("expire.flag")["expired_at"] == 101
+
+
+def test_safe_evaluate_fails_closed_on_error(data_dir, monkeypatch):
+    from services import feature_flag_registry as registry
+    monkeypatch.setattr(registry, "evaluate", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("secret internal detail")))
+    result = registry.safe_evaluate("broken.flag")
+    assert result["enabled"] is False
+    assert result["reason"] == "evaluation_error"
+    assert "secret internal detail" in result["error"]
+
+
+def test_working_hours_toggle_is_bounded(data_dir):
+    from services.feature_flag_registry import apply_working_hours, create_flag, get_flag
+    create_flag({"key": "hours.flag", "enabled": True})
+    assert apply_working_hours("hours.flag", 8, 9, 17)["enabled"] is False
+    assert apply_working_hours("hours.flag", 12, 9, 17)["enabled"] is True
+    assert get_flag("hours.flag")["working_hours"] == {"start": 9, "end": 17}
+
+
+def test_safety_valve_disables_flag_after_error_threshold(data_dir):
+    from services.feature_flag_registry import create_flag, get_flag, safety_valve
+    create_flag({"key": "safety.valve", "enabled": True})
+    result = safety_valve("safety.valve", 3, 10, threshold=0.2, min_samples=10)
+    assert result["triggered"] is True
+    assert result["error_rate"] == 0.3
+    assert get_flag("safety.valve")["enabled"] is False
+    assert get_flag("safety.valve")["kill_switch"] is True
+
+
+def test_filter_flags_and_evaluation_history(data_dir):
+    from services.feature_flag_registry import create_flag, evaluate, filter_flags, evaluation_history
+    create_flag({"key": "filter.one", "enabled": True, "tags": ["security"], "environments": {"prod": True}})
+    create_flag({"key": "filter.two", "enabled": False, "tags": ["cost"]})
+    assert [item["key"] for item in filter_flags(__import__("services.feature_flag_registry", fromlist=["list_flags"]).list_flags(), tag="security", env="prod", enabled=True)] == ["filter.one"]
+    from services.feature_flag_registry import _append_history
+    _append_history({"operation": "evaluation", "key": "filter.one", "reason": "full_rollout", "at": 1}, "global", None)
+    assert evaluation_history(key="filter.one", limit=1)[0]["reason"]
+
+
+def test_evaluation_cache_uses_ttl_and_expires(data_dir, monkeypatch):
+    from services import feature_flag_registry as registry
+    registry.create_flag({"key": "cache.flag", "enabled": True, "evaluation_cache_ttl_seconds": 10})
+    clock = iter([100, 100, 111, 111, 111, 111])
+    monkeypatch.setattr(registry.time, "time", lambda: next(clock))
+    registry._EVALUATION_CACHE.clear()
+    monkeypatch.setattr(registry, "_append_history", lambda *args, **kwargs: None)
+    first = registry.evaluate("cache.flag", user="u")
+    second = registry.evaluate("cache.flag", user="u")
+    third = registry.evaluate("cache.flag", user="u")
+    assert first.get("cached") is not True
+    assert second["cached"] is True
+    assert third.get("cached") is not True
+
+
+def test_ab_variants_assign_deterministically_and_validate_weights(data_dir):
+    from services.feature_flag_registry import create_flag, evaluate
+    create_flag({"key": "experiment.flag", "enabled": True, "variants": [{"key": "control", "weight": 50}, {"key": "treatment", "weight": 50}]})
+    first = evaluate("experiment.flag", user="user-1")
+    second = evaluate("experiment.flag", user="user-1")
+    assert first["reason"] == "variant_assignment"
+    assert first["variant"] == second["variant"]
+    with pytest.raises(ValueError, match="total 100"):
+        create_flag({"key": "bad.experiment", "variants": [{"key": "a", "weight": 20}]})
+
+
+def test_progressive_rollout_schedule_applies_bounded_stages(data_dir):
+    import pytest
+    from services.feature_flag_registry import apply_scheduled_rollout, create_flag, get_flag, schedule_rollout
+    create_flag({"key": "rollout.schedule", "enabled": True, "rollout_percent": 0})
+    schedule_rollout("rollout.schedule", [{"rollout_percent": 10, "at": 100}, {"rollout_percent": 50, "at": 200}, {"rollout_percent": 100, "at": 300}])
+    assert apply_scheduled_rollout("rollout.schedule", now=250)["rollout_percent"] == 50
+    assert get_flag("rollout.schedule")["rollout_schedule"][-1]["rollout_percent"] == 100
+    with pytest.raises(ValueError):
+        schedule_rollout("rollout.schedule", [{"rollout_percent": 80, "at": 300}, {"rollout_percent": 20, "at": 200}])
+
+
 def test_evaluate_project_without_org_id_uses_project_organization(data_dir):
     from services.feature_flag_registry import create_flag, evaluate
     from storage import pg
 
+    pg.execute(
+        "INSERT INTO orgs (id, name, created_at) VALUES (%s,%s,%s)",
+        ("org-derived", "Org Derived", 0),
+    )
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) VALUES (%s,%s,%s,%s,%s,0,%s)",
                ("project-org", "org-derived", "owner", "Project", "", 0))
     create_flag({"key": "derived.org.flag"}, "organization", "org-derived")
@@ -241,6 +335,10 @@ def test_lifecycle_dependents_resolve_to_exact_target_without_cross_tenant_leaks
     from services.feature_flag_registry import archive_flag, create_flag, delete_flag, find_dependents, impact
     from storage import pg
 
+    pg.execute(
+        "INSERT INTO orgs (id, name, created_at) VALUES (%s,%s,%s), (%s,%s,%s)",
+        ("org-a", "Org A", 0, "org-b", "Org B", 0),
+    )
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
                "VALUES (%s,%s,%s,%s,%s,0,%s)", ("project-a", "org-a", "owner", "A", "", 0))
     pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "

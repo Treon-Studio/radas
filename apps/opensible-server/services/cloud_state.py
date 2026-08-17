@@ -9,6 +9,7 @@ import re
 import shutil
 import time
 import uuid
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -22,6 +23,7 @@ TERMINAL_STATUSES = {"SUCCESS", "FAILED", "CANCELED", "ERROR", "TIMEOUT", "STALL
 
 MAX_VERSIONS = 50
 _VERSION_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+_LOCK_GUARD = threading.RLock()
 
 BACKEND_FIELDS = ("bucket", "key", "region", "endpoint", "profile", "prefix")
 
@@ -152,22 +154,23 @@ def acquire_lock(dd: Path, *, actor: str, operation: str,
                  get_execution: Optional[Callable] = None,
                  project_id: Optional[str] = None) -> Dict[str, Any]:
     """Take the lock. Returns {"ok": True, "lock": ...} or {"ok": False, "lock": existing}."""
-    existing = read_lock(dd, get_execution, project_id)
-    if existing:
-        return {"ok": False, "lock": existing}
-    lock = {
-        "id": uuid.uuid4().hex[:16],
-        "who": actor or "unknown",
-        "operation": operation,
-        "run_id": run_id,
-        "note": note or "",
-        "created_at": _now(),
-        "created_ts": time.time(),
-    }
-    _write_json(_lock_file(dd), lock)
-    append_audit(dd, "lock.acquired", actor, operation=operation, run_id=run_id,
-                 lock_id=lock["id"], note=note or "")
-    return {"ok": True, "lock": lock}
+    with _LOCK_GUARD:
+        existing = read_lock(dd, get_execution, project_id)
+        if existing:
+            return {"ok": False, "lock": existing}
+        lock = {
+            "id": uuid.uuid4().hex[:16],
+            "who": actor or "unknown",
+            "operation": operation,
+            "run_id": run_id,
+            "note": note or "",
+            "created_at": _now(),
+            "created_ts": time.time(),
+        }
+        _write_json(_lock_file(dd), lock)
+        append_audit(dd, "lock.acquired", actor, operation=operation, run_id=run_id,
+                     lock_id=lock["id"], note=note or "")
+        return {"ok": True, "lock": lock}
 
 
 def release_lock(dd: Path, *, lock_id: Optional[str] = None, actor: str = "",

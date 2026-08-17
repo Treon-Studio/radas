@@ -69,6 +69,46 @@ def test_crud_and_clone_routes_are_project_scoped(pg_db, data_dir):
     assert client.delete(f"/api/tests/{test_id}", headers=_headers("project-a")).status_code == 200
 
 
+def test_test_case_list_paginates_with_metadata(pg_db, data_dir):
+    _seed_projects()
+    client = _app().test_client()
+    for name in ("one", "two", "three"):
+        response = client.post("/api/tests", json={"name": name, "stack": "demo", "assertions": ["cidr_public"]}, headers=_headers("project-a"))
+        assert response.status_code == 201
+    response = client.get("/api/tests?limit=2&offset=1", headers=_headers("project-a"))
+    body = response.get_json()
+    assert [item["name"] for item in body["test_cases"]] == ["two", "three"]
+    assert body["has_more"] is False
+    assert body["next_offset"] is None
+
+
+def test_list_filters_by_tag_environment_enabled_and_kind(pg_db, data_dir):
+    _seed_projects()
+    client = _app().test_client()
+    for payload in (
+        {"name": "Security prod", "stack": "demo", "assertions": ["cidr_public"], "tags": ["security"], "parameters": {"env": "prod"}},
+        {"name": "Cost dev", "stack": "demo", "assertions": ["budget_exceeded"], "tags": ["cost"], "parameters": {"env": "dev"}, "enabled": False},
+    ):
+        assert client.post("/api/tests", json=payload, headers=_headers("project-a")).status_code == 201
+    response = client.get("/api/tests?tag=security&environment=prod&enabled=true&kind=assertion", headers=_headers("project-a"))
+    assert response.status_code == 200
+    assert [item["name"] for item in response.get_json()["test_cases"]] == ["Security prod"]
+
+
+def test_batch_route_accepts_bounded_concurrency(pg_db, data_dir, monkeypatch):
+    _seed_projects()
+    client = _app().test_client()
+    created = client.post(
+        "/api/tests", json={"name": "Batch", "stack": "demo", "assertions": ["cidr_public"]},
+        headers=_headers("project-a"),
+    ).get_json()["test_case"]
+    monkeypatch.setattr("services.test_cases._stack_texts", lambda project_id, stack: {"tfvars": ""})
+    response = client.post("/api/tests/batch-run", json={"stack": "demo", "concurrency": 99}, headers=_headers("project-a"))
+    assert response.status_code == 201
+    assert response.get_json()["concurrency"] == 8
+    assert response.get_json()["results"][0]["test_id"] == created["id"]
+
+
 def test_route_validation_disabled_batch_and_history(pg_db, data_dir, monkeypatch):
     _seed_projects()
     client = _app().test_client()
@@ -110,6 +150,28 @@ def test_clone_route_cannot_cross_project(pg_db, data_dir):
         headers=_headers("project-b", "u2", "bob"),
     )
     assert response.status_code == 404
+
+
+def test_results_export_has_stable_run_id(pg_db, data_dir, monkeypatch):
+    _seed_projects()
+    client = _app().test_client()
+    created = client.post(
+        "/api/tests", json={"name": "Export", "stack": "demo", "assertions": ["cidr_public"]},
+        headers=_headers("project-a"),
+    ).get_json()["test_case"]
+    monkeypatch.setattr("services.test_cases._stack_texts", lambda project_id, stack: {"tfvars": ""})
+    run = client.post(f"/api/tests/{created['id']}/run", headers=_headers("project-a"))
+    assert run.status_code == 201
+    result = run.get_json()["result"]
+    assert result["run_id"]
+    exported = client.get("/api/tests/results/export", headers=_headers("project-a"))
+    assert exported.status_code == 200
+    body = exported.get_json()
+    assert body["format"] == "json"
+    assert body["schema_version"] == "test-results.v1"
+    assert body["count"] == 1
+    assert body["project_id"] == "project-a"
+    assert body["results"][0]["run_id"] == result["run_id"]
 
 
 def test_routes_require_project_membership(pg_db):
