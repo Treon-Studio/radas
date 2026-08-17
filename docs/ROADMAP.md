@@ -660,7 +660,7 @@ fitur terpisah:
 | 489 | Enkripsi at rest untuk store baru (flags/tests config) | ⬜ | P2 | 6 |
 | 490 | Rotasi session JWT otomatis | ⬜ | P1 | 6 |
 | 491 | 2FA enforce untuk admin (sudah TOTP) | 🔶 | P2 | 6 |
-| 492 | Password reset flow secure | ⬜ | P1 | 6 |
+| 492 | Password reset flow secure | ✅ | P1 | 6 |
 | 493 | OIDC login (sudah) ditambah SAML | ⬜ | P2 | 6 |
 | 494 | RBAC: role flags_admin, tests_admin, byoc_admin | ⬜ | P1 | 6 |
 | 495 | Policy: hanya admin boleh kill-switch | ⬜ | P1 | 6 |

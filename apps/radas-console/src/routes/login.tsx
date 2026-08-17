@@ -102,6 +102,15 @@ function LoginPage() {
             </form.Subscribe>
           </form>
 
+          <div className="text-center">
+            <a
+              href="/forgot-password"
+              className="text-sm text-[var(--color-primary)] hover:underline"
+            >
+              {t("auth.forgot.title")}
+            </a>
+          </div>
+
           {sso?.configured && (
             <a
               href="/api/auth/sso"
