@@ -126,11 +126,11 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   };
   const realPath = projectId ? path.replace("/_current/", `/${encodeURIComponent(projectId)}/`) : path;
   const res = await fetch(apiBase + realPath, {
+    ...init,
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: "include",
-    ...init,
   });
   const text = await res.text();
   const data = text ? safeJson(text) : null;

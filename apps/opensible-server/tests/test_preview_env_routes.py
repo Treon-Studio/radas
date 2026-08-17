@@ -23,6 +23,26 @@ def _signature(secret: str, body: bytes) -> str:
     return f"sha256={digest}"
 
 
+def test_public_preview_webhook_rejects_oversized_payload(monkeypatch, client):
+    monkeypatch.setattr(preview_env_routes, "_PREVIEW_MAX_BODY_BYTES", 4)
+    response = client.post("/api/webhooks/github/preview", data=b"12345", headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+    assert response.get_json() == {"error": "payload too large"}
+
+
+def test_public_preview_webhook_rate_limits_client(monkeypatch, client):
+    monkeypatch.setattr(preview_env_routes, "webhook_secret", lambda: "secret")
+    monkeypatch.setattr(preview_env_routes, "_PREVIEW_RATE_LIMIT", 1)
+    monkeypatch.setattr(preview_env_routes, "verify_github_signature", lambda *args: True)
+    monkeypatch.setattr(preview_env_routes, "handle_github_event", lambda payload, stack=None: {"ok": True})
+    headers = {"X-Forwarded-For": "198.51.100.7", "X-GitHub-Event": "push"}
+    first = client.post("/api/webhooks/github/preview", data=b"{}", headers=headers)
+    second = client.post("/api/webhooks/github/preview", data=b"{}", headers=headers)
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["Retry-After"]
+
+
 def test_public_preview_webhook_returns_controlled_error_when_production_secret_missing(
     client, monkeypatch, caplog
 ):

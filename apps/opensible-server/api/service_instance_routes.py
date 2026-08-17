@@ -602,7 +602,14 @@ def list_services(project_id: str):
     org_id, error = _context(project_id)
     if error:
         return error
-    instances = service_instances.list_instances(project_id, **_auth_kwargs(project_id))
+    environment = request.args.get("environment") or None
+    status = request.args.get("status") or None
+    instances = service_instances.list_instances(
+        project_id,
+        environment=environment,
+        status=status,
+        **_auth_kwargs(project_id),
+    )
     return success_response({"services": [_instance_view(project_id, item) for item in instances], "org_id": org_id})
 
 

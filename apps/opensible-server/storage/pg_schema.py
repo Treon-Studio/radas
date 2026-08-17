@@ -414,6 +414,212 @@ _V11_DDL: List[str] = [
     "FOREIGN KEY (instance_id, revision_id) REFERENCES service_revisions(instance_id, id)",
 ]
 
+# Version 12 — canonical project environments and protected metadata.
+_V12_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS project_environments (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        protected BOOLEAN NOT NULL DEFAULT FALSE,
+        variables JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_project_environments_project_name UNIQUE (project_id, name),
+        CONSTRAINT fk_project_environments_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_project_environments_project
+       ON project_environments(project_id, name)""",
+]
+
+# Version 13 — service-specific Git source bindings and immutable commit metadata.
+_V13_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_sources (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL UNIQUE REFERENCES service_instances(id) ON DELETE CASCADE,
+        repo_url TEXT NOT NULL,
+        ref TEXT NOT NULL,
+        path TEXT NOT NULL DEFAULT '',
+        commit_sha TEXT,
+        source_revision TEXT,
+        auth_secret_id TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT fk_service_sources_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_sources_project
+       ON service_sources(project_id, updated_at)""",
+]
+
+# Version 14 — service-scoped pipeline definitions and runs.
+_V14_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_pipelines (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL UNIQUE REFERENCES service_instances(id) ON DELETE CASCADE,
+        stages JSONB NOT NULL,
+        source_revision TEXT,
+        created_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT fk_service_pipelines_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE TABLE IF NOT EXISTS service_pipeline_runs (
+        id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL REFERENCES service_pipelines(id) ON DELETE CASCADE,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE,
+        operation_id TEXT,
+        source_revision TEXT NOT NULL,
+        target_environment TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued','running','awaiting_approval','succeeded','failed','canceled')),
+        stages JSONB NOT NULL,
+        approved_by TEXT,
+        error_message TEXT,
+        created_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT fk_service_pipeline_runs_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_pipeline_runs_instance
+       ON service_pipeline_runs(instance_id, created_at)""",
+]
+
+# Version 15 — service health observations for bounded operational history.
+_V15_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_health_observations (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE,
+        check_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('healthy','degraded','unhealthy','unknown')),
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        endpoint JSONB,
+        observed_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT fk_service_health_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_health_instance_observed
+       ON service_health_observations(instance_id, observed_at DESC)""",
+]
+
+# Version 16 — normalized service usage snapshots for governance/export.
+_V16_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_usage_snapshots (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE,
+        runtime_id TEXT NOT NULL,
+        cpu_millicores INTEGER NOT NULL DEFAULT 0,
+        memory_mb INTEGER NOT NULL DEFAULT 0,
+        storage_gb INTEGER NOT NULL DEFAULT 0,
+        running_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+        provider_cost JSONB NOT NULL DEFAULT '{}'::jsonb,
+        observed_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT fk_service_usage_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_service_usage_project_observed
+       ON service_usage_snapshots(project_id, observed_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_service_usage_org_observed
+       ON service_usage_snapshots(org_id, observed_at DESC)""",
+]
+
+# Version 17 — organization-scoped runtime/provider connections.
+_V17_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS runtime_connections (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        runtime_id TEXT NOT NULL,
+        secret_id TEXT,
+        capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
+        configured BOOLEAN NOT NULL DEFAULT TRUE,
+        healthy BOOLEAN NOT NULL DEFAULT FALSE,
+        last_tested_at DOUBLE PRECISION,
+        last_error TEXT,
+        rotated_at DOUBLE PRECISION,
+        created_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_runtime_connections_org_name UNIQUE (org_id, name),
+        CONSTRAINT fk_runtime_connections_org FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_runtime_connections_org_runtime
+       ON runtime_connections(org_id, runtime_id)""",
+]
+
+# Version 18 — reviewable service change requests and append-only decisions.
+_V18_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS service_change_requests (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL REFERENCES service_instances(id) ON DELETE CASCADE,
+        revision_id TEXT NOT NULL,
+        source_revision TEXT,
+        fingerprint TEXT NOT NULL,
+        before_spec JSONB NOT NULL DEFAULT '{}'::jsonb,
+        after_spec JSONB NOT NULL DEFAULT '{}'::jsonb,
+        diff JSONB NOT NULL DEFAULT '{}'::jsonb,
+        risk JSONB NOT NULL DEFAULT '{}'::jsonb,
+        policy_results JSONB NOT NULL DEFAULT '{}'::jsonb,
+        status TEXT NOT NULL CHECK (status IN ('open','approved','rejected','canceled','deployed')),
+        requested_by TEXT,
+        approved_by TEXT,
+        deployed_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        UNIQUE (project_id, instance_id, fingerprint),
+        CONSTRAINT fk_change_request_project FOREIGN KEY (org_id, project_id)
+            REFERENCES projects(org_id, id) ON DELETE CASCADE
+    )""",
+    """CREATE TABLE IF NOT EXISTS service_change_decisions (
+        id TEXT PRIMARY KEY,
+        request_id TEXT NOT NULL REFERENCES service_change_requests(id) ON DELETE CASCADE,
+        decision TEXT NOT NULL CHECK (decision IN ('approved','rejected','canceled')),
+        actor_id TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        created_at DOUBLE PRECISION NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_change_requests_instance
+       ON service_change_requests(instance_id, created_at DESC)""",
+]
+
+# Version 19 — catalog deprecation and security review metadata.
+_V19_DDL: List[str] = [
+    "ALTER TABLE service_definitions ADD COLUMN IF NOT EXISTS deprecation_reason TEXT",
+    "ALTER TABLE service_definitions ADD COLUMN IF NOT EXISTS deprecated_at DOUBLE PRECISION",
+    "ALTER TABLE service_definitions ADD COLUMN IF NOT EXISTS security_review JSONB NOT NULL DEFAULT '{}'::jsonb",
+    "CREATE INDEX IF NOT EXISTS idx_service_definitions_deprecated ON service_definitions(disabled, deprecated_at)",
+]
+
+# Version 20 — billing-ready organization plan/quota boundary.
+_V20_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_billing_plans (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL UNIQUE REFERENCES orgs(id) ON DELETE CASCADE,
+        plan_id TEXT NOT NULL,
+        limits JSONB NOT NULL DEFAULT '{}'::jsonb,
+        state TEXT NOT NULL CHECK (state IN ('active','grace','suspended')),
+        grace_until DOUBLE PRECISION,
+        assigned_by TEXT,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_org_billing_plans_state ON org_billing_plans(state)",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
@@ -428,6 +634,15 @@ MIGRATIONS = (
     (9, _V9_DDL),
     (10, _V10_DDL),
     (11, _V11_DDL),
+    (12, _V12_DDL),
+    (13, _V13_DDL),
+    (14, _V14_DDL),
+    (15, _V15_DDL),
+    (16, _V16_DDL),
+    (17, _V17_DDL),
+    (18, _V18_DDL),
+    (19, _V19_DDL),
+    (20, _V20_DDL),
 )
 
 

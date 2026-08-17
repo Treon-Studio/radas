@@ -114,6 +114,13 @@ def api_healthz():
     return jsonify({"status": "ok"}), 200
 
 
+@bp.route('/healthz/details', methods=['GET'])
+def api_healthz_details():
+    from services.health import readiness
+    result = readiness()
+    return jsonify({"status": "ok" if result.get("ok") else "degraded", "services": result.get("checks", {})}), (200 if result.get("ok") else 503)
+
+
 @bp.route('/readyz', methods=['GET'])
 def api_readyz():
     r = readiness()

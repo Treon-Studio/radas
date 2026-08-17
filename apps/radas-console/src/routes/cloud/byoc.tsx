@@ -38,6 +38,8 @@ function ByocPage() {
   const [importBlock, setImportBlock] = useState("");
 
   const pv = pvd?.providers ?? [];
+  const [detectHint, setDetectHint] = useState("");
+  const detect = async (next: Record<string,string>) => { try { const d = await api<{provider?:string}>("POST", "/api/byoc/providers/detect", { credentials: next }); if (d.provider) { setProvider(d.provider); setDetectHint(`Detected provider: ${d.provider}`); } } catch { setDetectHint(""); } };
   const pmeta = pv.find((p) => p.id === provider);
   const accounts = acctData?.accounts ?? [];
 
@@ -150,8 +152,9 @@ function ByocPage() {
                 )}
               </div>
             ))}
+            {detectHint && <div className="md:col-span-2 text-xs text-[var(--color-primary)]">{detectHint}</div>}
             <div className="md:col-span-2">
-              <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending || !name.trim()}>
+              <Button size="sm" onClick={() => { void detect(creds); createMut.mutate(); }} disabled={createMut.isPending || !name.trim()}>
                 Connect account
               </Button>
             </div>

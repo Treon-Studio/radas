@@ -213,7 +213,10 @@ def test_nullable_updated_at_snapshot_does_not_remove_changed_row(pg_db):
     snapshot = config_db.list_projects(Path("/tmp"))
     pg.execute("UPDATE projects SET description = %s WHERE id = %s", ("newer", "null-changed"))
 
-    assert config_db.replace_all_projects(Path("/tmp"), []) is True
+    replacement = config_db.ProjectList(
+        [], snapshot_ids=snapshot.snapshot_ids, snapshot_versions=snapshot.snapshot_versions
+    )
+    assert config_db.replace_all_projects(Path("/tmp"), replacement) is True
     current = config_db.get_project("null-changed")
     assert current["description"] == "newer"
 

@@ -73,6 +73,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.bastion_routes",
         "api.provider_mirror_routes",
         "api.env_roles_routes",
+        "api.environment_routes",
         "api.export_routes",
         "api.stack_import_routes",
         "api.webhook_routes",
@@ -102,6 +103,15 @@ def register_blueprints(app: "Flask") -> None:
         "api.code_registry_routes",
         "api.service_catalog_routes",
         "api.service_instance_routes",
+        "api.service_source_routes",
+        "api.service_pipeline_routes",
+        "api.service_observability_routes",
+        "api.usage_routes",
+        "api.runtime_connection_routes",
+        "api.service_plan_routes",
+        "api.service_change_request_routes",
+        "api.catalog_metadata_routes",
+        "api.billing_plan_routes",
     ]
     for mod_name in modules:
         try:

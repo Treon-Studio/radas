@@ -39,6 +39,8 @@ class LocalContainerProvider:
             "status": False,
             "healthcheck": False,
             "public_endpoint": False,
+            "plan": False,
+            "apply_plan": False,
         }
 
     def validate(self, spec: dict[str, Any]) -> list[dict[str, Any]]:

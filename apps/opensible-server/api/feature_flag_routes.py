@@ -11,7 +11,7 @@ except ImportError:
 
 from services.feature_flag_registry import (
     archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags,
-    list_flags, restore_flag, update_flag,
+    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags,
 )
 
 bp = Blueprint("feature_flag_api", __name__)
@@ -168,7 +168,16 @@ def api_list_flags():
     if error:
         return error
     scope_type, scope_id, org_id = context
-    return jsonify({"flags": list_flags(scope_type, scope_id, effective=scope_type != "global", org_id=org_id)})
+    flags = list_flags(scope_type, scope_id, effective=scope_type != "global", org_id=org_id)
+    enabled_arg = request.args.get("enabled")
+    enabled = None if enabled_arg is None else enabled_arg.strip().lower() in {"1", "true", "yes"}
+    return jsonify({"flags": filter_flags(flags, request.args.get("tag", ""), request.args.get("env", ""), enabled)})
+
+
+@bp.route('/api/flags/expire-due', methods=['POST'])
+@require_auth
+def api_expire_due_flags():
+    return jsonify({"success": True, "expired": expire_due_flags(request.get_json(silent=True).get("now") if isinstance(request.get_json(silent=True), dict) else None)})
 
 
 @bp.route('/api/flags/audit', methods=['GET'])
@@ -317,8 +326,8 @@ def api_evaluate_flag():
     requested_user = data.get("user") or actor_id
     if data.get("user") and requested_user != actor_id and not _scope_admin(scope_type, org_id):
         return jsonify({"error": "admin required to preview another user"}), 403
-    return jsonify(evaluate(key, env=data.get("env") or "prod", user=requested_user,
-                            project_id=scope_id if scope_type == "project" else None, org_id=org_id))
+    return jsonify(safe_evaluate(key, env=data.get("env") or "prod", user=requested_user,
+                                 project_id=scope_id if scope_type == "project" else None, org_id=org_id))
 
 
 @bp.route('/api/flags/export', methods=['GET'])
@@ -360,7 +369,57 @@ def api_flag_evaluations():
         limit = max(1, min(500, int(request.args.get("limit", "100"))))
     except (TypeError, ValueError):
         limit = 100
-    return jsonify({"evaluations": audit(scope_type, scope_id, request.args.get("flag_key"), limit)})
+    return jsonify({"evaluations": evaluation_history(scope_type, scope_id, request.args.get("flag_key"), limit)})
+
+
+@bp.route('/api/flags/<key>/working-hours', methods=['POST'])
+@require_auth
+def api_working_hours(key):
+    data = request.get_json(silent=True) or {}
+    try:
+        scope_type, scope_id, org_id = _scope_context(data)
+        actor, actor_name = _actor()
+        return jsonify(apply_working_hours(key, data.get("now_hour", 0), data.get("start_hour", 9), data.get("end_hour", 17), scope_type, scope_id, actor, actor_name, org_id))
+    except (ScopeError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/flags/<key>/safety-valve', methods=['POST'])
+@require_auth
+def api_safety_valve(key):
+    data = request.get_json(silent=True) or {}
+    try:
+        scope_type, scope_id, org_id = _scope_context(data)
+        actor, actor_name = _actor()
+        return jsonify(safety_valve(key, data.get("error_count", 0), data.get("total_count", 0),
+                                    data.get("threshold", 0.2), data.get("min_samples", 10),
+                                    scope_type, scope_id, actor, actor_name, org_id))
+    except (ScopeError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/flags/<key>/rollout-schedule', methods=['PUT'])
+@require_auth
+def api_schedule_rollout(key):
+    data = request.get_json(silent=True) or {}
+    try:
+        scope_type, scope_id, org_id = _scope_context(data)
+        actor, actor_name = _actor()
+        return jsonify(schedule_rollout(key, data.get("stages") or [], scope_type, scope_id, actor, actor_name, org_id))
+    except (ScopeError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/flags/<key>/rollout-schedule/apply', methods=['POST'])
+@require_auth
+def api_apply_rollout(key):
+    data = request.get_json(silent=True) or {}
+    try:
+        scope_type, scope_id, org_id = _scope_context(data)
+        actor, actor_name = _actor()
+        return jsonify(apply_scheduled_rollout(key, data.get("now"), scope_type, scope_id, actor, actor_name, org_id) or {})
+    except (ScopeError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @bp.route('/api/flags/<key>/rollback', methods=['POST'])

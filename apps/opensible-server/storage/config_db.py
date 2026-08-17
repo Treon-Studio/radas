@@ -65,7 +65,7 @@ _PROJECT_MUTATION_LOCK_KEY = "radas.projects.mutation"
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(datetime.timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -156,110 +156,110 @@ def create_project(data_dir: Path, project: Dict[str, Any]) -> Dict[str, Any]:
     return _row_to_project(inserted)
 
 
-    def replace_all_projects(data_dir: Path, items: List[Dict[str, Any]]) -> bool:
-        """Apply a legacy snapshot without clobbering newer project rows/fields.
+def replace_all_projects(data_dir: Path, items: List[Dict[str, Any]]) -> bool:
+    """Apply a legacy snapshot without clobbering newer project rows/fields.
 
-        For snapshot-bearing lists, only apply fields that the caller changed while
-        the database still has the corresponding snapshot value; deleted rows are
-        removed only if unchanged. Plain lists (legacy callers) are treated as an
-        atomic full replacement: rows in the supplied list become the new state;
-        omitted rows are deleted; existing rows are updated, preserving concurrency
-        through the advisory lock.
-        """
-        try:
-            snapshot_ids = getattr(items, "snapshot_ids", None)
-            snapshots = getattr(items, "snapshot_versions", {}) or {}
-            supplied = {p.get("id"): p for p in (items or []) if p.get("id")}
-            with pg.transaction() as conn:
-                conn.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                    (_PROJECT_MUTATION_LOCK_KEY,),
-                )
-                # For plain lists, we take a full snapshot under the lock.
-                if snapshot_ids is None:
-                    current_rows = conn.execute(
-                        "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
-                        "FROM projects FOR UPDATE"
-                    ).fetchall()
-                    current_ids = {r["id"] for r in current_rows}
-                    to_delete = current_ids - set(supplied)
-                    for pid in to_delete:
-                        conn.execute("DELETE FROM projects WHERE id = %s", (pid,))
-                    for project in items:
-                        row = _project_to_row(project)
-                        _ensure_active_name_available(conn, row["name"], row["id"])
-                        conn.execute(
-                            "INSERT INTO projects(id, org_id, owner_id, name, description, is_archived, created_at, updated_at) "
-                            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s) "
-                            "ON CONFLICT (id) DO UPDATE SET "
-                            "org_id=EXCLUDED.org_id, owner_id=EXCLUDED.owner_id, name=EXCLUDED.name, "
-                            "description=EXCLUDED.description, is_archived=EXCLUDED.is_archived, "
-                            "created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at",
-                            (row["id"], row["org_id"], row["owner_id"], row["name"],
-                             row["description"], row["is_archived"], row["created_at"], row["updated_at"]),
-                        )
-                    return True
-
-                # Snapshot-bearing list: optimistic merge.
-                for pid in set(snapshot_ids) - set(supplied):
-                    current = conn.execute(
-                        "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
-                        "FROM projects WHERE id = %s FOR UPDATE", (pid,)
-                    ).fetchone()
-                    before = snapshots.get(pid)
-                    if current and before and _project_row_matches_snapshot(current, before):
-                        conn.execute("DELETE FROM projects WHERE id = %s", (pid,))
-
-                for pid, project in supplied.items():
+    For snapshot-bearing lists, only apply fields that the caller changed while
+    the database still has the corresponding snapshot value; deleted rows are
+    removed only if unchanged. Plain lists (legacy callers) are treated as an
+    atomic full replacement: rows in the supplied list become the new state;
+    omitted rows are deleted; existing rows are updated, preserving concurrency
+    through the advisory lock.
+    """
+    try:
+        snapshot_ids = getattr(items, "snapshot_ids", None)
+        snapshots = getattr(items, "snapshot_versions", {}) or {}
+        supplied = {p.get("id"): p for p in (items or []) if p.get("id")}
+        with pg.transaction() as conn:
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (_PROJECT_MUTATION_LOCK_KEY,),
+            )
+            # For plain lists, we take a full snapshot under the lock.
+            if snapshot_ids is None:
+                current_rows = conn.execute(
+                    "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
+                    "FROM projects FOR UPDATE"
+                ).fetchall()
+                current_ids = {r["id"] for r in current_rows}
+                to_delete = current_ids - set(supplied)
+                for pid in to_delete:
+                    conn.execute("DELETE FROM projects WHERE id = %s", (pid,))
+                for project in items:
                     row = _project_to_row(project)
-                    current = conn.execute(
-                        "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
-                        "FROM projects WHERE id = %s FOR UPDATE", (pid,)
-                    ).fetchone()
-                    before = snapshots.get(pid)
-                    if current is None:
-                        if before is not None:
-                            continue
-                        _ensure_active_name_available(conn, row["name"], pid)
-                        conn.execute(
-                            "INSERT INTO projects(id, org_id, owner_id, name, description, is_archived, created_at, updated_at) "
-                            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
-                            (row["id"], row["org_id"], row["owner_id"], row["name"],
-                             row["description"], row["is_archived"], row["created_at"], row["updated_at"]),
-                        )
+                    _ensure_active_name_available(conn, row["name"], row["id"])
+                    conn.execute(
+                        "INSERT INTO projects(id, org_id, owner_id, name, description, is_archived, created_at, updated_at) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s) "
+                        "ON CONFLICT (id) DO UPDATE SET "
+                        "org_id=EXCLUDED.org_id, owner_id=EXCLUDED.owner_id, name=EXCLUDED.name, "
+                        "description=EXCLUDED.description, is_archived=EXCLUDED.is_archived, "
+                        "created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at",
+                        (row["id"], row["org_id"], row["owner_id"], row["name"],
+                         row["description"], row["is_archived"], row["created_at"], row["updated_at"]),
+                    )
+                return True
+
+            # Snapshot-bearing list: optimistic merge.
+            for pid in set(snapshot_ids) - set(supplied):
+                current = conn.execute(
+                    "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
+                    "FROM projects WHERE id = %s FOR UPDATE", (pid,)
+                ).fetchone()
+                before = snapshots.get(pid)
+                if current and before and _project_row_matches_snapshot(current, before):
+                    conn.execute("DELETE FROM projects WHERE id = %s", (pid,))
+
+            for pid, project in supplied.items():
+                row = _project_to_row(project)
+                current = conn.execute(
+                    "SELECT id, org_id, owner_id, name, description, is_archived, created_at, updated_at "
+                    "FROM projects WHERE id = %s FOR UPDATE", (pid,)
+                ).fetchone()
+                before = snapshots.get(pid)
+                if current is None:
+                    if before is not None:
                         continue
-                    if before is None:
-                        continue
-                    changes = {}
-                    before_row = _project_to_row(before, fill_updated_at=False)
-                    for field in ("org_id", "owner_id", "name", "description", "is_archived", "created_at"):
-                        before_value = before_row[field]
-                        supplied_value = row[field]
-                        current_value = current[field]
-                        if supplied_value != before_value and current_value == before_value:
-                            changes[field] = supplied_value
-                    # updated_at: only advance if caller timestamp is newer than current.
-                    # For snapshot comparison, we preserve the original before timestamp.
-                    if changes and row["updated_at"] != before_row["updated_at"] and current["updated_at"] == before_row["updated_at"]:
-                        changes["updated_at"] = row["updated_at"]
-                    if "is_archived" in changes:
-                        changes["is_archived"] = 1 if changes["is_archived"] else 0
-                    if "name" in changes:
-                        _ensure_active_name_available(conn, changes["name"], pid)
-                    if changes:
-                        assignments = ", ".join(f"{field} = %s" for field in changes)
-                        conn.execute(
-                            f"UPDATE projects SET {assignments} WHERE id = %s",
-                            (*changes.values(), pid),
-                        )
-            return True
-        except Exception as e:
-            logger.error("config_db.replace_all_projects failed: %s", e)
-            return False
+                    _ensure_active_name_available(conn, row["name"], pid)
+                    conn.execute(
+                        "INSERT INTO projects(id, org_id, owner_id, name, description, is_archived, created_at, updated_at) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (row["id"], row["org_id"], row["owner_id"], row["name"],
+                         row["description"], row["is_archived"], row["created_at"], row["updated_at"]),
+                    )
+                    continue
+                if before is None:
+                    continue
+                changes = {}
+                before_row = _project_to_row(before, fill_updated_at=False)
+                for field in ("org_id", "owner_id", "name", "description", "is_archived", "created_at"):
+                    before_value = before_row[field]
+                    supplied_value = row[field]
+                    current_value = current[field]
+                    if supplied_value != before_value and current_value == before_value:
+                        changes[field] = supplied_value
+                # updated_at: only advance if caller timestamp is newer than current.
+                # For snapshot comparison, we preserve the original before timestamp.
+                if changes and row["updated_at"] != before_row["updated_at"] and current["updated_at"] == before_row["updated_at"]:
+                    changes["updated_at"] = row["updated_at"]
+                if "is_archived" in changes:
+                    changes["is_archived"] = 1 if changes["is_archived"] else 0
+                if "name" in changes:
+                    _ensure_active_name_available(conn, changes["name"], pid)
+                if changes:
+                    assignments = ", ".join(f"{field} = %s" for field in changes)
+                    conn.execute(
+                        f"UPDATE projects SET {assignments} WHERE id = %s",
+                        (*changes.values(), pid),
+                    )
+        return True
+    except Exception as e:
+        logger.error("config_db.replace_all_projects failed: %s", e)
+        return False
 
 
 def _project_row_matches_snapshot(row: Dict[str, Any], snapshot: Dict[str, Any]) -> bool:
-    expected = _project_to_row(snapshot)
+    expected = _project_to_row(snapshot, fill_updated_at=False)
     return all(row.get(field) == expected[field] for field in (
         "org_id", "owner_id", "name", "description", "is_archived",
         "created_at", "updated_at",

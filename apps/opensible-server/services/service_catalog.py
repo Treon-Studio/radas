@@ -130,6 +130,10 @@ def _row_to_definition(row: Mapping[str, Any], *, include_manifest: bool = True)
         "disabled": bool(row.get("disabled", False)),
         "created_at": row.get("created_at"),
         "published_at": row.get("published_at"),
+        "deprecated": bool(row.get("deprecated_at")),
+        "deprecation_reason": row.get("deprecation_reason"),
+        "deprecated_at": row.get("deprecated_at"),
+        "security_review": _redact_nested(row.get("security_review") or {}),
     }
     if include_manifest:
         definition["manifest"] = _public_manifest(row["manifest"])
@@ -161,7 +165,7 @@ def _row_query(scope: str, org_id: str | None, include_disabled: bool) -> tuple[
         where.append("d.disabled = FALSE")
     return (
         "SELECT d.id, d.slug, d.scope_type, d.org_id, d.owner_id, d.disabled, "
-        "v.version, v.manifest, d.created_at, v.published_at "
+        "v.version, v.manifest, d.created_at, v.published_at, d.deprecated_at, d.deprecation_reason, d.security_review "
         "FROM service_definitions d JOIN service_definition_versions v "
         "ON v.definition_id = d.id AND v.version = d.current_version "
         f"WHERE {' AND '.join(where)} ORDER BY d.slug",
@@ -234,7 +238,7 @@ def get_definition(
             where.append("d.disabled = FALSE")
         row = pg.query_one(
             "SELECT d.id, d.slug, d.scope_type, d.org_id, d.owner_id, d.disabled, "
-            "v.version, v.manifest, d.created_at, v.published_at "
+            "v.version, v.manifest, d.created_at, v.published_at, d.deprecated_at, d.deprecation_reason, d.security_review "
             "FROM service_definitions d JOIN service_definition_versions v ON v.definition_id = d.id AND "
             f"{join} WHERE {' AND '.join(where)}",
             tuple(params),

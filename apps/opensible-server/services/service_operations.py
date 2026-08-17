@@ -422,6 +422,26 @@ def create_instance_and_deploy(
     return service_instances._row(instance), _row(operation)
 
 
+def create_source_deploy_operation(
+    project_id: str, instance_id: str, source: Mapping[str, Any], idempotency_key: str,
+    *, requested_by: str | None = None, org_id: str | None = None,
+    actor_id: str | None = None, internal_context: TrustedInternalExecution | None = None,
+) -> dict[str, Any]:
+    """Queue a source deployment without changing the normal provider deploy kind."""
+    payload = {
+        "operation": "deploy_from_commit",
+        "source": {
+            key: source[key] for key in ("repo_url", "ref", "path", "commit_sha", "source_revision", "auth_secret_id")
+            if source.get(key) is not None
+        },
+    }
+    return create_operation(
+        project_id, "service.deploy_from_commit", idempotency_key, payload,
+        instance_id=instance_id, requested_by=requested_by, org_id=org_id,
+        actor_id=actor_id, internal_context=internal_context, initial_status="queued",
+    )
+
+
 def create_revision_and_operation(
     project_id: str,
     instance_id: str,

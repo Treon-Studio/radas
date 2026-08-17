@@ -38,7 +38,7 @@ class ProviderNotFoundError(ProviderRegistryError):
     """Raised when a provider ID is not registered."""
 
 
-_OPERATION_NAMES = ("deploy", "update", "rollback", "start", "stop", "restart", "destroy", "status", "logs")
+_OPERATION_NAMES = ("deploy", "update", "rollback", "start", "stop", "restart", "destroy", "status", "logs", "plan", "apply_plan")
 
 
 class RuntimeProviderRegistry:
@@ -392,6 +392,12 @@ class RuntimeProviderRegistry:
             if not isinstance(message, str) or not message:
                 message = PUBLIC_PROVIDER_VALIDATION_ERROR
             return [{"code": code, "message": message[:2000], "details": _public_details(getattr(exc, "details", {}))}]
+
+    def plan(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
+        return self.invoke(provider_id, "plan", operation_id, spec, **kwargs)
+
+    def apply_plan(self, provider_id: str, operation_id: str, spec: dict[str, Any], plan_fingerprint: str, **kwargs: Any) -> ProviderResult:
+        return self.invoke(provider_id, "apply_plan", operation_id, spec, plan_fingerprint, **kwargs)
 
     def deploy(self, provider_id: str, operation_id: str, spec: dict[str, Any], **kwargs: Any) -> ProviderResult:
         return self.invoke(provider_id, "deploy", operation_id, spec, **kwargs)

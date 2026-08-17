@@ -63,7 +63,7 @@ def test_list_repos_parses(monkeypatch):
 def test_workflow_templates_contains_three(monkeypatch):
     from services.github_actions import workflow_templates
     ids = {t["id"] for t in workflow_templates()}
-    assert ids == {"tofu-plan", "tofu-apply", "ansible-lint"}
+    assert ids == {"tofu-plan", "tofu-apply", "ansible-run", "ansible-lint"}
 
 
 def test_dispatch_error_propagates(monkeypatch):

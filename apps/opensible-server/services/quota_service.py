@@ -64,6 +64,17 @@ def stack_usage(project_id: str) -> int:
         return 0
 
 
+def check_service_quota(project_id: str, resources: Dict[str, Any]) -> Dict[str, Any]:
+    quota = get_quota(project_id)
+    if not quota:
+        return {"allowed": False, "reason": "Service quota policy is not configured", "code": "SERVICE_QUOTA_NOT_CONFIGURED"}
+    usage = stack_usage(project_id)
+    limit = int(quota.get("max_stacks") or 0)
+    if limit and usage >= limit:
+        return {"allowed": False, "reason": f"Service quota exceeded: {usage}/{limit} workloads", "code": "SERVICE_QUOTA_EXCEEDED", "usage": usage, "limit": limit}
+    return {"allowed": True, "reason": "", "usage": usage, "limit": limit, "resources": resources}
+
+
 def check_quota(project_id: str, kind: str = "stacks") -> Dict[str, Any]:
     """Return {allowed: bool, reason: str, usage: int, limit: int}."""
     quota = get_quota(project_id)

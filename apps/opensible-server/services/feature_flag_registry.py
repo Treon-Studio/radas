@@ -11,6 +11,7 @@ from services import feature_flags as legacy
 
 
 _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+_EVALUATION_CACHE: Dict[Tuple[str, str, str, Optional[str], Optional[str]], Tuple[float, Dict[str, Any]]] = {}
 
 
 def _history_key(scope_type: str, scope_id: Optional[str]) -> str:
@@ -87,6 +88,8 @@ def _normalize_key(value: Any, label: str = "Flag key") -> str:
     key = re.sub(r"\s+", "-", key)
     if len(key) < 2:
         raise ValueError(f"{label} must be at least 2 chars")
+    if len(key) > 128:
+        raise ValueError(f"{label} must be at most 128 chars")
     if not _KEY_RE.fullmatch(key):
         raise ValueError(f"{label} is malformed")
     return key
@@ -266,7 +269,7 @@ def _new_flag(data: Dict[str, Any], scope_type: str, scope_id: Optional[str], ac
     except (TypeError, ValueError):
         rollout = 100
     flag = {
-        "id": str(uuid.uuid4()), "key": key, "name": (data.get("name") or key).strip(),
+        "id": str(uuid.uuid4()), "key": key, "name": (data.get("name") or key).strip()[:128],
         "description": (data.get("description") or "").strip(), "enabled": bool(data.get("enabled", True)),
         "environments": {env: bool((data.get("environments") or {}).get(env, True)) for env in legacy.DEFAULT_ENVS},
         "rollout_percent": rollout, "users_whitelist": [str(v) for v in (data.get("users_whitelist") or [])],
@@ -278,6 +281,28 @@ def _new_flag(data: Dict[str, Any], scope_type: str, scope_id: Optional[str], ac
         "reason": (data.get("reason") or "").strip(), "owner_id": data.get("owner_id") or actor or None,
         "created_at": now, "updated_at": now,
     }
+    variants = data.get("variants")
+    if variants is not None:
+        if not isinstance(variants, list) or not variants or len(variants) > 20:
+            raise ValueError("variants must contain 1-20 entries")
+        normalized_variants = []
+        total_weight = 0
+        for variant in variants:
+            if not isinstance(variant, dict) or not str(variant.get("key", "")).strip():
+                raise ValueError("each variant requires a key")
+            weight = int(variant.get("weight", 0))
+            if weight < 0:
+                raise ValueError("variant weight must be non-negative")
+            normalized_variants.append({"key": str(variant["key"]).strip(), "weight": weight})
+            total_weight += weight
+        if total_weight != 100:
+            raise ValueError("variant weights must total 100")
+        flag["variants"] = normalized_variants
+    if data.get("evaluation_cache_ttl_seconds") is not None:
+        try:
+            flag["evaluation_cache_ttl_seconds"] = max(0, min(300, int(data["evaluation_cache_ttl_seconds"])))
+        except (TypeError, ValueError):
+            raise ValueError("evaluation_cache_ttl_seconds must be an integer")
     for field in ("ttl_seconds", "scheduled_expire_at"):
         if data.get(field) is not None:
             try:
@@ -298,6 +323,7 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
     flags = _load_registry(scope_type, scope_id)
     flags.append(flag)
     _save(flags, scope_type, scope_id)
+    _EVALUATION_CACHE.clear()
     _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": flag["created_at"], "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return _decorate(flag, scope_type, scope_id)
 
@@ -351,6 +377,18 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     for field in ("name", "description", "tags", "reason", "type"):
         if field in patch:
             candidate[field] = patch[field]
+    if "rollout_schedule" in patch:
+        schedule = patch["rollout_schedule"]
+        if not isinstance(schedule, list) or len(schedule) > 10:
+            raise ValueError("rollout_schedule must contain 1-10 entries")
+        candidate["rollout_schedule"] = [{"rollout_percent": max(0, min(100, int(item["rollout_percent"]))), "at": max(0, int(item["at"]))} for item in schedule]
+        if any(left["rollout_percent"] > right["rollout_percent"] or left["at"] > right["at"] for left, right in zip(candidate["rollout_schedule"], candidate["rollout_schedule"][1:])):
+            raise ValueError("rollout_schedule must be ordered")
+    if "working_hours" in patch:
+        hours = patch["working_hours"]
+        if not isinstance(hours, dict) or not {"start", "end"}.issubset(hours):
+            raise ValueError("working_hours requires start and end")
+        candidate["working_hours"] = {"start": max(0, min(23, int(hours["start"]))), "end": max(0, min(23, int(hours["end"]))) }
     for field in ("ttl_seconds", "scheduled_expire_at"):
         if field in patch:
             if patch[field] is None:
@@ -378,6 +416,7 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     _validate_dependency_graph(candidate, scope_type, scope_id, org_id)
     flags[index] = candidate
     _save(flags, scope_type, scope_id)
+    _EVALUATION_CACHE.clear()
     _append_history({"operation": operation, "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": before, "after": candidate, "changes": _diff(before, candidate), "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
     return _decorate(candidate, scope_type, scope_id)
 
@@ -589,11 +628,127 @@ def _result(base: Dict[str, Any], enabled: bool, reason: str, trace: List[Dict[s
     return {**base, "enabled": enabled, "reason": reason, "trace": trace, "dependency_path": dependency_path, **extra}
 
 
+def schedule_rollout(key: str, stages: List[Dict[str, Any]], scope_type: str = "global",
+                    scope_id: Optional[str] = None, actor: str = "", actor_name: str = "",
+                    org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Persist a bounded progressive rollout schedule; application is time-based and deterministic."""
+    if not isinstance(stages, list) or not stages or len(stages) > 10:
+        raise ValueError("stages must contain 1-10 entries")
+    normalized = []
+    previous = -1
+    for stage in stages:
+        if not isinstance(stage, dict):
+            raise ValueError("each rollout stage must be an object")
+        percent = max(0, min(100, int(stage.get("rollout_percent"))))
+        at = int(stage.get("at"))
+        if percent < previous or at < 0:
+            raise ValueError("rollout stages must be ordered and non-negative")
+        previous = percent
+        normalized.append({"rollout_percent": percent, "at": at})
+    current = get_flag(key, scope_type, scope_id)
+    if not current:
+        raise ValueError("flag not found")
+    return update_flag(key, {"rollout_schedule": normalized}, scope_type, scope_id,
+                       actor=actor, actor_name=actor_name, operation="schedule_rollout", org_id=org_id)
+
+
+def apply_scheduled_rollout(key: str, now: Optional[int] = None, scope_type: str = "global",
+                            scope_id: Optional[str] = None, actor: str = "", actor_name: str = "",
+                            org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    flag = get_flag(key, scope_type, scope_id)
+    if not flag:
+        return None
+    stages = flag.get("rollout_schedule") or []
+    eligible = [stage for stage in stages if int(stage.get("at", 0)) <= int(now or time.time())]
+    if not eligible:
+        return flag
+    target = eligible[-1]["rollout_percent"]
+    if int(flag.get("rollout_percent", 100)) == target:
+        return flag
+    return update_flag(key, {"rollout_percent": target}, scope_type, scope_id,
+                       actor=actor, actor_name=actor_name, operation="apply_rollout", org_id=org_id)
+
+
+def safety_valve(key: str, error_count: int, total_count: int, threshold: float = 0.2,
+                 min_samples: int = 10, scope_type: str = "global", scope_id: Optional[str] = None,
+                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Disable a flag when an observed error rate exceeds a bounded policy."""
+    total = int(total_count)
+    errors = int(error_count)
+    minimum = max(1, min(100_000, int(min_samples)))
+    limit = min(1.0, max(0.0, float(threshold)))
+    if total < 0 or errors < 0 or errors > total:
+        raise ValueError("error_count and total_count must be non-negative and consistent")
+    flag = get_flag(key, scope_type, scope_id)
+    if not flag:
+        raise ValueError("flag not found")
+    rate = errors / total if total else 0.0
+    triggered = total >= minimum and rate >= limit
+    updated = flag
+    if triggered and flag.get("enabled"):
+        updated = update_flag(key, {"enabled": False, "kill_switch": True,
+                                    "reason": f"safety valve: error rate {rate:.3f}"}, scope_type, scope_id,
+                              actor=actor, actor_name=actor_name, operation="safety_valve", org_id=org_id)
+    return {"key": key, "error_count": errors, "total_count": total, "error_rate": round(rate, 6),
+            "threshold": limit, "min_samples": minimum, "triggered": triggered, "flag": updated}
+
+
+def apply_working_hours(key: str, now_hour: int, start_hour: int = 9, end_hour: int = 17,
+                       scope_type: str = "global", scope_id: Optional[str] = None,
+                       actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    start, end = max(0, min(23, int(start_hour))), max(0, min(23, int(end_hour)))
+    hour = int(now_hour) % 24
+    active = start <= hour < end if start < end else hour >= start or hour < end
+    return update_flag(key, {"enabled": active, "working_hours": {"start": start, "end": end}},
+                       scope_type, scope_id, actor=actor, actor_name=actor_name,
+                       operation="working_hours", org_id=org_id)
+
+
+def safe_evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[str] = None,
+                  org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Fail closed to a disabled flag when evaluation encounters an error."""
+    try:
+        return evaluate(key, env=env, user=user, project_id=project_id, org_id=org_id)
+    except Exception as exc:
+        return {"key": str(key or ""), "enabled": False, "reason": "evaluation_error",
+                "source": "safe-default", "matched_scope": "", "trace": [],
+                "dependency_path": [str(key or "")], "error": str(exc)[:200]}
+
+
+def filter_flags(flags: List[Dict[str, Any]], tag: str = "", env: str = "", enabled: Optional[bool] = None) -> List[Dict[str, Any]]:
+    tag = str(tag or "").strip().lower()
+    env = str(env or "").strip().lower()
+    result = []
+    for flag in flags:
+        tags = {str(item).strip().lower() for item in (flag.get("tags") or [])}
+        if tag and tag not in tags:
+            continue
+        if env and (flag.get("environments") or {}).get(env) is not True:
+            continue
+        if enabled is not None and bool(flag.get("enabled")) is not enabled:
+            continue
+        result.append(flag)
+    return result
+
+
+def evaluation_history(scope_type: str = "global", scope_id: Optional[str] = None,
+                       key: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    return [row for row in audit(scope_type, scope_id, key, limit * 2) if row.get("operation") == "evaluation"][:limit]
+
+
 def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[str] = None,
              org_id: Optional[str] = None) -> Dict[str, Any]:
     """Evaluate a flag with scoped dependency gates and defensive graph handling."""
     if project_id and not org_id:
         org_id = _scope_org_id("project", project_id)
+    cache_key = (str(key), str(env), str(user), project_id, org_id)
+    now = time.time()
+    cached_entry = _EVALUATION_CACHE.get(cache_key)
+    if cached_entry:
+        expires_at, cached_result = cached_entry
+        if expires_at > now:
+            return copy.deepcopy({**cached_result, "cached": True})
+        _EVALUATION_CACHE.pop(cache_key, None)
     try:
         requested_key = _normalize_key(key)
     except ValueError:
@@ -626,7 +781,8 @@ def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[s
             return _result({"key": flag_key, "source": "dependency", "matched_scope": ""}, False, reason,
                            [{"key": flag_key, "relationship": relationship, "gate": "lookup", "scope": "missing"}], [flag_key])
         matched_scope = _scope(matched["scope_type"], matched["scope_id"])
-        base = {"key": flag_key, "source": matched["scope_type"], "matched_scope": matched_scope}
+        base = {"key": flag_key, "source": matched["scope_type"], "matched_scope": matched_scope,
+                "ttl_seconds": matched.get("evaluation_cache_ttl_seconds", matched.get("ttl_seconds", 0))}
         trace = [{"key": flag_key, "relationship": relationship, "gate": "flag", "scope": matched_scope}]
         if matched["scope_type"] == "global" and not _is_registry_global_key(flag_key):
             legacy_result = legacy.evaluate(flag_key, env=env, user=user)
@@ -676,6 +832,17 @@ def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[s
             result = _result(base, False, "blacklisted", trace, [flag_key])
         elif user and user in (matched.get("users_whitelist") or []):
             result = _result(base, True, "whitelisted", trace, [flag_key])
+        elif matched.get("variants"):
+            bucket = legacy._bucket(flag_key, user or env)
+            cursor = 0
+            selected = matched["variants"][-1]["key"]
+            for variant in matched["variants"]:
+                cursor += int(variant["weight"]) * 10
+                if bucket < cursor:
+                    selected = variant["key"]
+                    break
+            result = _result(base, True, "variant_assignment", trace, [flag_key], variant=selected,
+                             bucket=bucket, variants=copy.deepcopy(matched["variants"]))
         else:
             try:
                 percent = max(0, min(100, int(matched.get("rollout_percent", 100))))
@@ -690,7 +857,19 @@ def evaluate(key: str, env: str = "prod", user: str = "", project_id: Optional[s
         cache[flag_key] = result
         return copy.deepcopy(result)
 
-    return assess(requested_key)
+    result = assess(requested_key)
+    if (project_id or org_id) and result.get("source") != "legacy-global":
+        _append_history({"operation": "evaluation", "key": requested_key, "at": int(time.time()),
+                         "actor": user or "anonymous", "environment": env, "project_id": project_id,
+                         "enabled": bool(result.get("enabled")), "reason": result.get("reason", ""),
+                         "variant": result.get("variant")}, "project" if project_id else ("global" if not org_id else "organization"), project_id or org_id)
+    try:
+        ttl = max(0, min(300, int((result.get("ttl_seconds") or 0))))
+    except (TypeError, ValueError):
+        ttl = 0
+    if ttl:
+        _EVALUATION_CACHE[cache_key] = (now + ttl, copy.deepcopy(result))
+    return result
 
 
 def _stored_scopes() -> Iterable[Tuple[str, Optional[str]]]:

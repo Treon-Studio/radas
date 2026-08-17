@@ -146,6 +146,16 @@ def test_generated_request_id_is_shared_by_body_and_header(app: Flask):
     assert response.headers[REQUEST_ID_HEADER] == generated
 
 
+def test_healthz_includes_service_checks(monkeypatch):
+    from api import platform_routes
+    monkeypatch.setattr("services.health.readiness", lambda: {"ok": True, "checks": {"postgres": True, "data_dir": True}})
+    app = Flask(__name__)
+    app.register_blueprint(platform_routes.bp)
+    response = app.test_client().get("/healthz/details")
+    assert response.status_code == 200
+    assert response.get_json()["services"]["postgres"] is True
+
+
 @pytest.mark.parametrize(
     ("status", "code"),
     [

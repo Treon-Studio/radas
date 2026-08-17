@@ -1,6 +1,10 @@
 """Preview environment routes (Fase 5 — UC 49)."""
 from __future__ import annotations
 
+import threading
+import time
+from collections import defaultdict, deque
+
 from flask import Blueprint, jsonify, request
 
 try:
@@ -15,6 +19,24 @@ from services.preview_envs import (
 from utils.request_ctx import get_project_id_from_request as _get_pid_raw
 
 bp = Blueprint("preview_env_api", __name__)
+_PREVIEW_RATE_LOCK = threading.Lock()
+_PREVIEW_RATE: dict[str, deque[float]] = defaultdict(deque)
+_PREVIEW_RATE_WINDOW_SECONDS = 60
+_PREVIEW_RATE_LIMIT = 30
+_PREVIEW_MAX_BODY_BYTES = 1_048_576
+
+
+def _preview_rate_allowed(client_key: str, now: float | None = None) -> tuple[bool, int]:
+    now = now if now is not None else time.time()
+    with _PREVIEW_RATE_LOCK:
+        bucket = _PREVIEW_RATE[client_key]
+        while bucket and now - bucket[0] >= _PREVIEW_RATE_WINDOW_SECONDS:
+            bucket.popleft()
+        if len(bucket) >= _PREVIEW_RATE_LIMIT:
+            retry_after = max(1, int(_PREVIEW_RATE_WINDOW_SECONDS - (now - bucket[0])))
+            return False, retry_after
+        bucket.append(now)
+        return True, 0
 
 
 def _pid():
@@ -64,6 +86,11 @@ def api_github_preview_webhook():
     stack is taken from the `stack` query param, or looked up by matching the
     repo on existing stacks.
     """
+    if request.content_length is not None and request.content_length > _PREVIEW_MAX_BODY_BYTES:
+        return jsonify({"error": "payload too large"}), 413
+    allowed, retry_after = _preview_rate_allowed(request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip())
+    if not allowed:
+        return jsonify({"error": "rate limit exceeded", "retry_after": retry_after}), 429, {"Retry-After": str(retry_after)}
     try:
         secret = webhook_secret()
     except RuntimeError:

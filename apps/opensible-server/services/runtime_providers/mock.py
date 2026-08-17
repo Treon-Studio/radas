@@ -31,6 +31,8 @@ class MockRuntimeProvider:
             "status": True,
             "healthcheck": True,
             "public_endpoint": True,
+            "plan": True,
+            "apply_plan": True,
         }
 
     def configure_failure(self, failure: BaseException | Mapping[str, Any] | None) -> None:
@@ -105,6 +107,17 @@ class MockRuntimeProvider:
             operation_id=operation_id,
             idempotency_key=idempotency_key,
         )
+
+    def plan(self, operation_id: str, spec: dict[str, Any], *, timeout: float | None = None) -> ProviderResult:
+        import hashlib, json
+        fingerprint = hashlib.sha256(json.dumps(redact(spec), sort_keys=True).encode()).hexdigest()
+        return ProviderResult.ok("plan", {"fingerprint": fingerprint, "changes": [{"action": "apply", "resource": spec.get("name", "service")}], "redacted": True}, provider_id=self.id, operation_id=operation_id)
+
+    def apply_plan(self, operation_id: str, spec: dict[str, Any], plan_fingerprint: str, *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
+        result = self._call("deploy", operation_id, spec, idempotency_key=idempotency_key, timeout=timeout)
+        if result.success:
+            return ProviderResult.ok("apply_plan", result.data, provider_id=self.id, operation_id=operation_id, idempotency_key=idempotency_key)
+        return ProviderResult.failed("apply_plan", (result.error or {}).get("code", "PROVIDER_ERROR"), (result.error or {}).get("message", "apply failed"), details=(result.error or {}).get("details", {}), provider_id=self.id, operation_id=operation_id, idempotency_key=idempotency_key)
 
     def deploy(self, operation_id: str, spec: dict[str, Any], *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
         return self._call("deploy", operation_id, spec, idempotency_key=idempotency_key, timeout=timeout)
