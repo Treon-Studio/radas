@@ -14,7 +14,7 @@ from services.webhook_dispatcher import (
 
 bp = Blueprint("webhooks_api", __name__)
 
-VALID_EVENTS = ("run.finished", "stack.applied", "stack.drifted", "budget.alert")
+VALID_EVENTS = ("run.finished", "stack.applied", "stack.drifted", "budget.alert", "auth.password_reset")
 
 
 @bp.route('/api/webhooks', methods=['GET'])

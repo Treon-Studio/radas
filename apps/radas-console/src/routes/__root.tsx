@@ -21,16 +21,19 @@ function RootLayout() {
   const { location } = useRouterState();
   const [ready, setReady] = useState(false);
 
+  const isPublicPath = (path: string) =>
+    path.startsWith("/login") || path.startsWith("/forgot-password") || path.startsWith("/reset-password");
+
   useEffect(() => {
     const token = getToken();
-    if (!token && !location.pathname.startsWith("/login")) {
+    if (!token && !isPublicPath(location.pathname)) {
       navigate({ to: "/login", replace: true });
     } else {
       setReady(true);
     }
   }, [location.pathname, navigate]);
 
-  if (location.pathname.startsWith("/login")) {
+  if (isPublicPath(location.pathname)) {
     return <Outlet />;
   }
 

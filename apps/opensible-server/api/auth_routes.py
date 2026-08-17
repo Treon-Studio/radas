@@ -4,6 +4,7 @@ Moved from app.py: /api/auth/login, /logout, /refresh, /me.
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 
@@ -11,7 +12,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from auth import add_token_to_blacklist, generate_token, verify_token
 from auth.middleware import require_auth
-from auth.validators import validate_username
+from auth.validators import validate_password, validate_username
 
 bp = Blueprint("auth_api", __name__)
 
@@ -143,6 +144,118 @@ def api_auth_login():
     except Exception as e:
         current_app.logger.error(f"Error in login: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Login error"}), 500
+
+
+@bp.route("/api/auth/forgot-password", methods=["POST"])
+def api_auth_forgot_password():
+    """Request a password-reset link.
+
+    Looks the user up by username, issues a short-lived ``reset`` JWT, and
+    hands the reset URL to the notification courier (Slack webhook configured
+    per user, or outbound webhooks subscribed to ``auth.password_reset``).
+    When no channel is configured the link is returned inline so a self-hosted
+    operator can copy it. The response never reveals whether the user exists.
+    """
+    user_service, _, _, DATA_DIR = _services()
+    try:
+        data = request.json or {}
+        username = (data.get("username") or "").strip()
+
+        client_ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                     or request.remote_addr or "unknown")
+        rl_key = f"forgot|{client_ip}|{username.lower()}"
+        if not _login_rate_limit_allow(rl_key):
+            current_app.logger.warning(f"Forgot-password rate limit hit for {rl_key}")
+            return jsonify({"success": False, "error": "Too many requests. Please wait a minute and try again."}), 429
+
+        is_valid, error_msg = validate_username(username)
+        if not is_valid:
+            _login_rate_limit_record_failure(rl_key)
+            return jsonify({"success": False, "error": error_msg}), 400
+
+        # Always behave the same whether or not the user exists (no oracle).
+        user = user_service.get_user_by_username(username)
+        if not user or not user.is_active:
+            current_app.logger.info(f"Forgot-password lookup miss for username: {username}")
+            return jsonify({
+                "success": True,
+                "message": "If that account exists, a reset link has been sent.",
+                "reset_url": None,
+                "delivery": {"delivered": False, "channel": None, "inline": True},
+            })
+
+        from datetime import timedelta
+        reset_token = generate_token(
+            user_id=user.id, username=user.username, roles=[],
+            data_dir=DATA_DIR, token_type="reset",
+            expires_delta=timedelta(minutes=15),
+        )
+
+        # Build the reset URL from the requesting console origin when known,
+        # otherwise fall back to the CORS allowlist default.
+        origin = (request.headers.get("Origin")
+                  or request.headers.get("Referer") or "").rstrip("/")
+        if not origin:
+            origin = (os.environ.get("CONSOLE_BASE_URL")
+                      or (os.environ.get("CORS_ALLOWED_ORIGINS") or "").split(",")[0]
+                      or "http://localhost:8080").rstrip("/")
+        reset_url = f"{origin}/reset-password?token={reset_token}"
+
+        from services.notif_courier import deliver_reset_link
+        delivery = deliver_reset_link(user.id, user.username, user.email, reset_url)
+        current_app.logger.info(f"Forgot-password for {user.username}: "
+                                f"delivered={delivery['delivered']} channel={delivery['channel']}")
+
+        # If the courier had no channel, return the link inline so the operator
+        # can use it. Otherwise only a generic message (never the token).
+        inline = not delivery["delivered"]
+        return jsonify({
+            "success": True,
+            "message": "If that account exists, a reset link has been sent.",
+            "reset_url": reset_url if inline else None,
+            "delivery": {**delivery, "inline": inline},
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error in forgot-password: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Request error"}), 500
+
+
+@bp.route("/api/auth/reset-password", methods=["POST"])
+def api_auth_reset_password():
+    """Complete a password reset with a short-lived ``reset`` token."""
+    user_service, _, _, DATA_DIR = _services()
+    try:
+        data = request.json or {}
+        token = (data.get("token") or "").strip()
+        new_password = data.get("password") or ""
+
+        if not token:
+            return jsonify({"success": False, "error": "Reset token is required"}), 400
+
+        is_valid, error_msg = validate_password(new_password)
+        if not is_valid:
+            return jsonify({"success": False, "error": error_msg}), 400
+
+        payload = verify_token(token, DATA_DIR, token_type="reset")
+        if not payload:
+            return jsonify({"success": False, "error": "Invalid or expired reset link"}), 401
+
+        user_id = payload.get("user_id")
+        user = user_service.get_user_by_id(user_id)
+        if not user or not user.is_active:
+            return jsonify({"success": False, "error": "User not found or inactive"}), 401
+
+        ok = user_service.set_password(user_id, new_password)
+        if not ok:
+            return jsonify({"success": False, "error": "User not found"}), 404
+
+        # The reset link is single-use.
+        add_token_to_blacklist(DATA_DIR, token)
+        current_app.logger.info(f"Password reset completed for {user.username}")
+        return jsonify({"success": True, "message": "Password has been reset. You can now sign in."})
+    except Exception as e:
+        current_app.logger.error(f"Error in reset-password: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Reset error"}), 500
 
 
 @bp.route("/api/auth/logout", methods=["POST"])
