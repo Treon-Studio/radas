@@ -65,7 +65,7 @@ _PROJECT_MUTATION_LOCK_KEY = "radas.projects.mutation"
 
 
 def _now_iso() -> str:
-    return datetime.now(datetime.timezone.utc).isoformat()
+    return datetime.utcnow().isoformat()
 
 
 # ---------------------------------------------------------------------------
