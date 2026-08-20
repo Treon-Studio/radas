@@ -87,3 +87,9 @@ class LocalContainerProvider:
             provider_id=self.id,
             instance_id=str(instance.get("id")) if instance.get("id") is not None else None,
         )
+
+    def plan(self, operation_id: str, spec: dict[str, Any], *, timeout: float | None = None) -> ProviderResult:
+        return self._disabled("plan", operation_id)
+
+    def apply_plan(self, operation_id: str, spec: dict[str, Any], plan_fingerprint: str, *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
+        return self._disabled("apply_plan", operation_id, idempotency_key)
