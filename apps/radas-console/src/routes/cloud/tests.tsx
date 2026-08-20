@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   RiFlaskLine as Flask, RiAddLine as Plus, RiDeleteBinLine as Trash,
@@ -24,11 +24,31 @@ type TestCase = {
   severity: string; enabled: boolean; tags: string[]; schedule?: string; created_at: number;
 };
 type TestResult = {
-  id: string; test_id: string; name: string; stack: string; kind: string;
-  severity: string; passed: boolean; status?: string; queued?: boolean; findings: { assertion: string; name: string; severity: string; source: string; detail: string }[];
-  ran_at: number;
+  id: string; run_id?: string; test_id: string; name: string; stack: string; kind: string;
+  severity: string; passed: boolean; status?: string; queued?: boolean; retry_count?: number; attempts?: { attempt: number; status?: string; passed?: boolean }[]; findings: { assertion: string; name: string; severity: string; source: string; detail: unknown; tool_status?: unknown }[];
+  ran_at: number; mock_provider?: boolean; timeout_seconds?: number;
 };
+type BaselineCompare = {
+  test_id: string;
+  baseline_id: string;
+  baseline_run_id?: string | null;
+  current_run_id?: string | null;
+  regressed: boolean;
+  changed: boolean;
+  passed: boolean;
+};
+type BaselineState = BaselineCompare & { selected_result_id: string };
 type TabId = "cases" | "runs" | "catalog";
+
+function formatFindingDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (detail == null) return "";
+  try {
+    return JSON.stringify(detail, null, 2) ?? String(detail);
+  } catch {
+    return String(detail);
+  }
+}
 
 const KINDS = ["assertion", "tofu_validate", "tofu_test", "smoke"];
 const SEVERITIES = ["blocker", "warning", "info"];
@@ -57,6 +77,16 @@ function TestsPage() {
   const [editing, setEditing] = useState<TestCase | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("cases");
   const [historyTest, setHistoryTest] = useState<TestCase | null>(null);
+  const [selectedResult, setSelectedResult] = useState<TestResult | null>(null);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+  const [baselineState, setBaselineState] = useState<BaselineState | null>(null);
+  const selectionVersion = useRef(0);
+  const selectResult = (result: TestResult | null) => {
+    selectionVersion.current += 1;
+    setSelectedResult(result);
+    setSelectedTestId(result?.test_id ?? null);
+    setBaselineState(null);
+  };
   const { data: history } = useQuery({
     queryKey: ["test-history", historyTest?.id],
     queryFn: () => api<{ results: TestResult[] }>("GET", `/api/tests/${historyTest!.id}/history?limit=50`),
@@ -101,6 +131,32 @@ function TestsPage() {
     onSuccess: (data: any) => { invalidate(); toast.success(`${data.count ?? 0} test(s) executed`); },
     onError: (e: any) => toast.error(e?.message || "Batch run failed"),
   });
+
+  const baselineMut = useMutation({
+    mutationFn: ({ testId, runId }: { testId: string; runId?: string }) => api<{ baseline: unknown }>("POST", `/api/tests/${testId}/baseline`, { run_id: runId }),
+    onSuccess: () => {
+      setBaselineState(null);
+      toast.success("Baseline disimpan");
+    },
+    onError: (e: unknown) => {
+      setBaselineState(null);
+      toast.error(e instanceof Error ? e.message : "Gagal menyimpan baseline");
+    },
+  });
+  const compareBaseline = async (testId: string) => {
+    setBaselineState(null);
+    const requestVersion = selectionVersion.current;
+    const selectedResultId = selectedResult?.id;
+    try {
+      const comparison = await api<BaselineCompare>("GET", `/api/tests/${testId}/baseline/compare`);
+      if (selectedResultId && selectionVersion.current === requestVersion && selectedTestId === testId && selectedResult?.id === selectedResultId) {
+        setBaselineState({ ...comparison, selected_result_id: selectedResultId });
+      }
+    } catch (e) {
+      setBaselineState(null);
+      toast.error(e instanceof Error ? e.message : "Baseline belum tersedia");
+    }
+  };
 
   const runMut = useMutation({
     mutationFn: (id: string) => api<{ result: TestResult }>("POST", `/api/tests/${id}/run`),
@@ -291,14 +347,14 @@ function TestsPage() {
         <CardContent className="pt-0 space-y-1.5 text-xs">
           {totalResults.length === 0 && <div className="text-[var(--color-muted-foreground)]">Belum ada hasil run.</div>}
           {totalResults.slice(0, 12).map((r) => (
-            <div key={r.id} className="flex items-center gap-2 border-b border-[var(--color-border)] last:border-0 pb-1.5">
+            <button type="button" key={r.id} onClick={() => selectResult(r)} className="w-full text-left flex items-center gap-2 border-b border-[var(--color-border)] last:border-0 pb-1.5 hover:bg-[var(--color-muted)]/40 rounded px-1">
               <Badge variant={r.status === "queued" ? "warning" : r.passed ? "success" : "destructive"}>{r.status === "queued" ? "QUEUED" : r.passed ? "PASS" : "FAIL"}</Badge>
               <span className="font-medium truncate">{r.name}</span>
               <span className="text-[var(--color-muted-foreground)] truncate">{r.stack}</span>
               <span className="ml-auto text-[var(--color-muted-foreground)] shrink-0">
                 {new Date(r.ran_at * 1000).toLocaleString()}
               </span>
-            </div>
+            </button>
           ))}
           {(totalResults[0]?.findings ?? []).length > 0 && (
             <div className="pt-1">
@@ -312,6 +368,14 @@ function TestsPage() {
               ))}
             </div>
           )}
+          {selectedResult && <div className="rounded-md border p-3 space-y-2 text-xs">
+            <div className="flex items-center justify-between"><strong>{selectedResult.name}</strong><Button size="sm" variant="ghost" onClick={() => selectResult(null)}>Close</Button></div>
+            <div>Run ID: <code>{selectedResult.run_id ?? selectedResult.id}</code> · {selectedResult.mock_provider ? "mock provider" : "provider execution"} · timeout {selectedResult.timeout_seconds ?? 30}s</div>
+            {selectedResult.retry_count != null && <div>Retries: {selectedResult.retry_count} · attempts: {selectedResult.attempts?.map((a) => `${a.attempt}:${a.status ?? (a.passed ? "passed" : "failed")}`).join(" → ")}</div>}
+            <div className="space-y-1">{selectedResult.findings.map((f, index) => <div key={`${f.assertion}-${index}`} className="rounded border p-2"><strong>{f.assertion}</strong>: <pre className="whitespace-pre-wrap break-words inline font-sans">{formatFindingDetail(f.detail)}</pre>{f.tool_status != null && <span className="ml-2 text-[var(--color-muted-foreground)]">({typeof f.tool_status === "string" ? f.tool_status : formatFindingDetail(f.tool_status)})</span>}</div>)}</div>
+            <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => baselineMut.mutate({ testId: selectedResult.test_id, runId: selectedResult.run_id })} disabled={baselineMut.isPending}>Save baseline</Button><Button size="sm" variant="outline" onClick={() => void compareBaseline(selectedResult.test_id)} disabled={!selectedTestId}>Compare latest result for this test</Button></div>
+            {baselineState && baselineState.selected_result_id === selectedResult.id && <div className={baselineState.regressed ? "text-[var(--color-destructive)]" : "text-[var(--color-success)]"}>{baselineState.regressed ? "Regression detected" : baselineState.changed ? "Changed from baseline" : "Matches baseline"} <span className="text-[var(--color-muted-foreground)]">(latest result for this test: {baselineState.current_run_id ?? "unknown run"})</span></div>}
+          </div>}
         </CardContent>
       </Card>}
 
