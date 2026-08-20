@@ -294,13 +294,18 @@ function GithubActionsPage() {
       <Card>
         <CardHeader className="py-3"><CardTitle className="text-sm">Repository</CardTitle></CardHeader>
         <CardContent className="flex flex-wrap gap-2 pt-0">
+          {statusQuery.isLoading && <StateView state="loading" title="Memuat koneksi GitHub… / Loading GitHub connection…" />}
+          {statusQuery.isError && <StateView state="error" title="Status GitHub gagal dimuat / Could not load GitHub status" message={errorMessage(statusQuery.error, "Coba lagi / Please try again")} onRetry={() => void statusQuery.refetch()} />}
+          {configured && repoQuery.isLoading && <StateView state="loading" title="Memuat repositories… / Loading repositories…" />}
+          {configured && repoQuery.isError && <StateView state="error" title="Repositories gagal dimuat / Could not load repositories" message={errorMessage(repoQuery.error, "Coba lagi / Please try again")} onRetry={() => void repoQuery.refetch()} />}
+          {configured && !repoQuery.isLoading && !repoQuery.isError && repos.length === 0 && <StateView state="empty" title="Belum ada repository / No repositories found" message="Tidak ada repository yang tersedia untuk akun ini. / No repositories are available for this account." />}
           <Select
             value={selectedRepo}
             onChange={selectRepository}
             placeholder={repoQuery.isPending ? "Memuat repositories…" : "Pilih repository…"}
             label="Repository"
             className="w-72"
-            disabled={!configured || repoQuery.isPending}
+            disabled={!configured || repoQuery.isPending || repoQuery.isError}
             options={repos.map((repository) => ({
               value: repository.full_name,
               label: repository.full_name,
@@ -308,8 +313,8 @@ function GithubActionsPage() {
             }))}
           />
           {selectedRepo && (
-            <Button className="self-end" size="sm" variant="outline" onClick={() => void refreshRepository()}>
-              <Refresh className="h-3.5 w-3.5" /> Refresh
+            <Button className="self-end" size="sm" variant="outline" onClick={() => void refreshRepository()} disabled={workflowQuery.isFetching || runsQuery.isFetching || statisticsQuery.isFetching || secretsQuery.isFetching}>
+              <Refresh className="h-3.5 w-3.5" /> {workflowQuery.isFetching || runsQuery.isFetching || statisticsQuery.isFetching || secretsQuery.isFetching ? "Refreshing…" : "Refresh"}
             </Button>
           )}
         </CardContent>
