@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { StateView } from "@/components/ui/StateView";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/cloud/byoc")({ component: ByocPage });
@@ -253,12 +254,21 @@ function ByocPage() {
         </Card>
       )}
 
-      {acctData.isPending && <div className="text-sm text-[var(--color-muted-foreground)]">Memuat akun BYOC…</div>}
-      {acctData.isError && <div role="alert" className="text-sm text-[var(--color-destructive)]">Gagal memuat akun BYOC: {errorMessage(acctData.error, "coba lagi")}</div>}
+      {acctData.isPending && <StateView state="loading" title="Memuat akun BYOC… / Loading BYOC accounts…" />}
+      {acctData.isError && (
+        <StateView
+          state="error"
+          title="Akun BYOC gagal dimuat / Could not load BYOC accounts"
+          message={errorMessage(acctData.error, "Coba lagi / Please try again")}
+          onRetry={() => void acctData.refetch()}
+        />
+      )}
       {!acctData.isPending && !acctData.isError && accounts.length === 0 && (
-        <div className="text-sm text-[var(--color-muted-foreground)]">
-          Belum ada akun BYOC terhubung. Hubungkan akun cloud existing untuk discovery & import.
-        </div>
+        <StateView
+          state="empty"
+          title="Belum ada akun BYOC / No BYOC accounts yet"
+          message="Hubungkan akun cloud existing untuk discovery & import. / Connect an existing cloud account for discovery and import."
+        />
       )}
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -306,12 +316,21 @@ function ByocPage() {
                 {inventoryCount !== null && <div className="rounded border px-3 py-2 text-xs"><div className="text-[var(--color-muted-foreground)]">Inventory</div><strong>{inventoryCount}</strong><div>{inventoryManagedCount ?? 0} managed</div></div>}
               </div>
             )}
-            {inventoryPending && <div className="text-xs text-[var(--color-muted-foreground)]">Memuat inventory, cost, dan budget…</div>}
-            {inventoryError && <div role="alert" className="text-xs text-[var(--color-destructive)]">{inventoryError}</div>}
+            {inventoryPending && <StateView state="loading" title="Memuat inventory, cost, dan budget… / Loading inventory, cost, and budget…" />}
+            {inventoryError && (
+              <StateView
+                state="error"
+                title="Inventory gagal dimuat / Could not load inventory"
+                message={inventoryError}
+                onRetry={() => void loadInventory(selectedAccount)}
+              />
+            )}
             {!inventoryPending && !inventoryError && inventoryCount !== null && inventory.length === 0 && (
-              <div className="text-xs text-[var(--color-muted-foreground)]">
-                Tidak ada resource ditemukan (atau kredensial tidak valid). Klik Validate untuk cek koneksi.
-              </div>
+              <StateView
+                state="empty"
+                title="Tidak ada resource / No resources found"
+                message="Kredensial mungkin belum valid. Klik Validate untuk cek koneksi. / Credentials may be invalid; click Validate to check the connection."
+              />
             )}
             <div className="space-y-1.5 max-h-80 overflow-y-auto">
               {inventory.map((r) => {

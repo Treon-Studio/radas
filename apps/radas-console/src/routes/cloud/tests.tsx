@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { CheckboxInput } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { StateView } from "@/components/ui/StateView";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/cloud/tests")({ component: TestsPage });
@@ -56,10 +57,15 @@ const SEVERITIES = ["blocker", "warning", "info"];
 function TestsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data } = useQuery({ queryKey: ["tests"], queryFn: () => api<{ test_cases: TestCase[] }>("GET", "/api/tests") });
-  const { data: catalog } = useQuery({ queryKey: ["tests-catalog"], queryFn: () => api<{ assertions: Assertion[] }>("GET", "/api/tests/catalog") });
-  const { data: stacks } = useQuery({ queryKey: ["stacks"], queryFn: () => api<{ stacks: { name: string }[] }>("GET", "/api/cloud/stacks") });
-  const { data: results } = useQuery({ queryKey: ["test-results"], queryFn: () => api<{ results: TestResult[] }>("GET", "/api/tests/results?limit=50") });
+  const testsQuery = useQuery({ queryKey: ["tests"], queryFn: () => api<{ test_cases: TestCase[] }>("GET", "/api/tests") });
+  const catalogQuery = useQuery({ queryKey: ["tests-catalog"], queryFn: () => api<{ assertions: Assertion[] }>("GET", "/api/tests/catalog") });
+  const stacksQuery = useQuery({ queryKey: ["stacks"], queryFn: () => api<{ stacks: { name: string }[] }>("GET", "/api/cloud/stacks") });
+  const resultsQuery = useQuery({ queryKey: ["test-results"], queryFn: () => api<{ results: TestResult[] }>("GET", "/api/tests/results?limit=50") });
+  const data = testsQuery.data;
+  const catalog = catalogQuery.data;
+  const stacks = stacksQuery.data;
+  const results = resultsQuery.data;
+  const primaryQueryError = testsQuery.error instanceof Error ? testsQuery.error.message : "Coba lagi / Please try again";
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [stack, setStack] = useState("");
@@ -87,11 +93,12 @@ function TestsPage() {
     setSelectedTestId(result?.test_id ?? null);
     setBaselineState(null);
   };
-  const { data: history } = useQuery({
+  const historyQuery = useQuery({
     queryKey: ["test-history", historyTest?.id],
     queryFn: () => api<{ results: TestResult[] }>("GET", `/api/tests/${historyTest!.id}/history?limit=50`),
     enabled: !!historyTest,
   });
+  const history = historyQuery.data;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tests"] });
@@ -211,6 +218,9 @@ function TestsPage() {
         ))}
       </div>
 
+      {activeTab === "runs" && resultsQuery.isError && <StateView state="error" title="Hasil run gagal dimuat / Could not load test runs" message={resultsQuery.error instanceof Error ? resultsQuery.error.message : "Coba lagi / Please try again"} onRetry={() => void resultsQuery.refetch()} />}
+      {activeTab === "runs" && resultsQuery.isLoading && <StateView state="loading" title="Memuat hasil run… / Loading test runs…" />}
+      {activeTab === "runs" && !resultsQuery.isLoading && !resultsQuery.isError && totalResults.length === 0 && <StateView state="empty" title="Belum ada hasil run / No test runs yet" message="Jalankan test untuk melihat hasilnya. / Run a test to see its results." />}
       {activeTab === "runs" && totalResults.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <Card><CardContent className="py-3"><div className="text-2xl font-mono">{totalResults.length}</div><div className="text-xs text-[var(--color-muted-foreground)]">Runs</div></CardContent></Card>
@@ -233,7 +243,10 @@ function TestsPage() {
             </div>
             <div className="space-y-1">
               <div className="text-xs text-[var(--color-muted-foreground)]">Stack</div>
+              {stacksQuery.isLoading && <div className="text-xs text-[var(--color-muted-foreground)]">Memuat stacks… / Loading stacks…</div>}
+              {stacksQuery.isError && <div role="alert" className="text-xs text-[var(--color-destructive)]">Stacks gagal dimuat / Could not load stacks: {stacksQuery.error instanceof Error ? stacksQuery.error.message : "Coba lagi / Please try again"} <button type="button" className="underline" onClick={() => void stacksQuery.refetch()}>Retry</button></div>}
               <Select value={stack} onChange={setStack} placeholder="Pilih stack…"
+                disabled={stacksQuery.isLoading || stacksQuery.isError}
                 options={stackNames.map((s) => ({ value: s, label: s }))} />
             </div>
             <div className="space-y-1">
@@ -256,7 +269,19 @@ function TestsPage() {
             <div className="md:col-span-3">
               <div className="text-xs text-[var(--color-muted-foreground)] mb-2">Assertions (library bawaan)</div>
               <div className="grid gap-1.5 md:grid-cols-2 max-h-56 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
-                {(catalog?.assertions ?? []).map((a) => (
+                {catalogQuery.isLoading && <StateView state="loading" title="Memuat assertion catalog… / Loading assertion catalog…" />}
+                {catalogQuery.isError && (
+                  <StateView
+                    state="error"
+                    title="Catalog gagal dimuat / Could not load catalog"
+                    message={catalogQuery.error instanceof Error ? catalogQuery.error.message : "Coba lagi / Please try again"}
+                    onRetry={() => void catalogQuery.refetch()}
+                  />
+                )}
+                {!catalogQuery.isLoading && !catalogQuery.isError && (catalog?.assertions ?? []).length === 0 && (
+                  <StateView state="empty" title="Belum ada assertion / No assertions available" message="Catalog assertion belum tersedia. / The assertion catalog is empty." />
+                )}
+                {!catalogQuery.isLoading && !catalogQuery.isError && (catalog?.assertions ?? []).map((a) => (
                   <label key={a.id} className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1 hover:bg-[var(--color-muted)]/50">
                     <CheckboxInput checked={assertions.includes(a.id)} onChange={() => toggleAssertion(a.id)} />
                     <span className="min-w-0">
@@ -276,10 +301,21 @@ function TestsPage() {
         </Card>
       )}
 
-      {activeTab === "cases" && (data?.test_cases ?? []).length === 0 && (
-        <div className="text-sm text-[var(--color-muted-foreground)]">
-          {stackNames.length === 0 ? "Create a stack before defining project tests." : "Belum ada test case. Buat test dengan assertion bawaan."}
-        </div>
+      {activeTab === "cases" && testsQuery.isLoading && <StateView state="loading" title="Memuat test cases… / Loading test cases…" />}
+      {activeTab === "cases" && testsQuery.isError && (
+        <StateView
+          state="error"
+          title="Test cases gagal dimuat / Could not load test cases"
+          message={testsQuery.error instanceof Error ? testsQuery.error.message : "Coba lagi / Please try again"}
+          onRetry={() => void testsQuery.refetch()}
+        />
+      )}
+      {activeTab === "cases" && !testsQuery.isLoading && !testsQuery.isError && (data?.test_cases ?? []).length === 0 && (
+        <StateView
+          state="empty"
+          title="Belum ada test case / No test cases yet"
+          message={stackNames.length === 0 ? "Buat stack sebelum mendefinisikan test. / Create a stack before defining tests." : "Buat test dengan assertion bawaan. / Create a test with built-in assertions."}
+        />
       )}
 
       {activeTab === "cases" && (data?.test_cases ?? []).length > 0 && (
@@ -325,13 +361,13 @@ function TestsPage() {
                 <Button size="sm" onClick={() => runMut.mutate(t.id)} disabled={runMut.isPending}>
                   <Play className="h-3.5 w-3.5" /> Run
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ id: t.id, val: !t.enabled })}>
+                <Button size="sm" variant="outline" onClick={() => toggleMut.mutate({ id: t.id, val: !t.enabled })} disabled={toggleMut.isPending}>
                   {t.enabled ? "Disable" : "Enable"}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setEditing(t)}>Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(t)} disabled={updateMut.isPending}>Edit</Button>
                 <Button size="sm" variant="outline" onClick={() => cloneMut.mutate(t.id)} disabled={cloneMut.isPending}>Clone</Button>
                 <Button size="sm" variant="outline" onClick={() => { setHistoryTest(t); setActiveTab("runs"); }}>History</Button>
-                <Button size="sm" variant="ghost" className="text-[var(--color-destructive)]" onClick={() => deleteMut.mutate(t.id)}>
+                <Button size="sm" variant="ghost" className="text-[var(--color-destructive)]" onClick={() => deleteMut.mutate(t.id)} disabled={deleteMut.isPending}>
                   <Trash className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -340,12 +376,19 @@ function TestsPage() {
         ))}
       </div>}
 
-      {activeTab === "runs" && <Card>
+      {activeTab === "runs" && !resultsQuery.isLoading && !resultsQuery.isError && totalResults.length > 0 && <Card>
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center gap-2"><Refresh className="h-4 w-4" /> Recent results</CardTitle>
         </CardHeader>
         <CardContent className="pt-0 space-y-1.5 text-xs">
-          {totalResults.length === 0 && <div className="text-[var(--color-muted-foreground)]">Belum ada hasil run.</div>}
+          {totalResults.slice(0, 12).map((r) => (
+            <button type="button" key={r.id} onClick={() => selectResult(r)} className="w-full text-left flex items-center gap-2 border-b border-[var(--color-border)] last:border-0 pb-1.5 hover:bg-[var(--color-muted)]/40 rounded px-1">
+              <Badge variant={r.status === "queued" ? "warning" : r.passed ? "success" : "destructive"}>{r.status === "queued" ? "QUEUED" : r.passed ? "PASS" : "FAIL"}</Badge>
+              <span className="font-medium truncate">{r.name}</span>
+              <span className="text-[var(--color-muted-foreground)] truncate">{r.stack}</span>
+              <span className="ml-auto text-[var(--color-muted-foreground)] shrink-0">{new Date(r.ran_at * 1000).toLocaleString()}</span>
+            </button>
+          ))}
           {totalResults.slice(0, 12).map((r) => (
             <button type="button" key={r.id} onClick={() => selectResult(r)} className="w-full text-left flex items-center gap-2 border-b border-[var(--color-border)] last:border-0 pb-1.5 hover:bg-[var(--color-muted)]/40 rounded px-1">
               <Badge variant={r.status === "queued" ? "warning" : r.passed ? "success" : "destructive"}>{r.status === "queued" ? "QUEUED" : r.passed ? "PASS" : "FAIL"}</Badge>
@@ -382,7 +425,10 @@ function TestsPage() {
       {activeTab === "catalog" && <Card>
         <CardHeader className="py-3"><CardTitle className="text-sm">Assertion catalog</CardTitle></CardHeader>
         <CardContent className="pt-0 grid gap-2 md:grid-cols-2">
-          {(catalog?.assertions ?? []).map((assertion) => (
+          {catalogQuery.isLoading && <StateView state="loading" title="Memuat assertion catalog… / Loading assertion catalog…" />}
+          {catalogQuery.isError && <StateView state="error" title="Catalog gagal dimuat / Could not load catalog" message={catalogQuery.error instanceof Error ? catalogQuery.error.message : "Coba lagi / Please try again"} onRetry={() => void catalogQuery.refetch()} />}
+          {!catalogQuery.isLoading && !catalogQuery.isError && (catalog?.assertions ?? []).length === 0 && <StateView state="empty" title="Belum ada assertion / No assertions available" />}
+          {!catalogQuery.isLoading && !catalogQuery.isError && (catalog?.assertions ?? []).map((assertion) => (
             <div key={assertion.id} className="rounded-md border border-[var(--color-border)] p-3">
               <div className="font-medium text-sm">{assertion.name}</div>
               <div className="text-xs text-[var(--color-muted-foreground)] mt-1">{assertion.desc}</div>
@@ -396,7 +442,10 @@ function TestsPage() {
         <div className="w-full max-w-2xl rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-5" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between"><h2 className="font-semibold">Run history · {historyTest.name}</h2><Button variant="outline" size="sm" onClick={() => setHistoryTest(null)}>Close</Button></div>
           <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
-            {(history?.results ?? []).length === 0 ? <p className="text-sm text-[var(--color-muted-foreground)]">No runs yet.</p> : (history?.results ?? []).map((result) => <div key={result.id} className="flex items-center gap-2 border-b border-[var(--color-border)] py-2 text-sm"><Badge variant={result.status === "queued" ? "warning" : result.passed ? "success" : "destructive"}>{result.status === "queued" ? "QUEUED" : result.passed ? "PASS" : "FAIL"}</Badge><span>{new Date(result.ran_at * 1000).toLocaleString()}</span><span className="text-[var(--color-muted-foreground)]">{result.findings.length} finding(s)</span></div>)}
+            {historyQuery.isLoading && <StateView state="loading" title="Memuat history… / Loading history…" />}
+            {historyQuery.isError && <StateView state="error" title="History gagal dimuat / Could not load history" message={historyQuery.error instanceof Error ? historyQuery.error.message : "Coba lagi / Please try again"} onRetry={() => void historyQuery.refetch()} />}
+            {!historyQuery.isLoading && !historyQuery.isError && (history?.results ?? []).length === 0 && <StateView state="empty" title="Belum ada run / No runs yet" />}
+            {!historyQuery.isLoading && !historyQuery.isError && (history?.results ?? []).map((result) => <div key={result.id} className="flex items-center gap-2 border-b border-[var(--color-border)] py-2 text-sm"><Badge variant={result.status === "queued" ? "warning" : result.passed ? "success" : "destructive"}>{result.status === "queued" ? "QUEUED" : result.passed ? "PASS" : "FAIL"}</Badge><span>{new Date(result.ran_at * 1000).toLocaleString()}</span><span className="text-[var(--color-muted-foreground)]">{result.findings.length} finding(s)</span></div>)}
           </div>
         </div>
       </div>}
