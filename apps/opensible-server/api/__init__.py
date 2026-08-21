@@ -101,6 +101,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.byoc_routes",
         "api.org_routes",
         "api.code_registry_routes",
+        "api.tofu_module_routes",
         "api.service_catalog_routes",
         "api.service_instance_routes",
         "api.service_source_routes",

@@ -171,6 +171,28 @@ def get_module(slug: str, version: str | None = None, *, org_id: str, include_di
     return dict(row) if row else None
 
 
+def versions(slug: str, *, org_id: str) -> list[dict[str, Any]]:
+    row = pg.query_one("SELECT id FROM tofu_modules WHERE org_id = %s AND slug = %s AND disabled = FALSE", (org_id, slug))
+    if not row:
+        return []
+    return [dict(item) for item in pg.query_all(
+        "SELECT version, sha256, size, published_at FROM tofu_module_versions WHERE definition_id = %s ORDER BY published_at DESC",
+        (row["id"],),
+    )]
+
+
+def archive_path(module_id: str, version: str, *, org_id: str) -> Path | None:
+    row = pg.query_one(
+        "SELECT mv.archive_path FROM tofu_module_versions mv JOIN tofu_modules m ON m.id = mv.definition_id "
+        "WHERE m.id = %s AND m.org_id = %s AND mv.version = %s AND m.disabled = FALSE",
+        (module_id, org_id, version),
+    )
+    if not row:
+        return None
+    path = Path(row["archive_path"])
+    return path if path.is_file() else None
+
+
 def list_modules(org_id: str, *, include_disabled: bool = False) -> list[dict[str, Any]]:
     query = (
         "SELECT m.id, m.slug, m.org_id, m.current_version, m.disabled, mv.manifest, mv.sha256, mv.size, mv.file_count "

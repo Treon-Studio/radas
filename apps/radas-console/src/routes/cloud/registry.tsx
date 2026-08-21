@@ -16,6 +16,7 @@ export const Route = createFileRoute("/cloud/registry")({ component: RegistryPag
 
 type RegistryItem = { name: string; type: string; version: string; description: string; tags: string[] };
 type InstalledItem = { name: string; type: string; version: string; installed_at: number; files_copied: string[] };
+type PrivateModule = { slug: string; current_version: string; manifest: { description?: string; tags?: string[] }; sha256?: string; size?: number };
 
 const TYPE_LABEL: Record<string, string> = { "tofu-block": "OpenTofu block", "ansible-role": "Ansible role" };
 
@@ -25,6 +26,10 @@ function RegistryPage() {
   const { data: stacks } = useQuery({ queryKey: ["stacks"], queryFn: () => api<{ stacks: { name: string }[] }>("GET", "/api/cloud/stacks") });
   const [target, setTarget] = useState("");
   const [selected, setSelected] = useState<RegistryItem | null>(null);
+  const { data: privateModules, error: privateModulesError } = useQuery({
+    queryKey: ["private-tofu-modules"],
+    queryFn: () => api<{ data: { modules: PrivateModule[] } }>("GET", "/api/projects/_current/tofu-modules"),
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["registry"] });
@@ -87,6 +92,32 @@ function RegistryPage() {
       {items.length === 0 && (
         <div className="text-sm text-[var(--color-muted-foreground)]">Registry kosong. Tambahkan item ke <code className="font-mono">server/registry/</code>.</div>
       )}
+
+      <Card>
+        <CardHeader className="py-3"><CardTitle className="text-sm">Private OpenTofu modules</CardTitle></CardHeader>
+        <CardContent className="pt-0 space-y-2">
+          {privateModulesError ? (
+            <p className="text-xs text-[var(--color-muted-foreground)]">Private modules are unavailable for the current project.</p>
+          ) : (privateModules?.data?.modules ?? []).length === 0 ? (
+            <p className="text-xs text-[var(--color-muted-foreground)]">No private modules published for this project organization.</p>
+          ) : (
+            (privateModules?.data?.modules ?? []).map((module) => (
+              <div key={module.slug} className="rounded-md border border-[var(--color-border)] p-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <CodeBox className="h-4 w-4" />
+                  <span className="font-mono text-sm">{module.slug}</span>
+                  <Badge variant="success">v{module.current_version}</Badge>
+                </div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">{module.manifest?.description || "Private OpenTofu module"}</p>
+                <code className="block rounded bg-[var(--color-muted)] px-2 py-1 text-[11px] font-mono break-all">
+                  source = "&lt;registry-host&gt;/{module.slug}"
+                </code>
+                {module.sha256 && <div className="text-[10px] text-[var(--color-muted-foreground)]">sha256: {module.sha256}</div>}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
         {items.map((it) => (
