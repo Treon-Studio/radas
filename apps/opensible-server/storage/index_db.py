@@ -223,10 +223,10 @@ def prune_stale_running_for_worker(
                 owner = data.get("workerId")
                 if status != "RUNNING" or (owner and owner != worker_id):
                     stale = True
-                elif current_execution_id != exec_id:
-                    # The worker is online and polling for new work, so it is
-                    # idle. A RUNNING row owned by this same worker is therefore
-                    # an orphan left behind by a restart/connection reset.
+                elif current_execution_id != exec_id and mark_orphaned_failed:
+                    # Only an explicit recovery pass may infer that a same-worker
+                    # RUNNING row is orphaned. Ordinary claim polling can have
+                    # multiple live executions and must preserve those rows.
                     orphaned_running = True
                     stale = True
             except Exception:

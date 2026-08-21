@@ -168,6 +168,7 @@ def api_worker_claim():
         _claim_rate_limits[worker_id] = now
 
         data = request.json or {}
+        recovering = bool(data.get('recovering', False))
         project_id = data.get('projectId')
         max_concurrency = data.get('maxConcurrency', 1)
         tags = data.get('tags')
@@ -202,6 +203,7 @@ def api_worker_claim():
             project_id=project_id,
             max_concurrency=max_concurrency,
             tags=tags,
+            recovering=recovering,
         )
 
         if not execution_id:

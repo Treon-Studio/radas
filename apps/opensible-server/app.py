@@ -2429,7 +2429,7 @@ _EMPTY_QUEUE_DISK_SCAN_AT = {}
 _EMPTY_QUEUE_DISK_SCAN_INTERVAL_SECONDS = int(os.environ.get('EMPTY_QUEUE_DISK_SCAN_INTERVAL_SECONDS', '60'))
 
 
-def server_claim_next_execution(worker_id, worker_data, project_id=None, max_concurrency=1, tags=None):
+def server_claim_next_execution(worker_id, worker_data, project_id=None, max_concurrency=1, tags=None, recovering=False):
     """
  claim QUEUED execution
  race condition
@@ -2466,7 +2466,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                     worker_id,
                     PROJECTS_DIR,
                     current_execution_id=None,
-                    mark_orphaned_failed=True,
+                    mark_orphaned_failed=recovering,
                 )
                 if pruned:
                     active_runs = get_worker_active_runs_count(worker_id)
