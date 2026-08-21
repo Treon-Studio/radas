@@ -138,6 +138,75 @@ def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db
     assert denied.status_code == 403
 
 
+def test_idcloudhost_inventory_normalizes_vps_and_uses_api_key(monkeypatch, data_dir):
+    from services import byoc
+
+    account = byoc.create_account({"name": "idch-import", "provider": "idcloudhost", "credentials": {"api_token": "idch-secret"}})
+    calls = []
+
+    class Response:
+        status_code = 200
+        def json(self):
+            return [{"uuid": "uuid-1", "id": "id-ignored", "name": "web", "location": "jakarta", "status": "running"}, {"id": "id-2", "name": "worker", "location": "surabaya", "status": "stopped"}]
+
+    class Requests:
+        @staticmethod
+        def get(url, **kwargs):
+            calls.append((url, kwargs))
+            return Response()
+
+    monkeypatch.setitem(__import__("sys").modules, "requests", Requests)
+    result = byoc.get_inventory(account["id"])
+
+    assert calls == [("https://api.idcloudhost.com/v1/user-resource/vps", {"headers": {"apikey": "idch-secret"}, "timeout": 15})]
+    assert result["resources"] == [
+        {"type": "vps_instance", "address": "idcloudhost_vps.web", "name": "web", "id": "uuid-1", "region": "jakarta", "status": "running", "created": "", "managed": False, "managed_at": None},
+        {"type": "vps_instance", "address": "idcloudhost_vps.worker", "name": "worker", "id": "id-2", "region": "surabaya", "status": "stopped", "created": "", "managed": False, "managed_at": None},
+    ]
+    assert "idch-secret" not in str(result)
+
+
+def test_idcloudhost_inventory_malformed_payload_fails_closed(monkeypatch, data_dir):
+    from services import byoc
+
+    account = byoc.create_account({"name": "idch-malformed", "provider": "idcloudhost", "credentials": {"api_token": "idch-secret"}})
+
+    class Response:
+        status_code = 200
+        def json(self):
+            return {"unexpected": "object", "token": "idch-secret"}
+
+    class Requests:
+        @staticmethod
+        def get(*args, **kwargs):
+            return Response()
+
+    monkeypatch.setitem(__import__("sys").modules, "requests", Requests)
+    result = byoc.get_inventory(account["id"])
+
+    assert result["resources"] == []
+    assert "idch-secret" not in str(result)
+
+
+def test_idcloudhost_inventory_maps_deterministically_and_rejects_duplicate_or_stale_ids(monkeypatch, data_dir):
+    from services import byoc
+    from services import byoc_import_mapping
+
+    account = byoc.create_account({"name": "idch-map", "provider": "idcloudhost", "credentials": {"api_token": "idch-secret"}, "org_id": "org-idch", "project_id": "project-idch"})
+    monkeypatch.setattr(byoc, "get_inventory", lambda _: {"resources": [{"type": "vps_instance", "address": "idcloudhost_vps.web", "name": "web", "id": "uuid-1"}, {"type": "vps_instance", "address": "idcloudhost_vps.worker", "name": "worker", "id": "id-2"}]})
+    monkeypatch.setattr(byoc_import_mapping, "_project_org", lambda _: "org-idch")
+    monkeypatch.setattr(byoc_import_mapping, "_stack_exists", lambda *_: None)
+    monkeypatch.setattr(byoc_import_mapping.org_service, "is_member", lambda *_: True)
+
+    with __import__("pytest").raises(ValueError, match="unique"):
+        byoc_import_mapping.prepare_import_mapping(account["id"], project_id="project-idch", stack="stack", resource_ids=["uuid-1", "uuid-1"], actor_id="user")
+    with __import__("pytest").raises(ValueError, match="latest inventory"):
+        byoc_import_mapping.prepare_import_mapping(account["id"], project_id="project-idch", stack="stack", resource_ids=["stale"], actor_id="user")
+    result = byoc_import_mapping.prepare_import_mapping(account["id"], project_id="project-idch", stack="stack", resource_ids=["id-2", "uuid-1"], actor_id="user")
+    assert [mapping["resource_id"] for mapping in result["mappings"]] == ["id-2", "uuid-1"]
+    assert result["import_block"].index("idcloudhost_vps.worker") < result["import_block"].index("idcloudhost_vps.web")
+
+
 def test_detect_provider_route_recognizes_generic_openstack_v3_endpoint(data_dir, pg_db):
     response = _route_client(data_dir).post(
         "/api/byoc/providers/detect",
