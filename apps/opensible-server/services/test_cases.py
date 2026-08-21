@@ -472,6 +472,8 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
     result = {
         "id": str(uuid.uuid4()),
         "run_id": str(uuid.uuid4()),
+        "execution_id": None,
+        "execution_log_url": None,
         "test_id": test_id,
         "mock_provider": mock_provider,
         "timeout_seconds": timeout_seconds,
@@ -533,6 +535,8 @@ def run_tofu_test(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
         "id": str(uuid.uuid4()), "test_id": test_id, "name": tc["name"],
         "stack": stack, "kind": "tofu_test", "severity": tc.get("severity") or "warning",
         "passed": False, "queued": True, "status": "queued", "execution_id": eid,
+        "execution_log_url": f"/api/executions/{eid}/logs",
+        "run_id": eid,
         "findings": [{"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",
                       "severity": "info", "source": "plan",
                       "detail": f"tofu test queued (execution {eid})." }],
@@ -581,7 +585,8 @@ def run_scheduled_tests(project_id: Optional[str], now: Optional[int] = None, ti
                 except FutureTimeoutError:
                     future.cancel()
                     result = {
-                        "id": str(uuid.uuid4()), "run_id": str(uuid.uuid4()), "test_id": tc["id"],
+                        "id": str(uuid.uuid4()), "run_id": str(uuid.uuid4()), "execution_id": None,
+                        "execution_log_url": None, "test_id": tc["id"],
                         "name": tc["name"], "stack": tc.get("stack", ""), "kind": tc.get("kind", "assertion"),
                         "severity": tc.get("severity", "warning"), "passed": False, "status": "timeout",
                         "findings": [], "ran_at": int(time.time()), "project_id": project_id,
