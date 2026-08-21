@@ -92,6 +92,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.ansible_run_routes",
         "api.queue_search_routes",
         "api.projects_routes",
+        "api.project_dashboard_routes",
         "api.audit_log_routes",
         "api.preview_env_routes",
         "api.feature_flag_routes",
