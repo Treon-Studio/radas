@@ -8,6 +8,8 @@ try:
 except ImportError:
     from ..auth.middleware import require_auth
 
+from services import org_service
+from storage import pg
 from services.byoc import (
     create_account, delete_account, generate_import, get_account, get_inventory,
     list_accounts, providers, validate_account, list_managed_resources, set_resource_management, list_inventory_snapshots, inventory_drift, sync_state_resources, estimate_account_cost, set_account_budget, check_account_budget, get_inventory_page,
@@ -39,6 +41,15 @@ def api_byoc_list():
 @require_auth
 def api_byoc_create():
     data = request.get_json(silent=True) or {}
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+    project = pg.query_one("SELECT org_id FROM projects WHERE id=%s", (project_id,))
+    user_id = (getattr(request, "current_user", {}) or {}).get("user_id")
+    if not project or not project.get("org_id") or not org_service.is_member(project["org_id"], user_id):
+        return jsonify({"error": "project access denied"}), 403
+    data["project_id"] = project_id
+    data["org_id"] = project["org_id"]
     try:
         acct = create_account(data)
     except ValueError as e:

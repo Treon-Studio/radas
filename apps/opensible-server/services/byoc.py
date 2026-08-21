@@ -177,6 +177,8 @@ def create_account(data: Dict[str, Any]) -> Dict[str, Any]:
         "resource_count": 0,
         "created_at": int(time.time()),
         "updated_at": int(time.time()),
+        "org_id": str(data.get("org_id") or ""),
+        "project_id": str(data.get("project_id") or ""),
     }
     items = _load()
     items.append(acct)

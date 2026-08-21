@@ -34,7 +34,9 @@ def _authorize(account: Mapping[str, Any], project_id: str, actor_id: str | None
     project_org = _project_org(project_id)
     account_org = str(account.get("org_id") or "")
     account_project = str(account.get("project_id") or "")
-    if account_org and account_org != project_org:
+    if not account_org or not account_project:
+        raise ValueError("account ownership is required")
+    if account_org != project_org:
         raise ValueError("tenant access denied")
     if account_project and account_project != project_id:
         raise ValueError("project access denied")

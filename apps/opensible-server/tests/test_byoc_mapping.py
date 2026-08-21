@@ -74,6 +74,38 @@ def _route_headers(data_dir):
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_create_account_persists_explicit_project_and_org_ownership(data_dir, pg_db):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "owned-account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "x"},
+        "org_id": ORG,
+        "project_id": PROJECT,
+    })
+
+    stored = byoc.get_account(account["id"])
+    assert stored["org_id"] == ORG
+    assert stored["project_id"] == PROJECT
+
+
+def test_create_account_route_derives_durable_project_ownership(data_dir, pg_db):
+    seed_project_stack()
+    client = _route_client(data_dir)
+    response = client.post(
+        "/api/byoc/accounts",
+        json={"name": "route-owned", "provider": "hetzner", "credentials": {"hcloud_token": "x"}},
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
+    )
+    assert response.status_code == 201
+    account_id = response.get_json()["account"]["id"]
+    from services import byoc
+    stored = byoc.get_account(account_id)
+    assert stored["org_id"] == ORG
+    assert stored["project_id"] == PROJECT
+
+
 def test_import_route_requires_explicit_scope(data_dir, pg_db):
     seed_project_stack()
     client = _route_client(data_dir)
@@ -216,4 +248,27 @@ def test_mapping_persists_only_redacted_intent_and_does_not_queue_execution(monk
     assert stored["data"]["byoc_import_mapping"]["account_id"] == ACCOUNT
     assert stored["data"]["byoc_import_mapping"]["mappings"][0]["address"] == "hcloud_server.z"
     assert "never-return" not in str(stored)
+    assert stored["data"]["byoc_import_mapping"]["project_id"] == PROJECT
     assert pg.query_one("SELECT COUNT(*) AS count FROM executions WHERE project_id=%s", (PROJECT,))["count"] == 0
+
+
+def test_mapping_rejects_account_without_durable_ownership(monkeypatch, pg_db):
+    seed_project_stack()
+    monkeypatch.setattr(
+        byoc_import_mapping.byoc,
+        "get_account",
+        lambda _: {"id": ACCOUNT, "provider": "hetzner", "org_id": "", "project_id": ""},
+    )
+    monkeypatch.setattr(
+        byoc_import_mapping.byoc,
+        "get_inventory",
+        lambda _: {"resources": [{"id": "r-a", "type": "hcloud_server", "address": "hcloud_server.a"}]},
+    )
+    with pytest.raises(ValueError, match="ownership"):
+        byoc_import_mapping.prepare_import_mapping(
+            ACCOUNT,
+            project_id=PROJECT,
+            stack="network-prod",
+            resource_ids=["r-a"],
+            actor_id=USER,
+        )
