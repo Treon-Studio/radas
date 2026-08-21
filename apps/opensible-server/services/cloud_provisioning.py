@@ -1177,6 +1177,23 @@ def stacks_action(name):
 
     try:
         eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid, priority=_priority)
+        # Record audit event for queued execution
+        from services.audit_events import record_audit_event
+        record_audit_event(
+            "cloud.run.queued",
+            actor_user_id=_tbid or None,
+            target_type="execution",
+            target_id=eid,
+            meta={
+                "project_id": pid,
+                "stack_name": name,
+                "tofu_action": action,
+                "provider": _read_stack_provider(pid, name),
+                "triggered_by": _tb,
+                "worker_id": worker_id,
+                "actor_kind": "user" if _tbid else "system",
+            },
+        )
     except Exception as e:
         current_app.logger.error(f"[cloud] enqueue {action} for {name} failed: {e}")
         return jsonify({"error": f"Failed to queue run: {e}"}), 500

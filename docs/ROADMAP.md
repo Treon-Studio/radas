@@ -504,8 +504,8 @@ fitur terpisah:
 | 338 | Cost estimation per plan (sudah parse plan) -> angka eksplisit | 🔶 | P1 | 6 |
 | 339 | VCS-driven workspaces with branch mapping | ⬜ | P0 | 6 |
 | 340 | API-driven runs (sudah ada execution) | 🔶 | P1 | 6 |
-| 341 | Audit trail full event (action, actor, resource) | ⬜ | P0 | 6 |
-| 342 | Drift detection scheduling dengan alert | ⬜ | P0 | 6 |
+| 341 | Audit trail full event (action, actor, resource) | ✅ | P0 | 6 |
+| 342 | Drift detection scheduling dengan alert | ✅ | P0 | 6 |
 | 343 | Rollback ke state versi mana pun (sudah ada snapshot) | 🔶 | P0 | 6 |
 | 344 | Multi-cloud provider pluggable (sudah ada) | 🔶 | P1 | 6 |
 | 345 | Review apps: approve/reject flow dengan comment | ⬜ | P1 | 6 |

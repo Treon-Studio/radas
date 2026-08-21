@@ -432,6 +432,27 @@ def api_worker_execution_finish(execution_id):
             )
 
         update_execution_record(execution_id, updates, project_id=project_id)
+        if (execution.get('runParams') or {}).get('execution_type') == 'TOFU_RUN':
+            from services.audit_events import record_audit_event
+            run_params = execution.get('runParams') or {}
+            record_audit_event(
+                'cloud.run.completed',
+                actor_user_id=execution.get('triggeredByUserId'),
+                target_type='execution',
+                target_id=execution_id,
+                meta={
+                    'project_id': project_id,
+                    'stack_name': run_params.get('stack_name'),
+                    'tofu_action': run_params.get('tofu_action'),
+                    'provider': run_params.get('provider'),
+                    'status': status,
+                    'return_code': return_code,
+                    'duration': duration,
+                    'worker_id': worker_id,
+                    'triggered_by': execution.get('triggeredBy'),
+                    'actor_kind': 'user' if execution.get('triggeredByUserId') else 'system',
+                },
+            )
         try:
             from services.drift_scheduler import complete_scheduled_drift
             execution_for_completion = dict(execution)
