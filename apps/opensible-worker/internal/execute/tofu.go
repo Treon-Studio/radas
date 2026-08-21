@@ -4,6 +4,7 @@ package execute
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,35 @@ import (
 )
 
 var tofuInstallMu sync.Mutex
+
+const defaultTofuActionTimeout = 30 * time.Minute
+const maxTofuActionTimeout = 24 * time.Hour
+
+func tofuActionTimeout(runParams map[string]any) time.Duration {
+	value, ok := runParams["action_timeout_seconds"]
+	if !ok {
+		return defaultTofuActionTimeout
+	}
+	var seconds int64
+	switch typed := value.(type) {
+	case float64:
+		seconds = int64(typed)
+	case int:
+		seconds = int64(typed)
+	case int64:
+		seconds = typed
+	case json.Number:
+		seconds, _ = typed.Int64()
+	}
+	if seconds <= 0 {
+		return defaultTofuActionTimeout
+	}
+	candidate := time.Duration(seconds) * time.Second
+	if candidate > maxTofuActionTimeout {
+		return maxTofuActionTimeout
+	}
+	return candidate
+}
 
 func tofuArgs(action string, runParams map[string]any) ([]string, error) {
 	switch strings.ToLower(action) {
@@ -266,6 +296,7 @@ func executeTofuRun(executionID string, execData map[string]any, projectID strin
 	startTime := time.Now()
 	finalStatus := "FAILED"
 	var returnCode *int
+	var errStr string
 	var credsPath string
 	// Policy gate: nil unless the backend shipped an opted-in policy payload.
 	policyCfg := parsePolicyConfig(runParams["policy"])
@@ -277,6 +308,9 @@ func executeTofuRun(executionID string, execData map[string]any, projectID strin
 		}
 		duration := int(time.Since(startTime).Seconds())
 		result := map[string]any{"tofu_action": action, "stack": stackName}
+		if errStr != "" {
+			result["error"] = errStr
+		}
 		if policyRes != nil {
 			result["policy"] = policyRes
 		}
@@ -463,7 +497,10 @@ func executeTofuRun(executionID string, execData map[string]any, projectID strin
 		}
 	}()
 
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	actionCtx, cancelAction := context.WithTimeout(context.Background(), tofuActionTimeout(runParams))
+	defer cancelAction()
+	cmd := exec.CommandContext(actionCtx, cmdArgs[0], cmdArgs[1:]...)
+
 	cmd.Dir = stackDir
 	cmd.Env = env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -554,9 +591,24 @@ loop:
 			}
 		}
 	}
+	if actionCtx.Err() == context.DeadlineExceeded && !killed {
+		finalStatus = "FAILED"
+		errStr = "TOFU_ACTION_TIMEOUT"
+		sendLog(fmt.Sprintf("\n[timeout] OpenTofu action exceeded %s; terminating process group.\n", tofuActionTimeout(runParams)))
+		killGroup(cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			killGroup(cmd.Process.Pid, syscall.SIGKILL)
+			_ = cmd.Wait()
+		}
+		rc := 124
+		returnCode = &rc
+	}
 	if returnCode != nil && *returnCode == 0 {
 		finalStatus = "SUCCESS"
 	}
+
 	// `drift` runs `tofu plan -detailed-exitcode`, where exit 2 means
 	// "changes detected" — a successful check, not a failure.
 	if strings.EqualFold(action, "drift") && returnCode != nil {
