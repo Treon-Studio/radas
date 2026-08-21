@@ -433,7 +433,7 @@ fitur terpisah:
 | 272 | Validasi kredensial: test koneksi sebelum simpan | ✅ | P0 | 6 |
 | 273 | IAM role-based (assume-role) untuk AWS/GCP service account | ⬜ | P1 | 6 |
 | 274 | Simpan secret koneksi terenkripsi (bukan plaintext) | ✅ | P0 | 6 |
-| 275 | Deteksi provider dari kredensial (auto-detect region/endpoint) | 🔶 | P1 | 6 |
+| 275 | Deteksi provider dari kredensial (auto-detect region/endpoint) | ✅ | P1 | 6 |
 | 276 | Multi-account: list akun terhubung dengan status health | ✅ | P1 | 6 |
 | 277 | Resource discovery: list VM/network/storage di akun | ✅ | P1 | 6 |
 | 278 | Inventory snapshot berkala (sync jobs) | ✅ | P2 | 6 |

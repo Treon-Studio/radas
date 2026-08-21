@@ -138,6 +138,22 @@ def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db
     assert denied.status_code == 403
 
 
+def test_detect_provider_route_returns_normalized_endpoint_and_region(data_dir, pg_db):
+    response = _route_client(data_dir).post(
+        "/api/byoc/providers/detect",
+        json={"credentials": {"os_auth_url": "https://keystone.gio.space/v3/", "os_region_name": "RegionOne"}},
+        headers=_route_headers(data_dir),
+    )
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "provider": "openstack",
+        "confidence": 1.0,
+        "reason": "credential shape matched",
+        "endpoint": "https://keystone.gio.space/v3",
+        "region": "RegionOne",
+    }
+
+
 def test_detect_provider_route_recognizes_idcloudhost_and_openstack_without_echoing_secrets(data_dir, pg_db):
     client = _route_client(data_dir)
     token = _route_headers(data_dir)

@@ -86,16 +86,22 @@ _PROVIDER_META: Dict[str, Dict[str, Any]] = {
 
 def detect_provider(data: Dict[str, Any]) -> Dict[str, Any]:
     creds = data.get("credentials") or data
-    endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").lower()
+    raw_endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").strip()
+    endpoint_match = raw_endpoint.lower()
     keys = set(creds)
-    if "hcloud_token" in keys or "hetzner" in endpoint: provider = "hetzner"
-    elif "api_token" in keys or "idcloudhost" in endpoint: provider = "idcloudhost"
+    if "hcloud_token" in keys or "hetzner" in endpoint_match: provider = "hetzner"
+    elif "api_token" in keys or "idcloudhost" in endpoint_match: provider = "idcloudhost"
     elif {"access_key", "secret_key"} <= keys: provider = "aws"
     elif "service_account_json" in keys: provider = "gcp"
     elif {"tenant_id", "subscription_id", "client_id", "client_secret"} <= keys: provider = "azure"
-    elif "os_auth_url" in keys or "keystone" in endpoint: provider = "openstack"
-    else: return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape"}
-    return {"provider": provider, "confidence": 1.0, "reason": "credential shape matched"}
+    elif "os_auth_url" in keys or "keystone" in endpoint_match: provider = "openstack"
+    else:
+        return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape", "endpoint": None, "region": None}
+    endpoint = raw_endpoint.rstrip("/") or ("https://api.idcloudhost.com" if provider == "idcloudhost" else None)
+    if provider == "idcloudhost":
+        endpoint = "https://api.idcloudhost.com"
+    region = str(data.get("region") or creds.get("os_region_name") or "").strip() or None
+    return {"provider": provider, "confidence": 1.0, "reason": "credential shape matched", "endpoint": endpoint, "region": region}
 
 
 def providers() -> List[Dict[str, Any]]:

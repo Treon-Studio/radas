@@ -124,12 +124,48 @@ def test_provider_detection_recognizes_supported_idcloudhost_and_openstack_shape
     assert "openstack-secret" not in str(result)
 
 
+@pytest.mark.parametrize(("payload", "expected"), [
+    (
+        {"endpoint": "https://API.IDCLOUDHOST.COM/", "region": "id-jkt-1"},
+        {"provider": "idcloudhost", "endpoint": "https://api.idcloudhost.com", "region": "id-jkt-1"},
+    ),
+    (
+        {"credentials": {"os_auth_url": "https://keystone.gio.space/v3/", "os_region_name": "RegionOne"}},
+        {"provider": "openstack", "endpoint": "https://keystone.gio.space/v3", "region": "RegionOne"},
+    ),
+    (
+        {"credentials": {"access_key": "access", "secret_key": "secret"}, "region": "ap-southeast-3"},
+        {"provider": "aws", "endpoint": None, "region": "ap-southeast-3"},
+    ),
+])
+def test_provider_detection_returns_normalized_safe_endpoint_and_explicit_region(payload, expected):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result["provider"] == expected["provider"]
+    assert result["endpoint"] == expected["endpoint"]
+    assert result["region"] == expected["region"]
+    assert "secret" not in str(result)
+
+
+def test_provider_detection_does_not_infer_region_or_echo_untrusted_endpoint():
+    from services.byoc import detect_provider
+
+    result = detect_provider({"endpoint": "https://keystone.example/v3", "credentials": {"os_auth_url": "https://keystone.example/v3", "os_password": "do-not-echo"}})
+
+    assert result["provider"] == "openstack"
+    assert result["region"] is None
+    assert result["endpoint"] == "https://keystone.example/v3"
+    assert "do-not-echo" not in str(result)
+
+
 def test_provider_detection_reason_never_echoes_unknown_input_secret():
     from services.byoc import detect_provider
 
     result = detect_provider({"credentials": {"unknown": "do-not-echo"}, "endpoint": "https://secret-endpoint.example"})
 
-    assert result == {"provider": None, "confidence": 0.0, "reason": "no matching credential shape"}
+    assert result == {"provider": None, "confidence": 0.0, "reason": "no matching credential shape", "endpoint": None, "region": None}
     assert "do-not-echo" not in str(result)
     assert "secret-endpoint" not in str(result)
 
