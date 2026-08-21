@@ -173,12 +173,20 @@ def api_byoc_state_sync(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/import', methods=['POST'])
 @require_auth
 def api_byoc_import(account_id):
+    from services.byoc_import_mapping import prepare_import_mapping
+
     data = request.get_json(silent=True) or {}
-    resource_ids = data.get("resource_ids") or []
-    if not resource_ids:
-        return jsonify({"error": "resource_ids required"}), 400
     try:
-        out = generate_import(account_id, resource_ids)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
-    return jsonify(out)
+        result = prepare_import_mapping(
+            account_id,
+            project_id=data.get("project_id"),
+            stack=data.get("stack"),
+            resource_ids=data.get("resource_ids") or [],
+            address_overrides=data.get("address_overrides") or {},
+            actor_id=(getattr(request, "current_user", {}) or {}).get("user_id"),
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 403 if "access" in message or "tenant" in message else 404 if "not found" in message or "latest inventory" in message else 400
+        return jsonify({"error": message}), status
+    return jsonify(result)

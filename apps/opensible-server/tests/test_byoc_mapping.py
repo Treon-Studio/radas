@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 import time
 
+import flask
 import pytest
 from psycopg.types.json import Jsonb
 
+from api import register_blueprints
+from auth.service import generate_token
 from storage import pg
 from services import byoc_import_mapping
 
@@ -51,6 +55,60 @@ def patch_inventory(monkeypatch, *, account_org=ORG, account_project=PROJECT):
             ]
         },
     )
+
+
+def _route_client(data_dir):
+    from auth import middleware
+
+    middleware.set_data_dir(data_dir)
+    from app_context import set_data_dir
+    set_data_dir(data_dir)
+    app = flask.Flask("byoc-mapping-route-tests")
+    app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
+    register_blueprints(app)
+    return app.test_client()
+
+
+def _route_headers(data_dir):
+    token = generate_token(USER, USER, [], data_dir, token_type="access")
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_import_route_requires_explicit_scope(data_dir, pg_db):
+    seed_project_stack()
+    client = _route_client(data_dir)
+    response = client.post(
+        f"/api/byoc/accounts/{ACCOUNT}/import",
+        json={"resource_ids": ["r-a"]},
+        headers=_route_headers(data_dir),
+    )
+    assert response.status_code == 400
+    assert "stack" in str(response.get_json())
+
+
+def test_import_route_returns_project_scoped_mapping(data_dir, pg_db, monkeypatch):
+    seed_project_stack()
+    monkeypatch.setattr(
+        "services.byoc_import_mapping.prepare_import_mapping",
+        lambda *args, **kwargs: {
+            "account_id": ACCOUNT,
+            "project_id": PROJECT,
+            "stack": "network-prod",
+            "provider": "hetzner",
+            "resource_count": 1,
+            "mappings": [{"resource_id": "r-a", "type": "hcloud_server", "address": "hcloud_server.web", "source": "inventory", "mapped_at": 1}],
+            "import_block": 'import {\n  to = hcloud_server.web\n  id = "r-a"\n}',
+        },
+    )
+    client = _route_client(data_dir)
+    response = client.post(
+        f"/api/byoc/accounts/{ACCOUNT}/import",
+        json={"project_id": PROJECT, "stack": "network-prod", "resource_ids": ["r-a"], "address_overrides": {}},
+        headers=_route_headers(data_dir),
+    )
+    assert response.status_code == 200
+    assert response.get_json()["project_id"] == PROJECT
+    assert response.get_json()["stack"] == "network-prod"
 
 
 def test_prepare_mapping_is_sorted_and_uses_safe_override(monkeypatch, pg_db):
