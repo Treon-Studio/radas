@@ -34,15 +34,22 @@ def load() -> Dict[str, Any]:
     return {}
 
 
-def get_policy(project_id: str) -> Dict[str, Any]:
-    return load().get(project_id, {"max_retries": 0, "backoff_seconds": 300})
+def get_policy(project_id: str, stack_name: Optional[str] = None) -> Dict[str, Any]:
+    project_policy = load().get(project_id, {"max_retries": 0, "backoff_seconds": 300})
+    if stack_name:
+        return (project_policy.get("stacks") or {}).get(stack_name, project_policy)
+    return project_policy
 
 
-def save_policy(project_id: str, max_retries: int, backoff_seconds: int) -> Dict[str, Any]:
+def save_policy(project_id: str, max_retries: int, backoff_seconds: int, stack_name: Optional[str] = None) -> Dict[str, Any]:
     data = load()
     pol = {"max_retries": max(0, int(max_retries)), "backoff_seconds": max(0, int(backoff_seconds)),
            "updated_at": time.time()}
-    data[project_id] = pol
+    if stack_name:
+        project = data.setdefault(project_id, {})
+        project.setdefault("stacks", {})[stack_name] = pol
+    else:
+        data[project_id] = pol
     p = _store_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -73,10 +80,13 @@ def sweep_once() -> Dict[str, int]:
         from services.execution_retry import retry_execution
         from utils.project_paths import get_project_executions_dir
         import glob as _glob
-        for project_id, pol in load().items():
-            max_retries = int(pol.get("max_retries") or 0)
-            if max_retries <= 0:
-                continue
+        for project_id, project_policy in load().items():
+            policies = {"": project_policy}
+            policies.update(project_policy.get("stacks") or {})
+            for stack_name, pol in policies.items():
+                max_retries = int(pol.get("max_retries") or 0)
+                if max_retries <= 0:
+                    continue
             backoff = int(pol.get("backoff_seconds") or 0)
             ed = get_project_executions_dir(project_id)
             if not ed.exists():
@@ -87,6 +97,9 @@ def sweep_once() -> Dict[str, int]:
                 except Exception:
                     continue
                 if str(rec.get("status", "")).upper() != "FAILED":
+                    continue
+                record_stack = str((rec.get("runParams") or {}).get("stack_name") or "")
+                if stack_name and record_stack != stack_name:
                     continue
                 finished = rec.get("finishedAt") or rec.get("statusUpdatedAt") or rec.get("createdAt") or 0
                 if now - float(finished) > WINDOW_SECONDS:
@@ -99,6 +112,10 @@ def sweep_once() -> Dict[str, int]:
                     retried["skipped_backoff"] += 1
                     continue
                 try:
+                    marker = ed / f"{rec.get('id')}.retrying"
+                    if marker.exists():
+                        continue
+                    marker.write_text(str(now), encoding="utf-8")
                     retry_execution(rec.get("id"), project_id=project_id)
                     retried["retried"] += 1
                 except Exception:
