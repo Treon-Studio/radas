@@ -497,7 +497,7 @@ fitur terpisah:
 | 331 | Remote state lock global (anti race apply) | ✅ | P0 | 6 |
 | 332 | State versions browsing & rollback (sudah partial, per stack) | 🔶 | P1 | 6 |
 | 333 | Run history dengan comments (diskusi per run) | ⬜ | P2 | 6 |
-| 334 | Private module registry (publish modul internal) | ⬜ | P0 | 6 |
+| 334 | Private module registry (publish modul internal) | ✅ | P0 | 6 |
 | 335 | Budget alert per workspace (sudah ada) -> per project agg | 🔶 | P1 | 6 |
 | 336 | Sentinel/OPA policy set versioned | ⬜ | P1 | 6 |
 | 337 | Policy yang menilai plan JSON (intermediate representation) | ⬜ | P2 | 6 |

@@ -620,29 +620,42 @@ _V20_DDL: List[str] = [
     "CREATE INDEX IF NOT EXISTS idx_org_billing_plans_state ON org_billing_plans(state)",
 ]
 
+# Version 21 — organization-private OpenTofu module registry.
+_V21_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS tofu_modules (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        scope_type TEXT NOT NULL CHECK (scope_type = 'organization'),
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        owner_id TEXT,
+        current_version TEXT NOT NULL,
+        disabled BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DOUBLE PRECISION NOT NULL,
+        UNIQUE (org_id, slug)
+    )""",
+    """CREATE TABLE IF NOT EXISTS tofu_module_versions (
+        definition_id TEXT NOT NULL REFERENCES tofu_modules(id) ON DELETE CASCADE,
+        version TEXT NOT NULL,
+        manifest JSONB NOT NULL,
+        archive_path TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size BIGINT NOT NULL,
+        file_count INTEGER NOT NULL,
+        published_by TEXT,
+        published_at DOUBLE PRECISION NOT NULL,
+        PRIMARY KEY (definition_id, version)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_tofu_modules_org_slug ON tofu_modules(org_id, slug)""",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
-    (1, _V1_DDL),
-    (2, _V2_DDL),
-    (3, _V3_DDL),
-    (4, _V4_DDL),
-    (5, _V5_DDL),
-    (6, _V6_DDL),
-    (7, _V7_DDL),
-    (8, _V8_DDL),
-    (9, _V9_DDL),
-    (10, _V10_DDL),
-    (11, _V11_DDL),
-    (12, _V12_DDL),
-    (13, _V13_DDL),
-    (14, _V14_DDL),
-    (15, _V15_DDL),
-    (16, _V16_DDL),
-    (17, _V17_DDL),
-    (18, _V18_DDL),
-    (19, _V19_DDL),
-    (20, _V20_DDL),
+    (1, _V1_DDL), (2, _V2_DDL), (3, _V3_DDL), (4, _V4_DDL), (5, _V5_DDL),
+    (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL), (10, _V10_DDL),
+    (11, _V11_DDL), (12, _V12_DDL), (13, _V13_DDL), (14, _V14_DDL),
+    (15, _V15_DDL), (16, _V16_DDL), (17, _V17_DDL), (18, _V18_DDL),
+    (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL),
 )
 
 
