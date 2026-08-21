@@ -103,6 +103,37 @@ def test_provider_detection_shapes():
     assert detect_provider({"credentials":{"access_key":"x","secret_key":"y"}})["provider"] == "aws"
     assert detect_provider({"credentials":{"unknown":"x"}})["provider"] is None
 
+import pytest
+
+
+@pytest.mark.parametrize(("payload", "provider"), [
+    ({"credentials": {"api_token": "idch-secret"}}, "idcloudhost"),
+    ({"endpoint": "https://api.idcloudhost.com/"}, "idcloudhost"),
+    ({"credentials": {"os_auth_url": "https://keystone.gio.space/v3", "os_username": "u", "os_password": "openstack-secret", "os_project_name": "tenant"}}, "openstack"),
+    ({"endpoint": "https://keystone.gio.space/v3"}, "openstack"),
+    ({"credentials": {"os_auth_url": "https://openstack.example/v3", "os_region_name": "RegionOne"}}, "openstack"),
+])
+def test_provider_detection_recognizes_supported_idcloudhost_and_openstack_shapes(payload, provider):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result["provider"] == provider
+    assert result["confidence"] == 1.0
+    assert "idch-secret" not in str(result)
+    assert "openstack-secret" not in str(result)
+
+
+def test_provider_detection_reason_never_echoes_unknown_input_secret():
+    from services.byoc import detect_provider
+
+    result = detect_provider({"credentials": {"unknown": "do-not-echo"}, "endpoint": "https://secret-endpoint.example"})
+
+    assert result == {"provider": None, "confidence": 0.0, "reason": "no matching credential shape"}
+    assert "do-not-echo" not in str(result)
+    assert "secret-endpoint" not in str(result)
+
+
 def test_unsupported_provider_probe_fails_closed():
     from services.byoc import _probe
     result = _probe("aws", {"access_key": "x", "secret_key": "y"})
