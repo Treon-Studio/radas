@@ -278,7 +278,7 @@ fitur terpisah:
 | 132 | Deteksi flag mati/duplicate key pada saat create | ⬜ | P1 | 6 |
 | 133 | Bulk import/export flag (JSON) untuk migrasi | ⬜ | P2 | 6 |
 | 134 | Flag sebagai target aturan remediation (remediate only if flag) | ⬜ | P2 | 6 |
-| 135 | Evaluasi flag di worker sebelum eksekusi apply/destroy | ⬜ | P1 | 6 |
+| 135 | Evaluasi flag di worker sebelum eksekusi apply/destroy | ✅ | P1 | 6 |
 | 136 | Flag per stack group / VPC / environment bundle | ⬜ | P2 | 6 |
 | 137 | Penjadwalan flag: aktif saat jam kerja saja | ✅ | P2 | 6 |
 | 138 | Perbandingan perilaku stack dengan flag on/off | ⬜ | P2 | 6 |

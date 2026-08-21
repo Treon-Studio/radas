@@ -366,6 +366,40 @@ func executeTofuRun(executionID string, execData map[string]any, projectID strin
 		env = append(env, k+"="+fmt.Sprint(v))
 	}
 
+	// ---- Feature flag pre-flight gate -----------------------------------
+	if strings.EqualFold(action, "apply") || strings.EqualFold(action, "destroy") {
+		sendLog("[feature-flag] checking mutation gates before " + strings.ToLower(action) + "...\n")
+
+		// Get project ID from runParams
+		projectID, _ := runParams["projectId"].(string)
+		if projectID == "" {
+			sendLog("[feature-flag] WARNING: project ID missing from runParams — cannot enforce feature flags.\n")
+		} else {
+			// Evaluate block_apply/block_destroy flags
+			flagKey := "block_destroy"
+			if strings.EqualFold(action, "apply") {
+				flagKey = "block_apply"
+			}
+
+			enabled, reason, err := client.EvaluateFeatureFlag(flagKey, projectID, "prod")
+			if err != nil {
+				sendLog("[feature-flag] ERROR: flag evaluation failed — blocking operation (fail-closed).\n")
+				finalStatus = "FAILED"
+				rc := 3
+				returnCode = &rc
+				return
+			}
+			if enabled {
+				sendLog(fmt.Sprintf("[feature-flag] BLOCKED: Operation blocked by feature flag '%s' (%s).\n", flagKey, reason))
+				finalStatus = "FAILED"
+				rc := 3
+				returnCode = &rc
+				return
+			}
+			sendLog("[feature-flag] mutation allowed\n")
+		}
+	}
+
 	// ---- Policy-as-code pre-flight gate -----------------------------------
 	if policyCfg != nil && (strings.EqualFold(action, "apply") || strings.EqualFold(action, "destroy")) {
 		sendLog("[policy] gate enabled — running a speculative plan before " + strings.ToLower(action) + "...\n")
