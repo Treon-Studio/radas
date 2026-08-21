@@ -460,7 +460,7 @@ fitur terpisah:
 | 299 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ⬜ | P1 | 6 |
 | 300 | Provider IDCloudHost: REST API import | ⬜ | P1 | 6 |
 | 301 | Deteksi provider lain via OpenStack/通用 endpoint | ⬜ | P2 | 6 |
-| 302 | Audit: daftar akun diakses siapa kapan | ⬜ | P1 | 6 |
+| 302 | Audit: daftar akun diakses siapa kapan | ✅ | P1 | 6 |
 | 303 | Perbandingan harga antar akun/provider (multi-cloud cost) | ⬜ | P2 | 6 |
 | 304 | Reuse VPC/network resource dari akun untuk stack | ⬜ | P1 | 6 |
 | 305 | Tag grouping untuk resource org (cost center) | ⬜ | P2 | 6 |

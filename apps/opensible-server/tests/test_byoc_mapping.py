@@ -138,6 +138,59 @@ def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db
     assert denied.status_code == 403
 
 
+def test_account_create_emits_audit_event_without_credentials(data_dir, pg_db):
+    seed_project_stack()
+    client = _route_client(data_dir)
+    response = client.post(
+        "/api/byoc/accounts",
+        json={"name": "create-audited", "provider": "hetzner", "credentials": {"hcloud_token": "secret-create"}},
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
+    )
+    assert response.status_code == 201
+    row = pg.query_one("SELECT actor_user_id, action, target_type, target_id, meta_json FROM audit_log WHERE action=%s ORDER BY id DESC LIMIT 1", ("byoc.account.created",))
+    assert row["actor_user_id"] == USER
+    assert row["target_type"] == "byoc_account"
+    assert json.loads(row["meta_json"])["project_id"] == PROJECT
+    assert "secret-create" not in str(row)
+
+
+def test_account_mutation_emits_audit_event(data_dir, pg_db, monkeypatch):
+    seed_project_stack()
+    from services import byoc
+    account = byoc.create_account({"name": "mutation-audited", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
+    monkeypatch.setattr(byoc, "rotate_credentials", lambda account_id, credentials: {"account_id": account_id, "status": "unverified"})
+    response = _route_client(data_dir).post(
+        f"/api/byoc/accounts/{account['id']}/rotate",
+        json={"credentials": {"hcloud_token": "secret-mutation"}},
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
+    )
+    assert response.status_code == 200
+    row = pg.query_one("SELECT action, target_id, meta_json FROM audit_log WHERE action=%s ORDER BY id DESC LIMIT 1", ("byoc.account.mutated",))
+    assert row["target_id"] == account["id"]
+    assert json.loads(row["meta_json"])["mutation"] == "rotate_credentials"
+    assert "secret-mutation" not in str(row)
+
+
+def test_import_access_emits_audit_event(data_dir, pg_db, monkeypatch):
+    seed_project_stack()
+    from services import byoc
+    account = byoc.create_account({"name": "import-audited", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
+    monkeypatch.setattr(
+        "services.byoc_import_mapping.prepare_import_mapping",
+        lambda *args, **kwargs: {"account_id": account["id"], "project_id": PROJECT, "stack": "network-prod", "resource_count": 1, "mappings": [], "import_block": ""},
+    )
+    response = _route_client(data_dir).post(
+        f"/api/byoc/accounts/{account['id']}/import",
+        json={"project_id": PROJECT, "stack": "network-prod", "resource_ids": ["r-1"], "address_overrides": {}},
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
+    )
+    assert response.status_code == 200
+    row = pg.query_one("SELECT action, target_id, meta_json FROM audit_log WHERE action=%s ORDER BY id DESC LIMIT 1", ("byoc.account.imported",))
+    assert row["target_id"] == account["id"]
+    assert json.loads(row["meta_json"])["project_id"] == PROJECT
+    assert "resource_ids" not in json.loads(row["meta_json"])
+
+
 def test_successful_account_reads_emit_one_safe_audit_event_per_endpoint(data_dir, pg_db, monkeypatch):
     seed_project_stack()
     from services import byoc

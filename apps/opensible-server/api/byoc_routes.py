@@ -18,6 +18,15 @@ from services.byoc import (
 bp = Blueprint("byoc_api", __name__)
 
 
+def _audit_account_event(account: dict, action: str, endpoint: str, *, mutation: str | None = None) -> None:
+    from services.audit_events import record_audit_event
+
+    meta = {"project_id": account["project_id"], "org_id": account["org_id"], "accessed_endpoint": endpoint}
+    if mutation:
+        meta["mutation"] = mutation
+    record_audit_event(action, actor_user_id=(getattr(request, "current_user", {}) or {}).get("user_id"), target_type="byoc_account", target_id=account["id"], meta=meta)
+
+
 def _audit_account_access(account: dict, endpoint: str) -> None:
     from services.audit_events import record_audit_event
 
@@ -101,6 +110,7 @@ def api_byoc_create():
         acct = create_account(data)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    _audit_account_event(acct, "byoc.account.created", request.endpoint or "byoc.create")
     return jsonify({"success": True, "account": acct}), 201
 
 
@@ -145,6 +155,7 @@ def api_byoc_rotate(account_id):
     data = request.get_json(silent=True) or {}
     try:
         out = rotate_credentials(account_id, data.get("credentials") or {})
+        _audit_account_event((get_account(account_id) or account), "byoc.account.mutated", request.endpoint or "byoc.rotate", mutation="rotate_credentials")
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
     return jsonify(out)
@@ -297,6 +308,7 @@ def api_byoc_import(account_id):
             address_overrides=data.get("address_overrides") or {},
             actor_id=(getattr(request, "current_user", {}) or {}).get("user_id"),
         )
+        _audit_account_event((get_account(account_id) or {}), "byoc.account.imported", request.endpoint or "byoc.import", mutation="import_mapping")
     except ValueError as exc:
         message = str(exc)
         status = 403 if "access" in message or "tenant" in message else 404 if "not found" in message or "latest inventory" in message else 400
