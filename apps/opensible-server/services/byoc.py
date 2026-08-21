@@ -14,6 +14,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from utils.secret_encryption import get_encryption
 
@@ -88,20 +89,27 @@ def detect_provider(data: Dict[str, Any]) -> Dict[str, Any]:
     creds = data.get("credentials") or data
     raw_endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").strip()
     endpoint_match = raw_endpoint.lower()
+    parsed_endpoint = urlparse(raw_endpoint)
+    generic_openstack_v3 = (
+        parsed_endpoint.scheme in {"http", "https"}
+        and bool(parsed_endpoint.netloc)
+        and parsed_endpoint.path.rstrip("/").endswith("/v3")
+    )
     keys = set(creds)
     if "hcloud_token" in keys or "hetzner" in endpoint_match: provider = "hetzner"
     elif "api_token" in keys or "idcloudhost" in endpoint_match: provider = "idcloudhost"
     elif {"access_key", "secret_key"} <= keys: provider = "aws"
     elif "service_account_json" in keys: provider = "gcp"
     elif {"tenant_id", "subscription_id", "client_id", "client_secret"} <= keys: provider = "azure"
-    elif "os_auth_url" in keys or "keystone" in endpoint_match: provider = "openstack"
+    elif "os_auth_url" in keys or "keystone" in endpoint_match or generic_openstack_v3: provider = "openstack"
     else:
         return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape", "endpoint": None, "region": None}
     endpoint = raw_endpoint.rstrip("/") or ("https://api.idcloudhost.com" if provider == "idcloudhost" else None)
     if provider == "idcloudhost":
         endpoint = "https://api.idcloudhost.com"
     region = str(data.get("region") or creds.get("os_region_name") or "").strip() or None
-    return {"provider": provider, "confidence": 1.0, "reason": "credential shape matched", "endpoint": endpoint, "region": region}
+    reason = "generic OpenStack identity endpoint matched" if provider == "openstack" and generic_openstack_v3 else "credential shape matched"
+    return {"provider": provider, "confidence": 1.0, "reason": reason, "endpoint": endpoint, "region": region}
 
 
 def providers() -> List[Dict[str, Any]]:

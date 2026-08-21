@@ -149,6 +149,42 @@ def test_provider_detection_returns_normalized_safe_endpoint_and_explicit_region
     assert "secret" not in str(result)
 
 
+@pytest.mark.parametrize("payload", [
+    {"endpoint": "https://identity.example.net/v3/"},
+    {"credentials": {"os_auth_url": "https://identity.example.net/v3/"}},
+])
+def test_provider_detection_recognizes_generic_openstack_v3_identity_endpoint(payload):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result == {
+        "provider": "openstack",
+        "confidence": 1.0,
+        "reason": "generic OpenStack identity endpoint matched",
+        "endpoint": "https://identity.example.net/v3",
+        "region": None,
+    }
+
+
+@pytest.mark.parametrize("endpoint", [
+    "identity.example.net/v3",
+    "ftp://identity.example.net/v3",
+    "https://identity.example.net/v2",
+    "https://identity.example.net/not-identity",
+])
+def test_provider_detection_rejects_non_identity_generic_endpoints(endpoint):
+    from services.byoc import detect_provider
+
+    result = detect_provider({"endpoint": endpoint, "credentials": {"password": "do-not-echo"}})
+
+    assert result["provider"] is None
+    assert result["confidence"] == 0.0
+    assert result["endpoint"] is None
+    assert result["region"] is None
+    assert "do-not-echo" not in str(result)
+
+
 def test_provider_detection_does_not_infer_region_or_echo_untrusted_endpoint():
     from services.byoc import detect_provider
 

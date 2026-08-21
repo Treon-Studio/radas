@@ -138,6 +138,22 @@ def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db
     assert denied.status_code == 403
 
 
+def test_detect_provider_route_recognizes_generic_openstack_v3_endpoint(data_dir, pg_db):
+    response = _route_client(data_dir).post(
+        "/api/byoc/providers/detect",
+        json={"endpoint": "https://identity.example.net/v3/"},
+        headers=_route_headers(data_dir),
+    )
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "provider": "openstack",
+        "confidence": 1.0,
+        "reason": "generic OpenStack identity endpoint matched",
+        "endpoint": "https://identity.example.net/v3",
+        "region": None,
+    }
+
+
 def test_detect_provider_route_returns_normalized_endpoint_and_region(data_dir, pg_db):
     response = _route_client(data_dir).post(
         "/api/byoc/providers/detect",
@@ -148,7 +164,7 @@ def test_detect_provider_route_returns_normalized_endpoint_and_region(data_dir, 
     assert response.get_json() == {
         "provider": "openstack",
         "confidence": 1.0,
-        "reason": "credential shape matched",
+        "reason": "generic OpenStack identity endpoint matched",
         "endpoint": "https://keystone.gio.space/v3",
         "region": "RegionOne",
     }
