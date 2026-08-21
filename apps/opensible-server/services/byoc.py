@@ -248,7 +248,24 @@ def validate_account(account_id: str) -> Dict[str, Any]:
             a["last_check"] = int(time.time())
             a["validate_detail"] = probe.get("detail", "")
             if not probe.get("ok"):
-                a["last_notification"] = {"kind": "byoc.credential_failure", "status": probe.get("status", 0), "at": int(time.time()), "redacted": True}
+                payload = {
+                    "account_id": account_id,
+                    "provider": a["provider"],
+                    "status": probe.get("status", 0),
+                    "project_id": a.get("project_id") or None,
+                }
+                try:
+                    from services.webhook_dispatcher import dispatch_event
+                    sent = dispatch_event("byoc.credential_failure", payload)
+                except Exception:
+                    sent = 0
+                a["last_notification"] = {
+                    "kind": "byoc.credential_failure",
+                    "status": probe.get("status", 0),
+                    "at": int(time.time()),
+                    "redacted": True,
+                    "sent": sent,
+                }
     _save(items)
     return {"account_id": account_id, **probe}
 

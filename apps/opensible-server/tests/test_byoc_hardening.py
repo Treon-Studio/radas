@@ -29,6 +29,74 @@ def test_probe_failure_detail_redacts_credentials():
             sys.modules["requests"] = original
 
 
+def test_credential_failure_dispatches_redacted_notification(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-failure",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    sent = []
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": False, "status": 401, "detail": "Authorization: secret-token at https://provider"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is False
+    assert sent == [("byoc.credential_failure", {
+        "account_id": account["id"],
+        "provider": "hetzner",
+        "status": 401,
+        "project_id": "project-notify",
+    })]
+    assert "secret-token" not in str(sent)
+    stored = byoc.get_account(account["id"])
+    assert stored["status"] == "error"
+    assert stored["last_notification"]["kind"] == "byoc.credential_failure"
+
+
+def test_credential_failure_dispatch_is_best_effort(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-dispatch-error",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": False, "status": 403, "detail": "forbidden"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda *_: (_ for _ in ()).throw(RuntimeError("webhook offline")))
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is False
+    assert byoc.get_account(account["id"])["status"] == "error"
+
+
+def test_successful_credential_validation_does_not_dispatch_failure(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-success",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    sent = []
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": True, "status": 200, "detail": "credentials accepted"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is True
+    assert sent == []
+
+
 def test_provider_detection_shapes():
     from services.byoc import detect_provider
     assert detect_provider({"credentials":{"hcloud_token":"x"}})["provider"] == "hetzner"

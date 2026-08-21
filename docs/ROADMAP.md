@@ -456,7 +456,7 @@ fitur terpisah:
 | 295 | Kredensial per stack (bukan hanya per akun) | ⬜ | P1 | 6 |
 | 296 | Rotasi kredensial otomatis (schedule) | 🔶 | P2 | 6 |
 | 297 | Health check berkala koneksi (cron ping) | 🔶 | P1 | 6 |
-| 298 | Notifikasi saat credential expired/rejected | ⬜ | P1 | 6 |
+| 298 | Notifikasi saat credential expired/rejected | ✅ | P1 | 6 |
 | 299 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ⬜ | P1 | 6 |
 | 300 | Provider IDCloudHost: REST API import | ⬜ | P1 | 6 |
 | 301 | Deteksi provider lain via OpenStack/通用 endpoint | ⬜ | P2 | 6 |
