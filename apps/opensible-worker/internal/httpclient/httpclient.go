@@ -226,6 +226,8 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 		return nil, &HTTPError{Status: 401, Message: "UNAUTHORIZED - Invalid token"}
 	case resp.StatusCode == 429:
 		return nil, &HTTPError{Status: 429, Message: "TOO MANY REQUESTS"}
+	case resp.StatusCode == 409:
+		return nil, &HTTPError{Status: 409, Message: "CLAIM CONFLICT"}
 	case resp.StatusCode >= 400:
 		return nil, newHTTPError(resp.StatusCode, body)
 	}

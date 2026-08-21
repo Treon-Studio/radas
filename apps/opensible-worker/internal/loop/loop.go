@@ -34,6 +34,22 @@ func (r serviceReporter) HeartbeatWithLease(id, token string) (bool, bool) {
 	return r.client.HeartbeatWithLease(id, token)
 }
 
+const maxClaimConflictRetries = 5
+
+func claimConflictBackoff(pollInterval time.Duration, retries int) time.Duration {
+	if retries < 1 {
+		retries = 1
+	}
+	if retries > maxClaimConflictRetries {
+		retries = maxClaimConflictRetries
+	}
+	backoff := float64(pollInterval) * math.Pow(2, float64(retries))
+	if backoff > float64(60*time.Second) {
+		backoff = float64(60 * time.Second)
+	}
+	return time.Duration(backoff)
+}
+
 type Options struct {
 	ServerURL      string
 	PollInterval   int
@@ -95,6 +111,7 @@ func Run(opts Options) {
 	var lastHeartbeat, lastSysSent, lastSysAttempt, lastLogReload time.Time
 	needReregister := false
 	rateLimitRetries := 0
+	claimConflictRetries := 0
 	const maxRateLimitRetries = 5
 
 	// Concurrency semaphore: cap in-flight executions at MaxConcurrency.
@@ -165,8 +182,10 @@ func Run(opts Options) {
 			es := err.Error()
 			is401 := (isHTTP && httpErr.Status == 401) || strings.Contains(strings.ToUpper(es), "UNAUTHORIZED")
 			is429 := (isHTTP && httpErr.Status == 429) || strings.Contains(strings.ToUpper(es), "TOO MANY REQUESTS")
+			isConflict := isHTTP && httpErr.Status == 409
 
 			if is401 {
+
 				log.Warn("Claim returned 401, re-registering...")
 				if _, err := client.Register(opts.WorkerName, opts.Capabilities); err != nil {
 					log.Error("Failed to re-register worker", "err", redaction.Text(err.Error()))
@@ -177,8 +196,19 @@ func Run(opts Options) {
 				needReregister = false
 				continue
 			}
+			if isConflict {
+				if claimConflictRetries < maxRateLimitRetries {
+					claimConflictRetries++
+				}
+				backoff := claimConflictBackoff(time.Duration(opts.PollInterval)*time.Second, claimConflictRetries)
+
+				log.Warn("Claim conflict", "attempt", claimConflictRetries, "sleep", backoff)
+				time.Sleep(backoff)
+				continue
+			}
 			if is429 {
 				if rateLimitRetries < maxRateLimitRetries {
+
 					rateLimitRetries++
 				}
 				backoff := time.Duration(math.Min(60, float64(opts.PollInterval)*math.Pow(2, math.Min(5, float64(rateLimitRetries))))) * time.Second
@@ -187,15 +217,20 @@ func Run(opts Options) {
 				continue
 			}
 			rateLimitRetries = 0
+			claimConflictRetries = 0
 			log.Error("Claim failed", "err", redaction.Text(err.Error()))
+
 			time.Sleep(pollInterval)
 			continue
 		}
 		rateLimitRetries = 0
+		claimConflictRetries = 0
 		needReregister = false
 
 		if execData == nil {
+			claimConflictRetries = 0
 			<-sem // nothing to run — release slot
+
 			time.Sleep(pollInterval)
 			continue
 		}

@@ -2486,6 +2486,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
         from storage import index_db as _index_db
 
         queued_runs = []
+        conflict_seen = False
         total_checked = 0
         use_index = _index_db.is_ready()
         project_dirs = []
@@ -2511,6 +2512,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                             try:
                                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                             except IOError:
+                                conflict_seen = True
                                 continue
                             try:
                                 execution = json.load(f)
@@ -2675,6 +2677,8 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                 app.logger.error(f"Error claiming run {execution_id}: {e}")
                 continue
         
+        if conflict_seen:
+            return None, None, None, True
         return None, None, None
         
     except Exception as e:

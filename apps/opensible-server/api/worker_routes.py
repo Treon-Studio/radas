@@ -197,7 +197,7 @@ def api_worker_claim():
             })
 
         server_claim_next_execution = _app_module().server_claim_next_execution
-        execution_id, execution, proj_id = server_claim_next_execution(
+        claim_result = server_claim_next_execution(
             worker_id=worker_id,
             worker_data=worker_data,
             project_id=project_id,
@@ -205,6 +205,11 @@ def api_worker_claim():
             tags=tags,
             recovering=recovering,
         )
+        conflict = len(claim_result) == 4 and claim_result[3] is True
+        execution_id, execution, proj_id = claim_result[:3]
+
+        if conflict:
+            return jsonify({'success': False, 'error': 'claim_conflict', 'retry_after': 1}), 409, {'Retry-After': '1'}
 
         if not execution_id:
             current_app.logger.debug(
