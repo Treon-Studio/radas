@@ -655,7 +655,7 @@ fitur terpisah:
 | 484 | Quota worker (sudah quota stacks/vms) | 🔶 | P1 | 6 |
 | 485 | Harga: estimasi instance per provider CSP | ⬜ | P2 | 6 |
 | 486 | Cost guard: cek biaya sebelum apply (sudah budget) | 🔶 | P1 | 6 |
-| 487 | Secrets tidak pernah di log | ⬜ | P0 | 6 |
+| 487 | Secrets tidak pernah di log | ✅ | P0 | 6 |
 | 488 | Redaction otomatis (sudah health.py partial) | 🔶 | P1 | 6 |
 | 489 | Enkripsi at rest untuk store baru (flags/tests config) | ⬜ | P2 | 6 |
 | 490 | Rotasi session JWT otomatis | ⬜ | P1 | 6 |

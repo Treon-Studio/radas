@@ -116,7 +116,7 @@ func Setup() {
 				return a
 			},
 		})
-		logger = slog.New(handler)
+		logger = slog.New(&redactingHandler{next: handler})
 	})
 }
 
