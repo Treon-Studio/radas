@@ -131,6 +131,44 @@ def test_claim_preserves_secret_ref_metadata_without_secret_values(pg_db):
     assert claim["spec"]["secrets"]["admin_password"].get("value") is None
 
 
+def test_project_concurrency_cap_blocks_second_operation_and_isolates_projects(pg_db, monkeypatch):
+    _project()
+    from services import quota_service
+    monkeypatch.setattr(quota_service, "get_quota", lambda project_id: {"max_concurrent_runs": 1})
+    instance = _instance()
+    instance2 = service_instances.create_instance(
+        "runner-project", "runner-service-2", "static-web", "1.0.0", "development", "mock",
+        {"name": "runner-service-2", "image": "example/service:1"},
+        created_by="owner", actor_id="owner",
+    )
+    first = _operation(instance, key="cap-first")
+    second = _operation(instance2, key="cap-second")
+
+    claimed = service_operation_runner.claim_next_operation("worker-a", project_id="runner-project")
+    blocked = service_operation_runner.claim_next_operation("worker-b", project_id="runner-project")
+
+    assert claimed["operation_id"] == first["id"]
+    assert blocked is None
+    assert pg.query_one("SELECT status FROM service_operations WHERE id=%s", (second["id"],))["status"] == "queued"
+
+
+def test_project_concurrency_slot_reopens_after_finish(pg_db, monkeypatch):
+    _project()
+    from services import quota_service
+    monkeypatch.setattr(quota_service, "get_quota", lambda project_id: {"max_concurrent_runs": 1})
+    instance = _instance()
+    instance2 = service_instances.create_instance(
+        "runner-project", "runner-service-2", "static-web", "1.0.0", "development", "mock",
+        {"name": "runner-service-2", "image": "example/service:1"},
+        created_by="owner", actor_id="owner",
+    )
+    first = _operation(instance, key="cap-finish-first")
+    second = _operation(instance2, key="cap-finish-second")
+    claim = service_operation_runner.claim_next_operation("worker-a", project_id="runner-project")
+    assert service_operation_runner.finish_operation(first["id"], "worker-a", success=False, lease_token=claim["lease_token"])["status"] == "failed"
+    assert service_operation_runner.claim_next_operation("worker-b", project_id="runner-project")["operation_id"] == second["id"]
+
+
 def test_claim_is_exclusive_and_payload_is_redacted(pg_db):
     _project()
     instance = _instance()

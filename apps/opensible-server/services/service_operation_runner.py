@@ -207,6 +207,15 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
         return None
     lease_seconds = max(10.0, min(float(lease_seconds), 3600.0))
     with pg.transaction() as conn:
+        if project_id:
+            conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"radas.service_ops.concurrency:{project_id}",))
+            from services.quota_service import get_quota
+            quota = get_quota(project_id) or {}
+            limit = int(quota.get("max_concurrent_runs") or 0)
+            if limit > 0:
+                running = conn.execute("SELECT COUNT(*) AS count FROM service_operations WHERE project_id=%s AND status='running'", (project_id,)).fetchone()
+                if int(running["count"] or 0) >= limit:
+                    return None
         _reclaim_expired(conn, project_id=project_id)
         clauses = ["status = 'queued'"]
         params: list[Any] = []

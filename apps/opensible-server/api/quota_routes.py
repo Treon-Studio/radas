@@ -35,7 +35,8 @@ def api_put_quota(project_id):
         q = save_quota(project_id,
                        int(data.get("max_stacks") or 0),
                        int(data.get("max_vms") or 0),
-                       float(data.get("max_cost_monthly") or 0))
+                       float(data.get("max_cost_monthly") or 0),
+                       int(data.get("max_concurrent_runs") or 0))
     except (TypeError, ValueError):
         return jsonify({"error": "invalid quota", "message": "limits must be numbers"}), 400
     q["usage"] = {"stacks": stack_usage(project_id)}

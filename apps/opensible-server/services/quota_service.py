@@ -29,13 +29,14 @@ def get_quota(project_id: str) -> Optional[Dict[str, Any]]:
     return load_quotas().get(project_id)
 
 
-def save_quota(project_id: str, max_stacks: int, max_vms: int, max_cost_monthly: float) -> Dict[str, Any]:
+def save_quota(project_id: str, max_stacks: int, max_vms: int, max_cost_monthly: float, max_concurrent_runs: int = 0) -> Dict[str, Any]:
     quotas = load_quotas()
     quotas[project_id] = {
         "project_id": project_id,
         "max_stacks": max(0, int(max_stacks)),
         "max_vms": max(0, int(max_vms)),
         "max_cost_monthly": max(0.0, float(max_cost_monthly)),
+        "max_concurrent_runs": max(0, int(max_concurrent_runs)),
         "updated_at": time.time(),
     }
     from storage import kv
