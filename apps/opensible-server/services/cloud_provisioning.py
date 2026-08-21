@@ -628,6 +628,15 @@ def set_drift_schedule(project_id: Optional[str], stack: str, config: Dict[str, 
         raise ValueError("cron expression required when enabled")
     if cron and not isinstance(cron, str):
         raise ValueError("cron must be a string")
+
+    # Validate cron syntax using APScheduler
+    if enabled and cron:
+        try:
+            from apscheduler.triggers.cron import CronTrigger
+            CronTrigger.from_crontab(cron, timezone="UTC")
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid cron expression: {str(e)}") from e
+
     alert_on_drift = bool(config.get("alert_on_drift", True))
     _save_meta(project_id, stack, drift_schedule={
         "enabled": enabled,

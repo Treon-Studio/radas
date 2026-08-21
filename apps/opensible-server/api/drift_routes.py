@@ -8,8 +8,13 @@ try:
 except ImportError:
     from ..auth.middleware import require_project_access
 
-from services.cloud_provisioning import get_drift_schedule, set_drift_schedule, _stack_dir
-from services.drift_scheduler import run_drift_check_for_stack
+from services.cloud_provisioning import (
+    _create_execution,
+    _stack_dir,
+    get_drift_schedule,
+    set_drift_schedule,
+)
+from services.drift_scheduler import reconcile_drift_jobs
 from utils.request_ctx import get_project_id_from_request
 
 bp = Blueprint("drift_api", __name__, url_prefix="/api/cloud/stacks")
@@ -44,13 +49,15 @@ def api_set_drift_schedule(stack):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+    # Apply changes immediately; the periodic reconciler repairs external edits.
+    reconcile_drift_jobs()
     return jsonify({"success": True, "stack": stack, "schedule": get_drift_schedule(pid, stack)})
 
 
 @bp.route("/<stack>/drift-check", methods=["POST"])
 @require_project_access
 def api_run_drift_check(stack):
-    """Manually trigger a drift check for a stack."""
+    """Manually queue a read-only drift check for a stack."""
     pid = get_project_id_from_request(lambda: None)
     if not pid:
         return jsonify({"error": "Project required", "message": "X-Project-Id header required"}), 400
@@ -58,8 +65,7 @@ def api_run_drift_check(stack):
         return jsonify({"error": "Stack not found"}), 404
 
     try:
-        result = run_drift_check_for_stack(pid, stack)
+        execution_id = _create_execution(pid, stack, "drift", triggered_by="manual_drift_check")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-    return jsonify(result)
+    return jsonify({"status": "queued", "stack": stack, "run_id": execution_id}), 202

@@ -432,6 +432,20 @@ def api_worker_execution_finish(execution_id):
             )
 
         update_execution_record(execution_id, updates, project_id=project_id)
+        try:
+            from services.drift_scheduler import complete_scheduled_drift
+            execution_for_completion = dict(execution)
+            execution_for_completion["id"] = execution_id
+            complete_scheduled_drift(
+                execution_for_completion,
+                status=status,
+                return_code=return_code,
+                finished_at=finished_at,
+            )
+        except Exception as drift_e:
+            current_app.logger.warning(
+                f"[api_worker_execution_finish] Scheduled drift completion hook failed: {drift_e}"
+            )
         current_app.logger.info(
             f"[api_worker_execution_finish] Updated execution {execution_id} with status {status}, "
             f"result={'present' if result else 'none'}"

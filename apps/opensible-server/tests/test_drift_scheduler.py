@@ -4,7 +4,12 @@ import pytest
 import time
 from unittest.mock import MagicMock, patch
 
-from services.drift_scheduler import run_drift_check_for_stack
+from services.drift_scheduler import (
+    run_drift_check_for_stack,
+    discover_drift_schedules,
+    reconcile_drift_jobs,
+    complete_scheduled_drift,
+)
 from services.cloud_provisioning import get_drift_schedule, set_drift_schedule, _load_meta
 
 
@@ -89,6 +94,43 @@ def test_run_drift_check_alert_off(pg_db, monkeypatch):
     result = run_drift_check_for_stack(project_id, stack)
     assert result["status"] == "drifted"
     mock_dispatch.assert_not_called()
+
+
+def test_discover_and_reconcile_enabled_schedule(pg_db, monkeypatch, tmp_path):
+    from services import drift_scheduler
+    project_id = "test-proj"
+    stack = "test-stack"
+    set_drift_schedule(project_id, stack, {"enabled": True, "cron": "0 2 * * *"})
+    monkeypatch.setattr(drift_scheduler, "_stack_dir", lambda _pid, _stack: tmp_path)
+    scheduler = drift_scheduler.BackgroundScheduler(timezone="UTC")
+    drift_scheduler._scheduler = scheduler
+    scheduler.start()
+    try:
+        assert len(discover_drift_schedules()) == 1
+        reconcile_drift_jobs()
+        job = scheduler.get_job("drift:test-proj:test-stack")
+        assert job is not None
+        assert tuple(job.args) == (project_id, stack)
+    finally:
+        scheduler.shutdown()
+        drift_scheduler._scheduler = None
+
+
+def test_complete_scheduled_drift_alerts_only_on_code_two(pg_db, monkeypatch):
+    project_id = "test-proj"
+    stack = "test-stack"
+    set_drift_schedule(project_id, stack, {"enabled": True, "cron": "0 2 * * *", "alert_on_drift": True})
+    dispatch = MagicMock()
+    monkeypatch.setattr("services.drift_scheduler.dispatch_event", dispatch)
+    execution = {"id": "run-1", "projectId": project_id, "runParams": {
+        "execution_type": "TOFU_RUN", "tofu_action": "drift", "stack_name": stack, "scheduled_drift": True,
+    }}
+    complete_scheduled_drift(execution, "SUCCESS", 2, 100)
+    dispatch.assert_called_once()
+    assert dispatch.call_args.args[0] == "stack.drifted"
+    dispatch.reset_mock()
+    complete_scheduled_drift(execution, "SUCCESS", 0, 101)
+    dispatch.assert_not_called()
 
 
 def test_scheduler_start_stop():

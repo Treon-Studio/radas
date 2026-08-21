@@ -3003,6 +3003,10 @@ if __name__ == '__main__':
         # creates a service instance or invokes a runtime provider.
         _pg_schema.migrate(seed_catalog=True)
         app.logger.info("PostgreSQL connected and schema/catalog are ready")
+        from services.drift_scheduler import start_drift_scheduler, stop_drift_scheduler
+        import atexit
+        start_drift_scheduler()
+        atexit.register(stop_drift_scheduler)
     except Exception as e:
         app.logger.error(
             "DATABASE_URL is required and must point at a reachable PostgreSQL "
