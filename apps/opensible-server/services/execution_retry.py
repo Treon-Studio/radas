@@ -40,6 +40,7 @@ def retry_execution(execution_id: str, project_id: Optional[str] = None) -> Opti
         "retry_of": execution_id,
     }
     new_id = str(uuid.uuid4())
+    data["retry_of"] = execution_id
     create_execution_record(data, project_id=project_id, execution_id=new_id)
 
     # tag retry_of for traceability

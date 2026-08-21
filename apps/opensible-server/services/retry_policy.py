@@ -116,8 +116,12 @@ def sweep_once() -> Dict[str, int]:
                     if marker.exists():
                         continue
                     marker.write_text(str(now), encoding="utf-8")
-                    retry_execution(rec.get("id"), project_id=project_id)
-                    retried["retried"] += 1
+                    try:
+                        retry_execution(rec.get("id"), project_id=project_id)
+                        retried["retried"] += 1
+                    except Exception:
+                        marker.unlink(missing_ok=True)
+                        raise
                 except Exception:
                     pass
     except Exception as e:
