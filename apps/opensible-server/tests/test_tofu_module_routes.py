@@ -63,6 +63,11 @@ def test_management_and_protocol_routes(pg_db, tmp_path, monkeypatch):
     listed = client.get(f"/api/projects/{project_id}/tofu-modules", headers=headers)
     assert listed.status_code == 200
     assert len(listed.get_json()["data"]["modules"]) == 1
+    versions_meta = listed.get_json()["data"]["modules"][0]["versions"]
+    assert len(versions_meta) == 1
+    assert versions_meta[0]["version"] == "1.0.0"
+    assert versions_meta[0]["sha256"] == published.get_json()["data"]["module"]["sha256"]
+    assert versions_meta[0]["size"] > 0
     discovered = client.get("/.well-known/terraform.json", headers=headers)
     assert discovered.status_code == 200
     assert discovered.get_json()["modules.v1"] == "/v1/modules/"
@@ -72,6 +77,61 @@ def test_management_and_protocol_routes(pg_db, tmp_path, monkeypatch):
     download = client.get("/v1/modules/internal/network/aws/1.0.0/download", headers=headers)
     assert download.status_code == 302
     assert "/v1/modules/download/" in download.headers["X-Terraform-Get"]
+
+
+def test_readonly_member_can_list_but_cannot_publish(pg_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    org_id, project_id = _seed()
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("readonly", "readonly", "x"))
+    pg.execute(
+        "INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s,%s,%s,%s)",
+        (org_id, "readonly", "readonly", 1.0),
+    )
+    client = _app(tmp_path).test_client()
+    token = generate_token("readonly", "readonly", [], tmp_path, token_type="access")
+    headers = {"Authorization": f"Bearer {token}", "X-Project-Id": project_id}
+    listed = client.get(f"/api/projects/{project_id}/tofu-modules", headers=headers)
+    assert listed.status_code == 200
+    denied = client.post(
+        f"/api/projects/{project_id}/tofu-modules",
+        headers=headers,
+        data={"manifest": json.dumps({"slug": "internal/readonly/aws", "version": "1.0.0", "description": "x"}), "archive": (_archive(), "module.tar.gz")},
+        content_type="multipart/form-data",
+    )
+    assert denied.status_code == 403
+    assert denied.get_json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_cross_org_archive_download_is_denied_and_redirect_has_no_path(pg_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    org_id, project_id = _seed()
+    client = _app(tmp_path).test_client()
+    owner_headers = _headers(tmp_path, project_id)
+    published = client.post(
+        f"/api/projects/{project_id}/tofu-modules",
+        headers=owner_headers,
+        data={"manifest": json.dumps({"slug": "internal/network/aws", "version": "1.0.0", "description": "network"}), "archive": (_archive(), "module.tar.gz")},
+        content_type="multipart/form-data",
+    )
+    assert published.status_code == 201
+    redirect = client.get("/v1/modules/internal/network/aws/1.0.0/download", headers=owner_headers)
+    assert redirect.status_code == 302
+    location = redirect.headers["X-Terraform-Get"]
+    assert "module-registry" not in location
+    assert "/Users/" not in location
+    archive = client.get(location, headers=owner_headers)
+    assert archive.status_code == 200
+    assert archive.data.startswith(b"\x1f\x8b")
+
+    other_org = "org-routes-other"
+    other_project = "project-routes-other"
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("other", "other", "x"))
+    pg.execute("INSERT INTO orgs (id, name, created_by, created_at) VALUES (%s,%s,%s,%s)", (other_org, "Other", "other", 1.0))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s,%s,%s,%s)", (other_org, "other", "owner", 1.0))
+    pg.execute("INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) VALUES (%s,%s,%s,%s,%s,0,%s)", (other_project, other_org, "other", "Other", "", 1.0))
+    other_token = generate_token("other", "other", [], tmp_path, token_type="access")
+    denied = client.get(location, headers={"Authorization": f"Bearer {other_token}", "X-Project-Id": other_project})
+    assert denied.status_code == 404
 
 
 def test_private_module_routes_require_authorized_project(pg_db, tmp_path, monkeypatch):

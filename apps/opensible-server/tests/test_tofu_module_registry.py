@@ -35,12 +35,27 @@ def _seed_org_project() -> tuple[str, str]:
 
 
 def _archive(tmp_path: Path, filename: str = "main.tf", body: str = "terraform {}") -> Path:
+    return _archive_members(tmp_path, [(filename, body)])
+
+
+def _archive_members(tmp_path: Path, members: list[tuple[str, str]]) -> Path:
     path = tmp_path / "module.tar.gz"
     with tarfile.open(path, "w:gz") as archive:
-        info = tarfile.TarInfo(filename)
-        raw = body.encode()
-        info.size = len(raw)
-        archive.addfile(info, io.BytesIO(raw))
+        for filename, body in members:
+            info = tarfile.TarInfo(filename)
+            raw = body.encode()
+            info.size = len(raw)
+            archive.addfile(info, io.BytesIO(raw))
+    return path
+
+
+def _archive_link(tmp_path: Path, *, hard: bool) -> Path:
+    path = tmp_path / ("hardlink.tar.gz" if hard else "symlink.tar.gz")
+    with tarfile.open(path, "w:gz") as archive:
+        info = tarfile.TarInfo("linked.tf")
+        info.type = tarfile.LNKTYPE if hard else tarfile.SYMTYPE
+        info.linkname = "main.tf"
+        archive.addfile(info)
     return path
 
 
@@ -88,6 +103,63 @@ def test_publish_module_rejects_unsafe_or_non_tofu_archives(pg_db, tmp_path, mon
     non_tofu = _archive(tmp_path, "README.md", "docs")
     with pytest.raises(tofu_module_registry.ModuleValidationError):
         tofu_module_registry.publish_module(_manifest("1.0.1"), non_tofu, actor_id="user-module-test", org_id=org_id)
+
+
+def test_validate_archive_rejects_links_oversize_and_file_count(pg_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+
+    with pytest.raises(tofu_module_registry.ModuleValidationError, match="unsafe paths or links"):
+        tofu_module_registry._validate_archive(_archive_link(tmp_path, hard=False))
+    with pytest.raises(tofu_module_registry.ModuleValidationError, match="unsafe paths or links"):
+        tofu_module_registry._validate_archive(_archive_link(tmp_path, hard=True))
+
+    oversized = _archive(tmp_path, body="terraform {}")
+    monkeypatch.setattr(tofu_module_registry, "MAX_ARCHIVE_BYTES", 1)
+    with pytest.raises(tofu_module_registry.ModuleValidationError, match="10 MiB limit"):
+        tofu_module_registry._validate_archive(oversized)
+
+    monkeypatch.setattr(tofu_module_registry, "MAX_ARCHIVE_BYTES", 10 * 1024 * 1024)
+    many = _archive_members(tmp_path, [(f"file-{i}.tf", "x") for i in range(4)])
+    monkeypatch.setattr(tofu_module_registry, "MAX_ARCHIVE_FILES", 3)
+    with pytest.raises(tofu_module_registry.ModuleValidationError, match="too many files"):
+        tofu_module_registry._validate_archive(many)
+
+
+def test_publish_module_cleans_artifact_when_metadata_commit_fails(pg_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    org_id, _ = _seed_org_project()
+    source = _archive(tmp_path)
+
+    class FailingConnection:
+        calls = 0
+
+        def execute(self, sql, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return None
+            if self.calls == 2:
+                return None
+            raise RuntimeError("injected version metadata failure")
+
+        def rollback(self):
+            return None
+
+    class FailingContext:
+        def __init__(self):
+            self.connection = FailingConnection()
+
+        def __enter__(self):
+            return self.connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(pg, "transaction", lambda: FailingContext())
+    with pytest.raises(tofu_module_registry.ModuleStorageError):
+        tofu_module_registry.publish_module(
+            _manifest(), source, actor_id="user-module-test", org_id=org_id
+        )
+    assert not list((tmp_path / "module-registry").glob("**/*.tar.gz"))
 
 
 def test_modules_are_organization_scoped(pg_db, tmp_path, monkeypatch):

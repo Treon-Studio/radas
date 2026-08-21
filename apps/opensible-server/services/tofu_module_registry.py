@@ -202,4 +202,7 @@ def list_modules(org_id: str, *, include_disabled: bool = False) -> list[dict[st
     if not include_disabled:
         query += " AND m.disabled = FALSE"
     query += " ORDER BY m.slug"
-    return [dict(row) for row in pg.query_all(query, (org_id,))]
+    modules = [dict(row) for row in pg.query_all(query, (org_id,))]
+    for module in modules:
+        module["versions"] = versions(str(module["slug"]), org_id=org_id)
+    return modules
