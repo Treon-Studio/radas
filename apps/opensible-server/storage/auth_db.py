@@ -86,6 +86,7 @@ def list_audit(
     target_type: Optional[str] = None,
     target_id: Optional[str] = None,
     actor_user_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     conn = get_conn(data_dir)
     try:
@@ -101,6 +102,9 @@ def list_audit(
         if actor_user_id:
             where.append("actor_user_id = ?")
             args.append(actor_user_id)
+        if project_id:
+            where.append("meta_json::jsonb ->> 'project_id' = ?")
+            args.append(project_id)
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY id DESC LIMIT ?"
