@@ -598,43 +598,43 @@ def _list_stacks(project_id: Optional[str]) -> List[Dict[str, Any]]:
     return out
 
 
-    def _save_meta(project_id: Optional[str], name: str, **patch: Any) -> None:
-        from storage import pg
-        row = pg.query_one(
-            "SELECT data FROM stack_meta WHERE project_id = %s AND stack = %s",
-            (project_id or "default", name))
-        meta = dict(row["data"]) if row and isinstance(row.get("data"), dict) else {}
-        meta.update(patch)
-        if "created_at" not in meta:
-            meta["created_at"] = int(time.time())
-        meta["updated_at"] = int(time.time())
-        pg.execute(
-            "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s) "
-            "ON CONFLICT (project_id, stack) DO UPDATE SET data = EXCLUDED.data",
-            (project_id or "default", name, json.dumps(meta, ensure_ascii=False)),
-        )
+def _save_meta(project_id: Optional[str], name: str, **patch: Any) -> None:
+    from storage import pg
+    row = pg.query_one(
+        "SELECT data FROM stack_meta WHERE project_id = %s AND stack = %s",
+        (project_id or "default", name))
+    meta = dict(row["data"]) if row and isinstance(row.get("data"), dict) else {}
+    meta.update(patch)
+    if "created_at" not in meta:
+        meta["created_at"] = int(time.time())
+    meta["updated_at"] = int(time.time())
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s) "
+        "ON CONFLICT (project_id, stack) DO UPDATE SET data = EXCLUDED.data",
+        (project_id or "default", name, json.dumps(meta, ensure_ascii=False)),
+    )
 
 
-    def get_drift_schedule(project_id: Optional[str], stack: str) -> Dict[str, Any]:
-        """Get drift schedule config for a stack, with defaults."""
-        meta = _load_meta(project_id, stack)
-        return meta.get("drift_schedule", {"enabled": False, "cron": None, "alert_on_drift": True})
+def get_drift_schedule(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Get drift schedule config for a stack, with defaults."""
+    meta = _load_meta(project_id, stack)
+    return meta.get("drift_schedule", {"enabled": False, "cron": None, "alert_on_drift": True})
 
-    def set_drift_schedule(project_id: Optional[str], stack: str, config: Dict[str, Any]) -> None:
-        """Set drift schedule config for a stack."""
-        enabled = bool(config.get("enabled", False))
-        cron = config.get("cron")
-        if enabled and not cron:
-            raise ValueError("cron expression required when enabled")
-        if cron and not isinstance(cron, str):
-            raise ValueError("cron must be a string")
-        alert_on_drift = bool(config.get("alert_on_drift", True))
-        _save_meta(project_id, stack, drift_schedule={
-            "enabled": enabled,
-            "cron": cron,
-            "alert_on_drift": alert_on_drift,
-            "updated_at": int(time.time()),
-        })
+def set_drift_schedule(project_id: Optional[str], stack: str, config: Dict[str, Any]) -> None:
+    """Set drift schedule config for a stack."""
+    enabled = bool(config.get("enabled", False))
+    cron = config.get("cron")
+    if enabled and not cron:
+        raise ValueError("cron expression required when enabled")
+    if cron and not isinstance(cron, str):
+        raise ValueError("cron must be a string")
+    alert_on_drift = bool(config.get("alert_on_drift", True))
+    _save_meta(project_id, stack, drift_schedule={
+        "enabled": enabled,
+        "cron": cron,
+        "alert_on_drift": alert_on_drift,
+        "updated_at": int(time.time()),
+    })
 
 
 
