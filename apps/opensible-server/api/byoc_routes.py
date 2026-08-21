@@ -18,6 +18,23 @@ from services.byoc import (
 bp = Blueprint("byoc_api", __name__)
 
 
+def _audit_account_access(account: dict, endpoint: str) -> None:
+    from services.audit_events import record_audit_event
+
+    actor_id = (getattr(request, "current_user", {}) or {}).get("user_id")
+    record_audit_event(
+        "byoc.account.accessed",
+        actor_user_id=actor_id,
+        target_type="byoc_account",
+        target_id=account["id"],
+        meta={
+            "project_id": account["project_id"],
+            "org_id": account["org_id"],
+            "accessed_endpoint": endpoint,
+        },
+    )
+
+
 def _account_access(account_id: str, *, write: bool = False):
     """Resolve project-scoped account access; legacy records fail closed."""
     project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
@@ -136,13 +153,14 @@ def api_byoc_rotate(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/inventory', methods=['GET'])
 @require_auth
 def api_byoc_inventory(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
         limit = max(1, min(500, int(request.args.get("limit", 100))))
         offset = max(0, int(request.args.get("offset", 0)))
         out = get_inventory_page(account_id, limit, offset)
+        _audit_account_access(account, request.endpoint or "byoc.inventory")
     except (TypeError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(out)
@@ -151,11 +169,13 @@ def api_byoc_inventory(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/inventory/drift', methods=['GET'])
 @require_auth
 def api_byoc_inventory_drift(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
-        return jsonify(inventory_drift(account_id))
+        result = inventory_drift(account_id)
+        _audit_account_access(account, request.endpoint or "byoc.inventory_drift")
+        return jsonify(result)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
 
@@ -163,12 +183,14 @@ def api_byoc_inventory_drift(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/inventory/snapshots', methods=['GET'])
 @require_auth
 def api_byoc_inventory_snapshots(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
         limit = max(1, min(20, int(request.args.get("limit", 20))))
-        return jsonify({"snapshots": list_inventory_snapshots(account_id, limit)})
+        result = {"snapshots": list_inventory_snapshots(account_id, limit)}
+        _audit_account_access(account, request.endpoint or "byoc.inventory_snapshots")
+        return jsonify(result)
     except (ValueError, TypeError) as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -176,11 +198,13 @@ def api_byoc_inventory_snapshots(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/managed-resources', methods=['GET'])
 @require_auth
 def api_byoc_managed_resources(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
-        return jsonify({"resources": list_managed_resources(account_id)})
+        result = {"resources": list_managed_resources(account_id)}
+        _audit_account_access(account, request.endpoint or "byoc.managed_resources")
+        return jsonify(result)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
 
@@ -214,11 +238,13 @@ def api_byoc_set_budget(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/budget/check', methods=['GET'])
 @require_auth
 def api_byoc_check_budget(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
-        return jsonify(check_account_budget(account_id))
+        result = check_account_budget(account_id)
+        _audit_account_access(account, request.endpoint or "byoc.budget_check")
+        return jsonify(result)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
 
@@ -226,11 +252,13 @@ def api_byoc_check_budget(account_id):
 @bp.route('/api/byoc/accounts/<account_id>/cost', methods=['GET'])
 @require_auth
 def api_byoc_cost(account_id):
-    _, error = _account_access(account_id)
+    account, error = _account_access(account_id)
     if error:
         return error
     try:
-        return jsonify(estimate_account_cost(account_id))
+        result = estimate_account_cost(account_id)
+        _audit_account_access(account, request.endpoint or "byoc.cost")
+        return jsonify(result)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
 

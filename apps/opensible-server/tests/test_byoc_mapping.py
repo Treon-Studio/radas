@@ -138,6 +138,76 @@ def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db
     assert denied.status_code == 403
 
 
+def test_successful_account_reads_emit_one_safe_audit_event_per_endpoint(data_dir, pg_db, monkeypatch):
+    seed_project_stack()
+    from services import byoc
+    account = byoc.create_account({
+        "name": "audited-account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "never-audit-this"},
+        "org_id": ORG,
+        "project_id": PROJECT,
+    })
+    monkeypatch.setattr(byoc, "get_inventory", lambda _: {"account_id": account["id"], "resources": [], "count": 0, "managed_count": 0, "meta": {"endpoint": "never-audit-this"}})
+    monkeypatch.setattr(byoc, "inventory_drift", lambda _: {"drifted": False})
+    monkeypatch.setattr(byoc, "list_inventory_snapshots", lambda *_: [])
+    monkeypatch.setattr(byoc, "list_managed_resources", lambda _: [])
+    monkeypatch.setattr(byoc, "check_account_budget", lambda _: {"configured": False})
+    monkeypatch.setattr(byoc, "estimate_account_cost", lambda _: {"monthly": 0})
+
+    client = _route_client(data_dir)
+    headers = {**_route_headers(data_dir), "X-Project-Id": PROJECT}
+    routes = [
+        f"/api/byoc/accounts/{account['id']}/inventory",
+        f"/api/byoc/accounts/{account['id']}/inventory/drift",
+        f"/api/byoc/accounts/{account['id']}/inventory/snapshots",
+        f"/api/byoc/accounts/{account['id']}/managed-resources",
+        f"/api/byoc/accounts/{account['id']}/budget/check",
+        f"/api/byoc/accounts/{account['id']}/cost",
+    ]
+    for route in routes:
+        response = client.get(route, headers=headers)
+        assert response.status_code == 200
+
+    rows = pg.query_all(
+        "SELECT actor_user_id, target_type, target_id, meta_json FROM audit_log "
+        "WHERE action=%s ORDER BY id",
+        ("byoc.account.accessed",),
+    )
+    assert len(rows) == len(routes)
+    assert all(row["actor_user_id"] == USER for row in rows)
+    assert all(row["target_type"] == "byoc_account" for row in rows)
+    assert all(row["target_id"] == account["id"] for row in rows)
+    assert all(json.loads(row["meta_json"])["project_id"] == PROJECT for row in rows)
+    assert all(json.loads(row["meta_json"])["org_id"] == ORG for row in rows)
+    assert "never-audit-this" not in str(rows)
+
+
+def test_denied_account_read_emits_no_audit_event(data_dir, pg_db):
+    seed_project_stack()
+    from services import byoc
+    account = byoc.create_account({"name": "denied-account", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
+    response = _route_client(data_dir).get(f"/api/byoc/accounts/{account['id']}/inventory")
+    assert response.status_code == 401
+    assert pg.query_one("SELECT COUNT(*) AS count FROM audit_log WHERE action=%s", ("byoc.account.accessed",))["count"] == 0
+
+
+def test_byoc_account_access_audit_is_available_through_tenant_scoped_export(data_dir, pg_db, monkeypatch):
+    seed_project_stack()
+    from services import byoc
+    account = byoc.create_account({"name": "export-account", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
+    monkeypatch.setattr(byoc, "get_inventory", lambda _: {"account_id": account["id"], "resources": [], "count": 0, "managed_count": 0, "meta": {}})
+    client = _route_client(data_dir)
+    headers = {**_route_headers(data_dir), "X-Project-Id": PROJECT}
+    assert client.get(f"/api/byoc/accounts/{account['id']}/inventory", headers=headers).status_code == 200
+    export = client.get(f"/api/audit-log?target_type=byoc_account&target_id={account['id']}&format=csv", headers=headers)
+    assert export.status_code == 200
+    body = export.get_data(as_text=True)
+    assert account["id"] in body
+    assert "byoc.account.accessed" in body
+    assert "hcloud_token" not in body
+
+
 def test_import_route_requires_explicit_scope(data_dir, pg_db):
     seed_project_stack()
     client = _route_client(data_dir)
