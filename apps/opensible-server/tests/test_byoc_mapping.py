@@ -106,6 +106,38 @@ def test_create_account_route_derives_durable_project_ownership(data_dir, pg_db)
     assert stored["project_id"] == PROJECT
 
 
+def test_legacy_account_without_ownership_is_not_listed(data_dir, pg_db, monkeypatch):
+    from services import byoc
+    seed_project_stack()
+    monkeypatch.setattr(byoc, "_load", lambda: [{"id": ACCOUNT, "name": "legacy", "provider": "hetzner", "credentials": {"secret": "x"}}])
+    response = _route_client(data_dir).get(
+        "/api/byoc/accounts",
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["accounts"] == []
+
+
+def test_account_lifecycle_requires_project_scope_and_owner_role(data_dir, pg_db):
+    seed_project_stack()
+    from services import byoc
+    owned = byoc.create_account({
+        "name": "lifecycle-owned",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "x"},
+        "org_id": ORG,
+        "project_id": PROJECT,
+    })
+    client = _route_client(data_dir)
+    missing_scope = client.get(f"/api/byoc/accounts/{owned['id']}/inventory", headers=_route_headers(data_dir))
+    assert missing_scope.status_code == 400
+    pg.execute("INSERT INTO users (id,username,password_hash) VALUES (%s,%s,%s)", ("member-279", "member-279", "x"))
+    pg.execute("INSERT INTO org_members (org_id,user_id,role,created_at) VALUES (%s,%s,%s,%s)", (ORG, "member-279", "member", time.time()))
+    token = generate_token("member-279", "member-279", [], data_dir, token_type="access")
+    denied = client.delete(f"/api/byoc/accounts/{owned['id']}", headers={"Authorization": f"Bearer {token}", "X-Project-Id": PROJECT})
+    assert denied.status_code == 403
+
+
 def test_import_route_requires_explicit_scope(data_dir, pg_db):
     seed_project_stack()
     client = _route_client(data_dir)
@@ -120,6 +152,8 @@ def test_import_route_requires_explicit_scope(data_dir, pg_db):
 
 def test_import_route_returns_project_scoped_mapping(data_dir, pg_db, monkeypatch):
     seed_project_stack()
+    from services import byoc
+    byoc.create_account({"name": "route-import", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
     monkeypatch.setattr(
         "services.byoc_import_mapping.prepare_import_mapping",
         lambda *args, **kwargs: {
@@ -133,12 +167,13 @@ def test_import_route_returns_project_scoped_mapping(data_dir, pg_db, monkeypatc
         },
     )
     client = _route_client(data_dir)
+    owned_account = byoc.create_account({"name": "route-import-2", "provider": "hetzner", "credentials": {"hcloud_token": "x"}, "org_id": ORG, "project_id": PROJECT})
     response = client.post(
-        f"/api/byoc/accounts/{ACCOUNT}/import",
+        f"/api/byoc/accounts/{owned_account['id']}/import",
         json={"project_id": PROJECT, "stack": "network-prod", "resource_ids": ["r-a"], "address_overrides": {}},
-        headers=_route_headers(data_dir),
+        headers={**_route_headers(data_dir), "X-Project-Id": PROJECT},
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, response.get_json()
     assert response.get_json()["project_id"] == PROJECT
     assert response.get_json()["stack"] == "network-prod"
 

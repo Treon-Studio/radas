@@ -437,7 +437,7 @@ fitur terpisah:
 | 276 | Multi-account: list akun terhubung dengan status health | ✅ | P1 | 6 |
 | 277 | Resource discovery: list VM/network/storage di akun | ✅ | P1 | 6 |
 | 278 | Inventory snapshot berkala (sync jobs) | ✅ | P2 | 6 |
-| 279 | Import resource ke stack: mapping id -> resource address | ⬜ | P0 | 6 |
+| 279 | Import resource ke stack: mapping id -> resource address | ✅ | P0 | 6 |
 | 280 | Generate import block OpenTofu (tofu import block) | ✅ | P1 | 6 |
 | 281 | Wizard import: pilih resource dari inventory -> buat stack impor | 🔶 | P1 | 6 |
 | 282 | Import beberapa resource sekaligus (batch) | ✅ | P1 | 6 |
