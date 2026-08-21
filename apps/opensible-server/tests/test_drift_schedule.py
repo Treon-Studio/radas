@@ -18,7 +18,9 @@ def test_set_drift_schedule_persists():
     config = {"enabled": True, "cron": "0 0 * * *", "alert_on_drift": False}
     set_drift_schedule(project_id, stack, config)
     result = get_drift_schedule(project_id, stack)
-    assert result == config
+    assert result["enabled"] == config["enabled"]
+    assert result["cron"] == config["cron"]
+    assert result["alert_on_drift"] == config["alert_on_drift"]
 
 
 def test_set_drift_schedule_requires_cron_when_enabled():
