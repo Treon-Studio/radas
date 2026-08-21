@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SEVERITIES = ("blocker", "warning", "info")
-KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "smoke")
+KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "iac_scan", "smoke")
 _RESULTS_LOCK = threading.Lock()
 
 
@@ -440,6 +440,23 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
                          "severity": "info" if passed else "blocker", "source": "tool",
                          "detail": {"lint": lint["output"], "syntax": syntax["output"]},
                          "tool_status": {"lint": lint["status"], "syntax": syntax["status"]}})
+    elif tc["kind"] == "iac_scan":
+        from services.cloud_provisioning import _stack_dir
+        stack_dir = str(_stack_dir(project_id, tc["stack"]))
+        scanners = {
+            tool: run_bounded_tool(tool, cwd=stack_dir, timeout_seconds=timeout_seconds, mock=mock_provider)
+            for tool in ("checkov", "tfsec")
+        }
+        passed = all(result["status"] in {"passed", "mocked"} for result in scanners.values())
+        findings.append({
+            "assertion": "iac_scan",
+            "name": "Checkov and tfsec IaC security scan",
+            "severity": "info" if passed else "blocker",
+            "source": "tool",
+            "detail": {tool: result["output"] for tool, result in scanners.items()},
+            "tool_status": {tool: result["status"] for tool, result in scanners.items()},
+            "tool_results": scanners,
+        })
     elif tc["kind"] == "tofu_test":
         passed = True
         findings.append({"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",

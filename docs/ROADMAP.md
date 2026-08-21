@@ -333,7 +333,7 @@ fitur terpisah:
 | 182 | Test berparameter: variabel per environment | 🔶 | P1 | 6 |
 | 183 | Eksekusi test via CLI radas test | 🔶 | P2 | 6 |
 | 184 | Integrasi tofu validate + tflint check otomatis pra-apply | 🔶 | P1 | 6 |
-| 185 | Integrasi checkov/tfsec scan iaC (static security) | ⬜ | P1 | 6 |
+| 185 | Integrasi checkov/tfsec scan iaC (static security) | ✅ | P1 | 6 |
 | 186 | Report test menyatu dengan execution log (run id) | ⬜ | P1 | 6 |
 | 187 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
 | 188 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
