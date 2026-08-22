@@ -314,9 +314,9 @@ fitur terpisah:
 | 166 | Assertion: S3 bucket public / ACL terbuka | ✅ | P1 | 6 |
 | 167 | Assertion: security group port 22/3389 terbuka | ✅ | P1 | 6 |
 | 168 | Assertion: versi image provider outdated | 🔶 | P2 | 6 |
-| 169 | Assertion: belum ada tag environment/owner | 🔶 | P1 | 6 |
+| 169 | Assertion: belum ada tag environment/owner | ✅ | P1 | 6 |
 | 170 | Assertion: tfvars menyimpan secret plaintext | ✅ | P1 | 6 |
-| 171 | Assertion: harga bulanan melebihi budget stack | 🔶 | P1 | 6 |
+| 171 | Assertion: harga bulanan melebihi budget stack | ✅ | P1 | 6 |
 | 172 | Assertion: jumlah instance > ambang yang diizinkan | 🔶 | P2 | 6 |
 | 173 | Test severity (blocker/warning/info) dan policy tentang blocker | ✅ | P1 | 6 |
 | 174 | Gate: test gagal blocker -> tolak apply | ✅ | P0 | 6 |

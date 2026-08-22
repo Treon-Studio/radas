@@ -375,7 +375,7 @@ def _assertion_hit(assertion_id: str, text: str, parameters: Dict[str, Any]) -> 
         return any(value > threshold for value in values)
     if assertion_id == "budget_exceeded":
         threshold = float(parameters.get("monthly_budget", parameters.get("budget", 1000)))
-        values = [float(value.replace(",", "")) for value in re.findall(r"(?:monthly_cost|estimated_cost)\s*[=:]\s*[$]?([0-9]+(?:\.[0-9]+)?)", text, re.I)]
+        values = [float(value.replace(",", "")) for value in re.findall(r"(?:monthly_cost|estimated_cost)\s*[=:]\s*[\"']?[$]?([0-9]+(?:\.[0-9]+)?)", text, re.I)]
         return any(value > threshold for value in values)
     if assertion_id == "provider_image_outdated":
         minimum = str(parameters.get("minimum_image", parameters.get("minimum_provider_version", ""))).strip()

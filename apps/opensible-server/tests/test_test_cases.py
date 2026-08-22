@@ -79,3 +79,28 @@ def test_latest_failed_blocker_none_when_passing(tmp_path, monkeypatch):
                            "assertions": ["secret_in_tfvars"], "severity": "blocker"})
     run_test_case(None, tc["id"])
     assert latest_failed_blocker(None, "ok") is None
+
+
+def test_missing_environment_owner_tags_and_budget_exceeded(tmp_path, monkeypatch):
+    """UC169 and UC171 assertion validations."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    envs = tmp_path / "cloud-provisioning" / "default" / "envs"
+    envs.mkdir(parents=True, exist_ok=True)
+    sd = envs / "tagged-demo"
+    sd.mkdir()
+    (sd / "terraform.tfvars").write_text('monthly_cost = "$5000"\ntags = {\n  owner = "alice"\n}\n')
+
+    from services.test_cases import create_test_case, run_test_case
+    # Test tags assertion (missing environment tag)
+    tc1 = create_test_case({"name": "tag-check", "stack": "tagged-demo", "kind": "assertion",
+                            "assertions": ["missing_environment_owner_tags"], "severity": "warning"})
+    res1 = run_test_case(None, tc1["id"])
+    assert res1["passed"] is False
+    assert any(f["assertion"] == "missing_environment_owner_tags" for f in res1["findings"])
+
+    # Test budget exceeded assertion
+    tc2 = create_test_case({"name": "budget-check", "stack": "tagged-demo", "kind": "assertion",
+                            "assertions": ["budget_exceeded"], "severity": "blocker"})
+    res2 = run_test_case(None, tc2["id"])
+    assert res2["passed"] is False
+    assert any(f["assertion"] == "budget_exceeded" for f in res2["findings"])
