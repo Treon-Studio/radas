@@ -117,12 +117,28 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
     dst = _stack_dir(project_id, name)
     existing = next((r for r in _load()
                      if r.get("name") == name and r.get("project_id") == project_id), None)
+    if existing and existing.get("status") == "active":
+        if not refresh:
+            raise ValueError(f"Preview {name} already exists. Use refresh=true or tear down first.")
+
+
+    # Clear any leftover clone (fresh or refresh) before copying.
+    if dst.exists():
+        shutil.rmtree(dst, ignore_errors=True)
+    sdd = _stack_data_dir(project_id, name)
+    if sdd.exists():
+        shutil.rmtree(sdd, ignore_errors=True)
 
     if not src.exists():
         raise FileNotFoundError(f"Base stack '{base_stack}' workspace directory not found")
 
+    from services.feature_flag_registry import can_create_preview_env
+    if not can_create_preview_env(project_id=project_id, preview_name=name, env="preview"):
+        raise ValueError(f"Preview environment creation is blocked by feature flag for '{name}'")
+
     # Clone workspace dir (envs/<name>) into envs/pr-<n>.
     shutil.copytree(src, dst, dirs_exist_ok=True)
+
 
     # UC500: Inject standard tags into values.auto.tfvars.json
     tfvars_path = dst / "values.auto.tfvars.json"
