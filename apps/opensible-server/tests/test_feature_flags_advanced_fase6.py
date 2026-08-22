@@ -430,3 +430,167 @@ def test_copy_flag_api_endpoints(data_dir):
     )
     assert err_403.status_code == 403
 
+
+def test_export_flags_structure_and_properties(data_dir):
+    org_a, _, _ = _seed(data_dir)
+    from services.feature_flag_registry import create_flag, export_flags
+
+    create_flag({"key": "export.flag.one", "rollout_percent": 60, "description": "First export flag", "tags": ["v1"]})
+    create_flag({"key": "export.flag.two", "rollout_percent": 100, "enabled": False})
+
+    # Global export
+    exported = export_flags(scope_type="global")
+    assert exported["scope_type"] == "global"
+    assert exported["scope_id"] is None
+    assert exported["version"] == "1.0"
+    assert isinstance(exported["exported_at"], int)
+    assert len(exported["flags"]) >= 2
+    keys = [f["key"] for f in exported["flags"]]
+    assert "export.flag.one" in keys
+    assert "export.flag.two" in keys
+
+    # Scoped export (organization)
+    create_flag({"key": "org.export.flag", "rollout_percent": 50}, scope_type="organization", scope_id=org_a["id"], org_id=org_a["id"])
+    org_exported = export_flags(scope_type="organization", scope_id=org_a["id"], org_id=org_a["id"])
+    assert org_exported["scope_type"] == "organization"
+    assert org_exported["scope_id"] == org_a["id"]
+    assert len(org_exported["flags"]) == 1
+    assert org_exported["flags"][0]["key"] == "org.export.flag"
+
+
+def test_import_flags_overwrite_false_rejects_duplicates(data_dir):
+    from services.feature_flag_registry import create_flag, get_flag, import_flags
+
+    create_flag({"key": "import.existing.flag", "rollout_percent": 25, "description": "Original"})
+
+    # Trying to import with overwrite=False (default) should raise ValueError
+    with pytest.raises(ValueError, match=r"(?i)already exists"):
+        import_flags([{"key": "import.existing.flag", "rollout_percent": 90, "description": "Updated"}], overwrite=False)
+
+    # State should remain untouched
+    current = get_flag("import.existing.flag")
+    assert current["rollout_percent"] == 25
+    assert current["description"] == "Original"
+
+
+def test_import_flags_overwrite_true_updates_existing_and_adds_new(data_dir):
+    from services.feature_flag_registry import audit, create_flag, get_flag, import_flags
+
+    create_flag({"key": "import.overwrite.flag", "rollout_percent": 20, "description": "Before overwrite"}, actor="admin-init")
+
+    payload = [
+        {"key": "import.overwrite.flag", "rollout_percent": 85, "description": "After overwrite", "enabled": False},
+        {"key": "import.new.flag", "rollout_percent": 50, "description": "Brand new flag"},
+    ]
+
+    result = import_flags(payload, actor="admin-import", actor_name="Importer", overwrite=True)
+    assert result["imported_count"] == 1
+    assert result["overwritten_count"] == 1
+    assert len(result["flags"]) == 2
+    assert "batch_id" in result
+
+    # Verify existing flag was overwritten
+    updated = get_flag("import.overwrite.flag")
+    assert updated["rollout_percent"] == 85
+    assert updated["description"] == "After overwrite"
+    assert updated["enabled"] is False
+
+    # Verify new flag was created
+    new_flag = get_flag("import.new.flag")
+    assert new_flag["rollout_percent"] == 50
+    assert new_flag["description"] == "Brand new flag"
+
+    # Check audit log diffs for overwritten flag
+    entries = audit(key="import.overwrite.flag")
+    assert len(entries) == 2
+    overwrite_entry = entries[0]
+    assert overwrite_entry["operation"] in ("import_overwrite", "update")
+    assert overwrite_entry["actor"] == "admin-import"
+    assert overwrite_entry["changes"]["rollout_percent"] == {"before": 20, "after": 85}
+    assert overwrite_entry["changes"]["description"] == {"before": "Before overwrite", "after": "After overwrite"}
+    assert overwrite_entry["changes"]["enabled"] == {"before": True, "after": False}
+
+
+def test_import_flags_accepts_wrapped_object_or_bare_list(data_dir):
+    from services.feature_flag_registry import get_flag, import_flags
+
+    # Bare list
+    res_list = import_flags([{"key": "bare.list.import", "rollout_percent": 100}])
+    assert res_list["imported_count"] == 1
+    assert get_flag("bare.list.import") is not None
+
+    # Wrapped object {"flags": [...], "version": "1.0"}
+    res_obj = import_flags({
+        "flags": [{"key": "wrapped.obj.import", "rollout_percent": 75}],
+        "version": "1.0",
+        "exported_at": 1234567890,
+    })
+    assert res_obj["imported_count"] == 1
+    assert get_flag("wrapped.obj.import") is not None
+
+
+def test_export_and_import_api_endpoints(data_dir):
+    org_a, _, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    # Create base flag
+    resp = client.post(
+        "/api/flags",
+        json={"key": "api.export.base", "rollout_percent": 30, "description": "For API export"},
+        headers=tokens["admin"],
+    )
+    assert resp.status_code == 201
+
+    # GET /api/flags/export
+    exp_resp = client.get("/api/flags/export", headers=tokens["admin"])
+    assert exp_resp.status_code == 200
+    exp_data = exp_resp.get_json()
+    assert "flags" in exp_data
+    assert exp_data["version"] == "1.0"
+    assert "exported_at" in exp_data
+    keys = [f["key"] for f in exp_data["flags"]]
+    assert "api.export.base" in keys
+
+    # POST /api/flags/import without overwrite (duplicate key) -> 400
+    dup_resp = client.post(
+        "/api/flags/import",
+        json={"flags": [{"key": "api.export.base", "rollout_percent": 90}]},
+        headers=tokens["admin"],
+    )
+    assert dup_resp.status_code == 400
+
+    # POST /api/flags/import with overwrite=true in body -> 201
+    ok_resp = client.post(
+        "/api/flags/import",
+        json={
+            "flags": [
+                {"key": "api.export.base", "rollout_percent": 90, "description": "Overwritten via API"},
+                {"key": "api.imported.new", "rollout_percent": 45},
+            ],
+            "overwrite": True,
+        },
+        headers=tokens["admin"],
+    )
+    assert ok_resp.status_code == 201
+    import_data = ok_resp.get_json()
+    assert import_data["success"] is True
+    assert import_data["imported_count"] == 1
+    assert import_data["overwritten_count"] == 1
+
+    # Verify state via GET
+    get_resp = client.get("/api/flags", headers=tokens["admin"])
+    flags_by_key = {f["key"]: f for f in get_resp.get_json()["flags"]}
+    assert flags_by_key["api.export.base"]["rollout_percent"] == 90
+    assert flags_by_key["api.export.base"]["description"] == "Overwritten via API"
+    assert flags_by_key["api.imported.new"]["rollout_percent"] == 45
+
+    # POST /api/flags/import with overwrite=true as query param
+    query_resp = client.post(
+        "/api/flags/import?overwrite=true",
+        json={"flags": [{"key": "api.export.base", "rollout_percent": 100}]},
+        headers=tokens["admin"],
+    )
+    assert query_resp.status_code == 201
+    assert query_resp.get_json()["overwritten_count"] == 1
+
+

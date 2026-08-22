@@ -490,35 +490,141 @@ def _validate_batch_dependency_graph(flags: List[Dict[str, Any]], scope_type: st
         walk(key)
 
 
+def export_flags(scope_type: str = "global", scope_id: Optional[str] = None,
+                 org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Export decorated feature flags for a given scope."""
+    flags = list_flags(scope_type, scope_id, org_id=org_id)
+    return {
+        "flags": flags,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+        "exported_at": int(time.time()),
+        "version": "1.0",
+    }
+
+
 def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] = None,
-                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None,
+                 overwrite: bool = False) -> Dict[str, Any]:
     """Atomically persist a validated import batch; nothing is written on failure."""
-    if not isinstance(data, list):
+    if isinstance(data, dict) and "flags" in data:
+        items = data["flags"]
+    elif isinstance(data, list):
+        items = data
+    else:
+        raise ValueError("flags must be a list or object containing a flags array")
+
+    if not isinstance(items, list):
         raise ValueError("flags must be a list")
-    if not all(isinstance(item, dict) for item in data):
+    if not all(isinstance(item, dict) for item in items):
         raise ValueError("Every imported flag must be an object")
-    flags = [_new_flag(item, scope_type, scope_id, actor) for item in data]
+
+    raw_candidates = [_new_flag(item, scope_type, scope_id, actor) for item in items]
+    import_keys = [flag["key"] for flag in raw_candidates]
+    if len(import_keys) != len(set(import_keys)):
+        raise ValueError("Duplicate flag keys in import batch")
+
     current = _load_registry(scope_type, scope_id)
-    current_keys = {str(item.get("key")) for item in current if isinstance(item, dict)}
-    if any(flag["key"] in current_keys for flag in flags):
-        raise ValueError("An imported flag already exists")
-    _validate_batch_dependency_graph(flags, scope_type, scope_id, org_id)
-    if not flags:
-        return {"batch_id": str(uuid.uuid4()), "flags": []}
+    current_keys = {str(item.get("key")) for item in current if isinstance(item, dict) and not item.get("_deleted")}
     batch_id = str(uuid.uuid4())
+    now = int(time.time())
+
+    if not overwrite:
+        if any(flag["key"] in current_keys for flag in raw_candidates):
+            raise ValueError("An imported flag already exists")
+        _validate_batch_dependency_graph(raw_candidates, scope_type, scope_id, org_id)
+        if not raw_candidates:
+            return {"batch_id": batch_id, "flags": [], "imported_count": 0, "overwritten_count": 0}
+        from storage import pg
+        with pg.transaction() as conn:
+            _save_tx(conn, current + raw_candidates, scope_type, scope_id)
+            for flag in raw_candidates:
+                _append_history_tx(
+                    conn,
+                    {"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
+                     "actor_name": actor_name or "", "at": now, "after": flag,
+                     "scope_type": scope_type, "scope_id": scope_id},
+                    scope_type,
+                    scope_id,
+                )
+        _EVALUATION_CACHE.clear()
+        return {
+            "batch_id": batch_id,
+            "flags": [_decorate(flag, scope_type, scope_id) for flag in raw_candidates],
+            "imported_count": len(raw_candidates),
+            "overwritten_count": 0,
+        }
+
+    # overwrite=True handling
+    new_flags = []
+    updated_entries = []
+    updated_current = copy.deepcopy(current)
+
+    for item, candidate in zip(items, raw_candidates):
+        key = candidate["key"]
+        idx = _registry_index(updated_current, key)
+        if idx is not None:
+            before = copy.deepcopy(updated_current[idx])
+            after = copy.deepcopy(candidate)
+            after["id"] = before.get("id", after["id"])
+            after["created_at"] = before.get("created_at", after["created_at"])
+            after["updated_at"] = now
+            updated_current[idx] = after
+            updated_entries.append((before, after))
+        else:
+            new_flags.append(candidate)
+            updated_current.append(candidate)
+
+    all_processed = [entry[1] for entry in updated_entries] + new_flags
+    _validate_batch_dependency_graph(all_processed, scope_type, scope_id, org_id)
+
     from storage import pg
     with pg.transaction() as conn:
-        _save_tx(conn, current + flags, scope_type, scope_id)
-        for flag in flags:
+        _save_tx(conn, updated_current, scope_type, scope_id)
+        for before, after in updated_entries:
             _append_history_tx(
                 conn,
-                {"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
-                 "actor_name": actor_name or "", "at": int(time.time()), "after": flag,
-                 "scope_type": scope_type, "scope_id": scope_id},
+                {
+                    "operation": "import_overwrite",
+                    "batch_id": batch_id,
+                    "key": after["key"],
+                    "actor": actor or "system",
+                    "actor_name": actor_name or "",
+                    "at": now,
+                    "before": before,
+                    "after": after,
+                    "changes": _diff(before, after),
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                },
                 scope_type,
                 scope_id,
             )
-    return {"batch_id": batch_id, "flags": [_decorate(flag, scope_type, scope_id) for flag in flags]}
+        for flag in new_flags:
+            _append_history_tx(
+                conn,
+                {
+                    "operation": "import",
+                    "batch_id": batch_id,
+                    "key": flag["key"],
+                    "actor": actor or "system",
+                    "actor_name": actor_name or "",
+                    "at": now,
+                    "after": flag,
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                },
+                scope_type,
+                scope_id,
+            )
+
+    _EVALUATION_CACHE.clear()
+    return {
+        "batch_id": batch_id,
+        "flags": [_decorate(f, scope_type, scope_id) for f in all_processed],
+        "imported_count": len(new_flags),
+        "overwritten_count": len(updated_entries),
+    }
 
 
 def _expire_at(flag: Dict[str, Any]) -> Optional[int]:

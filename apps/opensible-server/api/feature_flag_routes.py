@@ -10,7 +10,7 @@ except ImportError:
     from ..auth.middleware import require_auth, _org_id_of_project
 
 from services.feature_flag_registry import (
-    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags,
+    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags,
     list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag,
 )
 
@@ -337,7 +337,8 @@ def api_export_flags():
     if error:
         return error
     scope_type, scope_id, org_id = context
-    return Response(json.dumps({"flags": list_flags(scope_type, scope_id, org_id=org_id), "scope_type": scope_type, "scope_id": scope_id}, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=radas-flags.json"})
+    export_data = export_flags(scope_type, scope_id, org_id=org_id)
+    return Response(json.dumps(export_data, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=radas-flags.json"})
 
 
 @bp.route('/api/flags/import', methods=['POST'])
@@ -351,11 +352,17 @@ def api_import_flags():
         return error
     scope_type, scope_id, org_id = context
     actor_id, actor_name = _actor()
+    overwrite = False
+    if "overwrite" in data:
+        overwrite = bool(data["overwrite"])
+    elif request.args.get("overwrite") is not None:
+        overwrite = request.args.get("overwrite", "").lower() in ("true", "1", "yes")
+    payload = data.get("flags") if "flags" in data else data
     try:
-        result = import_flags(data.get("flags"), scope_type, scope_id, actor_id, actor_name, org_id)
+        result = import_flags(payload, scope_type, scope_id, actor_id, actor_name, org_id, overwrite=overwrite)
     except ValueError as exc:
         return jsonify({"error": "invalid import", "errors": [{"message": str(exc)}]}), 400
-    return jsonify({"success": True, "imported": len(result["flags"]), **result}), 201
+    return jsonify({"success": True, "imported": result.get("imported_count", len(result["flags"])), **result}), 201
 
 
 @bp.route('/api/flags/evaluations', methods=['GET'])
