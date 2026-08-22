@@ -1121,6 +1121,12 @@ def stacks_action(name):
                 _ff_result = _ff_evaluate(_fkey, env=_env or "prod", user=_user, project_id=pid, org_id=_org_id)
                 if _ff_result.get("enabled"):
                     return jsonify({"error": f"Operation blocked by feature flag '{_fkey}' ({_ff_result.get('reason')}).", "flag": _ff_result}), 423
+
+            # Preview environment gate (UC157)
+            if (_env == "preview" or name.startswith("pr-") or name.startswith("preview-") or name.startswith("preview")):
+                from services.feature_flag_registry import can_create_preview_env
+                if not can_create_preview_env(project_id=pid, preview_name=name, env=_env or "preview", user_id=_user, org_id=_org_id):
+                    return jsonify({"error": f"Preview environment action is blocked by feature flag policy for '{name}'."}), 423
         except Exception as exc:
             current_app.logger.exception("Feature flag evaluation failed for stack action")
             return jsonify({"error": "Unable to verify safety flags; operation refused.", "detail": str(exc)}), 503

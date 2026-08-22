@@ -1394,3 +1394,71 @@ def can_create_preview_env(project_id: Optional[str] = None, preview_name: str =
     return True
 
 
+def diff_flags_between_scopes(
+    source_scope_type: str = "project",
+    source_scope_id: Optional[str] = None,
+    target_scope_type: str = "project",
+    target_scope_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compare effective feature flag configurations across two scopes (UC159).
+
+    Identifies:
+    - missing_in_target: present in source scope, absent in target scope
+    - missing_in_source: present in target scope, absent in source scope
+    - differing: present in both but values/attributes differ
+    - identical: present in both with identical attributes
+    """
+    # Load effective flags for both scopes
+    source_flags_list = list_flags(source_scope_type, source_scope_id, effective=True, org_id=org_id)
+    target_flags_list = list_flags(target_scope_type, target_scope_id, effective=True, org_id=org_id)
+
+    src_map = {str(f["key"]): f for f in source_flags_list if isinstance(f, dict) and f.get("key")}
+    tgt_map = {str(f["key"]): f for f in target_flags_list if isinstance(f, dict) and f.get("key")}
+
+    all_keys = sorted(set(src_map) | set(tgt_map))
+    missing_in_target: List[str] = []
+    missing_in_source: List[str] = []
+    differing: List[Dict[str, Any]] = []
+    identical: List[str] = []
+
+    # Ignored metadata fields when comparing equivalence across scopes
+    ignore_fields = {"id", "scope_type", "scope_id", "created_at", "updated_at", "owner_id"}
+
+    for key in all_keys:
+        if key in src_map and key not in tgt_map:
+            missing_in_target.append(key)
+        elif key in tgt_map and key not in src_map:
+            missing_in_source.append(key)
+        else:
+            sf = src_map[key]
+            tf = tgt_map[key]
+            
+            # Clean copy without scope/instance-specific metadata
+            s_clean = {k: v for k, v in sf.items() if k not in ignore_fields}
+            t_clean = {k: v for k, v in tf.items() if k not in ignore_fields}
+
+            diffs = _diff(s_clean, t_clean)
+            if diffs:
+                differing.append({
+                    "key": key,
+                    "source_value": sf,
+                    "target_value": tf,
+                    "differences": diffs,
+                })
+            else:
+                identical.append(key)
+
+    return {
+        "source_scope": {"type": source_scope_type, "id": source_scope_id},
+        "target_scope": {"type": target_scope_type, "id": target_scope_id},
+        "missing_in_target": missing_in_target,
+        "missing_in_source": missing_in_source,
+        "differing": differing,
+        "identical": identical,
+        "total_source": len(src_map),
+        "total_target": len(tgt_map),
+    }
+
+
+
