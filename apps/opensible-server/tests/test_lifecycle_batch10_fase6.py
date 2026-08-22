@@ -122,3 +122,41 @@ def test_cost_anomaly_detection(data_dir):
     res_spike = usage_service.detect_cost_anomaly(proj, previous_cost=100.0, current_cost=200.0)
     assert res_spike["is_anomaly"] is True
     assert len(res_spike["reasons"]) >= 1
+
+
+def test_cost_usage_csv_export(data_dir):
+    """UC560: Export usage data to CSV format."""
+    from services import usage_service
+
+    csv_data = usage_service.export_cost_usage_csv(project_id="proj-csv")
+    assert "id,org_id,project_id,instance_id,runtime_id,cpu_millicores,memory_mb,storage_gb,running_seconds,observed_at" in csv_data
+
+
+def test_api_usage_csv_export_endpoint(data_dir):
+    """UC560: GET /api/projects/<project_id>/usage/export/csv."""
+    from pathlib import Path
+    from auth.service import generate_token
+    from api.usage_routes import bp
+    from storage import pg
+
+    org_id = "org-usage-csv"
+    proj_id = "proj-usage-csv-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "CSV Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "CSV Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get(f"/api/projects/{proj_id}/usage/export/csv", headers=headers)
+    assert resp.status_code == 200
+    assert "text/csv" in resp.content_type
+    assert "cpu_millicores,memory_mb" in resp.get_data(as_text=True)

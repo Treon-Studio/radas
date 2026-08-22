@@ -154,3 +154,55 @@ def detect_cost_anomaly(
         "thresholds": cfg,
     }
 
+
+
+# ---------------------------------------------------------------------------
+# UC560: Monthly Cost Usage Export to CSV
+# ---------------------------------------------------------------------------
+
+def export_cost_usage_csv(
+    project_id: str | None = None,
+    month: str | None = None,
+) -> str:
+    """Export normalized usage and cost data to CSV format (UC560)."""
+    import csv
+    import io
+
+    query = "SELECT * FROM service_usage_snapshots"
+    params: list[Any] = []
+    if project_id and project_id != "all":
+        query += " WHERE project_id = %s"
+        params.append(project_id)
+    query += " ORDER BY observed_at DESC LIMIT 1000"
+
+    try:
+        from storage import pg
+        rows = pg.query_all(query, tuple(params))
+    except Exception:
+        rows = []
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "org_id", "project_id", "instance_id", "runtime_id",
+        "cpu_millicores", "memory_mb", "storage_gb", "running_seconds",
+        "observed_at"
+    ])
+
+    for r in rows:
+        writer.writerow([
+            r.get("id", ""),
+            r.get("org_id", ""),
+            r.get("project_id", ""),
+            r.get("instance_id", ""),
+            r.get("runtime_id", ""),
+            r.get("cpu_millicores", 0),
+            r.get("memory_mb", 0),
+            r.get("storage_gb", 0),
+            r.get("running_seconds", 0.0),
+            int(r.get("observed_at") or time.time()),
+        ])
+
+    return output.getvalue()
+
+
