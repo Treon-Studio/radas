@@ -780,3 +780,76 @@ def evaluate_account_quota(
         "remaining_quota": remaining,
         "message": f"Quota exceeded: requested {additional_count} {rtype}(s), current {current}, limit {limit}" if exceeded else "Quota check passed",
     }
+
+
+def backup_accounts_encrypted(project_id: Optional[str] = None, org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Export BYOC accounts with credentials securely encrypted for backup (UC312)."""
+    accounts = _load()
+    if project_id:
+        accounts = [a for a in accounts if a.get("project_id") == project_id]
+    elif org_id:
+        accounts = [a for a in accounts if a.get("org_id") == org_id]
+
+    # Ensure each account credential is fully encrypted
+    backup_records = []
+    for a in accounts:
+        rec = dict(a)
+        backup_records.append(rec)
+
+    raw_json = json.dumps(backup_records)
+    enc_payload = _encrypt(raw_json)
+
+    return {
+        "version": "1.0",
+        "account_count": len(backup_records),
+        "exported_at": int(time.time()),
+        "project_id": project_id,
+        "org_id": org_id,
+        "encrypted_payload": enc_payload,
+    }
+
+
+def restore_accounts_encrypted(backup_data: Dict[str, Any], project_id: Optional[str] = None, overwrite: bool = False) -> Dict[str, Any]:
+    """Restore BYOC accounts from an encrypted backup payload (UC312)."""
+    enc_payload = backup_data.get("encrypted_payload") or backup_data.get("payload")
+    if not enc_payload:
+        raise ValueError("encrypted_payload required in backup data")
+
+    try:
+        decrypted_json = _decrypt(enc_payload)
+        records = json.loads(decrypted_json)
+    except Exception as exc:
+        raise ValueError(f"Failed to decrypt/parse backup payload: {exc}")
+
+    if not isinstance(records, list):
+        raise ValueError("Invalid backup format: expected list of account records")
+
+    existing_items = _load()
+    existing_map = {a.get("id"): a for a in existing_items}
+    restored_count = 0
+    overwritten_count = 0
+
+    for rec in records:
+        aid = rec.get("id")
+        if not aid or not rec.get("name") or not rec.get("provider"):
+            continue
+        if project_id:
+            rec["project_id"] = project_id
+
+        if aid in existing_map:
+            if overwrite:
+                existing_map[aid] = rec
+                overwritten_count += 1
+        else:
+            existing_map[aid] = rec
+            restored_count += 1
+
+    _save(list(existing_map.values()))
+
+    return {
+        "ok": True,
+        "restored_count": restored_count,
+        "overwritten_count": overwritten_count,
+        "total_accounts": len(existing_map),
+        "restored_at": int(time.time()),
+    }

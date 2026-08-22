@@ -426,6 +426,32 @@ def api_byoc_set_quota(account_id):
         return jsonify({"error": str(exc)}), 404
 
 
+@bp.route('/api/byoc/backup/export', methods=['GET'])
+@require_auth
+def api_byoc_backup_export():
+    from services.byoc import backup_accounts_encrypted
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    org_id = request.headers.get("X-Org-Id") or request.args.get("org_id")
+    res = backup_accounts_encrypted(project_id=project_id, org_id=org_id)
+    return jsonify(res), 200
+
+
+@bp.route('/api/byoc/backup/restore', methods=['POST'])
+@require_auth
+def api_byoc_backup_restore():
+    from services.byoc import restore_accounts_encrypted
+    data = request.get_json(silent=True) or {}
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+    overwrite = bool(data.get("overwrite", False))
+
+    try:
+        res = restore_accounts_encrypted(data, project_id=project_id, overwrite=overwrite)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
