@@ -71,3 +71,62 @@ def test_byoc_gcp_impersonate_validation(data_dir):
 
     updated = byoc.get_account(acct["id"])
     assert updated["status"] == "verified"
+
+
+def test_detect_stack_backend_type(data_dir, tmp_path):
+    """UC294: Detect remote (s3/gcs/http/pg) vs local state backend."""
+    from services.cloud_provisioning import _stack_dir
+
+    # 1. Local stack (default without backend.hcl)
+    sd_local = _stack_dir("proj-backend", "local-stack")
+    sd_local.mkdir(parents=True, exist_ok=True)
+    (sd_local / "main.tf").write_text('resource "null_resource" "x" {}', encoding="utf-8")
+    (sd_local / "terraform.tfstate").write_text('{"version": 4}', encoding="utf-8")
+
+    res_local = byoc.detect_stack_backend_type("proj-backend", "local-stack")
+    assert res_local["stack"] == "local-stack"
+    assert res_local["backend_type"] == "local"
+    assert res_local["is_remote"] is False
+    assert res_local["state_file_exists"] is True
+
+    # 2. Remote s3 stack with backend.hcl
+    sd_remote = _stack_dir("proj-backend", "s3-stack")
+    sd_remote.mkdir(parents=True, exist_ok=True)
+    (sd_remote / "backend.hcl").write_text(
+        'backend "s3"\nbucket = "my-tofu-states"\nkey = "s3-stack/terraform.tfstate"\nregion = "ap-southeast-1"\n',
+        encoding="utf-8",
+    )
+
+    res_remote = byoc.detect_stack_backend_type("proj-backend", "s3-stack")
+    assert res_remote["stack"] == "s3-stack"
+    assert res_remote["backend_type"] == "s3"
+    assert res_remote["is_remote"] is True
+    assert res_remote["backend_hcl_exists"] is True
+    assert res_remote["config"]["bucket"] == "my-tofu-states"
+    assert res_remote["config"]["region"] == "ap-southeast-1"
+
+
+def test_api_stack_backend_type_endpoint(data_dir):
+    """UC294: GET /api/byoc/stacks/<stack>/backend-type REST endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.byoc_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Project-Id": "proj-api",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get("/api/byoc/stacks/my-stack/backend-type", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["stack"] == "my-stack"
+    assert "backend_type" in data
+    assert "is_remote" in data

@@ -610,3 +610,53 @@ def generate_import(account_id: str, resource_ids: List[str]) -> Dict[str, Any]:
         "resource_count": len(selected),
         "import_block": "\n\n".join(blocks),
     }
+
+
+def detect_stack_backend_type(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Detect whether a stack uses a remote backend (s3, gcs, http, pg) or local state file (UC294)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    try:
+        from services.cloud_provisioning import _stack_dir
+        sd = _stack_dir(project_id, stack_name)
+    except Exception:
+        sd = Path("data") / "cloud-provisioning" / (project_id or "unscoped") / "envs" / stack_name
+
+    backend_type = "local"
+    backend_config: Dict[str, Any] = {}
+    state_file_exists = False
+    backend_hcl_exists = False
+
+    if sd.exists():
+        backend_hcl = sd / "backend.hcl"
+        if backend_hcl.exists():
+            backend_hcl_exists = True
+            content = backend_hcl.read_text(encoding="utf-8", errors="replace")
+            # Parse backend type and keys
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith("backend"):
+                    m = re.search(r'backend\s*["\'](\w+)["\']', line)
+                    if m:
+                        backend_type = m.group(1).lower()
+                elif "=" in line and not line.startswith(("#", "//")):
+                    k, v = line.split("=", 1)
+                    backend_config[k.strip()] = v.strip().strip('"\'')
+
+        tfstate = sd / "terraform.tfstate"
+        if tfstate.exists():
+            state_file_exists = True
+
+    is_remote = backend_type in ("s3", "gcs", "http", "pg", "remote", "consul", "azurerm")
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "backend_type": backend_type,
+        "is_remote": is_remote,
+        "state_file_exists": state_file_exists,
+        "backend_hcl_exists": backend_hcl_exists,
+        "config": backend_config,
+    }

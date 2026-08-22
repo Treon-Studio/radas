@@ -314,3 +314,16 @@ def api_byoc_import(account_id):
         status = 403 if "access" in message or "tenant" in message else 404 if "not found" in message or "latest inventory" in message else 400
         return jsonify({"error": message}), status
     return jsonify(result)
+
+
+@bp.route('/api/byoc/stacks/<stack>/backend-type', methods=['GET'])
+@require_auth
+def api_byoc_stack_backend_type(stack):
+    from services.byoc import detect_stack_backend_type
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = detect_stack_backend_type(project_id=project_id, stack=stack)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
