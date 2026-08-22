@@ -115,3 +115,122 @@ def test_preview_create_robust_against_test_failure(data_dir):
             assert res["execution_id"] is not None
 
 
+def test_test_failure_dispatches_webhook(data_dir):
+    """UC194: Failing test run dispatches test.failed webhook."""
+    sd = _seed_stack(data_dir, project_id="p-wh", name="stack-fail")
+    (sd / "terraform.tfvars").write_text('cidr_block = "0.0.0.0/0"\n')
+
+    tc = test_cases.create_test_case({
+        "name": "Check Public CIDR",
+        "stack": "stack-fail",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "warning",
+    }, project_id="p-wh")
+
+    with patch("services.webhook_dispatcher.dispatch_event") as mock_dispatch:
+        result = test_cases.run_test_case(project_id="p-wh", test_id=tc["id"])
+        assert result["status"] == "failed"
+        assert result["passed"] is False
+
+        # Should have called dispatch_event with 'test.failed'
+        assert mock_dispatch.called
+        event_names = [call.args[0] for call in mock_dispatch.call_args_list]
+        assert "test.failed" in event_names
+        assert "test.blocker_failed" not in event_names
+
+        # Check payload contents
+        failed_call = next(call for call in mock_dispatch.call_args_list if call.args[0] == "test.failed")
+        payload = failed_call.args[1]
+        assert payload["event"] == "test.failed"
+        assert payload["project_id"] == "p-wh"
+        assert payload["stack"] == "stack-fail"
+        assert payload["test_id"] == tc["id"]
+        assert payload["test_name"] == "Check Public CIDR"
+        assert payload["severity"] == "warning"
+        assert len(payload["findings"]) >= 1
+
+
+def test_test_blocker_failure_dispatches_both_webhooks(data_dir):
+    """UC194: Failing blocker test dispatches both test.failed and test.blocker_failed."""
+    sd = _seed_stack(data_dir, project_id="p-wh-blocker", name="stack-blocker")
+    (sd / "terraform.tfvars").write_text('cidr_block = "0.0.0.0/0"\n')
+
+    tc = test_cases.create_test_case({
+        "name": "Blocker CIDR check",
+        "stack": "stack-blocker",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "blocker",
+    }, project_id="p-wh-blocker")
+
+    with patch("services.webhook_dispatcher.dispatch_event") as mock_dispatch:
+        result = test_cases.run_test_case(project_id="p-wh-blocker", test_id=tc["id"])
+        assert result["status"] == "failed"
+        assert result["passed"] is False
+
+        # Both test.failed and test.blocker_failed should be dispatched
+        event_names = [call.args[0] for call in mock_dispatch.call_args_list]
+        assert "test.failed" in event_names
+        assert "test.blocker_failed" in event_names
+
+
+def test_test_pass_does_not_dispatch_failure_webhooks(data_dir):
+    """UC194: Passing test run does not dispatch failure webhooks."""
+    sd = _seed_stack(data_dir, project_id="p-wh-pass", name="stack-pass")
+    (sd / "terraform.tfvars").write_text('app_vm_count = 5\n')
+
+    tc = test_cases.create_test_case({
+        "name": "Check VM count non-zero",
+        "stack": "stack-pass",
+        "kind": "assertion",
+        "assertions": ["vm_count_zero"],
+        "severity": "blocker",
+    }, project_id="p-wh-pass")
+
+    with patch("services.webhook_dispatcher.dispatch_event") as mock_dispatch:
+        result = test_cases.run_test_case(project_id="p-wh-pass", test_id=tc["id"])
+        assert result["status"] == "passed"
+        assert result["passed"] is True
+        assert not mock_dispatch.called
+
+
+def test_webhook_dispatch_error_handled_gracefully(data_dir):
+    """UC194: Webhook dispatch error does not break test case execution."""
+    sd = _seed_stack(data_dir, project_id="p-wh-err", name="stack-err")
+    (sd / "terraform.tfvars").write_text('cidr_block = "0.0.0.0/0"\n')
+
+    tc = test_cases.create_test_case({
+        "name": "Check Public CIDR Error",
+        "stack": "stack-err",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "blocker",
+    }, project_id="p-wh-err")
+
+    with patch("services.webhook_dispatcher.dispatch_event", side_effect=RuntimeError("Webhook endpoint unreachable")):
+        # Should not raise exception
+        result = test_cases.run_test_case(project_id="p-wh-err", test_id=tc["id"])
+        assert result["status"] == "failed"
+        assert result["passed"] is False
+
+
+def test_dispatch_test_failure_notification_direct(data_dir):
+    """UC194: Direct invocation of dispatch_test_failure_notification."""
+    with patch("services.webhook_dispatcher.dispatch_event") as mock_dispatch:
+        test_cases.dispatch_test_failure_notification(
+            project_id="p-direct",
+            stack="stack-1",
+            test_id="tc-1",
+            test_name="Security Scan",
+            severity="blocker",
+            findings=[{"assertion": "cidr_public"}],
+            run_id="run-1",
+        )
+        assert mock_dispatch.called
+        events = [c.args[0] for c in mock_dispatch.call_args_list]
+        assert "test.failed" in events
+        assert "test.blocker_failed" in events
+
+
+

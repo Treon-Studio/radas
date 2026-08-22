@@ -543,6 +543,53 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
     return result
 
 
+def dispatch_test_failure_notification(
+    project_id: Optional[str] = None,
+    stack: str = "",
+    test_id: Optional[str] = None,
+    test_name: Optional[str] = None,
+    severity: str = "warning",
+    findings: Optional[List[Dict[str, Any]]] = None,
+    run_id: Optional[str] = None,
+    failed_tests: Optional[List[Dict[str, Any]]] = None,
+    **extra: Any,
+) -> None:
+    """Dispatches outbound webhook / event notifications on test failures (UC194).
+
+    Dispatches `test.failed` event, and if severity == 'blocker', also dispatches `test.blocker_failed`.
+    Wrapped in try-except so failures never break caller execution.
+    """
+    try:
+        from services.webhook_dispatcher import dispatch_event
+
+        payload: Dict[str, Any] = {
+            "event": "test.failed",
+            "project_id": project_id,
+            "stack": stack,
+            "test_id": test_id,
+            "test_name": test_name,
+            "severity": severity,
+            "findings": findings or [],
+            "run_id": run_id,
+            "timestamp": int(time.time()),
+        }
+        if failed_tests is not None:
+            payload["failed_tests"] = failed_tests
+        payload.update(extra)
+
+        dispatch_event("test.failed", payload)
+
+        is_blocker = severity == "blocker" or (
+            bool(failed_tests) and any(t.get("severity") == "blocker" for t in (failed_tests or []))
+        )
+        if is_blocker:
+            blocker_payload = dict(payload)
+            blocker_payload["event"] = "test.blocker_failed"
+            dispatch_event("test.blocker_failed", blocker_payload)
+    except Exception:
+        pass
+
+
 def run_test_case(project_id: Optional[str], test_id: str, timeout_seconds: int = 30,
                   mock_provider: bool = False, max_retries: int = 0, backoff_base_seconds: float = 0.5,
                   sleep_fn=time.sleep) -> Dict[str, Any]:
@@ -564,6 +611,16 @@ def run_test_case(project_id: Optional[str], test_id: str, timeout_seconds: int 
     result["retry_count"] = len(attempts) - 1
     result["max_retries"] = retries
     result["backoff_base_seconds"] = base
+    if result.get("status") == "failed" or not result.get("passed"):
+        dispatch_test_failure_notification(
+            project_id=project_id,
+            stack=result.get("stack", ""),
+            test_id=test_id,
+            test_name=result.get("name", ""),
+            severity=result.get("severity", "warning"),
+            findings=result.get("findings", []),
+            run_id=result.get("run_id"),
+        )
     return result
 
 
