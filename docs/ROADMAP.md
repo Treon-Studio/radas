@@ -399,21 +399,21 @@ fitur terpisah:
 | 246 | Workflow template: scaffold tofu/ansible workflow files di console | ✅ | P0 | 6 |
 | 247 | Template workflow: tofu-plan.yaml, tofu-apply.yaml, ansible-run.yaml | ✅ | P0 | 6 |
 | 248 | Commit workflow file via Contents API (create/update) | ✅ | P0 | 6 |
-| 249 | Auto-retry policy untuk run gagal (configurable) | ⬜ | P2 | 6 |
-| 250 | Webhook peristiwa run masuk ke audit log | ⬜ | P1 | 6 |
+| 249 | Auto-retry policy untuk run gagal (configurable) | ✅ | P2 | 6 |
+| 250 | Webhook peristiwa run masuk ke audit log | ✅ | P1 | 6 |
 | 251 | Notifikasi Slack/Discord untuk run gagal | ✅ | P1 | 6 |
 | 252 | Search runs by commit SHA | ✅ | P1 | 6 |
 | 253 | Manage multiple org/repo (multi-koneksi) | ⬜ | P2 | 6 |
 | 254 | Rate limit handling & backoff untuk GitHub API | ✅ | P1 | 6 |
-| 255 | Repository metadata: default branch, visibility, language | ⬜ | P2 | 6 |
-| 256 | Scan secrets exposure di workflow file (dump env) | ⬜ | P2 | 6 |
-| 257 | Pin action ke SHA check (supply-chain) | ⬜ | P2 | 6 |
+| 255 | Repository metadata: default branch, visibility, language | ✅ | P2 | 6 |
+| 256 | Scan secrets exposure di workflow file (dump env) | ✅ | P2 | 6 |
+| 257 | Pin action ke SHA check (supply-chain) | ✅ | P2 | 6 |
 | 258 | Permission berlebih check (permissions: contents: write dll) | ⬜ | P2 | 6 |
 | 259 | Workflow schedule (cron) list & next run prediction | ⬜ | P2 | 6 |
 | 260 | Test workflow: dry-run dispatch tanpa perubahan | ⬜ | P2 | 6 |
 | 261 | Konfigurasi runner auto-scaling (scale set) | ⬜ | P2 | 6 |
 | 262 | Run cost attribution: runner minutes per project | ⬜ | P2 | 6 |
-| 263 | GitHub API token rotasi & health check koneksi | ⬜ | P1 | 6 |
+| 263 | GitHub API token rotasi & health check koneksi | ✅ | P1 | 6 |
 | 264 | Koneksi OAuth App / GitHub App (installation webhook) | ⬜ | P2 | 6 |
 | 265 | UI halaman GitHub Actions: rilis dashboard | ⬜ | P1 | 6 |
 | 266 | UI detail run dengan log viewer | ⬜ | P1 | 6 |
