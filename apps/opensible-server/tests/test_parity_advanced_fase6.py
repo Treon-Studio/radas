@@ -282,3 +282,80 @@ def test_api_execution_comments_endpoints(data_dir):
     data = resp_get.get_json()
     assert data["count"] == 1
     assert data["comments"][0]["comment"] == "Rollback initiated due to timeout"
+
+
+def test_stack_dependencies_and_dag(data_dir, monkeypatch):
+    """UC348: Stack dependencies configuration, graph generation, and cycle detection."""
+    from services import cloud_provisioning
+
+    proj = "proj-dag"
+
+    monkeypatch.setattr(cloud_provisioning, "_list_stacks", lambda pid: [
+        {"name": "vpc-stack", "provider": "aws", "status": "active"},
+        {"name": "db-stack", "provider": "aws", "status": "active"},
+        {"name": "app-stack", "provider": "aws", "status": "active"},
+    ])
+
+    # 1. db-stack depends on vpc-stack
+    res_db = cloud_provisioning.set_stack_dependencies(proj, "db-stack", ["vpc-stack"])
+    assert res_db["ok"] is True
+    assert res_db["depends_on"] == ["vpc-stack"]
+
+    # 2. app-stack depends on vpc-stack and db-stack
+    res_app = cloud_provisioning.set_stack_dependencies(proj, "app-stack", ["vpc-stack", "db-stack"])
+    assert res_app["ok"] is True
+    assert len(res_app["depends_on"]) == 2
+
+    # 3. Check full graph
+    graph_res = cloud_provisioning.get_stack_dependency_graph(proj)
+    assert graph_res["total_stacks"] == 3
+    assert graph_res["graph"]["app-stack"] == ["db-stack", "vpc-stack"]
+
+    # 4. Circular dependency attempt -> should fail
+    # vpc-stack depends on app-stack creates cycle (vpc -> app -> vpc)
+    with pytest.raises(ValueError, match="Circular dependency detected"):
+        cloud_provisioning.set_stack_dependencies(proj, "vpc-stack", ["app-stack"])
+
+
+def test_api_dependency_graph_endpoints(data_dir, monkeypatch):
+    """UC348: GET & POST /api/cloud-provisioning/dependencies/graph."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-dag"
+    proj_id = "proj-dag-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "DAG Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "DAG Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. Set dependency
+    resp_set = client.post(
+        "/api/cloud-provisioning/stacks/web-stack/dependencies",
+        json={"depends_on": ["base-network"]},
+        headers=headers,
+    )
+    assert resp_set.status_code == 200
+    assert resp_set.get_json()["depends_on"] == ["base-network"]
+
+    # 2. Get dependency graph
+    resp_graph = client.get(
+        "/api/cloud-provisioning/dependencies/graph",
+        headers=headers,
+    )
+    assert resp_graph.status_code == 200
+    assert "graph" in resp_graph.get_json()

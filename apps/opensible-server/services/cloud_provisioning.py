@@ -1857,6 +1857,130 @@ def api_add_execution_comment(execution_id: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC348: Stack Dependencies & Dependency Graph (DAG)
+# ---------------------------------------------------------------------------
+
+def _detect_cycle(graph: Dict[str, List[str]]) -> Optional[List[str]]:
+    """Detect cycle in stack dependency DAG using DFS."""
+    visited: Dict[str, int] = {}  # 0: unvisited, 1: visiting, 2: visited
+
+    def dfs(node: str, path: List[str]) -> Optional[List[str]]:
+        visited[node] = 1
+        for neighbor in graph.get(node, []):
+            if visited.get(neighbor) == 1:
+                return path + [neighbor]
+            if visited.get(neighbor, 0) == 0:
+                cycle = dfs(neighbor, path + [neighbor])
+                if cycle:
+                    return cycle
+        visited[node] = 2
+        return None
+
+    for n in list(graph.keys()):
+        if visited.get(n, 0) == 0:
+            cycle = dfs(n, [n])
+            if cycle:
+                return cycle
+    return None
+
+
+def set_stack_dependencies(project_id: Optional[str], stack: str, depends_on: List[str]) -> Dict[str, Any]:
+    """Configure upstream stack dependencies for a stack, enforcing cycle-free DAG (UC348)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    clean_deps = sorted({str(d).strip() for d in (depends_on or []) if str(d).strip() and str(d).strip() != stack_name})
+
+    # Build prospective dependency graph across all stacks in project
+    graph = get_stack_dependency_graph(project_id).get("graph", {})
+    graph[stack_name] = clean_deps
+
+    cycle = _detect_cycle(graph)
+    if cycle:
+        raise ValueError(f"Circular dependency detected: {' -> '.join(cycle)}")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["depends_on"] = clean_deps
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "depends_on": clean_deps,
+        "dependency_count": len(clean_deps),
+    }
+
+
+def get_stack_dependency_graph(project_id: Optional[str]) -> Dict[str, Any]:
+    """Generate the full dependency graph and execution levels across all project stacks (UC348)."""
+    stacks_list = _list_stacks(project_id)
+    graph: Dict[str, List[str]] = {}
+    nodes: List[Dict[str, Any]] = []
+
+    for s in stacks_list:
+        sname = s.get("name")
+        meta = _load_meta(project_id, sname)
+        deps = list(meta.get("depends_on") or [])
+        graph[sname] = deps
+        nodes.append({
+            "name": sname,
+            "provider": s.get("provider"),
+            "status": s.get("status"),
+            "depends_on": deps,
+        })
+
+    # Topological order / tier levels
+    in_degree = {n: 0 for n in graph}
+    for n, deps in graph.items():
+        for d in deps:
+            if d in in_degree:
+                in_degree[n] += 1
+
+    return {
+        "project_id": project_id,
+        "total_stacks": len(nodes),
+        "nodes": nodes,
+        "graph": graph,
+    }
+
+
+@bp.route("/dependencies/graph", methods=["GET"])
+@require_project_access
+def api_get_dependency_graph():
+    pid = _get_project_id()
+    try:
+        res = get_stack_dependency_graph(pid)
+        return jsonify(res), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/stacks/<name>/dependencies", methods=["GET"])
+@require_project_access
+def api_get_stack_dependencies(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    deps = list(meta.get("depends_on") or [])
+    return jsonify({"stack": name, "project_id": pid, "depends_on": deps}), 200
+
+
+@bp.route("/stacks/<name>/dependencies", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_dependencies(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    deps = data.get("depends_on") or data.get("dependencies") or []
+    try:
+        res = set_stack_dependencies(pid, name, deps)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
