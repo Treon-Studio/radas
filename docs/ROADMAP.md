@@ -536,7 +536,7 @@ fitur terpisah:
 | 370 | Job with team attribution (siapa request) | ⬜ | P1 | 6 |
 | 371 | Slash commands di PR: /plan, /apply, /lock | ⬜ | P1 | 6 |
 | 372 | Apply requirement: approval di PR (review) | ⬜ | P1 | 6 |
-| 373 | Project locking (anti konflik apply) | ⬜ | P1 | 6 |
+| 373 | Project locking (anti konflik apply) | ✅ | P1 | 6 |
 | 374 | Atlantis.yaml support (workflow per dir) | ⬜ | P2 | 6 |
 | 375 | Cloud resilience: deteksi resource tak terkelola | ⬜ | P1 | 6 |
 | 376 | Sweep: resource tak terkelola -> warning/import | ⬜ | P2 | 6 |
@@ -560,7 +560,7 @@ fitur terpisah:
 | 394 | Dark mode konsisten (sudah) | 🔶 | P1 | 6 |
 | 395 | Keyboard shortcuts (g untuk go, / untuk search) | ⬜ | P2 | 6 |
 | 396 | Global search resources (stack, run, secret) | ⬜ | P1 | 6 |
-| 397 | Onboarding wizard pertama kali | ⬜ | P1 | 6 |
+| 397 | Onboarding wizard pertama kali | ✅ | P1 | 6 |
 | 398 | Empty states dengan CTA yang jelas | ⬜ | P1 | 6 |
 | 399 | Responsive mobile (sudah) | 🔶 | P2 | 6 |
 | 400 | OpenAPI spec lengkap (sudah partial) | 🔶 | P1 | 6 |
