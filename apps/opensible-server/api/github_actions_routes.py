@@ -389,3 +389,29 @@ def api_gh_validate_pinning():
     content = data.get("content") or data.get("yaml_content") or ""
     res = validate_workflow_sha_pinning(content)
     return jsonify(res), 200
+
+
+@bp.route('/api/github/connection/health', methods=['GET'])
+@require_auth
+def api_gh_connection_health():
+    from services.github_actions import check_github_connection_health
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    res = check_github_connection_health(project_id=project_id)
+    return jsonify(res), 200 if res.get("healthy") else 503
+
+
+@bp.route('/api/github/connection/rotate-token', methods=['POST'])
+@require_auth
+def api_gh_rotate_token():
+    from services.github_actions import rotate_github_token
+    data = request.get_json(silent=True) or {}
+    new_token = (data.get("token") or data.get("new_token") or "").strip()
+    if not new_token:
+        return jsonify({"error": "token or new_token required"}), 400
+
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+    try:
+        res = rotate_github_token(new_token=new_token, project_id=project_id)
+        return jsonify(res), 200 if res.get("ok") else 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400

@@ -396,3 +396,85 @@ def test_api_validate_workflow_pinning_endpoint(data_dir):
     data = resp.get_json()
     assert data["compliant"] is False
     assert len(data["unpinned_actions"]) == 1
+
+
+def test_check_github_connection_health(monkeypatch):
+    """UC263: Connection health check queries user and rate limit."""
+    monkeypatch.setattr(github_actions, "is_available", lambda: {"available": True, "via": "token", "authenticated": True})
+
+    def fake_gh_api(method, path, **kwargs):
+        if path == "/user":
+            return {"login": "octocat", "id": 1, "type": "User"}
+        if path == "/rate_limit":
+            return {"resources": {"core": {"limit": 5000, "remaining": 4950, "reset": 1700000000}}}
+        return {}
+
+    monkeypatch.setattr(github_actions, "_gh_api", fake_gh_api)
+
+    health = github_actions.check_github_connection_health()
+    assert health["healthy"] is True
+    assert health["status"] == "connected"
+    assert health["user"]["login"] == "octocat"
+    assert health["rate_limit"]["remaining"] == 4950
+    assert health["rate_limit"]["used"] == 50
+
+
+def test_rotate_github_token(monkeypatch):
+    """UC263: Rotate token updates GH_TOKEN and tests connection."""
+    monkeypatch.setattr(github_actions, "is_available", lambda: {"available": True, "via": "token", "authenticated": True})
+    monkeypatch.setattr(github_actions, "_gh_api", lambda method, path, **kwargs: {
+        "login": "new-user",
+        "resources": {"core": {"limit": 5000, "remaining": 5000}},
+    })
+
+    res = github_actions.rotate_github_token("ghp_new_valid_token_1234567890")
+    assert res["ok"] is True
+    assert res["user"] == "new-user"
+    assert github_actions.os.environ.get("GH_TOKEN") == "ghp_new_valid_token_1234567890"
+
+    with pytest.raises(ValueError, match="Valid GitHub personal access token required"):
+        github_actions.rotate_github_token("short")
+
+
+def test_api_connection_health_and_rotate_token(data_dir, monkeypatch):
+    """UC263: REST endpoints for health check and token rotation."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.github_actions_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    monkeypatch.setattr(github_actions, "check_github_connection_health", lambda project_id=None: {
+        "healthy": True,
+        "status": "connected",
+        "user": {"login": "alice-bot"},
+    })
+    monkeypatch.setattr(github_actions, "rotate_github_token", lambda new_token, project_id=None: {
+        "ok": True,
+        "message": "Token rotated",
+        "user": "alice-bot",
+    })
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    # GET /api/github/connection/health
+    resp_health = client.get("/api/github/connection/health", headers=headers)
+    assert resp_health.status_code == 200
+    assert resp_health.get_json()["healthy"] is True
+
+    # POST /api/github/connection/rotate-token
+    resp_rotate = client.post(
+        "/api/github/connection/rotate-token",
+        json={"token": "ghp_new_valid_token_1234567890"},
+        headers=headers,
+    )
+    assert resp_rotate.status_code == 200
+    assert resp_rotate.get_json()["ok"] is True

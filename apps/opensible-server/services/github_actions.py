@@ -899,6 +899,82 @@ def validate_workflow_sha_pinning(yaml_content: str) -> Dict[str, Any]:
     }
 
 
+def check_github_connection_health(project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Perform health check on GitHub connection, rate limit, and token validity (UC263)."""
+    avail = is_available()
+    if not avail.get("available") and not os.environ.get("GH_TOKEN"):
+        return {
+            "healthy": False,
+            "status": "disconnected",
+            "message": "No GitHub credentials configured (neither gh CLI nor GH_TOKEN)",
+            "rate_limit": None,
+            "user": None,
+        }
+
+    try:
+        user_data = _gh_api("GET", "/user")
+        rate_data = _gh_api("GET", "/rate_limit")
+        core_rate = (rate_data.get("resources") or {}).get("core") or {}
+
+        limit = core_rate.get("limit", 5000)
+        remaining = core_rate.get("remaining", 5000)
+        reset_at = core_rate.get("reset")
+
+        return {
+            "healthy": True,
+            "status": "connected",
+            "user": {
+                "login": user_data.get("login"),
+                "id": user_data.get("id"),
+                "type": user_data.get("type"),
+            },
+            "rate_limit": {
+                "limit": limit,
+                "remaining": remaining,
+                "used": limit - remaining,
+                "reset_at": reset_at,
+            },
+            "connection_via": avail.get("via", "token"),
+            "checked_at": int(time.time()),
+        }
+    except Exception as exc:
+        return {
+            "healthy": False,
+            "status": "error",
+            "message": str(exc),
+            "rate_limit": None,
+            "user": None,
+            "checked_at": int(time.time()),
+        }
+
+
+def rotate_github_token(new_token: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Rotate the GitHub access token and verify its validity (UC263)."""
+    token = (new_token or "").strip()
+    if not token or len(token) < 10:
+        raise ValueError("Valid GitHub personal access token required for rotation")
+
+    os.environ["GH_TOKEN"] = token
+
+    # Check connection with newly rotated token
+    health = check_github_connection_health(project_id=project_id)
+    if not health.get("healthy"):
+        return {
+            "ok": False,
+            "message": f"Token rotated but health check failed: {health.get('message')}",
+            "health": health,
+        }
+
+    return {
+        "ok": True,
+        "message": "GitHub token successfully rotated and verified",
+        "user": (health.get("user") or {}).get("login"),
+        "health": health,
+        "rotated_at": int(time.time()),
+    }
+
+
+
 
 
 
