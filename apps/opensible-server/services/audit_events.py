@@ -96,3 +96,65 @@ def record_audit_event(
             e,
             exc_info=True,
         )
+
+
+def export_audit_logs(
+    project_id: Optional[str] = None,
+    output_format: str = "jsonl",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    action_filter: Optional[str] = None,
+    actor_user_id: Optional[str] = None,
+    limit: int = 1000,
+) -> str:
+    """Export system audit events for SIEM / Security ingestion (UC360)."""
+    import csv
+    import io
+    import json
+    from storage import auth_db
+    from app_context import get_data_dir
+
+    try:
+        data_dir = get_data_dir()
+    except Exception:
+        data_dir = Path("/data") if Path("/data").exists() else Path.cwd() / "data"
+
+    entries = auth_db.list_audit(
+        data_dir,
+        limit=max(1, min(int(limit), 50000)),
+        actor_user_id=actor_user_id,
+        project_id=project_id,
+    )
+
+    # Filter by action, start_time, end_time if provided
+    filtered = []
+    for e in entries:
+        if action_filter and action_filter.lower() not in (e.get("action") or "").lower():
+            continue
+        ts = e.get("created_at") or ""
+        if start_time and ts < start_time:
+            continue
+        if end_time and ts > end_time:
+            continue
+        filtered.append(e)
+
+    fmt = (output_format or "jsonl").strip().lower()
+    if fmt == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["id", "actor_user_id", "action", "target_type", "target_id", "created_at", "meta"])
+        for entry in filtered:
+            writer.writerow([
+                entry.get("id"),
+                entry.get("actor_user_id"),
+                entry.get("action"),
+                entry.get("target_type"),
+                entry.get("target_id"),
+                entry.get("created_at"),
+                json.dumps(entry.get("meta") or {}),
+            ])
+        return output.getvalue()
+
+    # Default to JSONL (standard SIEM format)
+    lines = [json.dumps(entry) for entry in filtered]
+    return "\n".join(lines) + ("\n" if lines else "")

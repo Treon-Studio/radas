@@ -82,3 +82,51 @@ def api_list_audit_log():
     except Exception:
         current_app.logger.error("Error listing audit log", exc_info=True)
         return jsonify({"success": False, "error": "Error reading audit log"}), 500
+
+
+@bp.route("/api/audit/export", methods=["GET"])
+@bp.route("/api/audit-log/export", methods=["GET"])
+@require_auth
+def api_export_audit_logs():
+    from services.audit_events import export_audit_logs
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    if project_id:
+        scoped, error = _project_scope(project_id)
+        if error:
+            return error
+    else:
+        scoped = None
+
+    fmt = (request.args.get("format") or "jsonl").lower()
+    start_time = request.args.get("start_time")
+    end_time = request.args.get("end_time")
+    action_filter = request.args.get("action")
+    actor_user_id = request.args.get("actor_user_id")
+    limit = int(request.args.get("limit", 1000))
+
+    try:
+        content = export_audit_logs(
+            project_id=scoped,
+            output_format=fmt,
+            start_time=start_time,
+            end_time=end_time,
+            action_filter=action_filter,
+            actor_user_id=actor_user_id,
+            limit=limit,
+        )
+        if fmt == "csv":
+            mimetype = "text/csv"
+            filename = "audit-export.csv"
+        else:
+            mimetype = "application/x-ndjson"
+            filename = "audit-export.jsonl"
+
+        return Response(
+            content,
+            mimetype=mimetype,
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except Exception as exc:
+        current_app.logger.error("Error exporting audit log", exc_info=True)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
