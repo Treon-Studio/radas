@@ -1210,6 +1210,60 @@ def test_export_flags_env_api_endpoint(data_dir):
     assert resp_forbidden.status_code == 403
 
 
+def test_can_create_preview_env_flag_configurations(data_dir):
+    org_a, org_b, _ = _seed(data_dir)
+    from services.feature_flag_registry import create_flag, can_create_preview_env
+
+    # 1. Default -> allowed
+    assert can_create_preview_env() is True
+    assert can_create_preview_env(project_id="project-a", preview_name="pr-12") is True
+
+    # 2. block_preview = True -> blocked
+    create_flag({"key": "block_preview", "enabled": True})
+    assert can_create_preview_env() is False
+    assert can_create_preview_env(project_id="project-a", preview_name="pr-12") is False
+
+    # 3. Project-scoped preview.enabled = False
+    from services.feature_flag_registry import update_flag
+    update_flag("block_preview", {"enabled": False})
+    assert can_create_preview_env(project_id="project-a") is True
+
+    create_flag(
+        {"key": "preview.enabled", "enabled": False},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    assert can_create_preview_env(project_id="project-a", org_id=org_a["id"]) is False
+    assert can_create_preview_env(project_id="project-b", org_id=org_b["id"]) is True
+
+    # 4. Specific preview name flag (e.g. preview.pr-99.enabled = False)
+    create_flag({"key": "preview.pr-99.enabled", "enabled": False})
+    assert can_create_preview_env(preview_name="pr-99") is False
+    assert can_create_preview_env(preview_name="pr-100") is True
+
+
+def test_preview_creation_blocked_by_feature_flag(data_dir, tmp_path, monkeypatch):
+    from services import preview_envs
+    from services.feature_flag_registry import create_flag
+    from services import cloud_provisioning as cloud
+
+    # Setup mock base stack directory
+    base_dir = tmp_path / "stacks" / "demo"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    (base_dir / "main.tf").write_text("resource \"null_resource\" \"x\" {}", encoding="utf-8")
+
+    monkeypatch.setattr(cloud, "_stack_dir", lambda pid, name: tmp_path / "stacks" / name)
+    monkeypatch.setattr(cloud, "_create_execution", lambda *args, **kwargs: "exec-preview-1")
+
+    # Block preview creation via flag
+    create_flag({"key": "block_preview", "enabled": True})
+
+    with pytest.raises(ValueError, match=r"(?i)blocked by feature flag"):
+        preview_envs.create(project_id="project-a", base_stack="demo", pr_number=42)
+
+
+
 
 
 

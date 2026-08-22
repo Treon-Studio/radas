@@ -1351,3 +1351,46 @@ def get_ui_flags(scope_type: str = "global", scope_id: Optional[str] = None,
             ui_flags[key] = bool(evaluation.get("enabled", False))
     return ui_flags
 
+
+def can_create_preview_env(project_id: Optional[str] = None, preview_name: str = "",
+                           env: str = "preview", user_id: str = "",
+                           org_id: Optional[str] = None) -> bool:
+    """Check if preview environment / stack creation is permitted by feature flags (UC157).
+
+    Evaluates:
+    - `block_preview`: if enabled -> False
+    - `preview.allow`: if configured and False -> False
+    - `preview.enabled`: if configured and False -> False
+    - `preview.<preview_name>.enabled`: if configured and False -> False
+
+    Defaults to True if no preview restriction flag is configured.
+    """
+    # 1. Check block_preview kill switch
+    res_block = evaluate("block_preview", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_block.get("enabled") is True:
+        return False
+
+    # 2. Check preview.enabled
+    res_enabled = evaluate("preview.enabled", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_enabled.get("source") != "legacy-global" or res_enabled.get("reason") != "unknown_flag":
+        if res_enabled.get("enabled") is False:
+            return False
+
+    # 3. Check preview.allow
+    res_allow = evaluate("preview.allow", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_allow.get("source") != "legacy-global" or res_allow.get("reason") != "unknown_flag":
+        if res_allow.get("enabled") is False:
+            return False
+
+    # 4. Check specific preview name flag if provided (e.g. preview.<preview_name>.enabled)
+    if preview_name:
+        clean_name = str(preview_name).strip().lower()
+        if clean_name:
+            res_spec = evaluate(f"preview.{clean_name}.enabled", env=env, user=user_id, project_id=project_id, org_id=org_id)
+            if res_spec.get("source") != "legacy-global" or res_spec.get("reason") != "unknown_flag":
+                if res_spec.get("enabled") is False:
+                    return False
+
+    return True
+
+

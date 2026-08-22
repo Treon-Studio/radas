@@ -108,6 +108,10 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
     if not src.exists():
         raise ValueError(f"Base stack '{base_stack}' not found")
 
+    from services.feature_flag_registry import can_create_preview_env
+    if not can_create_preview_env(project_id=project_id, preview_name=name, env="preview"):
+        raise ValueError(f"Preview environment creation is blocked by feature flag for '{name}'")
+
     # Clone workspace dir (envs/<name>) into envs/pr-<n>.
     shutil.copytree(src, dst, dirs_exist_ok=True)
     # Clone control-plane data dir (meta/secrets/snapshots) too.

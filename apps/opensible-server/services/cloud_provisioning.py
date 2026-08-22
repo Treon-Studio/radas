@@ -768,6 +768,25 @@ def stacks_create():
     if _stack_dir(pid, name).exists():
         return jsonify({"error": f"Stack '{name}' already exists."}), 409
 
+    # Preview environment feature flag gate (UC157)
+    _stack_env = (values.get("env") or "").strip().lower()
+    if _stack_env == "preview" or name.startswith("pr-") or name.startswith("preview-") or name.startswith("preview"):
+        try:
+            from services.feature_flag_registry import can_create_preview_env
+            _cu = getattr(request, "current_user", {}) or {}
+            _user = (_cu.get("username") or "")
+            _org_id = None
+            if pid:
+                try:
+                    from auth.middleware import _org_id_of_project
+                    _org_id = _org_id_of_project(pid)
+                except Exception:
+                    pass
+            if not can_create_preview_env(project_id=pid, preview_name=name, env=_stack_env or "preview", user_id=_user, org_id=_org_id):
+                return jsonify({"error": f"Preview environment creation is blocked by feature flag policy for '{name}'."}), 423
+        except Exception:
+            pass
+
     # ByteDC-specific network reuse validation.
     if provider == "bytedc":
         _apply_reuse_toggles(values)
