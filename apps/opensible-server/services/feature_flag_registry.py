@@ -14,6 +14,42 @@ _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 _EVALUATION_CACHE: Dict[Tuple[str, str, str, Optional[str], Optional[str]], Tuple[float, Dict[str, Any]]] = {}
 
 
+def _dispatch_flag_notification(
+    event_type: str,
+    key: Any,
+    operation: str,
+    actor: str = "",
+    actor_name: str = "",
+    scope_type: str = "global",
+    scope_id: Optional[str] = None,
+    changes: Optional[Dict[str, Any]] = None,
+    flag: Optional[Dict[str, Any]] = None,
+    **extra: Any,
+) -> None:
+    """Safely attempt to record notification to notification system for team awareness."""
+    try:
+        from services import notification_service
+        # Non-blocking notification dispatch
+        payload = {
+            "event": event_type,
+            "key": key,
+            "operation": operation,
+            "actor": actor or "system",
+            "actor_name": actor_name or "",
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "changes": changes,
+            "flag": flag,
+            "timestamp": int(time.time()),
+            **extra,
+        }
+        if hasattr(notification_service, "dispatch_event"):
+            notification_service.dispatch_event(event_type, payload)
+    except Exception:
+        # Non-blocking: never raise exceptions or fail flag operations
+        pass
+
+
 def _dispatch_flag_webhook(
     event_type: str,
     key: Any,
@@ -26,7 +62,20 @@ def _dispatch_flag_webhook(
     flag: Optional[Dict[str, Any]] = None,
     **extra: Any,
 ) -> None:
-    """Safely dispatch outbound webhooks on feature flag mutations."""
+    """Safely dispatch outbound webhooks and team notifications on feature flag mutations."""
+    # First trigger team notification
+    _dispatch_flag_notification(
+        event_type=event_type,
+        key=key,
+        operation=operation,
+        actor=actor,
+        actor_name=actor_name,
+        scope_type=scope_type,
+        scope_id=scope_id,
+        changes=changes,
+        flag=flag,
+        **extra,
+    )
     try:
         from services import webhook_dispatcher
         payload = {

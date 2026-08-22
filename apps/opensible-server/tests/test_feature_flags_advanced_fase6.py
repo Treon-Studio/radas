@@ -980,6 +980,105 @@ def test_get_ui_flags_api_route(data_dir):
     assert data_proj["scope_id"] == "project-a"
 
 
+def test_team_notification_dispatched_on_flag_mutations(monkeypatch, data_dir):
+    from services.feature_flag_registry import (
+        archive_flag,
+        copy_flag,
+        create_flag,
+        delete_flag,
+        rollback_flag,
+        update_flag,
+    )
+    import services.feature_flag_registry as registry
+
+    notifications = []
+
+    def mock_dispatch_notification(event_type, key, operation, actor="", actor_name="", scope_type="global", scope_id=None, changes=None, flag=None, **extra):
+        notifications.append({
+            "event_type": event_type,
+            "key": key,
+            "operation": operation,
+            "actor": actor,
+            "actor_name": actor_name,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "changes": changes,
+            "flag": flag,
+            "extra": extra,
+        })
+
+    monkeypatch.setattr(registry, "_dispatch_flag_notification", mock_dispatch_notification)
+
+    # 1. Update flag
+    create_flag({"key": "notif.team.flag", "rollout_percent": 10}, actor="alice", actor_name="Alice")
+    notifications.clear()
+
+    update_flag("notif.team.flag", {"rollout_percent": 80}, actor="bob", actor_name="Bob")
+    assert len(notifications) >= 1
+    upd_notif = notifications[-1]
+    assert upd_notif["key"] == "notif.team.flag"
+    assert upd_notif["operation"] == "update"
+    assert upd_notif["actor"] == "bob"
+    assert upd_notif["actor_name"] == "Bob"
+    assert upd_notif["changes"]["rollout_percent"] == {"before": 10, "after": 80}
+
+    # 2. Rollback flag
+    notifications.clear()
+    rollback_flag("notif.team.flag", steps=1, actor="carol", actor_name="Carol")
+    assert len(notifications) >= 1
+    rb_notif = notifications[-1]
+    assert rb_notif["operation"] == "rollback"
+    assert rb_notif["actor"] == "carol"
+    assert rb_notif["actor_name"] == "Carol"
+
+    # 3. Copy flag
+    notifications.clear()
+    copy_flag("notif.team.flag", "notif.team.cloned", actor="dave", actor_name="Dave")
+    assert len(notifications) >= 1
+    cp_notif = notifications[-1]
+    assert cp_notif["operation"] == "copy"
+    assert cp_notif["key"] == "notif.team.cloned"
+    assert cp_notif["actor"] == "dave"
+
+    # 4. Archive flag
+    notifications.clear()
+    archive_flag("notif.team.flag", actor="eve", actor_name="Eve", reason="decommissioned")
+    assert len(notifications) >= 1
+    arch_notif = notifications[-1]
+    assert arch_notif["operation"] == "archive"
+    assert arch_notif["actor"] == "eve"
+
+    # 5. Delete flag
+    notifications.clear()
+    delete_flag("notif.team.flag", actor="frank", actor_name="Frank")
+    assert len(notifications) >= 1
+    del_notif = notifications[-1]
+    assert del_notif["operation"] == "delete"
+    assert del_notif["actor"] == "frank"
+
+
+def test_notification_dispatch_failure_does_not_break_flag_operations(monkeypatch, data_dir):
+    from services.feature_flag_registry import create_flag, delete_flag, archive_flag, update_flag
+    import services.notification_service as notif_service
+
+    def faulty_notify(*args, **kwargs):
+        raise RuntimeError("Notification broker connection failed!")
+
+    monkeypatch.setattr(notif_service, "dispatch_event", faulty_notify)
+
+    # Flag operations should not crash or raise exceptions
+    create_flag({"key": "notif.faulty.flag", "rollout_percent": 50}, actor="admin")
+    updated = update_flag("notif.faulty.flag", {"rollout_percent": 100}, actor="admin")
+    assert updated["rollout_percent"] == 100
+
+    archived = archive_flag("notif.faulty.flag", actor="admin")
+    assert archived["archived"] is True
+
+    deleted = delete_flag("notif.faulty.flag", actor="admin")
+    assert deleted is True
+
+
+
 
 
 
