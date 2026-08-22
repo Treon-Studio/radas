@@ -1,6 +1,6 @@
 """Tests for Competitor Parity & BYOC Extended Fase 6.
 
-UC312: Backup BYOC Config (Encrypted JSON Export & Restore).
+UC312, UC320, UC323.
 """
 from __future__ import annotations
 
@@ -155,3 +155,68 @@ def test_api_unmanaged_resources_endpoint(data_dir, monkeypatch):
     data = resp.get_json()
     assert data["unmanaged_count"] == 2
     assert data["coverage_percentage"] == 60.0
+
+
+def test_resource_delete_protection(data_dir):
+    """UC323: Resource delete protection configuration and inspection."""
+    from services import cloud_provisioning
+
+    proj = "proj-protect"
+    stk = "prod-db-stack"
+
+    # Set protected resources
+    res = cloud_provisioning.set_resource_protection(
+        proj, stk, ["aws_db_instance.main", "aws_ebs_volume.data"]
+    )
+    assert res["ok"] is True
+    assert res["protected_count"] == 2
+    assert "aws_db_instance.main" in res["protected_resources"]
+
+    # Get protected resources
+    inspect = cloud_provisioning.get_resource_protection(proj, stk)
+    assert inspect["protected_count"] == 2
+    assert "aws_ebs_volume.data" in inspect["protected_resources"]
+
+
+def test_api_resource_protection_endpoints(data_dir, monkeypatch):
+    """UC323: GET & POST /api/cloud-provisioning/stacks/<stack>/protection."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-prot"
+    proj_id = "proj-prot-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "Prot Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "Prot Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. Set protection
+    resp_set = client.post(
+        "/api/cloud-provisioning/stacks/app-stack/protection",
+        json={"protected_resources": ["hcloud_server.primary"]},
+        headers=headers,
+    )
+    assert resp_set.status_code == 200
+    assert resp_set.get_json()["protected_count"] == 1
+
+    # 2. Get protection
+    resp_get = client.get(
+        "/api/cloud-provisioning/stacks/app-stack/protection",
+        headers=headers,
+    )
+    assert resp_get.status_code == 200
+    assert resp_get.get_json()["protected_resources"] == ["hcloud_server.primary"]

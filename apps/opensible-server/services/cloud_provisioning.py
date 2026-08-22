@@ -1713,6 +1713,72 @@ def stacks_state(name):
     })
 
 
+# ---------------------------------------------------------------------------
+# UC323: Resource Delete Protection
+# ---------------------------------------------------------------------------
+
+def set_resource_protection(project_id: Optional[str], stack: str, protected_resources: List[str]) -> Dict[str, Any]:
+    """Configure delete protection on critical resources within a stack (UC323)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    clean_resources = sorted({str(r).strip() for r in (protected_resources or []) if str(r).strip()})
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["protected_resources"] = clean_resources
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "protected_count": len(clean_resources),
+        "protected_resources": clean_resources,
+    }
+
+
+def get_resource_protection(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve list of delete-protected resources for a stack (UC323)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = _load_meta(project_id, stack_name)
+    protected = list(meta.get("protected_resources") or [])
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "protected_count": len(protected),
+        "protected_resources": protected,
+    }
+
+
+@bp.route("/stacks/<name>/protection", methods=["GET"])
+@require_project_access
+def api_get_resource_protection(name: str):
+    pid = _get_project_id()
+    try:
+        res = get_resource_protection(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/protection", methods=["POST", "PUT"])
+@require_project_access
+def api_set_resource_protection(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    resources = data.get("protected_resources") or data.get("resources") or []
+    try:
+        res = set_resource_protection(pid, name, resources)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
+
 
 
 # ---------------------------------------------------------------------------
