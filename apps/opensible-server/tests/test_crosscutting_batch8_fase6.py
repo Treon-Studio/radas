@@ -127,3 +127,30 @@ def test_trace_context_propagation():
     auto_tid = resp_auto.headers.get("X-Trace-Id")
     assert auto_tid.startswith("trc-")
     assert resp_auto.get_json()["trace_id"] == auto_tid
+
+
+def test_prometheus_metrics_generation():
+    """UC464: Generate prometheus metrics formatted string."""
+    from services.metrics_exporter import generate_prometheus_metrics
+
+    metrics = generate_prometheus_metrics()
+    assert "radas_server_up 1" in metrics
+    assert "radas_provisioning_stacks_total" in metrics
+    assert "radas_byoc_connected_accounts_total" in metrics
+    assert "radas_feature_flags_total" in metrics
+
+
+def test_api_metrics_endpoint():
+    """UC464: GET /api/metrics endpoint."""
+    import flask
+    from api.metrics_routes import bp
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get("/api/metrics")
+    assert resp.status_code == 200
+    assert "text/plain" in resp.content_type
+    assert "radas_server_up 1" in resp.get_data(as_text=True)
