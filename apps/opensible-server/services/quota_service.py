@@ -1,10 +1,39 @@
 """Per-project quota & limits (Fase 2 — UC 69)."""
 from __future__ import annotations
 
-import json
+import math
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Upper bound for max_concurrent_runs; anything beyond is almost certainly a
+# mis-paste or injection and should be rejected at the API layer.
+_MAX_CONCURRENT_RUNS_LIMIT = 1_000_000
+
+
+def _validate_concurrent_runs(value) -> int:
+    """Return a non-negative int or raise ValueError for unsafe inputs.
+
+    Rejects: NaN, ±Inf, negative numbers, non-numeric strings, and values
+    exceeding _MAX_CONCURRENT_RUNS_LIMIT.
+    """
+    if value is None or value == "" or value is False or value is True:
+        return 0
+    try:
+        # Accept strings/floats but require a finite number.
+        as_float = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"max_concurrent_runs must be a number, got {value!r}")
+    if not math.isfinite(as_float):
+        raise ValueError(f"max_concurrent_runs must be finite, got {value!r}")
+    as_int = int(as_float)
+    if as_int < 0:
+        raise ValueError(f"max_concurrent_runs must be >= 0, got {value!r}")
+    if as_int > _MAX_CONCURRENT_RUNS_LIMIT:
+        raise ValueError(
+            f"max_concurrent_runs exceeds maximum allowed value of {_MAX_CONCURRENT_RUNS_LIMIT}"
+        )
+    return as_int
 
 
 def _store_path() -> Path:
@@ -36,7 +65,7 @@ def save_quota(project_id: str, max_stacks: int, max_vms: int, max_cost_monthly:
         "max_stacks": max(0, int(max_stacks)),
         "max_vms": max(0, int(max_vms)),
         "max_cost_monthly": max(0.0, float(max_cost_monthly)),
-        "max_concurrent_runs": max(0, int(max_concurrent_runs)),
+        "max_concurrent_runs": _validate_concurrent_runs(max_concurrent_runs),
         "updated_at": time.time(),
     }
     from storage import kv

@@ -621,6 +621,11 @@ _V20_DDL: List[str] = [
 ]
 
 # Version 21 — organization-private OpenTofu module registry.
+_V22_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS project_admission_leases (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, reference_id TEXT NOT NULL, worker_id TEXT, status TEXT NOT NULL, lease_until REAL, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE(kind, reference_id))""",
+    """CREATE INDEX IF NOT EXISTS project_admission_leases_project_active_idx ON project_admission_leases(project_id, status, lease_until)""",
+]
+
 _V21_DDL: List[str] = [
     """CREATE TABLE IF NOT EXISTS tofu_modules (
         id TEXT PRIMARY KEY,
@@ -655,7 +660,7 @@ MIGRATIONS = (
     (6, _V6_DDL), (7, _V7_DDL), (8, _V8_DDL), (9, _V9_DDL), (10, _V10_DDL),
     (11, _V11_DDL), (12, _V12_DDL), (13, _V13_DDL), (14, _V14_DDL),
     (15, _V15_DDL), (16, _V16_DDL), (17, _V17_DDL), (18, _V18_DDL),
-    (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL),
+    (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL), (22, _V22_DDL),
 )
 
 

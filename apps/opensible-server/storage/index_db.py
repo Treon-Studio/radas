@@ -254,6 +254,12 @@ def prune_stale_running_for_worker(
                             except Exception:
                                 pass
                             upsert_execution_location(exec_id, proj_id, "FAILED", worker_id, now)
+                            try:
+                                from storage import pg as _pg, project_admission as _pa
+                                with _pg.transaction() as conn:
+                                    _pa.release(conn, reference_id=exec_id)
+                            except Exception as release_e:
+                                logger.warning("failed to release admission lease for orphan %s: %s", exec_id, release_e)
                 except Exception as e:
                     logger.warning("failed to mark orphan RUNNING execution %s as FAILED: %s", exec_id, e)
             remove_running_execution(exec_id)

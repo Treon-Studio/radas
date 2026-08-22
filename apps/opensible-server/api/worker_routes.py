@@ -448,6 +448,31 @@ def api_worker_execution_finish(execution_id):
         except Exception as e:
             current_app.logger.warning(f"Failed to release admission lease for {execution_id}: {e}")
 
+        # Release project lock and remote state lock for mutating TOFU_RUNs (UC331, UC373)
+        try:
+            run_params = execution.get('runParams') or {}
+            if run_params.get('execution_type') == 'TOFU_RUN':
+                action = run_params.get('tofu_action')
+                if action in ('apply', 'destroy', 'refresh', 'rollback', 'strip'):
+                    from services import project_lock
+                    project_lock.release(project_id)
+
+                    try:
+                        from services import remote_state_lock
+                        from services.cloud_state import read_backend_config
+                        from services.cloud_provisioning import _stack_dir
+                        stack = run_params.get('stack_name')
+                        if stack:
+                            bc = read_backend_config(_stack_dir(project_id, stack))
+                            if bc.get("backend_type") not in ("local", None):
+                                backend_type = bc.get("backend_type")
+                                backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{stack}.tfstate"
+                                remote_state_lock.release(stack, backend_type, backend_key)
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to release remote state lock for {execution_id}: {e}")
+        except Exception as e:
+            current_app.logger.warning(f"Failed to release project/remote lock for {execution_id}: {e}")
+
         if (execution.get('runParams') or {}).get('execution_type') == 'TOFU_RUN':
             from services.audit_events import record_audit_event
             run_params = execution.get('runParams') or {}

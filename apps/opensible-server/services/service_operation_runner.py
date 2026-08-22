@@ -208,14 +208,13 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
     lease_seconds = max(10.0, min(float(lease_seconds), 3600.0))
     with pg.transaction() as conn:
         if project_id:
-            conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"radas.service_ops.concurrency:{project_id}",))
             from services.quota_service import get_quota
+            from storage import project_admission
             quota = get_quota(project_id) or {}
             limit = int(quota.get("max_concurrent_runs") or 0)
-            if limit > 0:
-                running = conn.execute("SELECT COUNT(*) AS count FROM service_operations WHERE project_id=%s AND status='running'", (project_id,)).fetchone()
-                if int(running["count"] or 0) >= limit:
-                    return None
+            conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (project_admission.LOCK_PREFIX + project_id,))
+            project_admission.reclaim_expired(conn, project_id)
+            conn.execute("DELETE FROM project_admission_leases WHERE kind='service_operation' AND reference_id NOT IN (SELECT id::text FROM service_operations WHERE status='running')")
         _reclaim_expired(conn, project_id=project_id)
         clauses = ["status = 'queued'"]
         params: list[Any] = []
@@ -230,6 +229,12 @@ def claim_next_operation(worker_id: str, *, project_id: str | None = None,
             return None
         now = time.time()
         lease_token = str(uuid.uuid4())
+        if project_id:
+            from services import quota_service
+            from storage import project_admission
+            admission = project_admission.admit(conn, project_id, limit=int((quota_service.get_quota(project_id) or {}).get("max_concurrent_runs") or 0), kind="service_operation", reference_id=str(row["id"]), worker_id=worker_id, lease_until=now + lease_seconds)
+            if admission is None:
+                return None
         updated = conn.execute(
             "UPDATE service_operations SET status='running', worker_id=%s, lease_token=%s, heartbeat_at=%s, "
             "lease_until=%s, attempt=COALESCE(attempt,0)+1, started_at=COALESCE(started_at,%s) "
@@ -437,6 +442,8 @@ def finish_operation(operation_id: str, worker_id: str, *, success: bool,
             latest = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
             return _finish_return(latest or row, False, _with_outcome)
         conn.execute("RELEASE SAVEPOINT finish_instance")
+        from storage import project_admission
+        project_admission.release(conn, reference_id=operation_id)
         _event_tx(conn, operation_id, final_status, details={"result": safe_result} if success else {"error_code": safe_code})
     finished = service_operations.get_operation(str(row["project_id"]), operation_id, internal_context=context)
     return _finish_return(finished, True, _with_outcome)
@@ -467,6 +474,8 @@ def cancel_operation(project_id: str, operation_id: str, *, actor_id: str | None
         ).fetchone()
         if not updated:
             updated = conn.execute("SELECT * FROM service_operations WHERE id=%s", (operation_id,)).fetchone()
+        from storage import project_admission
+        project_admission.release(conn, reference_id=operation_id)
         _event_tx(conn, operation_id, "canceled", message="operation canceled")
         service_operations._audit_lifecycle(
             conn, "service.operation.canceled", actor_id=actor_id,
