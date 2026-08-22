@@ -220,3 +220,65 @@ def test_api_resource_protection_endpoints(data_dir, monkeypatch):
     )
     assert resp_get.status_code == 200
     assert resp_get.get_json()["protected_resources"] == ["hcloud_server.primary"]
+
+
+def test_execution_comments(data_dir):
+    """UC333: Add and list comments on execution runs."""
+    from services import cloud_provisioning
+
+    eid = "exec-test-123"
+    proj = "proj-comments"
+
+    # Add comment 1
+    c1 = cloud_provisioning.add_execution_comment(proj, eid, "Plan looked clean, ready to apply", author="alice")
+    assert c1["execution_id"] == eid
+    assert c1["author"] == "alice"
+    assert c1["comment"] == "Plan looked clean, ready to apply"
+
+    # Add comment 2
+    c2 = cloud_provisioning.add_execution_comment(proj, eid, "Approved by security team", author="bob")
+    assert c2["author"] == "bob"
+
+    # List comments
+    comments = cloud_provisioning.list_execution_comments(proj, eid)
+    assert len(comments) == 2
+    assert comments[0]["author"] == "alice"
+    assert comments[1]["author"] == "bob"
+
+
+def test_api_execution_comments_endpoints(data_dir):
+    """UC333: GET and POST /api/cloud-provisioning/executions/<execution_id>/comments."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+
+    token = generate_token("u1", "charlie", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. POST comment
+    resp_post = client.post(
+        "/api/cloud-provisioning/executions/exec-api-99/comments",
+        json={"comment": "Rollback initiated due to timeout"},
+        headers=headers,
+    )
+    assert resp_post.status_code == 201
+    assert resp_post.get_json()["comment"] == "Rollback initiated due to timeout"
+
+    # 2. GET comments
+    resp_get = client.get(
+        "/api/cloud-provisioning/executions/exec-api-99/comments",
+        headers=headers,
+    )
+    assert resp_get.status_code == 200
+    data = resp_get.get_json()
+    assert data["count"] == 1
+    assert data["comments"][0]["comment"] == "Rollback initiated due to timeout"

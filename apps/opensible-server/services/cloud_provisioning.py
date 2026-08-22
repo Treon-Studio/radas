@@ -1777,6 +1777,87 @@ def api_set_resource_protection(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC333: Run Execution History Comments
+# ---------------------------------------------------------------------------
+
+def add_execution_comment(project_id: Optional[str], execution_id: str, comment: str, author: str = "system") -> Dict[str, Any]:
+    """Add a collaborative comment/note to an execution run (UC333)."""
+    eid = (execution_id or "").strip()
+    text = (comment or "").strip()
+    if not eid or not text:
+        raise ValueError("execution_id and comment text required")
+
+    from storage import pg
+    now = int(time.time())
+    comment_id = str(uuid.uuid4())
+    payload = {
+        "id": comment_id,
+        "execution_id": eid,
+        "project_id": project_id or "default",
+        "comment": text,
+        "author": author or "system",
+        "created_at": now,
+    }
+
+    pg.execute(
+        "INSERT INTO kv_store (scope, key, value) VALUES (%s, %s, %s) "
+        "ON CONFLICT (scope, key) DO UPDATE SET value = EXCLUDED.value",
+        (f"execution_comments:{eid}", comment_id, json.dumps(payload))
+    )
+
+    return payload
+
+
+def list_execution_comments(project_id: Optional[str], execution_id: str) -> List[Dict[str, Any]]:
+    """List all collaborative comments on an execution run (UC333)."""
+    eid = (execution_id or "").strip()
+    if not eid:
+        raise ValueError("execution_id required")
+
+    from storage import pg
+    rows = pg.query_all("SELECT value FROM kv_store WHERE scope = %s", (f"execution_comments:{eid}",))
+    comments = []
+    for r in rows:
+        val = r.get("value")
+        if isinstance(val, str):
+            try:
+                val = json.loads(val)
+            except Exception:
+                continue
+        if isinstance(val, dict):
+            comments.append(val)
+
+    comments.sort(key=lambda c: c.get("created_at", 0))
+    return comments
+
+
+@bp.route("/executions/<execution_id>/comments", methods=["GET"])
+@require_auth
+def api_list_execution_comments(execution_id: str):
+    pid = _get_project_id()
+    try:
+        res = list_execution_comments(pid, execution_id)
+        return jsonify({"execution_id": execution_id, "count": len(res), "comments": res}), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/executions/<execution_id>/comments", methods=["POST"])
+@require_auth
+def api_add_execution_comment(execution_id: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    text = data.get("comment") or data.get("text") or ""
+    author = (getattr(request, "current_user", {}) or {}).get("username") or data.get("author") or "user"
+    try:
+        res = add_execution_comment(pid, execution_id, comment=text, author=author)
+        return jsonify(res), 201
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
