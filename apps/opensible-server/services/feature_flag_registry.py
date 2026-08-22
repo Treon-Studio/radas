@@ -20,6 +20,7 @@ def _history_key(scope_type: str, scope_id: Optional[str]) -> str:
 
 def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> None:
     from storage import kv
+    entry.setdefault("id", str(uuid.uuid4()))
     rows = kv.kv_get(_history_key(scope_type, scope_id), "entries") or []
     rows = (rows if isinstance(rows, list) else [])[-999:] + [entry]
     kv.kv_set(_history_key(scope_type, scope_id), "entries", rows)
@@ -28,6 +29,7 @@ def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[s
 def _append_history_tx(conn: Any, entry: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> None:
     """Append audit history on the caller's transaction connection."""
     from storage import kv
+    entry.setdefault("id", str(uuid.uuid4()))
     scope = _history_key(scope_type, scope_id)
     row = conn.execute("SELECT value FROM kv_store WHERE scope = %s AND key = %s", (scope, "entries")).fetchone()
     current = row["value"] if isinstance(row, dict) else (row[0] if row else None)
@@ -617,6 +619,56 @@ def restore_flag(key: str, scope_type: str = "global", scope_id: Optional[str] =
                  actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     return update_flag(key, {"enabled": False, "archived": False}, scope_type, scope_id,
                        actor=actor, actor_name=actor_name, operation="restore", org_id=org_id)
+
+
+def rollback_flag(key: str, snapshot_id: Optional[str] = None, steps: int = 1,
+                  scope_type: str = "global", scope_id: Optional[str] = None,
+                  actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Roll back a feature flag to a prior snapshot or N steps back in audit history."""
+    try:
+        key = _normalize_key(key)
+    except ValueError:
+        raise ValueError(f"Invalid flag key '{key}'")
+
+    current = get_flag(key, scope_type, scope_id)
+    if not current:
+        raise ValueError(f"Flag '{key}' not found")
+
+    rows = audit(scope_type, scope_id, key=key, limit=500)
+
+    if snapshot_id is not None:
+        matching = None
+        for row in rows:
+            if (row.get("id") == snapshot_id
+                    or row.get("snapshot_id") == snapshot_id
+                    or str(row.get("at")) == snapshot_id
+                    or row.get("batch_id") == snapshot_id
+                    or (isinstance(row.get("after"), dict) and row["after"].get("id") == snapshot_id)
+                    or (isinstance(row.get("before"), dict) and row["before"].get("id") == snapshot_id)):
+                matching = row
+                break
+        if not matching:
+            raise ValueError(f"Snapshot '{snapshot_id}' not found for flag '{key}'")
+        target_state = matching.get("after") if matching.get("operation") != "delete" else matching.get("before")
+        if not target_state:
+            target_state = matching.get("before")
+        if not target_state:
+            raise ValueError(f"Snapshot '{snapshot_id}' contains no valid state")
+    else:
+        try:
+            steps_int = int(steps)
+        except (TypeError, ValueError):
+            raise ValueError("steps must be an integer")
+        if steps_int < 1:
+            raise ValueError("steps must be at least 1")
+        prior_states = [row["before"] for row in rows if row.get("before")]
+        if not prior_states:
+            raise ValueError(f"No previous version found to rollback for flag '{key}'")
+        if steps_int > len(prior_states):
+            raise ValueError(f"Cannot rollback {steps_int} steps: only {len(prior_states)} prior versions available")
+        target_state = prior_states[steps_int - 1]
+
+    return update_flag(key, target_state, scope_type, scope_id, actor=actor, actor_name=actor_name, operation="rollback", org_id=org_id)
 
 
 def _is_registry_global_key(key: str) -> bool:

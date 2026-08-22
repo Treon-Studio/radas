@@ -11,7 +11,7 @@ except ImportError:
 
 from services.feature_flag_registry import (
     archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags,
-    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags,
+    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag,
 )
 
 bp = Blueprint("feature_flag_api", __name__)
@@ -432,10 +432,31 @@ def api_flag_rollback(key):
     if error:
         return error
     scope_type, scope_id, org_id = context
-    rows = audit(scope_type, scope_id, key, 50)
-    previous = next((row.get("before") for row in rows if row.get("before")), None)
-    if not previous:
-        return jsonify({"error": "no previous version"}), 404
+    snapshot_id = data.get("snapshot_id")
+    steps = data.get("steps", 1)
+    try:
+        steps = int(steps)
+    except (TypeError, ValueError):
+        return jsonify({"error": "steps must be an integer"}), 400
+
+    rows = audit(scope_type, scope_id, key, 500)
+    if snapshot_id is not None:
+        matching = next((r for r in rows if r.get("id") == snapshot_id or r.get("snapshot_id") == snapshot_id or str(r.get("at")) == snapshot_id or r.get("batch_id") == snapshot_id or (isinstance(r.get("after"), dict) and r["after"].get("id") == snapshot_id) or (isinstance(r.get("before"), dict) and r["before"].get("id") == snapshot_id)), None)
+        if not matching:
+            return jsonify({"error": f"Snapshot '{snapshot_id}' not found"}), 404
+        previous = matching.get("after") if matching.get("operation") != "delete" else matching.get("before")
+        if not previous:
+            previous = matching.get("before")
+        if not previous:
+            return jsonify({"error": "snapshot contains no state"}), 404
+    else:
+        prior_states = [row["before"] for row in rows if row.get("before")]
+        if not prior_states:
+            return jsonify({"error": "no previous version"}), 404
+        if steps < 1 or steps > len(prior_states):
+            return jsonify({"error": f"Cannot rollback {steps} steps: only {len(prior_states)} prior versions available"}), 400
+        previous = prior_states[steps - 1]
+
     actor_id, actor_name = _actor()
     try:
         restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback", org_id=org_id)
