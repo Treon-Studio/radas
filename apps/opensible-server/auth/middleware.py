@@ -432,3 +432,36 @@ def idempotent_mutation(scope_fn: Optional[Callable[..., str]] = None):
         return decorated_function
     return decorator
 
+
+# ---------------------------------------------------------------------------
+# UC456: Strict CORS Origin Whitelisting
+# ---------------------------------------------------------------------------
+
+_DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
+]
+
+
+def is_allowed_cors_origin(origin: Optional[str], custom_whitelist: Optional[List[str]] = None) -> bool:
+    """Validate if request Origin is within strict whitelist (UC456)."""
+    if not origin:
+        return False
+
+    clean_origin = str(origin).strip().rstrip("/")
+    whitelist = list(custom_whitelist or []) if custom_whitelist is not None else list(_DEFAULT_ALLOWED_ORIGINS)
+
+    # Check env var ALLOWED_ORIGINS as well
+    env_origins = os.environ.get("ALLOWED_ORIGINS", "")
+    if env_origins:
+        for o in env_origins.split(","):
+            if o.strip():
+                whitelist.append(o.strip().rstrip("/"))
+
+    return clean_origin in whitelist or "*" in whitelist
+
+
