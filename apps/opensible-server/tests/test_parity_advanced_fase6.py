@@ -359,3 +359,89 @@ def test_api_dependency_graph_endpoints(data_dir, monkeypatch):
     )
     assert resp_graph.status_code == 200
     assert "graph" in resp_graph.get_json()
+
+
+def test_stack_ttl_and_auto_destroy(data_dir, monkeypatch):
+    """UC357: Configure TTL on a stack and detect expired stacks for auto-destroy."""
+    from services import cloud_provisioning
+
+    proj = "proj-ttl"
+    stk = "ephemeral-preview"
+
+    # Set TTL 3600 seconds
+    res_set = cloud_provisioning.set_stack_ttl(proj, stk, ttl_seconds=3600, auto_destroy=True)
+    assert res_set["ok"] is True
+    assert res_set["ttl_seconds"] == 3600
+    assert res_set["auto_destroy"] is True
+
+    # Get TTL status (active)
+    status_active = cloud_provisioning.get_stack_ttl(proj, stk)
+    assert status_active["ttl_configured"] is True
+    assert status_active["is_expired"] is False
+    assert status_active["status"] == "active"
+
+    # Mock expired timestamp
+    monkeypatch.setattr(cloud_provisioning, "_list_stacks", lambda pid: [{"name": stk}])
+    monkeypatch.setattr(cloud_provisioning, "time", type("MockTime", (), {"time": staticmethod(lambda: res_set["expires_at"] + 10)}))
+
+    status_expired = cloud_provisioning.get_stack_ttl(proj, stk)
+    assert status_expired["is_expired"] is True
+    assert status_expired["status"] == "expired"
+
+    # Check expired stacks list
+    expired_list = cloud_provisioning.check_expired_ttl_stacks(proj)
+    assert len(expired_list) == 1
+    assert expired_list[0]["stack"] == stk
+    assert expired_list[0]["action_required"] == "auto_destroy"
+
+
+def test_api_stack_ttl_endpoints(data_dir, monkeypatch):
+    """UC357: GET & POST /api/cloud-provisioning/stacks/<stack>/ttl."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-ttl"
+    proj_id = "proj-ttl-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "TTL Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "TTL Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. POST TTL
+    resp_post = client.post(
+        "/api/cloud-provisioning/stacks/preview-pr123/ttl",
+        json={"ttl_seconds": 7200, "auto_destroy": True},
+        headers=headers,
+    )
+    assert resp_post.status_code == 200
+    assert resp_post.get_json()["ttl_seconds"] == 7200
+
+    # 2. GET TTL
+    resp_get = client.get(
+        "/api/cloud-provisioning/stacks/preview-pr123/ttl",
+        headers=headers,
+    )
+    assert resp_get.status_code == 200
+    assert resp_get.get_json()["ttl_configured"] is True
+
+    # 3. GET Expired list
+    resp_exp = client.get(
+        "/api/cloud-provisioning/stacks/ttl/expired",
+        headers=headers,
+    )
+    assert resp_exp.status_code == 200
+    assert "stacks" in resp_exp.get_json()

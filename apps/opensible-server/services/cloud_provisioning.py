@@ -1980,6 +1980,140 @@ def api_set_stack_dependencies(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC357: Environment TTL (Auto-Destroy Scheduling & Expiration Check)
+# ---------------------------------------------------------------------------
+
+def set_stack_ttl(
+    project_id: Optional[str],
+    stack: str,
+    ttl_seconds: int,
+    auto_destroy: bool = True,
+) -> Dict[str, Any]:
+    """Set Time-to-Live on a stack/environment for scheduled auto-destroy (UC357)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    sec = int(ttl_seconds)
+    if sec <= 0:
+        raise ValueError("ttl_seconds must be positive integer")
+
+    now = int(time.time())
+    expires_at = now + sec
+
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["ttl"] = {
+        "ttl_seconds": sec,
+        "set_at": now,
+        "expires_at": expires_at,
+        "auto_destroy": bool(auto_destroy),
+        "status": "active",
+    }
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "ttl_seconds": sec,
+        "set_at": now,
+        "expires_at": expires_at,
+        "auto_destroy": bool(auto_destroy),
+        "remaining_seconds": sec,
+    }
+
+
+def get_stack_ttl(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve TTL policy and expiration status of a stack (UC357)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = _load_meta(project_id, stack_name)
+    ttl_info = dict(meta.get("ttl") or {})
+    if not ttl_info:
+        return {"stack": stack_name, "project_id": project_id, "ttl_configured": False}
+
+    now = int(time.time())
+    exp = int(ttl_info.get("expires_at") or 0)
+    remaining = max(0, exp - now)
+    is_expired = remaining == 0 and exp > 0
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "ttl_configured": True,
+        "ttl_seconds": ttl_info.get("ttl_seconds"),
+        "set_at": ttl_info.get("set_at"),
+        "expires_at": exp,
+        "auto_destroy": bool(ttl_info.get("auto_destroy", True)),
+        "remaining_seconds": remaining,
+        "is_expired": is_expired,
+        "status": "expired" if is_expired else "active",
+    }
+
+
+def check_expired_ttl_stacks(project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Find all stacks whose TTL has expired and are marked for auto-destroy (UC357)."""
+    expired = []
+    stacks = _list_stacks(project_id)
+    now = int(time.time())
+
+    for s in stacks:
+        sname = s.get("name")
+        meta = _load_meta(project_id, sname)
+        ttl = meta.get("ttl")
+        if ttl and isinstance(ttl, dict):
+            exp = int(ttl.get("expires_at") or 0)
+            if exp > 0 and now >= exp and ttl.get("auto_destroy", True):
+                expired.append({
+                    "stack": sname,
+                    "project_id": project_id,
+                    "expires_at": exp,
+                    "expired_seconds_ago": now - exp,
+                    "action_required": "auto_destroy",
+                })
+    return expired
+
+
+@bp.route("/stacks/<name>/ttl", methods=["GET"])
+@require_project_access
+def api_get_stack_ttl(name: str):
+    pid = _get_project_id()
+    try:
+        res = get_stack_ttl(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/ttl", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_ttl(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    ttl_sec = data.get("ttl_seconds") or data.get("seconds") or data.get("ttl")
+    if ttl_sec is None:
+        return jsonify({"error": "ttl_seconds required"}), 400
+    auto_destroy = bool(data.get("auto_destroy", True))
+
+    try:
+        res = set_stack_ttl(pid, name, ttl_seconds=int(ttl_sec), auto_destroy=auto_destroy)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/ttl/expired", methods=["GET"])
+@require_project_access
+def api_list_expired_ttl():
+    pid = _get_project_id()
+    expired = check_expired_ttl_stacks(pid)
+    return jsonify({"expired_count": len(expired), "stacks": expired}), 200
+
+
+
 
 
 
