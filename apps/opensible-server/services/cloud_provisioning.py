@@ -1932,12 +1932,41 @@ def get_stack_dependency_graph(project_id: Optional[str]) -> Dict[str, Any]:
             "depends_on": deps,
         })
 
+    # Also collect stacks from stack_meta in postgres
+    try:
+
+        from storage import pg
+        rows = pg.query_all(
+            "SELECT stack, data FROM stack_meta WHERE project_id = %s",
+            (project_id or "default",)
+        )
+        for r in rows:
+            sname = r.get("stack")
+            if sname and sname not in graph:
+                data = r.get("data") or {}
+                if isinstance(data, str):
+                    try:
+                        data = json.loads(data)
+                    except Exception:
+                        data = {}
+                deps = list(data.get("depends_on") or [])
+                graph[sname] = deps
+                nodes.append({
+                    "name": sname,
+                    "provider": data.get("provider", "bytedc"),
+                    "status": "active",
+                    "depends_on": deps,
+                })
+    except Exception:
+        pass
+
     # Topological order / tier levels
     in_degree = {n: 0 for n in graph}
     for n, deps in graph.items():
         for d in deps:
             if d in in_degree:
                 in_degree[n] += 1
+
 
     return {
         "project_id": project_id,
@@ -2298,6 +2327,107 @@ def api_scan_plan_secrets():
     text = data.get("text") or data.get("plan_output") or data.get("output") or ""
     res = scan_and_mask_secrets(text)
     return jsonify(res), 200
+
+
+# ---------------------------------------------------------------------------
+# UC430: Import / Export Stack Config JSON (Scaffold & Migration)
+# ---------------------------------------------------------------------------
+
+def export_stack_config_bundle(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Export complete stack configuration bundle (meta, tfvars, dependencies, protection, ttl) to JSON (UC430)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    secrets_map = _load_secrets(project_id, stack_name)
+
+    # Read values.auto.tfvars.json if present
+    tfvars = {}
+    tfvars_file = _stack_dir(project_id, stack_name) / "values.auto.tfvars.json"
+    if tfvars_file.exists():
+        try:
+            tfvars = json.loads(tfvars_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "version": "1.0",
+        "stack": stack_name,
+        "project_id": project_id,
+        "exported_at": int(time.time()),
+        "meta": meta,
+        "tfvars": tfvars,
+        "secret_keys": list(secrets_map.keys()),
+        "dependencies": list(meta.get("depends_on") or []),
+        "protected_resources": list(meta.get("protected_resources") or []),
+        "ttl": meta.get("ttl"),
+    }
+
+
+def import_stack_config_bundle(
+    project_id: Optional[str],
+    stack: str,
+    bundle: Dict[str, Any],
+    overwrite: bool = True,
+) -> Dict[str, Any]:
+    """Import a stack configuration bundle into the project (UC430)."""
+    stack_name = (stack or bundle.get("stack") or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    if not isinstance(bundle, dict):
+        raise ValueError("Invalid bundle format: dict required")
+
+    imported_meta = dict(bundle.get("meta") or {})
+    if bundle.get("dependencies"):
+        imported_meta["depends_on"] = list(bundle.get("dependencies"))
+    if bundle.get("protected_resources"):
+        imported_meta["protected_resources"] = list(bundle.get("protected_resources"))
+    if bundle.get("ttl"):
+        imported_meta["ttl"] = bundle.get("ttl")
+
+    _save_meta(project_id, stack_name, **imported_meta)
+
+    # Write tfvars if provided
+    tfvars = bundle.get("tfvars")
+    if tfvars and isinstance(tfvars, dict):
+        sd = _stack_dir(project_id, stack_name)
+        sd.mkdir(parents=True, exist_ok=True)
+        tfvars_file = sd / "values.auto.tfvars.json"
+        tfvars_file.write_text(json.dumps(tfvars, indent=2), encoding="utf-8")
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "imported_at": int(time.time()),
+        "meta": imported_meta,
+    }
+
+
+@bp.route("/stacks/<name>/config/export", methods=["GET"])
+@require_project_access
+def api_export_stack_config(name: str):
+    pid = _get_project_id()
+    try:
+        res = export_stack_config_bundle(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/config/import", methods=["POST"])
+@require_project_access
+def api_import_stack_config(name: str):
+    pid = _get_project_id()
+    bundle = request.get_json(silent=True) or {}
+    try:
+        res = import_stack_config_bundle(pid, name, bundle)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
 
 
 

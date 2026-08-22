@@ -327,3 +327,73 @@ def test_api_scan_plan_endpoint():
     assert data["clean"] is False
     assert data["findings_count"] >= 1
     assert "[REDACTED_SECRET]" in data["masked_text"]
+
+
+def test_stack_config_bundle_export_import(data_dir):
+    """UC430: Export and import complete stack configuration bundle."""
+    from services import cloud_provisioning
+
+    proj = "proj-bundle"
+    stk = "service-stack"
+
+    # Setup stack with meta, dependencies, and protection
+    cloud_provisioning.set_stack_dependencies(proj, stk, ["vpc-base"])
+    cloud_provisioning.set_resource_protection(proj, stk, ["aws_db_instance.db"])
+    cloud_provisioning.set_stack_ttl(proj, stk, ttl_seconds=3600)
+
+    # 1. Export bundle
+    bundle = cloud_provisioning.export_stack_config_bundle(proj, stk)
+    assert bundle["stack"] == stk
+    assert bundle["dependencies"] == ["vpc-base"]
+    assert "aws_db_instance.db" in bundle["protected_resources"]
+    assert bundle["ttl"]["ttl_seconds"] == 3600
+
+    # 2. Import into new stack
+    new_stk = "cloned-service-stack"
+    import_res = cloud_provisioning.import_stack_config_bundle(proj, new_stk, bundle)
+    assert import_res["ok"] is True
+    assert import_res["stack"] == new_stk
+
+    # Verify cloned stack dependencies & protection
+    new_deps = cloud_provisioning.get_stack_dependency_graph(proj)["graph"]
+    assert new_deps[new_stk] == ["vpc-base"]
+    new_prot = cloud_provisioning.get_resource_protection(proj, new_stk)
+    assert "aws_db_instance.db" in new_prot["protected_resources"]
+
+
+def test_api_stack_config_bundle_endpoints(data_dir):
+    """UC430: GET & POST /api/cloud-provisioning/stacks/<stack>/config/export and import."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-bundle"
+    proj_id = "proj-bundle-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "Bundle Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "Bundle Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. Export
+    resp_exp = client.get("/api/cloud-provisioning/stacks/app-stack/config/export", headers=headers)
+    assert resp_exp.status_code == 200
+    bundle = resp_exp.get_json()
+    assert bundle["version"] == "1.0"
+
+    # 2. Import
+    resp_imp = client.post("/api/cloud-provisioning/stacks/app-stack-copy/config/import", json=bundle, headers=headers)
+    assert resp_imp.status_code == 200
+    assert resp_imp.get_json()["ok"] is True
