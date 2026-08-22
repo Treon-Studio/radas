@@ -147,6 +147,55 @@ def _assertion_ids() -> List[str]:
     return sorted(ASSERTIONS)
 
 
+TEST_TEMPLATES: List[Dict[str, Any]] = [
+    {
+        "id": "tpl-security-baseline",
+        "slug": "security-baseline",
+        "name": "Security Baseline",
+        "desc": "Check public CIDR, open SSH/RDP ports, and plaintext secrets",
+        "kind": "assertion",
+        "assertions": ["cidr_public", "ports_open", "secret_in_tfvars"],
+        "severity": "blocker",
+        "tags": ["security", "baseline"],
+    },
+    {
+        "id": "tpl-compliance-storage",
+        "slug": "compliance-storage",
+        "name": "Storage & Resource Compliance",
+        "desc": "Check unencrypted volumes and missing required tags",
+        "kind": "assertion",
+        "assertions": ["unencrypted_volume", "missing_tags"],
+        "severity": "warning",
+        "tags": ["compliance", "storage"],
+    },
+    {
+        "id": "tpl-iam-governance",
+        "slug": "iam-governance",
+        "name": "IAM Governance",
+        "desc": "Check IAM wildcard permissions",
+        "kind": "assertion",
+        "assertions": ["iam_wildcard"],
+        "severity": "warning",
+        "tags": ["security", "iam", "governance"],
+    },
+    {
+        "id": "tpl-cost-sanity",
+        "slug": "cost-sanity",
+        "name": "Cost Sanity Check",
+        "desc": "Ensure instance counts and budget limits are aligned",
+        "kind": "assertion",
+        "assertions": ["vm_count_zero", "budget_exceeded"],
+        "severity": "info",
+        "tags": ["cost", "sanity"],
+    },
+]
+
+
+def list_templates() -> List[Dict[str, Any]]:
+    """Return built-in test case templates catalog (UC180)."""
+    return [dict(t) for t in TEST_TEMPLATES]
+
+
 def list_test_cases(project_id: Optional[str] = None, tag: str = "", environment: str = "",
                     enabled: Optional[bool] = None, kind: str = "") -> List[Dict[str, Any]]:
     rows = _load("test_cases.json", project_id)

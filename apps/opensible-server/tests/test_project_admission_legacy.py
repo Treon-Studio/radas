@@ -79,8 +79,9 @@ def _claim(worker_id: str, project_id: str, max_concurrency: int = 10):
 # Task 3: Admission guards legacy claim
 # ---------------------------------------------------------------------------
 
-def test_legacy_claim_cap_one_succeeds_and_blocks_second(pg_db, tmp_path, monkeypatch):
+def test_legacy_claim_cap_one_succeeds_and_blocks_second(data_dir, monkeypatch):
     """Cap=1: first legacy claim succeeds; second is denied and left QUEUED."""
+    tmp_path = data_dir
     project_id = "leg-cap-one"
     _setup_project(project_id, limit=1)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -107,8 +108,9 @@ def test_legacy_claim_cap_one_succeeds_and_blocks_second(pg_db, tmp_path, monkey
         assert project_admission.active_count(conn, project_id) == 1
 
 
-def test_legacy_claim_limit_zero_allows_multiple(pg_db, tmp_path, monkeypatch):
+def test_legacy_claim_limit_zero_allows_multiple(data_dir, monkeypatch):
     """limit=0 means unlimited: two executions can be claimed simultaneously."""
+    tmp_path = data_dir
     project_id = "leg-unlimited"
     _setup_project(project_id, limit=0)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -128,10 +130,11 @@ def test_legacy_claim_limit_zero_allows_multiple(pg_db, tmp_path, monkeypatch):
         assert project_admission.active_count(conn, project_id) == 2
 
 
-def test_legacy_claim_service_op_blocks_legacy(pg_db, tmp_path, monkeypatch):
+def test_legacy_claim_service_op_blocks_legacy(data_dir, monkeypatch):
     """A service operation already holding an admission lease blocks the legacy claim."""
     from services import service_instances, service_operations, service_operation_runner
 
+    tmp_path = data_dir
     project_id = "leg-svc-blocks-legacy"
     _setup_project(project_id, limit=1)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -160,8 +163,9 @@ def test_legacy_claim_service_op_blocks_legacy(pg_db, tmp_path, monkeypatch):
     assert eid is None, "Legacy claim should be blocked by service op lease"
 
 
-def test_legacy_claim_project_isolation(pg_db, tmp_path, monkeypatch):
+def test_legacy_claim_project_isolation(data_dir, monkeypatch):
     """Project A at cap does not block Project B."""
+    tmp_path = data_dir
     project_a = "leg-iso-a"
     project_b = "leg-iso-b"
     _setup_project(project_a, limit=1)
@@ -189,8 +193,9 @@ def test_legacy_claim_project_isolation(pg_db, tmp_path, monkeypatch):
     assert eid_b is not None, "Project B should be unaffected by project A's cap"
 
 
-def test_legacy_claim_file_already_running_releases_lease(pg_db, tmp_path, monkeypatch):
+def test_legacy_claim_file_already_running_releases_lease(data_dir, monkeypatch):
     """If JSON status changed to non-QUEUED between admit and file-lock, reservation is released."""
+    tmp_path = data_dir
     project_id = "leg-race"
     _setup_project(project_id, limit=2)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -217,8 +222,9 @@ def test_legacy_claim_file_already_running_releases_lease(pg_db, tmp_path, monke
 # Task 4: Release on terminal paths
 # ---------------------------------------------------------------------------
 
-def test_legacy_finish_via_worker_routes_releases_lease(pg_db, tmp_path, monkeypatch):
+def test_legacy_finish_via_worker_routes_releases_lease(data_dir, monkeypatch):
     """Finishing a legacy execution via worker_routes releases the admission lease."""
+    tmp_path = data_dir
     project_id = "leg-finish-release"
     _setup_project(project_id, limit=1)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -242,8 +248,9 @@ def test_legacy_finish_via_worker_routes_releases_lease(pg_db, tmp_path, monkeyp
             "Slot should be free after finish"
 
 
-def test_legacy_release_idempotent(pg_db, tmp_path, monkeypatch):
+def test_legacy_release_idempotent(data_dir, monkeypatch):
     """Double-release does not error and does not corrupt the count."""
+    tmp_path = data_dir
     project_id = "leg-idem"
     _setup_project(project_id, limit=1)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -264,8 +271,9 @@ def test_legacy_release_idempotent(pg_db, tmp_path, monkeypatch):
         assert project_admission.active_count(conn, project_id) == 0
 
 
-def test_legacy_expired_lease_reclaimed_allows_new_claim(pg_db, tmp_path, monkeypatch):
+def test_legacy_expired_lease_reclaimed_allows_new_claim(data_dir, monkeypatch):
     """An expired admission lease is reclaimed on the next claim, freeing the slot."""
+    tmp_path = data_dir
     project_id = "leg-expiry"
     _setup_project(project_id, limit=1)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")
@@ -309,8 +317,9 @@ def test_legacy_expired_lease_reclaimed_allows_new_claim(pg_db, tmp_path, monkey
     assert count == 1
 
 
-def test_legacy_no_execution_returns_none(pg_db, tmp_path, monkeypatch):
+def test_legacy_no_execution_returns_none(data_dir, monkeypatch):
     """When there are no queued executions, claim returns (None, None, None)."""
+    tmp_path = data_dir
     project_id = "leg-empty"
     _setup_project(project_id, limit=5)
     monkeypatch.setattr("app.PROJECTS_DIR", tmp_path / "projects")

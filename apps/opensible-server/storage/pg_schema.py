@@ -622,7 +622,7 @@ _V20_DDL: List[str] = [
 
 # Version 21 — organization-private OpenTofu module registry.
 _V22_DDL: List[str] = [
-    """CREATE TABLE IF NOT EXISTS project_admission_leases (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, reference_id TEXT NOT NULL, worker_id TEXT, status TEXT NOT NULL, lease_until REAL, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE(kind, reference_id))""",
+    """CREATE TABLE IF NOT EXISTS project_admission_leases (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, reference_id TEXT NOT NULL, worker_id TEXT, status TEXT NOT NULL, lease_until DOUBLE PRECISION, created_at DOUBLE PRECISION NOT NULL, updated_at DOUBLE PRECISION NOT NULL, UNIQUE(kind, reference_id))""",
     """CREATE INDEX IF NOT EXISTS project_admission_leases_project_active_idx ON project_admission_leases(project_id, status, lease_until)""",
 ]
 

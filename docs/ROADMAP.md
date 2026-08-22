@@ -313,21 +313,21 @@ fitur terpisah:
 | 165 | Assertion: IAM wildcard (Action * / Resource *) | ✅ | P1 | 6 |
 | 166 | Assertion: S3 bucket public / ACL terbuka | ✅ | P1 | 6 |
 | 167 | Assertion: security group port 22/3389 terbuka | ✅ | P1 | 6 |
-| 168 | Assertion: versi image provider outdated | 🔶 | P2 | 6 |
+| 168 | Assertion: versi image provider outdated | ✅ | P2 | 6 |
 | 169 | Assertion: belum ada tag environment/owner | ✅ | P1 | 6 |
 | 170 | Assertion: tfvars menyimpan secret plaintext | ✅ | P1 | 6 |
 | 171 | Assertion: harga bulanan melebihi budget stack | ✅ | P1 | 6 |
-| 172 | Assertion: jumlah instance > ambang yang diizinkan | 🔶 | P2 | 6 |
+| 172 | Assertion: jumlah instance > ambang yang diizinkan | ✅ | P2 | 6 |
 | 173 | Test severity (blocker/warning/info) dan policy tentang blocker | ✅ | P1 | 6 |
 | 174 | Gate: test gagal blocker -> tolak apply | ✅ | P0 | 6 |
-| 175 | Gate: test warning -> izin tapi notifikasi | 🔶 | P2 | 6 |
-| 176 | Jadwal eksekusi test berkala (cron) tanpa apply | 🔶 | P1 | 6 |
+| 175 | Gate: test warning -> izin tapi notifikasi | ✅ | P2 | 6 |
+| 176 | Jadwal eksekusi test berkala (cron) tanpa apply | ✅ | P1 | 6 |
 | 177 | Riwayat hasil test per stack (pass/fail/time) | ✅ | P0 | 6 |
 | 178 | Dashboard Test: total, pass rate, tren 30 hari | ✅ | P1 | 6 |
-| 179 | Filter test by tag: security, cost, compliance, drift | 🔶 | P1 | 6 |
-| 180 | Test template dari katalog (prebuilt selain assertion) | 🔶 | P1 | 6 |
-| 181 | Clone/edit test definisi dengan versi | 🔶 | P2 | 6 |
-| 182 | Test berparameter: variabel per environment | 🔶 | P1 | 6 |
+| 179 | Filter test by tag: security, cost, compliance, drift | ✅ | P1 | 6 |
+| 180 | Test template dari katalog (prebuilt selain assertion) | ✅ | P1 | 6 |
+| 181 | Clone/edit test definisi dengan versi | ✅ | P2 | 6 |
+| 182 | Test berparameter: variabel per environment | ✅ | P1 | 6 |
 | 183 | Eksekusi test via CLI radas test | 🔶 | P2 | 6 |
 | 184 | Integrasi tofu validate + tflint check otomatis pra-apply | 🔶 | P1 | 6 |
 | 185 | Integrasi checkov/tfsec scan iaC (static security) | ✅ | P1 | 6 |
@@ -335,7 +335,7 @@ fitur terpisah:
 | 187 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
 | 188 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
 | 189 | Retry test gagal dengan backoff (max N) | ✅ | P2 | 6 |
-| 190 | Batch run: jalankan semua test untuk stack di environment | 🔶 | P1 | 6 |
+| 190 | Batch run: jalankan semua test untuk stack di environment | ✅ | P1 | 6 |
 | 191 | Approval yang men-trigger re-test otomatis | ⬜ | P2 | 6 |
 | 192 | Test dijalankan pada preview env (CI pipeline) | ⬜ | P1 | 6 |
 | 193 | Ekspor hasil test ke JSON untuk CI/artifacts | ✅ | P2 | 6 |
@@ -346,7 +346,7 @@ fitur terpisah:
 | 198 | Test Hanya untuk stack tertentu (targeting) | ✅ | P1 | 6 |
 | 199 | Paralelisme test (concurrency configurable) | ✅ | P2 | 6 |
 | 200 | Test per resource vs per stack | ⬜ | P2 | 6 |
-| 201 | Batas waktu eksekusi test (timeout) | 🔶 | P1 | 6 |
+| 201 | Batas waktu eksekusi test (timeout) | ✅ | P1 | 6 |
 | 202 | Score keamanan stack dari hasil test (0-100) | ⬜ | P2 | 6 |
 | 203 | Baseline test: snaphot pass untuk deteksi regresi | ✅ | P2 | 6 |
 | 204 | Notifikasi Discord/Slack saat test blocker gagal | ✅ | P1 | 6 |
@@ -358,7 +358,7 @@ fitur terpisah:
 | 210 | Import test dari file .tftest.hcl ke registry | ⬜ | P1 | 6 |
 | 211 | Validate ekspresi assertion sebelum simpan (dry-run) | ✅ | P1 | 6 |
 | 212 | Test pada state kosong/inisial (terraform plan -refresh=false) | ⬜ | P2 | 6 |
-| 213 | Mock provider offline test (tanpa cloud) | 🔶 | P1 | 6 |
+| 213 | Mock provider offline test (tanpa cloud) | ✅ | P1 | 6 |
 | 214 | Ui halaman Test Cases: list, run, history, hasil | ✅ | P1 | 6 |
 | 215 | Dokumentasi assertion katalog di halaman test | ✅ | P2 | 6 |
 
@@ -370,16 +370,16 @@ fitur terpisah:
 | 217 | List repositories terhubung (dari koneksi) | ✅ | P0 | 6 |
 | 218 | List workflows per repository (API workflows) | ✅ | P0 | 6 |
 | 219 | Detail workflow (path, state, created/updated) | ✅ | P1 | 6 |
-| 220 | Enable/disable workflow via API | 🔶 | P1 | 6 |
+| 220 | Enable/disable workflow via API | ✅ | P1 | 6 |
 | 221 | Trigger workflow_dispatch dengan input dari console | ✅ | P0 | 6 |
 | 222 | List workflow runs (status, conclusion, head_branch, event) | ✅ | P0 | 6 |
-| 223 | Detail run: jobs, steps, duration, attempt | 🔶 | P1 | 6 |
-| 224 | Logs per job: download/stream ke console | 🔶 | P1 | 6 |
+| 223 | Detail run: jobs, steps, duration, attempt | ✅ | P1 | 6 |
+| 224 | Logs per job: download/stream ke console | ✅ | P1 | 6 |
 | 225 | Retry/re-run run yang gagal (re-run-failed-jobs) | ✅ | P1 | 6 |
 | 226 | Cancel run yang sedang berjalan | ✅ | P1 | 6 |
 | 227 | Approve/reject deployment (environment protection) | ✅ | P1 | 6 |
 | 228 | Watch real-time status run (polling SSE) | ✅ | P1 | 6 |
-| 229 | Aggregasi runs lintas repo (dashboard) | 🔶 | P1 | 6 |
+| 229 | Aggregasi runs lintas repo (dashboard) | ✅ | P1 | 6 |
 | 230 | Filter runs by repo/status/event/since | ✅ | P1 | 6 |
 | 231 | Statistik: success rate per repo/workflow 7d/30d | ✅ | P1 | 6 |
 | 232 | Durasi rata-rata workflow & p95 | ✅ | P2 | 6 |
@@ -390,11 +390,11 @@ fitur terpisah:
 | 237 | PR plan comment integration (komentar hasil plan di PR) | ✅ | P1 | 6 |
 | 238 | Required check enforcement: workflow harus sukses sebelum merge | ✅ | P1 | 6 |
 | 239 | Atur environment protection rules (require approval) | ✅ | P1 | 6 |
-| 240 | List self-hosted runner groups & runners | 🔶 | P1 | 6 |
+| 240 | List self-hosted runner groups & runners | ✅ | P1 | 6 |
 | 241 | Registrasi runner token + instruksi setup runner | ✅ | P1 | 6 |
 | 242 | Provision runner sebagai stack OpenTofu (ephemeral) | ⬜ | P2 | 6 |
-| 243 | Hapus runner offline (remove runner) | ⬜ | P1 | 6 |
-| 244 | Label runner management (add/remove labels) | ⬜ | P2 | 6 |
+| 243 | Hapus runner offline (remove runner) | ✅ | P1 | 6 |
+| 244 | Label runner management (add/remove labels) | ✅ | P2 | 6 |
 | 245 | Secrets per repo/environment via API (CRUD) | ✅ | P1 | 6 |
 | 246 | Workflow template: scaffold tofu/ansible workflow files di console | ✅ | P0 | 6 |
 | 247 | Template workflow: tofu-plan.yaml, tofu-apply.yaml, ansible-run.yaml | ✅ | P0 | 6 |
@@ -402,9 +402,9 @@ fitur terpisah:
 | 249 | Auto-retry policy untuk run gagal (configurable) | ⬜ | P2 | 6 |
 | 250 | Webhook peristiwa run masuk ke audit log | ⬜ | P1 | 6 |
 | 251 | Notifikasi Slack/Discord untuk run gagal | ✅ | P1 | 6 |
-| 252 | Search runs by commit SHA | ⬜ | P1 | 6 |
+| 252 | Search runs by commit SHA | ✅ | P1 | 6 |
 | 253 | Manage multiple org/repo (multi-koneksi) | ⬜ | P2 | 6 |
-| 254 | Rate limit handling & backoff untuk GitHub API | ⬜ | P1 | 6 |
+| 254 | Rate limit handling & backoff untuk GitHub API | ✅ | P1 | 6 |
 | 255 | Repository metadata: default branch, visibility, language | ⬜ | P2 | 6 |
 | 256 | Scan secrets exposure di workflow file (dump env) | ⬜ | P2 | 6 |
 | 257 | Pin action ke SHA check (supply-chain) | ⬜ | P2 | 6 |
@@ -420,7 +420,7 @@ fitur terpisah:
 | 267 | Deployment summary: environment, ref, status | ⬜ | P2 | 6 |
 | 268 | Event push/PR-based pipeline di mapped ke stack | ⬜ | P1 | 6 |
 | 269 | UI halaman GitHub Actions: rilis dashboard | ✅ | P1 | 6 |
-| 270 | UI detail run dengan log viewer | 🔶 | P1 | 6 |
+| 270 | UI detail run dengan log viewer | ✅ | P1 | 6 |
 
 ## N. BYOC & Multi-Cloud Resource Import (271–330)
 
@@ -436,7 +436,7 @@ fitur terpisah:
 | 278 | Inventory snapshot berkala (sync jobs) | ✅ | P2 | 6 |
 | 279 | Import resource ke stack: mapping id -> resource address | ✅ | P0 | 6 |
 | 280 | Generate import block OpenTofu (tofu import block) | ✅ | P1 | 6 |
-| 281 | Wizard import: pilih resource dari inventory -> buat stack impor | 🔶 | P1 | 6 |
+| 281 | Wizard import: pilih resource dari inventory -> buat stack impor | ✅ | P1 | 6 |
 | 282 | Import beberapa resource sekaligus (batch) | ✅ | P1 | 6 |
 | 283 | Import beberapa resource sekaligus (batch) | ✅ | P1 | 6 |
 | 284 | Managed-imported tracking: tandai resource yang dikelola radas | ✅ | P1 | 6 |
@@ -445,14 +445,14 @@ fitur terpisah:
 | 287 | Cost access: read billing API per akun | ✅ | P2 | 6 |
 | 288 | Budget alert bergabung dengan BYOC akun | ✅ | P2 | 6 |
 | 289 | Health check berkala koneksi (cron ping) | ✅ | P1 | 6 |
-| 290 | Notifikasi saat credential expired/rejected | 🔶 | P1 | 6 |
+| 290 | Notifikasi saat credential expired/rejected | ✅ | P1 | 6 |
 | 291 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ✅ | P1 | 6 |
 | 292 | Provider IDCloudHost: REST API import | ✅ | P1 | 6 |
 | 293 | Sync state dari existing terraform state (import state) | ✅ | P1 | 6 |
 | 294 | Multiple state file: remote vs local detect | ⬜ | P1 | 6 |
 | 295 | Kredensial per stack (bukan hanya per akun) | ⬜ | P1 | 6 |
-| 296 | Rotasi kredensial otomatis (schedule) | 🔶 | P2 | 6 |
-| 297 | Health check berkala koneksi (cron ping) | 🔶 | P1 | 6 |
+| 296 | Rotasi kredensial otomatis (schedule) | ✅ | P2 | 6 |
+| 297 | Health check berkala koneksi (cron ping) | ✅ | P1 | 6 |
 | 298 | Notifikasi saat credential expired/rejected | ✅ | P1 | 6 |
 | 299 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ⬜ | P1 | 6 |
 | 300 | Provider IDCloudHost: REST API import | ⬜ | P1 | 6 |
@@ -495,22 +495,22 @@ fitur terpisah:
 | 332 | State versions browsing & rollback (sudah partial, per stack) | ✅ | P1 | 6 |
 | 333 | Run history dengan comments (diskusi per run) | ⬜ | P2 | 6 |
 | 334 | Private module registry (publish modul internal) | ✅ | P0 | 6 |
-| 335 | Budget alert per workspace (sudah ada) -> per project agg | 🔶 | P1 | 6 |
+| 335 | Budget alert per workspace (sudah ada) -> per project agg | ✅ | P1 | 6 |
 | 336 | Sentinel/OPA policy set versioned | ⬜ | P1 | 6 |
 | 337 | Policy yang menilai plan JSON (intermediate representation) | ⬜ | P2 | 6 |
-| 338 | Cost estimation per plan (sudah parse plan) -> angka eksplisit | 🔶 | P1 | 6 |
+| 338 | Cost estimation per plan (sudah parse plan) -> angka eksplisit | ✅ | P1 | 6 |
 | 339 | VCS-driven workspaces with branch mapping | ✅ | P0 | 6 |
-| 340 | API-driven runs (sudah ada execution) | 🔶 | P1 | 6 |
+| 340 | API-driven runs (sudah ada execution) | ✅ | P1 | 6 |
 | 341 | Audit trail full event (action, actor, resource) | ✅ | P0 | 6 |
 | 342 | Drift detection scheduling dengan alert | ✅ | P0 | 6 |
 | 343 | Rollback ke state versi mana pun (sudah ada snapshot) | ✅ | P0 | 6 |
-| 344 | Multi-cloud provider pluggable (sudah ada) | 🔶 | P1 | 6 |
+| 344 | Multi-cloud provider pluggable (sudah ada) | ✅ | P1 | 6 |
 | 345 | Review apps: approve/reject flow dengan comment | ⬜ | P1 | 6 |
 | 346 | Policy as code multi-format (OPA, custom) | ⬜ | P1 | 6 |
 | 347 | Context policy: tug context (PR, stack, env) | ⬜ | P2 | 6 |
 | 348 | Stack dependencies: graph antar stack (korelasi) | ⬜ | P1 | 6 |
 | 349 | Notification hook ke Slack/Discord/Teams/Webhook | ✅ | P1 | 6 |
-| 350 | Self-hosted agent (worker) dengan label & constraint | 🔶 | P1 | 6 |
+| 350 | Self-hosted agent (worker) dengan label & constraint | ✅ | P1 | 6 |
 | 351 | Terragrunt support (run Terragrunt) | ⬜ | P2 | 6 |
 | 352 | Serverless/Pulumi integration überhaupt | ⬜ | P2 | 6 |
 | 353 | Attribute mapping templates (substitusi env var) | ⬜ | P2 | 6 |

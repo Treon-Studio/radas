@@ -34,10 +34,28 @@ def load() -> Dict[str, Any]:
     return {}
 
 
+DEFAULT_POLICY = {"max_retries": 0, "backoff_seconds": 300}
+
+
 def get_policy(project_id: str, stack_name: Optional[str] = None) -> Dict[str, Any]:
-    project_policy = load().get(project_id, {"max_retries": 0, "backoff_seconds": 300})
+    project_data = load().get(project_id) or {}
+    project_policy = {
+        "max_retries": project_data.get("max_retries", DEFAULT_POLICY["max_retries"]),
+        "backoff_seconds": project_data.get("backoff_seconds", DEFAULT_POLICY["backoff_seconds"]),
+    }
+    if "updated_at" in project_data:
+        project_policy["updated_at"] = project_data["updated_at"]
+    if "stacks" in project_data:
+        project_policy["stacks"] = project_data["stacks"]
+
     if stack_name:
-        return (project_policy.get("stacks") or {}).get(stack_name, project_policy)
+        stack_policy = (project_data.get("stacks") or {}).get(stack_name)
+        if stack_policy:
+            return stack_policy
+        return {
+            "max_retries": project_policy["max_retries"],
+            "backoff_seconds": project_policy["backoff_seconds"],
+        }
     return project_policy
 
 

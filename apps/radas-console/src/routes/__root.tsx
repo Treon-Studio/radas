@@ -45,8 +45,7 @@ function RootLayout() {
         return;
       }
     }
-    setReady(true);
-  }, [location.pathname, navigate, token, onboardingStatus, onboardingLoading]);
+  }, [location.pathname, navigate, onboardingStatus, onboardingLoading]);
 
   if (isPublicPath(location.pathname)) {
     return <Outlet />;

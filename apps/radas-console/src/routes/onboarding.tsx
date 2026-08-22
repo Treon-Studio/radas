@@ -44,7 +44,7 @@ function OnboardingPage() {
 
   const createProjectMutation = useMutation({
     mutationFn: async () => {
-      return createProject(projectName, projectDescription);
+      return createProject({ name: projectName, description: projectDescription });
     },
     onSuccess: (project) => {
       toast.success(`Project "${projectName}" created`);
@@ -88,10 +88,17 @@ function OnboardingPage() {
         return;
       }
       // Navigate to stack creation for the selected provider
-      navigate({
-        to: "/cloud/stacks/new/$provider",
-        params: { provider: selectedProvider },
-      });
+      if (selectedProvider === "bytedc") navigate({ to: "/cloud/stacks/new/bytedc" });
+      else if (selectedProvider === "hetzner") navigate({ to: "/cloud/stacks/new/hetzner" });
+      else if (selectedProvider === "biznet") navigate({ to: "/cloud/stacks/new/biznet" });
+      else if (selectedProvider === "idcloudhost") navigate({ to: "/cloud/stacks/new/idcloudhost" });
+      else if (selectedProvider === "cloudflare") navigate({ to: "/cloud/stacks/new/cloudflare" });
+      else if (selectedProvider === "aws") navigate({ to: "/cloud/stacks/new/aws" });
+      else if (selectedProvider === "eks") navigate({ to: "/cloud/stacks/new/eks" });
+      else if (selectedProvider === "gcp") navigate({ to: "/cloud/stacks/new/gcp" });
+      else if (selectedProvider === "gke") navigate({ to: "/cloud/stacks/new/gke" });
+      else if (selectedProvider === "kubernetes" || selectedProvider === "k8s") navigate({ to: "/cloud/stacks/new/kubernetes" });
+      else navigate({ to: "/cloud/stacks/new" });
       // Mark onboarding as completed after navigating
       completeOnboarding.mutate();
     } else if (step === 3) {
