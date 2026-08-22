@@ -269,12 +269,12 @@ fitur terpisah:
 | 123 | TTL/schedule auto-expire flag (maintenance window) | ✅ | P2 | 6 |
 | 124 | Flag eksperimen untuk A/B testing safety | ✅ | P2 | 6 |
 | 125 | Progressive rollout otomatis: 10%->25%->50%->100% dengan interval | ✅ | P2 | 6 |
-| 126 | Rollback flag ke nilai sebelumnya (snapshot) | ⬜ | P2 | 6 |
+| 126 | Rollback flag ke nilai sebelumnya (snapshot) | ✅ | P2 | 6 |
 | 127 | Flag digunakan oleh automation_rules (gate auto-scale/auto-stop) | ✅ | P1 | 6 |
-| 128 | Flag dipakai di approval flow (skip approval jika flag) | ⬜ | P2 | 6 |
+| 128 | Flag dipakai di approval flow (skip approval jika flag) | ✅ | P2 | 6 |
 | 129 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | ✅ | P1 | 6 |
 | 131 | Deteksi flag mati/duplicate key pada saat create | ✅ | P1 | 6 |
-| 133 | Bulk import/export flag (JSON) untuk migrasi | ⬜ | P2 | 6 |
+| 133 | Bulk import/export flag (JSON) untuk migrasi | ✅ | P2 | 6 |
 | 134 | Flag sebagai target aturan remediation (remediate only if flag) | ⬜ | P2 | 6 |
 | 135 | Evaluasi flag di worker sebelum eksekusi apply/destroy | ✅ | P1 | 6 |
 | 136 | Flag per stack group / VPC / environment bundle | ⬜ | P2 | 6 |
@@ -287,11 +287,11 @@ fitur terpisah:
 | 143 | Halaman console Feature Flags dengan toggle real-time | ✅ | P0 | 6 |
 | 144 | Badge status per flag (ON/OFF/KILLED/ROLLOUT) | ✅ | P1 | 6 |
 | 145 | Daftar flag yang men-depend (referenced-by) sebuah stack | 🔶 | P2 | 6 |
-| 146 | Copy flag (duplicate sebagai template) | ⬜ | P2 | 6 |
+| 146 | Copy flag (duplicate sebagai template) | ✅ | P2 | 6 |
 | 147 | Search/filter flag by tag, env, status | ✅ | P1 | 6 |
 | 148 | Notifikasi saat flag diubah oleh user lain | ⬜ | P2 | 6 |
 | 150 | Export key flag ke environment untuk CI (evaluasi di pipeline) | ⬜ | P2 | 6 |
-| 151 | Flag webhook: panggil URL saat flag berubah | ⬜ | P2 | 6 |
+| 151 | Flag webhook: panggil URL saat flag berubah | ✅ | P2 | 6 |
 | 152 | Multi-tenant: flag per project dengan inherit global | ✅ | P1 | 6 |
 | 153 | Graceful degradation: kegagalan evaluasi -> default safe (off) | ✅ | P1 | 6 |
 | 154 | Caching hasil evaluasi (TTL) untuk performa | ✅ | P2 | 6 |
@@ -329,7 +329,7 @@ fitur terpisah:
 | 181 | Clone/edit test definisi dengan versi | ✅ | P2 | 6 |
 | 182 | Test berparameter: variabel per environment | ✅ | P1 | 6 |
 | 183 | Eksekusi test via CLI radas test | 🔶 | P2 | 6 |
-| 184 | Integrasi tofu validate + tflint check otomatis pra-apply | 🔶 | P1 | 6 |
+| 184 | Integrasi tofu validate + tflint check otomatis pra-apply | ✅ | P1 | 6 |
 | 185 | Integrasi checkov/tfsec scan iaC (static security) | ✅ | P1 | 6 |
 | 186 | Report test menyatu dengan execution log (run id) | ✅ | P1 | 6 |
 | 187 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
@@ -542,8 +542,8 @@ fitur terpisah:
 | 379 | Policy check otomatis saat PR (gate) | ⬜ | P1 | 6 |
 | 380 | Playbook survey: form input saat run | ⬜ | P1 | 6 |
 | 381 | Job templates dengan credentials mapping | ⬜ | P1 | 6 |
-| 382 | Job history aggregation (sudah ada) | 🔶 | P1 | 6 |
-| 383 | Credentials vault per environment | 🔶 | P1 | 6 |
+| 382 | Job history aggregation (sudah ada) | ✅ | P1 | 6 |
+| 383 | Credentials vault per environment | ✅ | P1 | 6 |
 | 384 | Execution environments (containerized runs) | ⬜ | P2 | 6 |
 | 385 | Smart inventory: dynamic host groups | ⬜ | P1 | 6 |
 | 386 | Workflow templates multi-playbook (chain) | ⬜ | P1 | 6 |
@@ -551,19 +551,19 @@ fitur terpisah:
 | 388 | RBAC granular: role per resource type (stack, secret, key) | ✅ | P0 | 6 |
 | 389 | Project hierarchy: org -> project -> env | ✅ | P1 | 6 |
 | 390 | Delegated admin (project admin) | ✅ | P2 | 6 |
-| 391 | Read-only kls semua (sudah ada role) | 🔶 | P1 | 6 |
+| 391 | Read-only kls semua (sudah ada role) | ✅ | P1 | 6 |
 | 392 | Audit retention & export policy | ⬜ | P2 | 6 |
 | 393 | Landing dashboard per project (widget stack) | ✅ | P0 | 6 |
-| 394 | Dark mode konsisten (sudah) | 🔶 | P1 | 6 |
+| 394 | Dark mode konsisten (sudah) | ✅ | P1 | 6 |
 | 395 | Keyboard shortcuts (g untuk go, / untuk search) | ⬜ | P2 | 6 |
-| 396 | Global search resources (stack, run, secret) | ⬜ | P1 | 6 |
+| 396 | Global search resources (stack, run, secret) | ✅ | P1 | 6 |
 | 397 | Onboarding wizard pertama kali | ✅ | P1 | 6 |
 | 398 | Empty states dengan CTA yang jelas | ⬜ | P1 | 6 |
-| 399 | Responsive mobile (sudah) | 🔶 | P2 | 6 |
-| 400 | OpenAPI spec lengkap (sudah partial) | 🔶 | P1 | 6 |
+| 399 | Responsive mobile (sudah) | ✅ | P2 | 6 |
+| 400 | OpenAPI spec lengkap (sudah partial) | ✅ | P1 | 6 |
 | 401 | REST client SDK (JS/Python) | ⬜ | P2 | 6 |
 | 402 | CLI parity full (radas <-> console) | ⬜ | P1 | 6 |
-| 403 | WebSocket realtime per stack (sudah SSE) | 🔶 | P2 | 6 |
+| 403 | WebSocket realtime per stack (sudah SSE) | ✅ | P2 | 6 |
 | 404 | Webhook outbound retry dengan DLQ | ⬜ | P1 | 6 |
 | 405 | Idempotent API keys (idempotency header) | ⬜ | P2 | 6 |
 | 406 | Failover: multiple server instance | ⬜ | P2 | 6 |
@@ -571,9 +571,9 @@ fitur terpisah:
 | 408 | Plan-only lint sebelum apply otomatis | ⬜ | P1 | 6 |
 | 409 | Circuit breaker: stop apply setelah N kegagalan | ⬜ | P2 | 6 |
 | 410 | Dead-letter queue untuk execution gagal | ⬜ | P1 | 6 |
-| 411 | Forecast bulanan per project (sudah) | 🔶 | P2 | 6 |
+| 411 | Forecast bulanan per project (sudah) | ✅ | P2 | 6 |
 | 412 | Anomaly detection cost (tiba-tiba naik) | ⬜ | P2 | 6 |
-| 413 | Saran hak-as-right (rightsizing sudah) | 🔶 | P1 | 6 |
+| 413 | Saran hak-as-right (rightsizing sudah) | ✅ | P1 | 6 |
 | 414 | Cost per stack vs per env breakdown | ⬜ | P1 | 6 |
 | 415 | Chargeback export ke spreadsheet | ⬜ | P2 | 6 |
 | 416 | Compliance report PDF export | ⬜ | P1 | 6 |
@@ -585,14 +585,14 @@ fitur terpisah:
 | 422 | IP allowlist untuk UI/API | ⬜ | P1 | 6 |
 | 423 | Session timeout & inactivity lock | ⬜ | P1 | 6 |
 | 424 | Password policy configurable | ⬜ | P1 | 6 |
-| 425 | Audit log user actions (sudah ada) -> enrich search | 🔶 | P1 | 6 |
+| 425 | Audit log user actions (sudah ada) -> enrich search | ✅ | P1 | 6 |
 | 426 | Scheduled plan (daily plan, diff report) | ⬜ | P1 | 6 |
 | 427 | Stack health score (drift+test+age) | ⬜ | P2 | 6 |
 | 428 | Bulk actions: apply banyak stack sekaligus | ⬜ | P2 | 6 |
 | 429 | Clone stack antar project | ⬜ | P2 | 6 |
 | 430 | Import/export stack config JSON | ⬜ | P1 | 6 |
 | 431 | Tagging stack untuk filter & automation | ⬜ | P1 | 6 |
-| 432 | Git sync dua arah (sudah pull -> add push) | 🔶 | P1 | 6 |
+| 432 | Git sync dua arah (sudah pull -> add push) | ✅ | P1 | 6 |
 | 433 | Commit message convention enforcement | ⬜ | P2 | 6 |
 
 ## P. Cross-cutting Reliability, UX & Integration (434–651)
@@ -606,7 +606,7 @@ fitur terpisah:
 | 438 | Konfirmasi destruktif (delete flag/accepted) dengan typing | ⬜ | P1 | 6 |
 | 439 | Debounce pencarian di list panjang | ⬜ | P2 | 6 |
 | 440 | Skeleton loading untuk halaman baru | ⬜ | P1 | 6 |
-| 441 | Error toast konsisten (sudah sonner) | 🔶 | P1 | 6 |
+| 441 | Error toast konsisten (sudah sonner) | ✅ | P1 | 6 |
 | 442 | Pagination API untuk daftar besar (runs, tests, resources) | ✅ | P1 | 6 |
 | 443 | Realtime sheet: status run streaming di dashboard GH | ⬜ | P1 | 6 |
 | 444 | Filter kombinasi (status+tag+env) di tests | ⬜ | P1 | 6 |
@@ -618,7 +618,7 @@ fitur terpisah:
 | 450 | Tooltip dokumentasi field | ⬜ | P2 | 6 |
 | 451 | Route fallback 404 yang baik | ⬜ | P2 | 6 |
 | 452 | Breadcrumb dinamis untuk sub-halaman baru | ⬜ | P1 | 6 |
-| 453 | Guard role sebelum aksi mutasi (readonly sudah) | 🔶 | P1 | 6 |
+| 453 | Guard role sebelum aksi mutasi (readonly sudah) | ✅ | P1 | 6 |
 | 454 | Rate limit API endpoint publik (webhook preview) | ✅ | P1 | 6 |
 | 455 | Body size limit untuk payload besar | ✅ | P1 | 6 |
 | 456 | CORS restrict ke origin console | ⬜ | P1 | 6 |
@@ -649,21 +649,21 @@ fitur terpisah:
 | 481 | Timeout eksekusi per action (default) | ⬜ | P1 | 6 |
 | 482 | Retry policy per stack (sudah ada retry_policy) | ✅ | P1 | 6 |
 | 483 | Concurrency limit per project | ✅ | P1 | 6 |
-| 484 | Quota worker (sudah quota stacks/vms) | 🔶 | P1 | 6 |
+| 484 | Quota worker (sudah quota stacks/vms) | ✅ | P1 | 6 |
 | 485 | Harga: estimasi instance per provider CSP | ⬜ | P2 | 6 |
-| 486 | Cost guard: cek biaya sebelum apply (sudah budget) | 🔶 | P1 | 6 |
+| 486 | Cost guard: cek biaya sebelum apply (sudah budget) | ✅ | P1 | 6 |
 | 487 | Secrets tidak pernah di log | ✅ | P0 | 6 |
-| 488 | Redaction otomatis (sudah health.py partial) | 🔶 | P1 | 6 |
+| 488 | Redaction otomatis (sudah health.py partial) | ✅ | P1 | 6 |
 | 489 | Enkripsi at rest untuk store baru (flags/tests config) | ⬜ | P2 | 6 |
 | 490 | Rotasi session JWT otomatis | ⬜ | P1 | 6 |
-| 491 | 2FA enforce untuk admin (sudah TOTP) | 🔶 | P2 | 6 |
+| 491 | 2FA enforce untuk admin (sudah TOTP) | ✅ | P2 | 6 |
 | 492 | Password reset flow secure | ✅ | P1 | 6 |
 | 493 | OIDC login (sudah) ditambah SAML | ⬜ | P2 | 6 |
 | 494 | RBAC: role flags_admin, tests_admin, byoc_admin | ⬜ | P1 | 6 |
 | 495 | Policy: hanya admin boleh kill-switch | ⬜ | P1 | 6 |
 | 496 | Audit untuk change flag / import resource | ⬜ | P1 | 6 |
-| 497 | Read-only tidak bisa eval tulis | 🔶 | P1 | 6 |
-| 498 | API token scope per fitur (sudah roles) | 🔶 | P2 | 6 |
+| 497 | Read-only tidak bisa eval tulis | ✅ | P1 | 6 |
+| 498 | API token scope per fitur (sudah roles) | ✅ | P2 | 6 |
 | 499 | Preview env auto-expire (TTL) default | ⬜ | P1 | 6 |
 | 500 | Preview env label pada resource (tag preview=true) | ⬜ | P1 | 6 |
 | 501 | Preview env quota terpisah | ⬜ | P2 | 6 |
@@ -672,13 +672,13 @@ fitur terpisah:
 | 504 | Plan comment di GitHub PR (kompat Atlantis style) | ⬜ | P1 | 6 |
 | 505 | Merge gate: required checks multiple | ⬜ | P1 | 6 |
 | 506 | PR status badge dari radas | ⬜ | P2 | 6 |
-| 507 | Auto-apply setelah approval (sudah) | 🔶 | P1 | 6 |
+| 507 | Auto-apply setelah approval (sudah) | ✅ | P1 | 6 |
 | 508 | Branch protection sync dengan stack policy | ⬜ | P2 | 6 |
 | 509 | Pull request template radas untuk infra | ⬜ | P2 | 6 |
 | 510 | Code owners enforcement | ⬜ | P2 | 6 |
 | 511 | Module registry publish CLI | ⬜ | P1 | 6 |
 | 512 | Module semver + constraint resolution | ⬜ | P1 | 6 |
-| 513 | Provider mirror sudah -> extend per version | 🔶 | P1 | 6 |
+| 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
 | 514 | Lockfile .terraform.lock.hcl untuk ensure version | ⬜ | P1 | 6 |
 | 515 | Checksum verifikasi module download | ⬜ | P1 | 6 |
 | 516 | Init offline mode (mirror packages) | ⬜ | P1 | 6 |
@@ -693,24 +693,24 @@ fitur terpisah:
 | 525 | Import via console ke stack existing | ⬜ | P1 | 6 |
 | 526 | Output values viewer (state outputs) | ✅ | P1 | 6 |
 | 527 | Resource graph canvas (interaktif) | ⬜ | P2 | 6 |
-| 528 | Plan diff viewer sudah -> attach test hasil | 🔶 | P1 | 6 |
+| 528 | Plan diff viewer sudah -> attach test hasil | ✅ | P1 | 6 |
 | 529 | Run timeline: semua langkah tofu (init/validate/plan/apply) | ⬜ | P1 | 6 |
 | 530 | Skip init jika module belum berubah | ⬜ | P2 | 6 |
 | 531 | Cache module lokal per worker | ⬜ | P1 | 6 |
-| 532 | Agent tags: region/cloud (sudah worker tags) | 🔶 | P1 | 6 |
+| 532 | Agent tags: region/cloud (sudah worker tags) | ✅ | P1 | 6 |
 | 533 | Stack yang harus jalan di worker tertentu (pinning) | ⬜ | P1 | 6 |
 | 534 | Worker resource usage monitoring | ⬜ | P2 | 6 |
 | 535 | Worker online/offline status di dasbor | ⬜ | P1 | 6 |
 | 536 | Cooldown after failed apply (anti-spam) | ⬜ | P1 | 6 |
 | 537 | Lock stack manual (mode maintenance) | ✅ | P1 | 6 |
 | 538 | Lock reason & who (viewable) | ✅ | P2 | 6 |
-| 539 | DR: restore stack dari snapshot (sudah) | 🔶 | P1 | 6 |
+| 539 | DR: restore stack dari snapshot (sudah) | ✅ | P1 | 6 |
 | 540 | Snapshots: komentar/penamaan | ⬜ | P2 | 6 |
 | 541 | Schedule snapshot berkala | ⬜ | P2 | 6 |
 | 542 | Retention valid for snapshots (max N) | ⬜ | P2 | 6 |
-| 543 | Secret rotation schedule (sudah) -> auto-apply UI | 🔶 | P1 | 6 |
+| 543 | Secret rotation schedule (sudah) -> auto-apply UI | ✅ | P1 | 6 |
 | 544 | Compliance evidence untuk secret rotation | ⬜ | P2 | 6 |
-| 545 | Policy gate plan parse (sudah) -> extend severity | 🔶 | P1 | 6 |
+| 545 | Policy gate plan parse (sudah) -> extend severity | ✅ | P1 | 6 |
 | 546 | Policy violations list permanent | ⬜ | P1 | 6 |
 | 547 | Policy exemptions dengan approval | ⬜ | P2 | 6 |
 | 548 | Quota soft warning vs hard block | ⬜ | P1 | 6 |
@@ -731,14 +731,14 @@ fitur terpisah:
 | 563 | Untagged resource cost detection | ⬜ | P2 | 6 |
 | 564 | Performance: daftar stack > 500 lancar | ⬜ | P1 | 6 |
 | 565 | Indexing store untuk pencarian | ⬜ | P2 | 6 |
-| 566 | SSE stream reconnect dengan backoff (sudah) | 🔶 | P1 | 6 |
+| 566 | SSE stream reconnect dengan backoff (sudah) | ✅ | P1 | 6 |
 | 567 | Optimistik UI update untuk toggle flag | ⬜ | P2 | 6 |
 | 568 | Batch ops UI (select banyak run -> retry) | ⬜ | P2 | 6 |
 | 569 | Sari/draft plan dari template JSON | ⬜ | P2 | 6 |
-| 570 | Satu klik deploy template (sudah wizard) | 🔶 | P1 | 6 |
+| 570 | Satu klik deploy template (sudah wizard) | ✅ | P1 | 6 |
 | 571 | Template versioning (custom templates) | ⬜ | P1 | 6 |
 | 572 | Template market share (shareable URL) | ⬜ | P2 | 6 |
-| 573 | Stack dari template dengan init data (sudah) | 🔶 | P1 | 6 |
+| 573 | Stack dari template dengan init data (sudah) | ✅ | P1 | 6 |
 | 574 | ATS: integration tests untuk UI E2E | ⬜ | P2 | 6 |
 | 575 | Playwright selectors stabil (data-testid) | ⬜ | P2 | 6 |
 | 576 | Snapshot visual komponen | ⬜ | P2 | 6 |
@@ -746,13 +746,13 @@ fitur terpisah:
 | 578 | Lazy load halaman berat (charts) | ⬜ | P1 | 6 |
 | 579 | SWR stale-while-revalidate untuk dashboard | ⬜ | P1 | 6 |
 | 580 | Prefetch hover nav | ⬜ | P3 | 6 |
-| 581 | Error boundary per seksi (sudah ada) | 🔶 | P1 | 6 |
+| 581 | Error boundary per seksi (sudah ada) | ✅ | P1 | 6 |
 | 582 | Fallback UI saat API down (offline badge) | ⬜ | P1 | 6 |
 | 583 | Retry query otomatis with jitter | ⬜ | P1 | 6 |
-| 584 | Konsistensi: semua halaman pakai Card+Button (sudah bulk) | 🔶 | P1 | 6 |
+| 584 | Konsistensi: semua halaman pakai Card+Button (sudah bulk) | ✅ | P1 | 6 |
 | 585 | Warna semantik var CSS di halaman baru | ⬜ | P1 | 6 |
-| 586 | Typografi font-mono untuk data (sudah) | 🔶 | P1 | 6 |
-| 587 | Icon set konsisten remix (sudah) | 🔶 | P1 | 6 |
+| 586 | Typografi font-mono untuk data (sudah) | ✅ | P1 | 6 |
+| 587 | Icon set konsisten remix (sudah) | ✅ | P1 | 6 |
 | 588 | Accessibility: focus ring konsisten | ⬜ | P1 | 6 |
 | 589 | Kontras teks di card (AAA untuk teks kecil) | ⬜ | P2 | 6 |
 | 590 | Animasi ringan untuk status change | ⬜ | P3 | 6 |
@@ -761,9 +761,9 @@ fitur terpisah:
 | 593 | Tooltip untuk status kode (sukses/gagal) | ⬜ | P2 | 6 |
 | 594 | Shortcut '/' fokus global search | ⬜ | P3 | 6 |
 | 595 | Cmd+K command palette | ⬜ | P3 | 6 |
-| 596 | Dedupe: toast seragam (sudah) | 🔶 | P1 | 6 |
+| 596 | Dedupe: toast seragam (sudah) | ✅ | P1 | 6 |
 | 597 | Undo untuk aksi non-destruktif (toggle flag) | ⬜ | P3 | 6 |
-| 598 | Confirm dialog untuk delete (sudah) | 🔶 | P1 | 6 |
+| 598 | Confirm dialog untuk delete (sudah) | ✅ | P1 | 6 |
 | 599 | Docs in-app: help drawer per halaman | ⬜ | P2 | 6 |
 | 600 | Changelog produk di console | ⬜ | P3 | 6 |
 | 601 | Status page kecil (komponen health) | ⬜ | P2 | 6 |
@@ -794,7 +794,7 @@ fitur terpisah:
 | 626 | Password complexity policy per org | ⬜ | P2 | 6 |
 | 627 | OAuth login (Google/GitHub) opsional | ⬜ | P2 | 6 |
 | 628 | SSO discovery URL setting | ⬜ | P2 | 6 |
-| 629 | JWT issuer verification di toutes (sudah) | 🔶 | P1 | 6 |
+| 629 | JWT issuer verification di toutes (sudah) | ✅ | P1 | 6 |
 | 630 | Secret leak scanner di tfvars | ⬜ | P1 | 6 |
 | 631 | Vault integration (HashiCorp) read | ⬜ | P2 | 6 |
 | 632 | KMS key rotation | ⬜ | P2 | 6 |
@@ -816,7 +816,7 @@ fitur terpisah:
 | 648 | Graceful shutdown server (drain) | ⬜ | P2 | 6 |
 | 649 | Sistem config migration versioned | ⬜ | P2 | 6 |
 | 650 | Backup DATA_DIR tooling | ⬜ | P1 | 6 |
-| 651 | Restore from backup test (sudah UC 112) | 🔶 | P1 | 6 |
+| 651 | Restore from backup test (sudah UC 112) | ✅ | P1 | 6 |
 
 
 ## Q. Code Registry / Bring-Your-Own-Code (652+)
