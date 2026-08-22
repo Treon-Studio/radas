@@ -868,5 +868,118 @@ def test_webhook_dispatch_error_does_not_break_flag_operations(monkeypatch, data
     assert latest["rollout_percent"] == 50
 
 
+def test_get_ui_flags_filtering_and_evaluation(data_dir):
+    from services.feature_flag_registry import create_flag, get_ui_flags
+
+    # Create various flags: ui.*, console.*, tagged 'ui', and non-ui flags
+    create_flag({"key": "ui.module.dashboard", "enabled": True, "rollout_percent": 100})
+    create_flag({"key": "console.features.terminal", "enabled": True, "rollout_percent": 100})
+    create_flag({"key": "experimental.sidebar", "enabled": True, "tags": ["ui", "beta"]})
+    create_flag({"key": "backend.worker.threads", "enabled": True, "tags": ["backend"]})
+    create_flag({"key": "ui.show.billing", "enabled": False})
+
+    # Evaluate UI flags
+    flags = get_ui_flags()
+    assert "ui.module.dashboard" in flags
+    assert flags["ui.module.dashboard"] is True
+    assert "console.features.terminal" in flags
+    assert flags["console.features.terminal"] is True
+    assert "experimental.sidebar" in flags
+    assert flags["experimental.sidebar"] is True
+    assert "ui.show.billing" in flags
+    assert flags["ui.show.billing"] is False
+    assert "backend.worker.threads" not in flags
+
+
+def test_get_ui_flags_targeting_and_scoping(data_dir):
+    org_a, org_b, _ = _seed(data_dir)
+    from services.feature_flag_registry import create_flag, get_ui_flags
+
+    # Global UI flag with environment restriction (enabled in dev, disabled in prod)
+    create_flag({
+        "key": "ui.debug_panel",
+        "enabled": True,
+        "environments": {"dev": True, "prod": False},
+    })
+
+    # User whitelisted flag
+    create_flag({
+        "key": "ui.beta_editor",
+        "enabled": True,
+        "users_whitelist": ["alice"],
+        "rollout_percent": 0,
+    })
+
+    # Project scoped UI flag
+    create_flag(
+        {"key": "ui.custom_branding", "enabled": True},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+
+    # In dev env for anonymous user
+    flags_dev = get_ui_flags(env="dev")
+    assert flags_dev["ui.debug_panel"] is True
+    assert flags_dev["ui.beta_editor"] is False
+
+    # In prod env for alice
+    flags_prod_alice = get_ui_flags(env="prod", user_id="alice")
+    assert flags_prod_alice["ui.debug_panel"] is False
+    assert flags_prod_alice["ui.beta_editor"] is True
+
+    # In project-a context vs global context
+    flags_proj = get_ui_flags(scope_type="project", scope_id="project-a", org_id=org_a["id"])
+    assert flags_proj["ui.custom_branding"] is True
+
+    flags_global = get_ui_flags(scope_type="global")
+    assert "ui.custom_branding" not in flags_global
+
+
+def test_get_ui_flags_api_route(data_dir):
+    org_a, _, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    from services.feature_flag_registry import create_flag
+
+    create_flag({"key": "ui.navbar.v2", "enabled": True, "rollout_percent": 100})
+    create_flag({"key": "console.audit_viewer", "enabled": True, "environments": {"dev": True, "prod": False}})
+    create_flag({"key": "backend.queue_size", "enabled": True})
+
+    # GET /api/flags/ui
+    resp = client.get("/api/flags/ui", headers=tokens["admin"])
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "flags" in data
+    assert data["flags"].get("ui.navbar.v2") is True
+    assert data["flags"].get("console.audit_viewer") is False  # default env is prod
+    assert "backend.queue_size" not in data["flags"]
+    assert data["env"] == "prod"
+    assert data["scope_type"] == "global"
+
+    # Query with env=dev
+    resp_dev = client.get("/api/flags/ui?env=dev", headers=tokens["admin"])
+    assert resp_dev.status_code == 200
+    data_dev = resp_dev.get_json()
+    assert data_dev["flags"].get("console.audit_viewer") is True
+    assert data_dev["env"] == "dev"
+
+    # Query with project scoping
+    create_flag(
+        {"key": "ui.project_banner", "enabled": True},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    resp_proj = client.get("/api/flags/ui?project_id=project-a", headers=tokens["owner"])
+    assert resp_proj.status_code == 200
+    data_proj = resp_proj.get_json()
+    assert data_proj["flags"].get("ui.project_banner") is True
+    assert data_proj["flags"].get("ui.navbar.v2") is True
+    assert data_proj["scope_type"] == "project"
+    assert data_proj["scope_id"] == "project-a"
+
+
+
 
 

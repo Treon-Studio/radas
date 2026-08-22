@@ -11,8 +11,9 @@ except ImportError:
 
 from services.feature_flag_registry import (
     archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags,
-    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag,
+    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag, get_ui_flags,
 )
+
 
 bp = Blueprint("feature_flag_api", __name__)
 
@@ -172,6 +173,32 @@ def api_list_flags():
     enabled_arg = request.args.get("enabled")
     enabled = None if enabled_arg is None else enabled_arg.strip().lower() in {"1", "true", "yes"}
     return jsonify({"flags": filter_flags(flags, request.args.get("tag", ""), request.args.get("env", ""), enabled)})
+
+
+@bp.route('/api/flags/ui', methods=['GET'])
+@require_auth
+def api_get_ui_flags():
+    context, error = _scoped()
+    if error:
+        return error
+    scope_type, scope_id, org_id = context
+    actor_id, _ = _actor()
+    env = request.args.get("env") or "prod"
+    user_id = request.args.get("user_id") or actor_id or ""
+    ui_flags = get_ui_flags(
+        scope_type=scope_type,
+        scope_id=scope_id,
+        user_id=user_id,
+        env=env,
+        org_id=org_id,
+    )
+    return jsonify({
+        "flags": ui_flags,
+        "env": env,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+    })
+
 
 
 @bp.route('/api/flags/expire-due', methods=['POST'])

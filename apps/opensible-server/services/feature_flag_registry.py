@@ -1252,3 +1252,27 @@ def find_dependents(key: str, scope_type: str = "global", scope_id: Optional[str
                 dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
                                    "scope_id": dependent_scope_id, "relationship": "prerequisite"})
     return sorted(dependents, key=lambda item: (item["scope_type"], item["scope_id"] or "", item["key"] or "", item["relationship"]))
+
+
+def get_ui_flags(scope_type: str = "global", scope_id: Optional[str] = None,
+                 user_id: Optional[str] = None, env: str = "prod",
+                 org_id: Optional[str] = None) -> Dict[str, bool]:
+    """Retrieve evaluated boolean flags relevant for UI/Console modules."""
+    flags = list_flags(scope_type, scope_id, effective=True, org_id=org_id)
+    ui_flags: Dict[str, bool] = {}
+    for flag in flags:
+        if not isinstance(flag, dict) or not flag.get("key"):
+            continue
+        key = str(flag["key"])
+        tags = [str(t).lower() for t in (flag.get("tags") or [])]
+        if key.startswith("ui.") or key.startswith("console.") or "ui" in tags:
+            evaluation = evaluate(
+                key,
+                env=env,
+                user=user_id or "",
+                project_id=scope_id if scope_type == "project" else None,
+                org_id=org_id,
+            )
+            ui_flags[key] = bool(evaluation.get("enabled", False))
+    return ui_flags
+
