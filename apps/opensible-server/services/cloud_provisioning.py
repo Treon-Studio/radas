@@ -2113,6 +2113,121 @@ def api_list_expired_ttl():
     return jsonify({"expired_count": len(expired), "stacks": expired}), 200
 
 
+# ---------------------------------------------------------------------------
+# UC409: Circuit Breaker for Stack Apply (Auto-stop on Consecutive Failures)
+# ---------------------------------------------------------------------------
+
+def record_apply_result(
+    project_id: Optional[str],
+    stack: str,
+    success: bool,
+    failure_threshold: int = 3,
+) -> Dict[str, Any]:
+    """Record an apply outcome and trip the circuit breaker if failures hit threshold (UC409)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cb = dict(meta.get("circuit_breaker") or {})
+    consecutive_failures = int(cb.get("consecutive_failures", 0))
+
+    now = int(time.time())
+    if success:
+        consecutive_failures = 0
+        state = "closed"
+        tripped_at = None
+    else:
+        consecutive_failures += 1
+        if consecutive_failures >= max(1, failure_threshold):
+            state = "open"
+            tripped_at = now
+        else:
+            state = "closed"
+            tripped_at = cb.get("tripped_at")
+
+    cb_state = {
+        "state": state,
+        "consecutive_failures": consecutive_failures,
+        "failure_threshold": failure_threshold,
+        "last_updated": now,
+        "tripped_at": tripped_at,
+    }
+    meta["circuit_breaker"] = cb_state
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "circuit_breaker": cb_state,
+        "is_open": state == "open",
+    }
+
+
+def is_circuit_open(project_id: Optional[str], stack: str) -> bool:
+    """Check whether the circuit breaker is open (tripped) for a stack (UC409)."""
+    meta = _load_meta(project_id, stack)
+    cb = meta.get("circuit_breaker") or {}
+    return cb.get("state") == "open"
+
+
+def reset_circuit_breaker(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Manually reset an open circuit breaker to closed state (UC409)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cb = {
+        "state": "closed",
+        "consecutive_failures": 0,
+        "failure_threshold": 3,
+        "last_updated": int(time.time()),
+        "tripped_at": None,
+        "reset_at": int(time.time()),
+    }
+    meta["circuit_breaker"] = cb
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "circuit_breaker": cb,
+        "is_open": False,
+    }
+
+
+@bp.route("/stacks/<name>/circuit-breaker", methods=["GET"])
+@require_project_access
+def api_get_circuit_breaker(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    cb = meta.get("circuit_breaker") or {
+        "state": "closed",
+        "consecutive_failures": 0,
+        "failure_threshold": 3,
+    }
+    return jsonify({
+        "stack": name,
+        "project_id": pid,
+        "circuit_breaker": cb,
+        "is_open": cb.get("state") == "open",
+    }), 200
+
+
+@bp.route("/stacks/<name>/circuit-breaker/reset", methods=["POST"])
+@require_project_access
+def api_reset_circuit_breaker(name: str):
+    pid = _get_project_id()
+    try:
+        res = reset_circuit_breaker(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 

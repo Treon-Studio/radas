@@ -204,3 +204,71 @@ def test_idempotency_middleware_decorator():
     assert resp2.status_code == 201
     assert resp2.get_json()["call_count"] == 1
     assert call_count == 1
+
+
+def test_circuit_breaker_stack_apply(data_dir):
+    """UC409: Circuit breaker trips after threshold failures and resets."""
+    from services import cloud_provisioning
+
+    proj = "proj-cb"
+    stk = "fragile-stack"
+
+    # Initial state -> closed
+    assert cloud_provisioning.is_circuit_open(proj, stk) is False
+
+    # 1st failure -> closed
+    r1 = cloud_provisioning.record_apply_result(proj, stk, success=False, failure_threshold=3)
+    assert r1["is_open"] is False
+    assert r1["circuit_breaker"]["consecutive_failures"] == 1
+
+    # 2nd failure -> closed
+    r2 = cloud_provisioning.record_apply_result(proj, stk, success=False, failure_threshold=3)
+    assert r2["is_open"] is False
+    assert r2["circuit_breaker"]["consecutive_failures"] == 2
+
+    # 3rd failure -> TRIPPED (open)
+    r3 = cloud_provisioning.record_apply_result(proj, stk, success=False, failure_threshold=3)
+    assert r3["is_open"] is True
+    assert r3["circuit_breaker"]["state"] == "open"
+    assert cloud_provisioning.is_circuit_open(proj, stk) is True
+
+    # Manual reset
+    reset_res = cloud_provisioning.reset_circuit_breaker(proj, stk)
+    assert reset_res["is_open"] is False
+    assert cloud_provisioning.is_circuit_open(proj, stk) is False
+
+
+def test_api_circuit_breaker_endpoints(data_dir):
+    """UC409: GET and POST /api/cloud-provisioning/stacks/<stack>/circuit-breaker."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-cb"
+    proj_id = "proj-cb-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "CB Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "CB Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. GET circuit breaker
+    resp_get = client.get("/api/cloud-provisioning/stacks/app-stack/circuit-breaker", headers=headers)
+    assert resp_get.status_code == 200
+    assert resp_get.get_json()["circuit_breaker"]["state"] == "closed"
+
+    # 2. Reset circuit breaker
+    resp_reset = client.post("/api/cloud-provisioning/stacks/app-stack/circuit-breaker/reset", headers=headers)
+    assert resp_reset.status_code == 200
+    assert resp_reset.get_json()["is_open"] is False
