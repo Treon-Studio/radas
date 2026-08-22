@@ -154,3 +154,42 @@ def test_api_metrics_endpoint():
     assert resp.status_code == 200
     assert "text/plain" in resp.content_type
     assert "radas_server_up 1" in resp.get_data(as_text=True)
+
+
+def test_test_completion_webhook_dispatch(monkeypatch):
+    """UC476: Test suite completion dispatches outbound webhooks."""
+    from services import test_cases
+
+    dispatched = []
+
+    def mock_dispatch_event(event_name, payload):
+        dispatched.append({"event": event_name, "payload": payload})
+
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", mock_dispatch_event)
+
+    results = [
+        {"test_id": "t1", "status": "passed"},
+        {"test_id": "t2", "status": "failed"},
+    ]
+
+    test_cases.dispatch_test_completion_webhook(
+        project_id="proj-101",
+        stack="app-stack",
+        results=results,
+        passed=False,
+        duration_ms=450,
+    )
+
+    assert len(dispatched) == 2
+    events = [d["event"] for d in dispatched]
+    assert "test.completed" in events
+    assert "test.suite_finished" in events
+
+    p = dispatched[0]["payload"]
+    assert p["project_id"] == "proj-101"
+    assert p["stack"] == "app-stack"
+    assert p["status"] == "failed"
+    assert p["total_tests"] == 2
+    assert p["passed_tests"] == 1
+    assert p["failed_tests"] == 1
+    assert p["duration_ms"] == 450

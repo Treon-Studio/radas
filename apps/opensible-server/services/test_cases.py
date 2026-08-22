@@ -1025,3 +1025,38 @@ def import_tftest_hcl(content: str, project_id: Optional[str] = None, stack: str
         imported.append(created)
 
     return imported
+
+
+# ---------------------------------------------------------------------------
+# UC476: Outbound Webhook Dispatch on Test Run Completion Events
+# ---------------------------------------------------------------------------
+
+def dispatch_test_completion_webhook(
+    project_id: Optional[str],
+    stack: str,
+    results: List[Dict[str, Any]],
+    passed: bool,
+    duration_ms: int = 0,
+    run_id: Optional[str] = None,
+) -> None:
+    """Dispatch outbound webhook notifications when a test suite run completes (UC476)."""
+    try:
+        from services import webhook_dispatcher
+        payload = {
+            "event": "test.completed",
+            "project_id": project_id,
+            "stack": stack,
+            "passed": bool(passed),
+            "status": "passed" if passed else "failed",
+            "total_tests": len(results),
+            "passed_tests": sum(1 for r in results if r.get("status") == "passed"),
+            "failed_tests": sum(1 for r in results if r.get("status") == "failed"),
+            "duration_ms": duration_ms,
+            "run_id": run_id or str(uuid.uuid4()),
+            "timestamp": int(time.time()),
+        }
+        # Dispatch specific event and generic suite finished event
+        webhook_dispatcher.dispatch_event("test.completed", payload)
+        webhook_dispatcher.dispatch_event("test.suite_finished", payload)
+    except Exception:
+        pass
