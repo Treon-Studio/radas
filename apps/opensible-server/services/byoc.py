@@ -660,3 +660,39 @@ def detect_stack_backend_type(project_id: Optional[str], stack: str) -> Dict[str
         "backend_hcl_exists": backend_hcl_exists,
         "config": backend_config,
     }
+
+
+def export_inventory_csv(account_id: Optional[str] = None, project_id: Optional[str] = None) -> str:
+    """Export cloud resource inventory across accounts/project to CSV format (UC306)."""
+    import csv
+    import io
+
+    accounts = _load()
+    if account_id:
+        accounts = [a for a in accounts if a.get("id") == account_id]
+    elif project_id:
+        accounts = [a for a in accounts if a.get("project_id") == project_id]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["account_id", "account_name", "provider", "resource_id", "resource_name", "resource_type", "region", "status", "address"])
+
+    for a in accounts:
+        aid = a.get("id")
+        aname = a.get("name") or aid
+        provider = a.get("provider")
+        inv = get_inventory(aid)
+        for r in inv.get("resources") or []:
+            writer.writerow([
+                aid,
+                aname,
+                provider,
+                r.get("id") or "",
+                r.get("name") or "",
+                r.get("type") or "",
+                r.get("region") or "",
+                r.get("status") or "active",
+                r.get("address") or "",
+            ])
+
+    return output.getvalue()

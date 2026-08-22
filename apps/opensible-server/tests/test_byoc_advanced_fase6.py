@@ -130,3 +130,51 @@ def test_api_stack_backend_type_endpoint(data_dir):
     assert data["stack"] == "my-stack"
     assert "backend_type" in data
     assert "is_remote" in data
+
+
+def test_export_inventory_csv(data_dir, monkeypatch):
+    """UC306: Export multi-account resource inventory to CSV."""
+    acct = byoc.create_account({
+        "name": "Hetzner Cloud Prod",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "token123"},
+        "project_id": "proj-csv",
+    })
+
+    fake_inv = {
+        "account_id": acct["id"],
+        "resources": [
+            {"id": "srv-1", "name": "web-1", "type": "server", "region": "fsn1", "status": "running", "address": "hcloud_server.web1"},
+            {"id": "vol-1", "name": "data-vol", "type": "volume", "region": "fsn1", "status": "active", "address": "hcloud_volume.data"},
+        ],
+    }
+    monkeypatch.setattr(byoc, "get_inventory", lambda account_id: fake_inv)
+
+    csv_out = byoc.export_inventory_csv(account_id=acct["id"])
+    assert "account_id,account_name,provider,resource_id,resource_name,resource_type,region,status,address" in csv_out
+    assert "srv-1,web-1,server,fsn1,running,hcloud_server.web1" in csv_out
+    assert "vol-1,data-vol,volume,fsn1,active,hcloud_volume.data" in csv_out
+
+
+def test_api_export_inventory_csv_endpoint(data_dir, monkeypatch):
+    """UC306: GET /api/byoc/inventory/export/csv endpoint returns text/csv."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.byoc_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    monkeypatch.setattr(byoc, "export_inventory_csv", lambda account_id=None, project_id=None: "col1,col2\nval1,val2\n")
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get("/api/byoc/inventory/export/csv", headers=headers)
+    assert resp.status_code == 200
+    assert "text/csv" in resp.content_type
+    assert "attachment; filename=byoc-inventory.csv" in resp.headers.get("Content-Disposition", "")
+    assert "col1,col2" in resp.get_data(as_text=True)

@@ -327,3 +327,20 @@ def api_byoc_stack_backend_type(stack):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+
+@bp.route('/api/byoc/inventory/export/csv', methods=['GET'])
+@require_auth
+def api_byoc_export_inventory_csv():
+    from flask import Response
+    from services.byoc import export_inventory_csv
+    account_id = request.args.get("account_id")
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    csv_data = export_inventory_csv(account_id=account_id, project_id=project_id)
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=byoc-inventory.csv"},
+    )
+
+
