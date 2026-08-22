@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SEVERITIES = ("blocker", "warning", "info")
-KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "smoke")
+KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "iac_scan", "smoke")
 _RESULTS_LOCK = threading.Lock()
 
 
@@ -145,6 +145,55 @@ ASSERTIONS: Dict[str, Dict[str, Any]] = {
 
 def _assertion_ids() -> List[str]:
     return sorted(ASSERTIONS)
+
+
+TEST_TEMPLATES: List[Dict[str, Any]] = [
+    {
+        "id": "tpl-security-baseline",
+        "slug": "security-baseline",
+        "name": "Security Baseline",
+        "desc": "Check public CIDR, open SSH/RDP ports, and plaintext secrets",
+        "kind": "assertion",
+        "assertions": ["cidr_public", "ports_open", "secret_in_tfvars"],
+        "severity": "blocker",
+        "tags": ["security", "baseline"],
+    },
+    {
+        "id": "tpl-compliance-storage",
+        "slug": "compliance-storage",
+        "name": "Storage & Resource Compliance",
+        "desc": "Check unencrypted volumes and missing required tags",
+        "kind": "assertion",
+        "assertions": ["unencrypted_volume", "missing_tags"],
+        "severity": "warning",
+        "tags": ["compliance", "storage"],
+    },
+    {
+        "id": "tpl-iam-governance",
+        "slug": "iam-governance",
+        "name": "IAM Governance",
+        "desc": "Check IAM wildcard permissions",
+        "kind": "assertion",
+        "assertions": ["iam_wildcard"],
+        "severity": "warning",
+        "tags": ["security", "iam", "governance"],
+    },
+    {
+        "id": "tpl-cost-sanity",
+        "slug": "cost-sanity",
+        "name": "Cost Sanity Check",
+        "desc": "Ensure instance counts and budget limits are aligned",
+        "kind": "assertion",
+        "assertions": ["vm_count_zero", "budget_exceeded"],
+        "severity": "info",
+        "tags": ["cost", "sanity"],
+    },
+]
+
+
+def list_templates() -> List[Dict[str, Any]]:
+    """Return built-in test case templates catalog (UC180)."""
+    return [dict(t) for t in TEST_TEMPLATES]
 
 
 def list_test_cases(project_id: Optional[str] = None, tag: str = "", environment: str = "",
@@ -375,7 +424,7 @@ def _assertion_hit(assertion_id: str, text: str, parameters: Dict[str, Any]) -> 
         return any(value > threshold for value in values)
     if assertion_id == "budget_exceeded":
         threshold = float(parameters.get("monthly_budget", parameters.get("budget", 1000)))
-        values = [float(value.replace(",", "")) for value in re.findall(r"(?:monthly_cost|estimated_cost)\s*[=:]\s*[$]?([0-9]+(?:\.[0-9]+)?)", text, re.I)]
+        values = [float(value.replace(",", "")) for value in re.findall(r"(?:monthly_cost|estimated_cost)\s*[=:]\s*[\"']?[$]?([0-9]+(?:\.[0-9]+)?)", text, re.I)]
         return any(value > threshold for value in values)
     if assertion_id == "provider_image_outdated":
         minimum = str(parameters.get("minimum_image", parameters.get("minimum_provider_version", ""))).strip()
@@ -440,6 +489,23 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
                          "severity": "info" if passed else "blocker", "source": "tool",
                          "detail": {"lint": lint["output"], "syntax": syntax["output"]},
                          "tool_status": {"lint": lint["status"], "syntax": syntax["status"]}})
+    elif tc["kind"] == "iac_scan":
+        from services.cloud_provisioning import _stack_dir
+        stack_dir = str(_stack_dir(project_id, tc["stack"]))
+        scanners = {
+            tool: run_bounded_tool(tool, cwd=stack_dir, timeout_seconds=timeout_seconds, mock=mock_provider)
+            for tool in ("checkov", "tfsec")
+        }
+        passed = all(result["status"] in {"passed", "mocked"} for result in scanners.values())
+        findings.append({
+            "assertion": "iac_scan",
+            "name": "Checkov and tfsec IaC security scan",
+            "severity": "info" if passed else "blocker",
+            "source": "tool",
+            "detail": {tool: result["output"] for tool, result in scanners.items()},
+            "tool_status": {tool: result["status"] for tool, result in scanners.items()},
+            "tool_results": scanners,
+        })
     elif tc["kind"] == "tofu_test":
         passed = True
         findings.append({"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",
@@ -455,6 +521,8 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
     result = {
         "id": str(uuid.uuid4()),
         "run_id": str(uuid.uuid4()),
+        "execution_id": None,
+        "execution_log_url": None,
         "test_id": test_id,
         "mock_provider": mock_provider,
         "timeout_seconds": timeout_seconds,
@@ -516,6 +584,8 @@ def run_tofu_test(project_id: Optional[str], test_id: str) -> Dict[str, Any]:
         "id": str(uuid.uuid4()), "test_id": test_id, "name": tc["name"],
         "stack": stack, "kind": "tofu_test", "severity": tc.get("severity") or "warning",
         "passed": False, "queued": True, "status": "queued", "execution_id": eid,
+        "execution_log_url": f"/api/executions/{eid}/logs",
+        "run_id": eid,
         "findings": [{"assertion": "tofu_test", "name": "OpenTofu .tftest.hcl",
                       "severity": "info", "source": "plan",
                       "detail": f"tofu test queued (execution {eid})." }],
@@ -564,7 +634,8 @@ def run_scheduled_tests(project_id: Optional[str], now: Optional[int] = None, ti
                 except FutureTimeoutError:
                     future.cancel()
                     result = {
-                        "id": str(uuid.uuid4()), "run_id": str(uuid.uuid4()), "test_id": tc["id"],
+                        "id": str(uuid.uuid4()), "run_id": str(uuid.uuid4()), "execution_id": None,
+                        "execution_log_url": None, "test_id": tc["id"],
                         "name": tc["name"], "stack": tc.get("stack", ""), "kind": tc.get("kind", "assertion"),
                         "severity": tc.get("severity", "warning"), "passed": False, "status": "timeout",
                         "findings": [], "ran_at": int(time.time()), "project_id": project_id,

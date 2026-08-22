@@ -70,7 +70,7 @@ def list_snapshots(pid: str, name: str) -> List[Dict[str, Any]]:
             data = json.loads(r["data"].decode("utf-8"))
         except Exception:
             data = {}
-        out.append({"id": str(r["ts"]), "created_at": data.get("created_at"),
+        out.append({"id": str(int(r["ts"])), "created_at": data.get("created_at"),
                     "reason": data.get("reason")})
     return out
 

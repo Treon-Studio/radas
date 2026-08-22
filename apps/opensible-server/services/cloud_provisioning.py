@@ -615,6 +615,37 @@ def _save_meta(project_id: Optional[str], name: str, **patch: Any) -> None:
     )
 
 
+def get_drift_schedule(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Get drift schedule config for a stack, with defaults."""
+    meta = _load_meta(project_id, stack)
+    return meta.get("drift_schedule", {"enabled": False, "cron": None, "alert_on_drift": True})
+
+def set_drift_schedule(project_id: Optional[str], stack: str, config: Dict[str, Any]) -> None:
+    """Set drift schedule config for a stack."""
+    enabled = bool(config.get("enabled", False))
+    cron = config.get("cron")
+    if enabled and not cron:
+        raise ValueError("cron expression required when enabled")
+    if cron and not isinstance(cron, str):
+        raise ValueError("cron must be a string")
+
+    # Validate cron syntax using APScheduler
+    if enabled and cron:
+        try:
+            from apscheduler.triggers.cron import CronTrigger
+            CronTrigger.from_crontab(cron, timezone="UTC")
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid cron expression: {str(e)}") from e
+
+    alert_on_drift = bool(config.get("alert_on_drift", True))
+    _save_meta(project_id, stack, drift_schedule={
+        "enabled": enabled,
+        "cron": cron,
+        "alert_on_drift": alert_on_drift,
+        "updated_at": int(time.time()),
+    })
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -1142,10 +1173,52 @@ def stacks_action(name):
                          f"or force-unlock from the State management panel.",
                 "lock": _existing,
             }), 409
-        pass
+
+        # Acquire remote state lock (UC331) for stacks using a remote backend.
+        try:
+            from services import remote_state_lock
+            from services.cloud_state import read_backend_config
+            bc = read_backend_config(_stack_dir(pid, name))
+            if bc.get("backend_type") not in ("local", None):
+                backend_type = bc.get("backend_type")
+                backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{name}.tfstate"
+                rsl = remote_state_lock.acquire(
+                    name, backend_type, backend_key,
+                    actor=_tb or "unknown",
+                    operation=action,
+                )
+                if not rsl["ok"]:
+                    return jsonify({
+                        "error": f"Remote state is locked by {rsl['lock'].get('actor')} "
+                                 f"({rsl['lock'].get('operation')}) for {rsl['lock'].get('stack')}. "
+                                 "Wait for that run to finish or force-unlock.",
+                        "lock": rsl["lock"],
+                    }), 409
+                # Store lock id in meta for later release
+                _save_meta(pid, name, _remote_state_lock_id=rsl["lock"]["id"])
+        except Exception as e:
+            current_app.logger.warning(f"[cloud] remote state lock check failed: {e}")
+            # If remote state lock fails, still allow operation but log warning
 
     try:
         eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid, priority=_priority)
+        # Record audit event for queued execution
+        from services.audit_events import record_audit_event
+        record_audit_event(
+            "cloud.run.queued",
+            actor_user_id=_tbid or None,
+            target_type="execution",
+            target_id=eid,
+            meta={
+                "project_id": pid,
+                "stack_name": name,
+                "tofu_action": action,
+                "provider": _read_stack_provider(pid, name),
+                "triggered_by": _tb,
+                "worker_id": worker_id,
+                "actor_kind": "user" if _tbid else "system",
+            },
+        )
     except Exception as e:
         current_app.logger.error(f"[cloud] enqueue {action} for {name} failed: {e}")
         return jsonify({"error": f"Failed to queue run: {e}"}), 500

@@ -36,6 +36,33 @@ func Run(executionID string, execData map[string]any, projectID string, client *
 	executePlaybook(executionID, execData, projectID, client, runParams)
 }
 
+const defaultAnsibleActionTimeout = 30 * time.Minute
+const maxAnsibleActionTimeout = 24 * time.Hour
+
+func ansibleActionTimeout(runParams map[string]any) time.Duration {
+	value, ok := runParams["action_timeout_seconds"]
+	if !ok {
+		return defaultAnsibleActionTimeout
+	}
+	var seconds int64
+	switch typed := value.(type) {
+	case float64:
+		seconds = int64(typed)
+	case int:
+		seconds = int64(typed)
+	case int64:
+		seconds = typed
+	}
+	if seconds <= 0 {
+		return defaultAnsibleActionTimeout
+	}
+	candidate := time.Duration(seconds) * time.Second
+	if candidate > maxAnsibleActionTimeout {
+		return maxAnsibleActionTimeout
+	}
+	return candidate
+}
+
 func executePlaybook(executionID string, execData map[string]any, projectID string, client *httpclient.Client, runParams map[string]any) {
 	log := logging.L()
 	startTime := time.Now()
@@ -295,7 +322,9 @@ func executePlaybook(executionID string, execData map[string]any, projectID stri
 		"type", executionType, "cmd", strings.Join(cmdArgs, " "))
 
 	// Run process.
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	actionCtx, cancelAction := context.WithTimeout(context.Background(), ansibleActionTimeout(runParams))
+	defer cancelAction()
+	cmd := exec.CommandContext(actionCtx, cmdArgs[0], cmdArgs[1:]...)
 	cmd.Dir = projectDir
 	cmd.Env = env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}

@@ -1,8 +1,9 @@
 import { createRootRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/app-shell/Header";
 import { getActiveSection, SubNavLinks } from "@/components/app-shell/NavSections";
-import { getToken } from "@/lib/api";
+import { getToken, api } from "@/lib/api";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -22,22 +23,35 @@ function RootLayout() {
   const [ready, setReady] = useState(false);
 
   const isPublicPath = (path: string) =>
-    path.startsWith("/login") || path.startsWith("/forgot-password") || path.startsWith("/reset-password");
+    path.startsWith("/login") || path.startsWith("/forgot-password") || path.startsWith("/reset-password") || path.startsWith("/onboarding");
+
+  // Check onboarding status for authenticated users
+  const { data: onboardingStatus, isLoading: onboardingLoading } = useQuery({
+    queryKey: ["onboarding-status"],
+    queryFn: () => api<{ completed: boolean }>("GET", "/api/onboarding/status"),
+    enabled: !!getToken() && !isPublicPath(location.pathname),
+    retry: false,
+  });
 
   useEffect(() => {
     const token = getToken();
     if (!token && !isPublicPath(location.pathname)) {
       navigate({ to: "/login", replace: true });
-    } else {
-      setReady(true);
+      return;
     }
-  }, [location.pathname, navigate]);
+    if (token && !isPublicPath(location.pathname) && !onboardingLoading && onboardingStatus !== undefined) {
+      if (!onboardingStatus.completed && location.pathname !== "/onboarding") {
+        navigate({ to: "/onboarding", replace: true });
+        return;
+      }
+    }
+  }, [location.pathname, navigate, onboardingStatus, onboardingLoading]);
 
   if (isPublicPath(location.pathname)) {
     return <Outlet />;
   }
 
-  if (!ready) return null;
+  if (!ready || onboardingLoading) return null;
 
   const activeSec = getActiveSection(location.pathname);
 

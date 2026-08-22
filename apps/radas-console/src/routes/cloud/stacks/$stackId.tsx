@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiArrowLeftLine as ArrowLeft, RiCheckboxCircleLine as CheckCircle2, RiDownload2Line as Download, RiSearchLine as Search, RiRocketLine as Rocket, RiFlashlightLine as Bomb, RiArrowGoBackLine as RefreshCcw, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiGitBranchLine as GitBranch, RiGitPullRequestLine as GitPullRequestArrow, RiEditLine as Edit, RiDeleteBinLine as Trash2, RiKey2Line as KeyRound, RiErrorWarningLine as AlertTriangle, RiArchiveStackLine as Boxes, RiGithubLine as Github, RiRadarLine as Radar, RiSettingsLine as Settings, RiCloseLine as X, RiMore2Line as MoreHorizontal, RiLockLine as Lock, RiLockUnlockLine as Unlock } from "@remixicon/react";
@@ -163,6 +163,58 @@ function StackDetail() {
       queryClient.invalidateQueries({ queryKey: qk.stack(stackId) });
     },
     onError: (e: any) => toast.error(e?.message || "Failed to update drift detection"),
+  });
+
+  type DriftSchedule = {
+    enabled: boolean;
+    cron?: string;
+    alert_on_drift?: boolean;
+    last_scheduled_check?: number | null;
+  };
+
+  const driftScheduleQ = useQuery({
+    queryKey: ["cloud", "stack-drift-schedule", stackId],
+    queryFn: () => api<DriftSchedule>("GET", `/api/cloud/stacks/${encodeURIComponent(stackId)}/drift-schedule`),
+    enabled: !!stackId,
+  });
+
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleCron, setScheduleCron] = useState("");
+  const [scheduleAlert, setScheduleAlert] = useState(true);
+  const [scheduleDirty, setScheduleDirty] = useState(false);
+
+  useEffect(() => {
+    if (driftScheduleQ.data) {
+      setScheduleEnabled(driftScheduleQ.data.enabled ?? false);
+      setScheduleCron(driftScheduleQ.data.cron ?? "");
+      setScheduleAlert(driftScheduleQ.data.alert_on_drift ?? true);
+      setScheduleDirty(false);
+    }
+  }, [driftScheduleQ.data]);
+
+  const saveScheduleMut = useMutation({
+    mutationFn: () =>
+      api("PUT", `/api/cloud/stacks/${encodeURIComponent(stackId)}/drift-schedule`, {
+        enabled: scheduleEnabled,
+        cron: scheduleCron,
+        alert_on_drift: scheduleAlert,
+      }),
+    onSuccess: () => {
+      toast.success("Drift schedule saved");
+      setScheduleDirty(false);
+      driftScheduleQ.refetch();
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to save drift schedule"),
+  });
+
+  const runDriftCheckMut = useMutation({
+    mutationFn: () =>
+      api("POST", `/api/cloud/stacks/${encodeURIComponent(stackId)}/drift-check`),
+    onSuccess: () => {
+      toast.success("Drift check triggered");
+      driftQ.refetch();
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to trigger drift check"),
   });
 
   const runsQ = useQuery({
@@ -624,6 +676,67 @@ function StackDetail() {
               <Button variant="outline" size="sm" disabled={!!running} onClick={() => runAction("drift", false)}>
                 <Radar className="h-4 w-4 mr-1.5" /> Check Drift
               </Button>
+
+              <div className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)]">Scheduled checks</div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={scheduleEnabled}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => { setScheduleEnabled(e.target.checked); setScheduleDirty(true); }}
+                    className="rounded border-[var(--color-border)]"
+                  />
+                  Enable scheduled drift checks
+                </label>
+                {scheduleEnabled && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs text-[var(--color-muted-foreground)]">Cron expression</label>
+                      <input
+                        type="text"
+                        value={scheduleCron}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => { setScheduleCron(e.target.value); setScheduleDirty(true); }}
+                        placeholder="0 2 * * *"
+                        className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                      />
+                      <div className="text-[11px] text-[var(--color-muted-foreground)]">Example: <code className="font-mono">0 2 * * *</code> runs daily at 2 AM</div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={scheduleAlert}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => { setScheduleAlert(e.target.checked); setScheduleDirty(true); }}
+                        className="rounded border-[var(--color-border)]"
+                      />
+                      Send alert when drift is detected
+                    </label>
+                  </>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={!scheduleDirty || saveScheduleMut.isPending}
+                    onClick={() => saveScheduleMut.mutate()}
+                  >
+                    {saveScheduleMut.isPending ? "Saving…" : "Save schedule"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={runDriftCheckMut.isPending || !!running}
+                    onClick={() => runDriftCheckMut.mutate()}
+                  >
+                    <Radar className="h-4 w-4 mr-1.5" />
+                    {runDriftCheckMut.isPending ? "Running…" : "Run check now"}
+                  </Button>
+                </div>
+                {driftScheduleQ.data?.last_scheduled_check && (
+                  <div className="text-xs text-[var(--color-muted-foreground)]">
+                    Last scheduled check: {fmtRelSec(driftScheduleQ.data.last_scheduled_check)}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

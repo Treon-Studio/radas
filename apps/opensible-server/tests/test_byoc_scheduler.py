@@ -34,6 +34,25 @@ def test_check_due_accounts_includes_stale(data_dir, monkeypatch):
     due = check_due_accounts(now=int(time.time()) + 7200)
     assert len(due) == 1 and due[0]["ok"] is True
 
+def test_due_failed_validation_dispatches_credential_notification(monkeypatch, data_dir):
+    from services import byoc
+
+    account = _acct(data_dir)
+    sent = []
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": False, "status": 401, "detail": "unauthorized"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
+
+    due = byoc.check_due_accounts(now=int(time.time()) + 7200)
+
+    assert due == [{"account_id": account["id"], "name": "h", "ok": False, "status": 401, "detail": "unauthorized"}]
+    assert sent == [("byoc.credential_failure", {
+        "account_id": account["id"],
+        "provider": "hetzner",
+        "status": 401,
+        "project_id": None,
+    })]
+
+
 def test_rotate_credentials_updates_encrypted(data_dir):
     from services.byoc import create_account, get_account, rotate_credentials, list_accounts
     acct = create_account({"name": "r", "provider": "hetzner", "regions": ["fsn1"],

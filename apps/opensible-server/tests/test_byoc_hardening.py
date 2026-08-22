@@ -29,11 +29,182 @@ def test_probe_failure_detail_redacts_credentials():
             sys.modules["requests"] = original
 
 
+def test_credential_failure_dispatches_redacted_notification(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-failure",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    sent = []
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": False, "status": 401, "detail": "Authorization: secret-token at https://provider"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is False
+    assert sent == [("byoc.credential_failure", {
+        "account_id": account["id"],
+        "provider": "hetzner",
+        "status": 401,
+        "project_id": "project-notify",
+    })]
+    assert "secret-token" not in str(sent)
+    stored = byoc.get_account(account["id"])
+    assert stored["status"] == "error"
+    assert stored["last_notification"]["kind"] == "byoc.credential_failure"
+
+
+def test_credential_failure_dispatch_is_best_effort(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-dispatch-error",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": False, "status": 403, "detail": "forbidden"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda *_: (_ for _ in ()).throw(RuntimeError("webhook offline")))
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is False
+    assert byoc.get_account(account["id"])["status"] == "error"
+
+
+def test_successful_credential_validation_does_not_dispatch_failure(monkeypatch):
+    from services import byoc
+
+    account = byoc.create_account({
+        "name": "notify-success",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "secret-token"},
+        "org_id": "org-notify",
+        "project_id": "project-notify",
+    })
+    sent = []
+    monkeypatch.setattr(byoc, "_probe", lambda *_: {"ok": True, "status": 200, "detail": "credentials accepted"})
+    monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
+
+    result = byoc.validate_account(account["id"])
+
+    assert result["ok"] is True
+    assert sent == []
+
+
 def test_provider_detection_shapes():
     from services.byoc import detect_provider
     assert detect_provider({"credentials":{"hcloud_token":"x"}})["provider"] == "hetzner"
     assert detect_provider({"credentials":{"access_key":"x","secret_key":"y"}})["provider"] == "aws"
     assert detect_provider({"credentials":{"unknown":"x"}})["provider"] is None
+
+import pytest
+
+
+@pytest.mark.parametrize(("payload", "provider"), [
+    ({"credentials": {"api_token": "idch-secret"}}, "idcloudhost"),
+    ({"endpoint": "https://api.idcloudhost.com/"}, "idcloudhost"),
+    ({"credentials": {"os_auth_url": "https://keystone.gio.space/v3", "os_username": "u", "os_password": "openstack-secret", "os_project_name": "tenant"}}, "openstack"),
+    ({"endpoint": "https://keystone.gio.space/v3"}, "openstack"),
+    ({"credentials": {"os_auth_url": "https://openstack.example/v3", "os_region_name": "RegionOne"}}, "openstack"),
+])
+def test_provider_detection_recognizes_supported_idcloudhost_and_openstack_shapes(payload, provider):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result["provider"] == provider
+    assert result["confidence"] == 1.0
+    assert "idch-secret" not in str(result)
+    assert "openstack-secret" not in str(result)
+
+
+@pytest.mark.parametrize(("payload", "expected"), [
+    (
+        {"endpoint": "https://API.IDCLOUDHOST.COM/", "region": "id-jkt-1"},
+        {"provider": "idcloudhost", "endpoint": "https://api.idcloudhost.com", "region": "id-jkt-1"},
+    ),
+    (
+        {"credentials": {"os_auth_url": "https://keystone.gio.space/v3/", "os_region_name": "RegionOne"}},
+        {"provider": "openstack", "endpoint": "https://keystone.gio.space/v3", "region": "RegionOne"},
+    ),
+    (
+        {"credentials": {"access_key": "access", "secret_key": "secret"}, "region": "ap-southeast-3"},
+        {"provider": "aws", "endpoint": None, "region": "ap-southeast-3"},
+    ),
+])
+def test_provider_detection_returns_normalized_safe_endpoint_and_explicit_region(payload, expected):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result["provider"] == expected["provider"]
+    assert result["endpoint"] == expected["endpoint"]
+    assert result["region"] == expected["region"]
+    assert "secret" not in str(result)
+
+
+@pytest.mark.parametrize("payload", [
+    {"endpoint": "https://identity.example.net/v3/"},
+    {"credentials": {"os_auth_url": "https://identity.example.net/v3/"}},
+])
+def test_provider_detection_recognizes_generic_openstack_v3_identity_endpoint(payload):
+    from services.byoc import detect_provider
+
+    result = detect_provider(payload)
+
+    assert result == {
+        "provider": "openstack",
+        "confidence": 1.0,
+        "reason": "generic OpenStack identity endpoint matched",
+        "endpoint": "https://identity.example.net/v3",
+        "region": None,
+    }
+
+
+@pytest.mark.parametrize("endpoint", [
+    "identity.example.net/v3",
+    "ftp://identity.example.net/v3",
+    "https://identity.example.net/v2",
+    "https://identity.example.net/not-identity",
+])
+def test_provider_detection_rejects_non_identity_generic_endpoints(endpoint):
+    from services.byoc import detect_provider
+
+    result = detect_provider({"endpoint": endpoint, "credentials": {"password": "do-not-echo"}})
+
+    assert result["provider"] is None
+    assert result["confidence"] == 0.0
+    assert result["endpoint"] is None
+    assert result["region"] is None
+    assert "do-not-echo" not in str(result)
+
+
+def test_provider_detection_does_not_infer_region_or_echo_untrusted_endpoint():
+    from services.byoc import detect_provider
+
+    result = detect_provider({"endpoint": "https://keystone.example/v3", "credentials": {"os_auth_url": "https://keystone.example/v3", "os_password": "do-not-echo"}})
+
+    assert result["provider"] == "openstack"
+    assert result["region"] is None
+    assert result["endpoint"] == "https://keystone.example/v3"
+    assert "do-not-echo" not in str(result)
+
+
+def test_provider_detection_reason_never_echoes_unknown_input_secret():
+    from services.byoc import detect_provider
+
+    result = detect_provider({"credentials": {"unknown": "do-not-echo"}, "endpoint": "https://secret-endpoint.example"})
+
+    assert result == {"provider": None, "confidence": 0.0, "reason": "no matching credential shape", "endpoint": None, "region": None}
+    assert "do-not-echo" not in str(result)
+    assert "secret-endpoint" not in str(result)
+
 
 def test_unsupported_provider_probe_fails_closed():
     from services.byoc import _probe

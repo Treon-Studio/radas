@@ -168,6 +168,7 @@ def api_worker_claim():
         _claim_rate_limits[worker_id] = now
 
         data = request.json or {}
+        recovering = bool(data.get('recovering', False))
         project_id = data.get('projectId')
         max_concurrency = data.get('maxConcurrency', 1)
         tags = data.get('tags')
@@ -196,13 +197,19 @@ def api_worker_claim():
             })
 
         server_claim_next_execution = _app_module().server_claim_next_execution
-        execution_id, execution, proj_id = server_claim_next_execution(
+        claim_result = server_claim_next_execution(
             worker_id=worker_id,
             worker_data=worker_data,
             project_id=project_id,
             max_concurrency=max_concurrency,
             tags=tags,
+            recovering=recovering,
         )
+        conflict = len(claim_result) == 4 and claim_result[3] is True
+        execution_id, execution, proj_id = claim_result[:3]
+
+        if conflict:
+            return jsonify({'success': False, 'error': 'claim_conflict', 'retry_after': 1}), 409, {'Retry-After': '1'}
 
         if not execution_id:
             current_app.logger.debug(
@@ -432,6 +439,87 @@ def api_worker_execution_finish(execution_id):
             )
 
         update_execution_record(execution_id, updates, project_id=project_id)
+
+        from storage import project_admission
+        from storage import pg
+        try:
+            with pg.transaction() as conn:
+                project_admission.release(conn, reference_id=execution_id)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to release admission lease for {execution_id}: {e}")
+
+        # Release project lock and remote state lock for mutating TOFU_RUNs (UC331, UC373)
+        try:
+            run_params = execution.get('runParams') or {}
+            if run_params.get('execution_type') == 'TOFU_RUN':
+                action = run_params.get('tofu_action')
+                if action in ('apply', 'destroy', 'refresh', 'rollback', 'strip'):
+                    from services import project_lock
+                    project_lock.release(project_id)
+
+                    try:
+                        from services import remote_state_lock
+                        from services.cloud_state import read_backend_config
+                        from services.cloud_provisioning import _stack_dir
+                        stack = run_params.get('stack_name')
+                        if stack:
+                            bc = read_backend_config(_stack_dir(project_id, stack))
+                            if bc.get("backend_type") not in ("local", None):
+                                backend_type = bc.get("backend_type")
+                                backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{stack}.tfstate"
+                                remote_state_lock.release(stack, backend_type, backend_key)
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to release remote state lock for {execution_id}: {e}")
+        except Exception as e:
+            current_app.logger.warning(f"Failed to release project/remote lock for {execution_id}: {e}")
+
+        if (execution.get('runParams') or {}).get('execution_type') == 'TOFU_RUN':
+            from services.audit_events import record_audit_event
+            run_params = execution.get('runParams') or {}
+            record_audit_event(
+                'cloud.run.completed',
+                actor_user_id=execution.get('triggeredByUserId'),
+                target_type='execution',
+                target_id=execution_id,
+                meta={
+                    'project_id': project_id,
+                    'stack_name': run_params.get('stack_name'),
+                    'tofu_action': run_params.get('tofu_action'),
+                    'provider': run_params.get('provider'),
+                    'status': status,
+                    'return_code': return_code,
+                    'duration': duration,
+                    'worker_id': worker_id,
+                    'triggered_by': execution.get('triggeredBy'),
+                    'actor_kind': 'user' if execution.get('triggeredByUserId') else 'system',
+                },
+            )
+        try:
+            from services.drift_scheduler import complete_scheduled_drift
+            execution_for_completion = dict(execution)
+            execution_for_completion["id"] = execution_id
+            complete_scheduled_drift(
+                execution_for_completion,
+                status=status,
+                return_code=return_code,
+                finished_at=finished_at,
+            )
+        except Exception as drift_e:
+            current_app.logger.warning(
+                f"[api_worker_execution_finish] Scheduled drift completion hook failed: {drift_e}"
+            )
+        if status == 'FAILED':
+            try:
+                from services.notification_service import notify_execution_failure
+                notify_execution_failure(
+                    execution,
+                    project_id=project_id,
+                    error_detail=str(result.get('error') if isinstance(result, dict) else (result or '')),
+                )
+            except Exception as notif_e:
+                current_app.logger.warning(
+                    f"[api_worker_execution_finish] Failure notification hook failed: {notif_e}"
+                )
         current_app.logger.info(
             f"[api_worker_execution_finish] Updated execution {execution_id} with status {status}, "
             f"result={'present' if result else 'none'}"

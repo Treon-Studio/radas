@@ -11,10 +11,19 @@ except ImportError:
 from services.stack_snapshots import (
     get_state_config, list_snapshots, restore, set_state_config, snapshot,
 )
-from services.cloud_provisioning import _stack_dir, _create_execution
+from services.cloud_provisioning import _stack_dir, _stack_data_dir, _create_execution, _get_execution_record
+from services import cloud_state
 from utils.request_ctx import get_project_id_from_request as _get_pid_raw
 
 bp = Blueprint("stack_lifecycle_api", __name__)
+
+
+def _lock_or_conflict(pid: str, name: str):
+    dd = _stack_data_dir(pid, name)
+    lock = cloud_state.read_lock(dd, _get_execution_record, pid)
+    if lock:
+        return jsonify({"error": f"State is locked by {lock.get('who')} ({lock.get('operation')}).", "lock": lock}), 409
+    return None
 
 
 def _ctx(name: str):
@@ -51,11 +60,15 @@ def api_rollback(name):
     pid, name = _ctx(name)
     if not pid:
         return jsonify({"error": "Not found"}), 404
+    conflict = _lock_or_conflict(pid, name)
+    if conflict:
+        return conflict
     sid = (request.get_json(silent=True) or {}).get("snapshot_id")
     restored = restore(pid, name, sid)
     if not restored:
         return jsonify({"error": "No snapshot to restore"}), 400
     eid = _create_execution(pid, name, "apply", triggered_by="rollback")
+    cloud_state.acquire_lock(_stack_data_dir(pid, name), actor="rollback", operation="apply", run_id=eid, get_execution=_get_execution_record, project_id=pid)
     return jsonify({"success": True, "restored_snapshot": restored, "execution_id": eid})
 
 
@@ -65,7 +78,11 @@ def api_strip(name):
     pid, name = _ctx(name)
     if not pid:
         return jsonify({"error": "Not found"}), 404
+    conflict = _lock_or_conflict(pid, name)
+    if conflict:
+        return conflict
     eid = _create_execution(pid, name, "destroy", triggered_by="strip")
+    cloud_state.acquire_lock(_stack_data_dir(pid, name), actor="strip", operation="destroy", run_id=eid, get_execution=_get_execution_record, project_id=pid)
     return jsonify({"success": True, "message": "Strip queued (destroy infra, stack kept)", "execution_id": eid})
 
 

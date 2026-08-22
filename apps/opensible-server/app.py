@@ -2429,7 +2429,7 @@ _EMPTY_QUEUE_DISK_SCAN_AT = {}
 _EMPTY_QUEUE_DISK_SCAN_INTERVAL_SECONDS = int(os.environ.get('EMPTY_QUEUE_DISK_SCAN_INTERVAL_SECONDS', '60'))
 
 
-def server_claim_next_execution(worker_id, worker_data, project_id=None, max_concurrency=1, tags=None):
+def server_claim_next_execution(worker_id, worker_data, project_id=None, max_concurrency=1, tags=None, recovering=False):
     """
  claim QUEUED execution
  race condition
@@ -2466,7 +2466,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                     worker_id,
                     PROJECTS_DIR,
                     current_execution_id=None,
-                    mark_orphaned_failed=True,
+                    mark_orphaned_failed=recovering,
                 )
                 if pruned:
                     active_runs = get_worker_active_runs_count(worker_id)
@@ -2486,6 +2486,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
         from storage import index_db as _index_db
 
         queued_runs = []
+        conflict_seen = False
         total_checked = 0
         use_index = _index_db.is_ready()
         project_dirs = []
@@ -2511,6 +2512,7 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                             try:
                                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                             except IOError:
+                                conflict_seen = True
                                 continue
                             try:
                                 execution = json.load(f)
@@ -2606,68 +2608,109 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
             if not execution_id:
                 continue
             
-            # RUNNING
+            # RUNNING — wrap the entire claim in a PostgreSQL transaction with advisory lock
+            # so admission lease and file mutation are atomic
+            from storage import pg as pg_storage
+            from services.quota_service import get_quota
+            from storage import project_admission
+            
             try:
-                with open(exec_file, 'r+', encoding='utf-8') as f:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                with pg_storage.transaction() as claim_conn:
+                    # Acquire project advisory lock
+                    claim_conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (project_admission.LOCK_PREFIX + proj_id,))
                     
+                    # Reclaim expired leases
+                    project_admission.reclaim_expired(claim_conn, proj_id)
+                    
+                    # Check quota and admit
+                    limit = int((get_quota(proj_id) or {}).get('max_concurrent_runs') or 0)
+                    # Debug: log quota and active count
+                    app.logger.info(f"[DEBUG] legacy claim proj_id={proj_id}, limit={limit}, execution_id={execution_id}")
                     try:
-                        # ( )
-                        f.seek(0)
-                        execution = json.load(f)
+                        active = project_admission.active_count(claim_conn, proj_id)
+                        app.logger.info(f"[DEBUG] active admission count before admit: {active}")
+                    except Exception as e:
+                        app.logger.warning(f"[DEBUG] failed to get active count: {e}")
+                    lease = project_admission.admit(claim_conn, proj_id, limit=limit, kind='legacy_execution', reference_id=str(execution_id), worker_id=worker_id, lease_until=time.time() + 3600)
+                    if lease is None:
+                        app.logger.warning(f"[DEBUG] admission denied for {execution_id}, limit={limit}, project={proj_id}")
+                        # Cap reached, skip this execution (leave it queued)
+                        continue
+                    app.logger.info(f"[DEBUG] admission granted for {execution_id}, lease_id={lease.get('id')}")
+                    
+                    # Now mutate the JSON file inside the same transaction
+                    with open(exec_file, 'r+', encoding='utf-8') as f:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                         
-                        # QUEUED
-                        if execution.get('status') != 'QUEUED':
-                            continue
-                        
-                        # ( )
-                        active_runs = get_worker_active_runs_count(worker_id)
-                        if active_runs >= max_concurrency:
-                            try:
-                                pruned = _index_db.prune_stale_running_for_worker(
-                                    worker_id,
-                                    PROJECTS_DIR,
-                                    current_execution_id=None,
-                                    mark_orphaned_failed=True,
-                                )
-                                if pruned:
-                                    active_runs = get_worker_active_runs_count(worker_id)
-                            except Exception:
-                                pass
-                            if active_runs >= max_concurrency:
-                                continue
-                        
-                        # RUNNING
-                        execution['status'] = 'RUNNING'
-                        execution['startedAt'] = time.time()
-                        execution['statusUpdatedAt'] = execution['startedAt']
-                        execution['workerId'] = worker_id
-                        
-                        # snapshot worker claim
-                        execution['workerName'] = worker_data.get('name', 'Unknown')
-                        execution['workerTags'] = worker_data.get('tags', [])
-                        
-                        f.seek(0)
-                        f.truncate()
-                        json.dump(execution, f, indent=2, ensure_ascii=False)
-                        f.flush()
-                        os.fsync(f.fileno())
                         try:
-                            _index_db.mark_running_execution(
-                                execution_id,
-                                proj_id,
-                                worker_id,
-                                execution.get('startedAt') or time.time(),
-                            )
-                        except Exception:
-                            pass
-                        
-                        app.logger.info(f"Server claimed run {execution_id} for project {proj_id} by worker {worker_id}")
-                        execution_for_worker = json.loads(json.dumps(execution))
-                        _attach_worker_transfer_payload(execution_for_worker)
-                        return execution_id, execution_for_worker, proj_id
-                    finally:
-                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                            f.seek(0)
+                            execution = json.load(f)
+                            
+                            if execution.get('status') != 'QUEUED':
+                                # File status changed, release the lease and rollback transaction
+                                project_admission.release(claim_conn, reference_id=execution_id)
+                                continue
+                            
+                            # Worker concurrency check (still needed)
+                            active_runs = get_worker_active_runs_count(worker_id)
+                            if active_runs >= max_concurrency:
+                                try:
+                                    pruned = _index_db.prune_stale_running_for_worker(
+                                        worker_id,
+                                        PROJECTS_DIR,
+                                        current_execution_id=None,
+                                        mark_orphaned_failed=True,
+                                    )
+                                    if pruned:
+                                        active_runs = get_worker_active_runs_count(worker_id)
+                                except Exception:
+                                    pass
+                                if active_runs >= max_concurrency:
+                                    project_admission.release(claim_conn, reference_id=execution_id)
+                                    continue
+                            
+                            # RUNNING
+                            execution['status'] = 'RUNNING'
+                            execution['startedAt'] = time.time()
+                            execution['statusUpdatedAt'] = execution['startedAt']
+                            execution['workerId'] = worker_id
+                            
+                            # snapshot worker claim
+                            execution['workerName'] = worker_data.get('name', 'Unknown')
+                            execution['workerTags'] = worker_data.get('tags', [])
+                            
+                            f.seek(0)
+                            f.truncate()
+                            json.dump(execution, f, indent=2, ensure_ascii=False)
+                            f.flush()
+                            os.fsync(f.fileno())
+                            
+                            # Index update (best-effort, same transaction would be ideal but we can't
+                            # easily combine with file I/O; it's okay if this is outside transaction)
+                            # We already have the lease, so index update can be best-effort
+                        finally:
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                    
+                    # Update index (best-effort, outside transaction)
+                    try:
+                        _index_db.mark_running_execution(
+                            execution_id,
+                            proj_id,
+                            worker_id,
+                            execution.get('startedAt') or time.time(),
+                        )
+                    except Exception:
+                        pass
+                    
+                    app.logger.info(f"Server claimed run {execution_id} for project {proj_id} by worker {worker_id}")
+                    execution_for_worker = json.loads(json.dumps(execution))
+                    _attach_worker_transfer_payload(execution_for_worker)
+                    # Transaction commits automatically, preserving the admission lease
+                    return execution_id, execution_for_worker, proj_id
+            except Exception as e:
+                app.logger.error(f"Error claiming run {execution_id}: {e}")
+                # If we got here, transaction will rollback releasing the lease
+                continue
             except IOError:
                 # , 
                 continue
@@ -2675,6 +2718,8 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                 app.logger.error(f"Error claiming run {execution_id}: {e}")
                 continue
         
+        if conflict_seen:
+            return None, None, None, True
         return None, None, None
         
     except Exception as e:
@@ -2797,6 +2842,13 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                     
                                     append_execution_log(execution_id, f"[recovery] Execution timeout after {age_minutes:.1f} minutes, marked as FAILED\n", project_id=project_id)
                                     
+                                    try:
+                                        from storage import pg, project_admission
+                                        with pg.transaction() as conn:
+                                            project_admission.release(conn, reference_id=execution_id)
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
+                                    
                                     app.logger.info(f"Recovered stuck RUNNING execution {execution_id} → FAILED ({recovery_reason}, worker: {worker_id})")
                                     recovered += 1
                             
@@ -2834,6 +2886,13 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                     f.flush()
                                     
                                     append_execution_log(execution_id, f"[recovery] Force canceled after {cancel_age_minutes:.1f} minutes timeout\n", project_id=project_id)
+                                    
+                                    try:
+                                        from storage import pg, project_admission
+                                        with pg.transaction() as conn:
+                                            project_admission.release(conn, reference_id=execution_id)
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
                                     
                                     app.logger.info(f"Recovered stuck CANCELING execution {execution_id} → CANCELED (timeout: {cancel_age_minutes:.1f} min)")
                                     recovered += 1
@@ -3003,6 +3062,10 @@ if __name__ == '__main__':
         # creates a service instance or invokes a runtime provider.
         _pg_schema.migrate(seed_catalog=True)
         app.logger.info("PostgreSQL connected and schema/catalog are ready")
+        from services.drift_scheduler import start_drift_scheduler, stop_drift_scheduler
+        import atexit
+        start_drift_scheduler()
+        atexit.register(stop_drift_scheduler)
     except Exception as e:
         app.logger.error(
             "DATABASE_URL is required and must point at a reachable PostgreSQL "

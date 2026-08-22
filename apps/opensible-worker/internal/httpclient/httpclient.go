@@ -226,6 +226,8 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 		return nil, &HTTPError{Status: 401, Message: "UNAUTHORIZED - Invalid token"}
 	case resp.StatusCode == 429:
 		return nil, &HTTPError{Status: 429, Message: "TOO MANY REQUESTS"}
+	case resp.StatusCode == 409:
+		return nil, &HTTPError{Status: 409, Message: "CLAIM CONFLICT"}
 	case resp.StatusCode >= 400:
 		return nil, newHTTPError(resp.StatusCode, body)
 	}
@@ -238,6 +240,28 @@ func (c *Client) Claim(projectID string, maxConcurrency int, tags []string) (map
 		return nil, backendFailure("claim", result)
 	}
 	return result, nil
+}
+
+// EvaluateFeatureFlag asks the backend whether a mutation flag is enabled.
+// Callers must treat transport and decode errors as blocked (fail closed).
+func (c *Client) EvaluateFeatureFlag(key, projectID, env string) (enabled bool, reason string, err error) {
+	resp, body, err := c.doJSON("POST", c.ServerURL+"/api/flags/evaluate", map[string]any{
+		"key": key, "project_id": projectID, "env": env,
+	}, nil, 10*time.Second)
+	if err != nil {
+		return false, "flag_evaluation_error", err
+	}
+	if resp.StatusCode >= 400 {
+		return false, "flag_evaluation_error", newHTTPError(resp.StatusCode, body)
+	}
+	var result struct {
+		Enabled bool   `json:"enabled"`
+		Reason  string `json:"reason"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return false, "invalid_flag_response", err
+	}
+	return result.Enabled, result.Reason, nil
 }
 
 // SendLog streams a chunk of log text for the legacy execution protocol.

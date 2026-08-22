@@ -14,6 +14,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from utils.secret_encryption import get_encryption
 
@@ -86,16 +87,29 @@ _PROVIDER_META: Dict[str, Dict[str, Any]] = {
 
 def detect_provider(data: Dict[str, Any]) -> Dict[str, Any]:
     creds = data.get("credentials") or data
-    endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").lower()
+    raw_endpoint = str(data.get("endpoint") or creds.get("os_auth_url") or "").strip()
+    endpoint_match = raw_endpoint.lower()
+    parsed_endpoint = urlparse(raw_endpoint)
+    generic_openstack_v3 = (
+        parsed_endpoint.scheme in {"http", "https"}
+        and bool(parsed_endpoint.netloc)
+        and parsed_endpoint.path.rstrip("/").endswith("/v3")
+    )
     keys = set(creds)
-    if "hcloud_token" in keys or "hetzner" in endpoint: provider = "hetzner"
-    elif "api_token" in keys or "idcloudhost" in endpoint: provider = "idcloudhost"
+    if "hcloud_token" in keys or "hetzner" in endpoint_match: provider = "hetzner"
+    elif "api_token" in keys or "idcloudhost" in endpoint_match: provider = "idcloudhost"
     elif {"access_key", "secret_key"} <= keys: provider = "aws"
     elif "service_account_json" in keys: provider = "gcp"
     elif {"tenant_id", "subscription_id", "client_id", "client_secret"} <= keys: provider = "azure"
-    elif "os_auth_url" in keys or "keystone" in endpoint: provider = "openstack"
-    else: return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape"}
-    return {"provider": provider, "confidence": 1.0, "reason": "credential shape matched"}
+    elif "os_auth_url" in keys or "keystone" in endpoint_match or generic_openstack_v3: provider = "openstack"
+    else:
+        return {"provider": None, "confidence": 0.0, "reason": "no matching credential shape", "endpoint": None, "region": None}
+    endpoint = raw_endpoint.rstrip("/") or ("https://api.idcloudhost.com" if provider == "idcloudhost" else None)
+    if provider == "idcloudhost":
+        endpoint = "https://api.idcloudhost.com"
+    region = str(data.get("region") or creds.get("os_region_name") or "").strip() or None
+    reason = "generic OpenStack identity endpoint matched" if provider == "openstack" and generic_openstack_v3 else "credential shape matched"
+    return {"provider": provider, "confidence": 1.0, "reason": reason, "endpoint": endpoint, "region": region}
 
 
 def providers() -> List[Dict[str, Any]]:
@@ -177,6 +191,8 @@ def create_account(data: Dict[str, Any]) -> Dict[str, Any]:
         "resource_count": 0,
         "created_at": int(time.time()),
         "updated_at": int(time.time()),
+        "org_id": str(data.get("org_id") or ""),
+        "project_id": str(data.get("project_id") or ""),
     }
     items = _load()
     items.append(acct)
@@ -246,7 +262,24 @@ def validate_account(account_id: str) -> Dict[str, Any]:
             a["last_check"] = int(time.time())
             a["validate_detail"] = probe.get("detail", "")
             if not probe.get("ok"):
-                a["last_notification"] = {"kind": "byoc.credential_failure", "status": probe.get("status", 0), "at": int(time.time()), "redacted": True}
+                payload = {
+                    "account_id": account_id,
+                    "provider": a["provider"],
+                    "status": probe.get("status", 0),
+                    "project_id": a.get("project_id") or None,
+                }
+                try:
+                    from services.webhook_dispatcher import dispatch_event
+                    sent = dispatch_event("byoc.credential_failure", payload)
+                except Exception:
+                    sent = 0
+                a["last_notification"] = {
+                    "kind": "byoc.credential_failure",
+                    "status": probe.get("status", 0),
+                    "at": int(time.time()),
+                    "redacted": True,
+                    "sent": sent,
+                }
     _save(items)
     return {"account_id": account_id, **probe}
 

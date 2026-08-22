@@ -92,6 +92,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.ansible_run_routes",
         "api.queue_search_routes",
         "api.projects_routes",
+        "api.project_dashboard_routes",
         "api.audit_log_routes",
         "api.preview_env_routes",
         "api.feature_flag_routes",
@@ -101,6 +102,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.byoc_routes",
         "api.org_routes",
         "api.code_registry_routes",
+        "api.tofu_module_routes",
         "api.service_catalog_routes",
         "api.service_instance_routes",
         "api.service_source_routes",
@@ -112,6 +114,10 @@ def register_blueprints(app: "Flask") -> None:
         "api.service_change_request_routes",
         "api.catalog_metadata_routes",
         "api.billing_plan_routes",
+        "api.drift_routes",
+        "api.search_routes",
+        "api.onboarding_routes",
+        "api.branch_mapping_routes",
     ]
     for mod_name in modules:
         try:

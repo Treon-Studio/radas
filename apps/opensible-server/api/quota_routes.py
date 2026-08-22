@@ -32,12 +32,15 @@ def api_get_quota(project_id):
 def api_put_quota(project_id):
     data = request.get_json(silent=True) or {}
     try:
+        from services.quota_service import _validate_concurrent_runs
+        max_concurrent = _validate_concurrent_runs(data.get("max_concurrent_runs"))
         q = save_quota(project_id,
                        int(data.get("max_stacks") or 0),
                        int(data.get("max_vms") or 0),
-                       float(data.get("max_cost_monthly") or 0))
-    except (TypeError, ValueError):
-        return jsonify({"error": "invalid quota", "message": "limits must be numbers"}), 400
+                       float(data.get("max_cost_monthly") or 0),
+                       max_concurrent)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": "invalid quota", "message": str(exc) or "limits must be numbers"}), 400
     q["usage"] = {"stacks": stack_usage(project_id)}
     return jsonify({"success": True, "quota": q})
 

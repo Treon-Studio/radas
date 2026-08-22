@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { StateView } from "@/components/ui/StateView";
 import { api } from "@/lib/api";
+import { useProjects } from "@/lib/project";
 
 export const Route = createFileRoute("/cloud/byoc")({ component: ByocPage });
 
@@ -42,8 +43,10 @@ function errorMessage(error: unknown, fallback: string): string {
 
 function ByocPage() {
   const qc = useQueryClient();
+  const { currentId: currentProjectId } = useProjects();
   const pvd = useQuery({ queryKey: ["byoc-providers"], queryFn: () => api<{ providers: Provider[] }>("GET", "/api/byoc/providers") });
   const acctData = useQuery({ queryKey: ["byoc-accounts"], queryFn: () => api<{ accounts: Account[] }>("GET", "/api/byoc/accounts") });
+  const stacksData = useQuery({ queryKey: ["byoc-import-stacks", currentProjectId], queryFn: () => api<{ stacks: { name: string }[] }>("GET", "/api/cloud/stacks"), enabled: Boolean(currentProjectId) });
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -51,6 +54,8 @@ function ByocPage() {
   const [regions, setRegions] = useState<string[]>([]);
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [selectedAccount, setSelectedAccount] = useState("");
+  const [selectedStack, setSelectedStack] = useState("");
+  const [addressOverrides, setAddressOverrides] = useState<Record<string, string>>({});
   const [inventory, setInventory] = useState<Resource[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [importBlock, setImportBlock] = useState("");
@@ -83,6 +88,8 @@ function ByocPage() {
   const resetInventoryData = () => {
     setInventory([]);
     setSelectedIds([]);
+    setSelectedStack("");
+    setAddressOverrides({});
     setImportBlock("");
     setInventoryNextOffset(null);
     setInventoryCount(null);
@@ -175,7 +182,15 @@ function ByocPage() {
   };
 
   const genImportMut = useMutation({
-    mutationFn: () => api<{ import_block: string }>("POST", `/api/byoc/accounts/${selectedAccount}/import`, { resource_ids: selectedIds }),
+    mutationFn: () => {
+      if (!currentProjectId || !selectedStack) throw new Error("Pilih project dan stack tujuan terlebih dahulu");
+      return api<{ import_block: string }>("POST", `/api/byoc/accounts/${selectedAccount}/import`, {
+        project_id: currentProjectId,
+        stack: selectedStack,
+        resource_ids: selectedIds,
+        address_overrides: addressOverrides,
+      });
+    },
     onSuccess: (d) => { setImportBlock(d.import_block); toast.success(`Import block dibuat (${selectedIds.length} resource)`); },
     onError: (error: unknown) => toast.error(errorMessage(error, "Gagal generate import")),
   });
@@ -309,6 +324,20 @@ function ByocPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-xs text-[var(--color-muted-foreground)]">Target stack</div>
+                <Select
+                  value={selectedStack}
+                  onChange={setSelectedStack}
+                  placeholder="Pilih stack tujuan import…"
+                  options={(stacksData.data?.stacks ?? []).map((stack) => ({ value: stack.name, label: stack.name }))}
+                />
+              </div>
+              <div className="flex items-end text-xs text-[var(--color-muted-foreground)]">
+                {currentProjectId ? `Project aktif: ${currentProjectId}` : "Pilih project terlebih dahulu"}
+              </div>
+            </div>
             {(cost || budget || inventoryCount !== null) && (
               <div className="grid gap-2 sm:grid-cols-3">
                 {cost && <div className="rounded border px-3 py-2 text-xs"><div className="text-[var(--color-muted-foreground)]">Estimated monthly cost</div><strong>{cost.currency} {cost.monthly.toFixed(2)}</strong><div>{cost.resource_count} managed resource(s)</div></div>}
@@ -341,6 +370,15 @@ function ByocPage() {
                     <input type="checkbox" checked={resourceId != null && selectedIds.includes(resourceId)} disabled={resourceId == null} onChange={() => { if (resourceId != null) toggleSel(resourceId); }} />
                     <span className="min-w-0">
                       <span className="font-medium">{r.name ?? "Unnamed resource"}</span>
+                      {resourceId != null && selectedIds.includes(resourceId) && (
+                        <Input
+                          aria-label={`Address override ${resourceId}`}
+                          className="mt-1 h-7 text-xs font-mono"
+                          placeholder={r.address ?? "resource.type.name"}
+                          value={addressOverrides[resourceId] ?? ""}
+                          onChange={(event) => setAddressOverrides((current) => ({ ...current, [resourceId]: event.target.value }))}
+                        />
+                      )}
                       <span className="block text-[var(--color-muted-foreground)]">{r.type ?? "unknown"} · id={r.id ?? "—"}</span>
                       <span className="block text-[var(--color-muted-foreground)]">{r.address ?? "—"} · {r.region ?? "—"} · {r.status ?? "unknown"} {r.managed ? "· managed" : "· unmanaged"}</span>
                     </span>
@@ -350,7 +388,7 @@ function ByocPage() {
             </div>
             {(inventory.length > 0 || inventoryPending) && (
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => genImportMut.mutate()} disabled={selectedIds.length === 0 || genImportMut.isPending || inventoryPending}>
+                <Button size="sm" onClick={() => genImportMut.mutate()} disabled={selectedIds.length === 0 || !currentProjectId || !selectedStack || genImportMut.isPending || inventoryPending}>
                   <Code className="h-3.5 w-3.5" /> Generate import block ({selectedIds.length})
                 </Button>
                 {inventoryNextOffset !== null && <Button size="sm" variant="outline" onClick={() => void loadInventory(selectedAccount, inventoryNextOffset)} disabled={inventoryPending}>
