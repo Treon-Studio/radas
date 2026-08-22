@@ -434,34 +434,14 @@ def api_flag_rollback(key):
     scope_type, scope_id, org_id = context
     snapshot_id = data.get("snapshot_id")
     steps = data.get("steps", 1)
-    try:
-        steps = int(steps)
-    except (TypeError, ValueError):
-        return jsonify({"error": "steps must be an integer"}), 400
-
-    rows = audit(scope_type, scope_id, key, 500)
-    if snapshot_id is not None:
-        matching = next((r for r in rows if r.get("id") == snapshot_id or r.get("snapshot_id") == snapshot_id or str(r.get("at")) == snapshot_id or r.get("batch_id") == snapshot_id or (isinstance(r.get("after"), dict) and r["after"].get("id") == snapshot_id) or (isinstance(r.get("before"), dict) and r["before"].get("id") == snapshot_id)), None)
-        if not matching:
-            return jsonify({"error": f"Snapshot '{snapshot_id}' not found"}), 404
-        previous = matching.get("after") if matching.get("operation") != "delete" else matching.get("before")
-        if not previous:
-            previous = matching.get("before")
-        if not previous:
-            return jsonify({"error": "snapshot contains no state"}), 404
-    else:
-        prior_states = [row["before"] for row in rows if row.get("before")]
-        if not prior_states:
-            return jsonify({"error": "no previous version"}), 404
-        if steps < 1 or steps > len(prior_states):
-            return jsonify({"error": f"Cannot rollback {steps} steps: only {len(prior_states)} prior versions available"}), 400
-        previous = prior_states[steps - 1]
-
     actor_id, actor_name = _actor()
     try:
-        restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback", org_id=org_id)
+        restored = rollback_flag(key, snapshot_id=snapshot_id, steps=steps, scope_type=scope_type, scope_id=scope_id, actor=actor_id, actor_name=actor_name, org_id=org_id)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        msg = str(exc)
+        if "not found" in msg.lower():
+            return jsonify({"error": msg}), 404
+        return jsonify({"error": msg}), 400
     if not restored:
         return jsonify({"error": "not found or conflicted"}), 409
     return jsonify({"success": True, "flag": restored})
