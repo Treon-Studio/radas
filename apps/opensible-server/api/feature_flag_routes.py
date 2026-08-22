@@ -10,7 +10,7 @@ except ImportError:
     from ..auth.middleware import require_auth, _org_id_of_project
 
 from services.feature_flag_registry import (
-    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags,
+    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags, export_flags_env,
     list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag, get_ui_flags,
 )
 
@@ -366,6 +366,31 @@ def api_export_flags():
     scope_type, scope_id, org_id = context
     export_data = export_flags(scope_type, scope_id, org_id=org_id)
     return Response(json.dumps(export_data, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=radas-flags.json"})
+
+
+@bp.route('/api/flags/export/env', methods=['GET'])
+@require_auth
+def api_export_flags_env():
+    context, error = _scoped()
+    if error:
+        return error
+    scope_type, scope_id, org_id = context
+    prefix = request.args.get("prefix", "FF_")
+    env = request.args.get("env", "prod") or "prod"
+    user_id = request.args.get("user_id", "") or ""
+    env_text = export_flags_env(
+        scope_type=scope_type,
+        scope_id=scope_id,
+        prefix=prefix,
+        env=env,
+        user_id=user_id,
+        org_id=org_id,
+    )
+    return Response(
+        env_text,
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment; filename=radas-flags.env"},
+    )
 
 
 @bp.route('/api/flags/import', methods=['POST'])

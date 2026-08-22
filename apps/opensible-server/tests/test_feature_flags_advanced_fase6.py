@@ -1078,6 +1078,139 @@ def test_notification_dispatch_failure_does_not_break_flag_operations(monkeypatc
     assert deleted is True
 
 
+def test_export_flags_env_format_and_prefix(data_dir):
+    from services.feature_flag_registry import create_flag, export_flags_env
+
+    create_flag({"key": "app.block-apply", "enabled": True})
+    create_flag({"key": "service.cache.enabled", "enabled": False})
+    create_flag({"key": "auth.oauth_v2", "enabled": True})
+
+    # Default prefix "FF_"
+    env_str = export_flags_env()
+    lines = [line.strip() for line in env_str.strip().split("\n") if line.strip()]
+    assert "FF_APP_BLOCK_APPLY=true" in lines
+    assert "FF_SERVICE_CACHE_ENABLED=false" in lines
+    assert "FF_AUTH_OAUTH_V2=true" in lines
+
+    # Custom prefix "MY_APP_"
+    custom_env = export_flags_env(prefix="MY_APP_")
+    custom_lines = [line.strip() for line in custom_env.strip().split("\n") if line.strip()]
+    assert "MY_APP_APP_BLOCK_APPLY=true" in custom_lines
+    assert "MY_APP_SERVICE_CACHE_ENABLED=false" in custom_lines
+    assert "MY_APP_AUTH_OAUTH_V2=true" in custom_lines
+
+    # Empty prefix ""
+    no_prefix_env = export_flags_env(prefix="")
+    no_prefix_lines = [line.strip() for line in no_prefix_env.strip().split("\n") if line.strip()]
+    assert "APP_BLOCK_APPLY=true" in no_prefix_lines
+    assert "SERVICE_CACHE_ENABLED=false" in no_prefix_lines
+
+
+def test_export_flags_env_targeting_and_scoping(data_dir):
+    org_a, _, _ = _seed(data_dir)
+    from services.feature_flag_registry import create_flag, export_flags_env
+
+    # Flag enabled only in dev
+    create_flag({
+        "key": "deploy.canary-mode",
+        "enabled": True,
+        "environments": {"dev": True, "prod": False},
+    })
+
+    # Flag enabled for alice only
+    create_flag({
+        "key": "feature.beta-tester",
+        "enabled": True,
+        "users_whitelist": ["alice"],
+        "rollout_percent": 0,
+    })
+
+    # Global flag inherited
+    create_flag({"key": "core.maintenance", "enabled": False})
+
+    # Project-specific override flag
+    create_flag(
+        {"key": "core.maintenance", "enabled": True},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+
+    # Test dev env export
+    dev_env = export_flags_env(env="dev")
+    assert "FF_DEPLOY_CANARY_MODE=true" in dev_env
+
+    # Test prod env export
+    prod_env = export_flags_env(env="prod")
+    assert "FF_DEPLOY_CANARY_MODE=false" in prod_env
+
+    # Test user targeting
+    alice_env = export_flags_env(user_id="alice")
+    assert "FF_FEATURE_BETA_TESTER=true" in alice_env
+
+    bob_env = export_flags_env(user_id="bob")
+    assert "FF_FEATURE_BETA_TESTER=false" in bob_env
+
+    # Global scope vs Project scope
+    global_env = export_flags_env(scope_type="global")
+    assert "FF_CORE_MAINTENANCE=false" in global_env
+
+    proj_env = export_flags_env(scope_type="project", scope_id="project-a", org_id=org_a["id"])
+    assert "FF_CORE_MAINTENANCE=true" in proj_env
+
+
+def test_export_flags_env_api_endpoint(data_dir):
+    org_a, _, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    from services.feature_flag_registry import create_flag
+
+    create_flag({"key": "ci.pipeline.fast-track", "enabled": True})
+    create_flag({"key": "ci.docker.buildx", "enabled": False})
+    create_flag(
+        {"key": "ci.env.specific", "enabled": True, "environments": {"dev": True, "prod": False}}
+    )
+
+    # GET /api/flags/export/env with default params
+    resp = client.get("/api/flags/export/env", headers=tokens["admin"])
+    assert resp.status_code == 200
+    assert "text/plain" in resp.content_type
+    assert resp.headers.get("Content-Disposition") == "attachment; filename=radas-flags.env"
+    text = resp.get_data(as_text=True)
+    assert "FF_CI_PIPELINE_FAST_TRACK=true" in text
+    assert "FF_CI_DOCKER_BUILDX=false" in text
+    assert "FF_CI_ENV_SPECIFIC=false" in text  # default env is prod
+
+    # Query with custom prefix and env=dev
+    resp_dev = client.get("/api/flags/export/env?prefix=CI_FLAG_&env=dev", headers=tokens["admin"])
+    assert resp_dev.status_code == 200
+    dev_text = resp_dev.get_data(as_text=True)
+    assert "CI_FLAG_CI_PIPELINE_FAST_TRACK=true" in dev_text
+    assert "CI_FLAG_CI_ENV_SPECIFIC=true" in dev_text
+
+    # Project-scoped export via header / query param
+    create_flag(
+        {"key": "proj.ci.enabled", "enabled": True},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    resp_proj = client.get("/api/flags/export/env?project_id=project-a", headers=tokens["owner"])
+    assert resp_proj.status_code == 200
+    proj_text = resp_proj.get_data(as_text=True)
+    assert "FF_PROJ_CI_ENABLED=true" in proj_text
+    assert "FF_CI_PIPELINE_FAST_TRACK=true" in proj_text
+
+    # Unauthorized access check (401 without token)
+    resp_unauth = client.get("/api/flags/export/env")
+    assert resp_unauth.status_code == 401
+
+    # Unauthorized access check (403 for project outsider)
+    resp_forbidden = client.get("/api/flags/export/env?project_id=project-a", headers=tokens["outsider"])
+    assert resp_forbidden.status_code == 403
+
+
+
 
 
 

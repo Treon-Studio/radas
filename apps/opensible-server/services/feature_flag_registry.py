@@ -607,6 +607,32 @@ def export_flags(scope_type: str = "global", scope_id: Optional[str] = None,
     }
 
 
+def export_flags_env(scope_type: str = "global", scope_id: Optional[str] = None,
+                     prefix: str = "FF_", env: str = "prod", user_id: str = "",
+                     org_id: Optional[str] = None) -> str:
+    """Export evaluated feature flags as .env key-value pairs."""
+    flags = list_flags(scope_type, scope_id, effective=True, org_id=org_id)
+    pref = prefix if prefix is not None else "FF_"
+    lines: List[str] = []
+    sorted_flags = sorted(flags, key=lambda f: str(f.get("key", "")).lower())
+    for flag in sorted_flags:
+        if not isinstance(flag, dict) or not flag.get("key"):
+            continue
+        key = str(flag["key"])
+        evaluation = evaluate(
+            key,
+            env=env or "prod",
+            user=user_id or "",
+            project_id=scope_id if scope_type == "project" else None,
+            org_id=org_id,
+        )
+        is_enabled = bool(evaluation.get("enabled", False))
+        val_str = "true" if is_enabled else "false"
+        formatted_key = f"{pref}{key.replace('.', '_').replace('-', '_').upper()}"
+        lines.append(f"{formatted_key}={val_str}")
+    return "\n".join(lines)
+
+
 def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] = None,
                  actor: str = "", actor_name: str = "", org_id: Optional[str] = None,
                  overwrite: bool = False) -> Dict[str, Any]:
