@@ -507,6 +507,50 @@ def with_trace_context(f: Callable) -> Callable:
     return decorated_function
 
 
+# ---------------------------------------------------------------------------
+# UC494: Granular RBAC Roles (flags_admin, tests_admin, byoc_admin)
+# ---------------------------------------------------------------------------
+
+_DOMAIN_ROLES_MAP = {
+    "flags": ["flags_admin", "feature_flags_admin", "admin", "owner"],
+    "tests": ["tests_admin", "test_cases_admin", "qa_admin", "admin", "owner"],
+    "byoc": ["byoc_admin", "cloud_admin", "infra_admin", "admin", "owner"],
+    "preview": ["preview_admin", "devops_admin", "admin", "owner"],
+}
+
+
+def has_domain_permission(user_roles: List[str], domain: str) -> bool:
+    """Check if the user has domain-specific administrative rights (UC494)."""
+    roles = [str(r).lower() for r in (user_roles or [])]
+    if "admin" in roles or "owner" in roles or "superadmin" in roles:
+        return True
+
+    allowed_roles = _DOMAIN_ROLES_MAP.get(str(domain).lower(), ["admin", "owner"])
+    return any(r in allowed_roles for r in roles)
+
+
+def require_domain_admin(domain: str):
+    """Decorator requiring domain-specific administrative rights or superadmin (UC494)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            cu = getattr(request, "current_user", {}) or {}
+            user_roles = cu.get("roles") or cu.get("role") or []
+            if isinstance(user_roles, str):
+                user_roles = [user_roles]
+
+            if not has_domain_permission(user_roles, domain):
+                return jsonify({
+                    "error": "Forbidden",
+                    "message": f"Requires administrative privileges for domain: '{domain}'",
+                }), 403
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+
 
 
 
