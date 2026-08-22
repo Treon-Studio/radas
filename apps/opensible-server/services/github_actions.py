@@ -727,3 +727,55 @@ def evaluate_run_auto_retry(owner: str, repo: str, run_id: int, project_id: Opti
     }
 
 
+def ingest_github_webhook(event: str, payload: Dict[str, Any], project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Ingest incoming GitHub webhook event (workflow_run, workflow_job, etc.) into audit log (UC250)."""
+    event_name = (event or "").strip()
+    action = payload.get("action") or "triggered"
+    target_action = f"github.{event_name}.{action}" if event_name else f"github.webhook.{action}"
+
+    repo_data = payload.get("repository") or {}
+    repo_full_name = repo_data.get("full_name") or f"{repo_data.get('owner', {}).get('login', '')}/{repo_data.get('name', '')}".strip("/")
+    sender = (payload.get("sender") or {}).get("login") or "github-webhook"
+
+    run_data = payload.get("workflow_run") or payload.get("check_run") or payload.get("workflow_job") or {}
+    target_id = str(run_data.get("id") or repo_full_name or "unknown")
+    target_type = "workflow_run" if payload.get("workflow_run") else ("workflow_job" if payload.get("workflow_job") else "github_repository")
+
+    meta = {
+        "event": event_name,
+        "action": action,
+        "repository": repo_full_name,
+        "sender": sender,
+        "project_id": project_id,
+        "run_id": run_data.get("id"),
+        "run_number": run_data.get("run_number"),
+        "status": run_data.get("status"),
+        "conclusion": run_data.get("conclusion"),
+        "head_branch": run_data.get("head_branch"),
+        "head_sha": run_data.get("head_sha"),
+    }
+
+    try:
+        from services.audit_events import record_audit_event
+        record_audit_event(
+            action=target_action,
+            actor_user_id=sender,
+            target_type=target_type,
+            target_id=target_id,
+            meta=meta,
+        )
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "ingested": True,
+        "event": event_name,
+        "action": target_action,
+        "target_id": target_id,
+        "target_type": target_type,
+        "repository": repo_full_name,
+    }
+
+
+

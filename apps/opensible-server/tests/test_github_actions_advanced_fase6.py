@@ -123,3 +123,78 @@ def test_api_auto_retry_endpoint(data_dir, monkeypatch):
     data = resp.get_json()
     assert data["retried"] is True
     assert data["run_id"] == 9999
+
+
+def test_ingest_github_webhook_records_audit(data_dir, monkeypatch):
+    """UC250: Ingesting a workflow_run GitHub webhook records an audit log event."""
+    recorded_events = []
+    def fake_record_audit_event(action, actor_user_id=None, target_type=None, target_id=None, meta=None):
+        recorded_events.append({
+            "action": action,
+            "actor": actor_user_id,
+            "target_type": target_type,
+            "target_id": target_id,
+            "meta": meta,
+        })
+
+    with patch("services.audit_events.record_audit_event", fake_record_audit_event):
+        payload = {
+            "action": "completed",
+            "repository": {"full_name": "octocat/Hello-World", "name": "Hello-World"},
+            "sender": {"login": "octocat"},
+            "workflow_run": {
+                "id": 888123,
+                "run_number": 42,
+                "status": "completed",
+                "conclusion": "success",
+                "head_branch": "main",
+                "head_sha": "0123456789abcdef",
+            },
+        }
+
+        res = github_actions.ingest_github_webhook(
+            event="workflow_run",
+            payload=payload,
+            project_id="proj-123",
+        )
+
+        assert res["ok"] is True
+        assert res["ingested"] is True
+        assert res["action"] == "github.workflow_run.completed"
+        assert res["target_id"] == "888123"
+        assert len(recorded_events) == 1
+        ev = recorded_events[0]
+        assert ev["action"] == "github.workflow_run.completed"
+        assert ev["actor"] == "octocat"
+        assert ev["target_type"] == "workflow_run"
+        assert ev["meta"]["run_id"] == 888123
+        assert ev["meta"]["head_branch"] == "main"
+
+
+def test_api_webhook_ingest_endpoint(data_dir, monkeypatch):
+    """UC250: POST /api/github/webhooks/ingest REST endpoint."""
+    import flask
+    from api.github_actions_routes import bp
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    payload = {
+        "action": "in_progress",
+        "repository": {"full_name": "owner/repo"},
+        "sender": {"login": "ci-bot"},
+        "workflow_job": {"id": 555, "status": "in_progress"},
+    }
+
+    with patch("services.audit_events.record_audit_event"):
+        resp = client.post(
+            "/api/github/webhooks/ingest",
+            headers={"X-GitHub-Event": "workflow_job", "X-Project-Id": "proj-wh"},
+            json=payload,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["action"] == "github.workflow_job.in_progress"

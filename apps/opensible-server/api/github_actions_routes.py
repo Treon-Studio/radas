@@ -344,3 +344,15 @@ def api_gh_auto_retry(run_id, owner=None, repo=None):
         return jsonify(result), 200
     except (RuntimeError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/github/webhooks/ingest', methods=['POST'])
+@bp.route('/api/github/webhook', methods=['POST'])
+def api_gh_webhook_ingest():
+    from services.github_actions import ingest_github_webhook
+    event = request.headers.get("X-GitHub-Event") or request.headers.get("X-Github-Event") or "webhook"
+    payload = request.get_json(silent=True) or {}
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    res = ingest_github_webhook(event=event, payload=payload, project_id=project_id)
+    return jsonify(res), 200
