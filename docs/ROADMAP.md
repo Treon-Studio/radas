@@ -483,7 +483,7 @@ fitur terpisah:
 | 322 | Destroy imported stack -> lepaskan saja (force destroy off) | ⬜ | P1 | 6 |
 | 323 | Protect resource penting (delete protection) | ⬜ | P1 | 6 |
 | 324 | Multi-session credential parkir (variabel env per eksekusi) | ⬜ | P2 | 6 |
-| 325 | UI halaman BYOC: koneksi + inventory + import | ⬜ | P0 | 6 |
+| 325 | UI halaman BYOC: koneksi + inventory + import | ✅ | P0 | 6 |
 | 326 | Wizard tambah akun dengan pilihan provider | ⬜ | P1 | 6 |
 | 327 | Badge status akun (ok/warn/error/last-check) | ⬜ | P1 | 6 |
 | 328 | UI halaman BYOC: koneksi + inventory + import | ✅ | P0 | 6 |
@@ -502,7 +502,7 @@ fitur terpisah:
 | 336 | Sentinel/OPA policy set versioned | ⬜ | P1 | 6 |
 | 337 | Policy yang menilai plan JSON (intermediate representation) | ⬜ | P2 | 6 |
 | 338 | Cost estimation per plan (sudah parse plan) -> angka eksplisit | 🔶 | P1 | 6 |
-| 339 | VCS-driven workspaces with branch mapping | ⬜ | P0 | 6 |
+| 339 | VCS-driven workspaces with branch mapping | ✅ | P0 | 6 |
 | 340 | API-driven runs (sudah ada execution) | 🔶 | P1 | 6 |
 | 341 | Audit trail full event (action, actor, resource) | ✅ | P0 | 6 |
 | 342 | Drift detection scheduling dengan alert | ✅ | P0 | 6 |
@@ -556,7 +556,7 @@ fitur terpisah:
 | 390 | Delegated admin (project admin) | ✅ | ⬜ | P2 | 6 |
 | 391 | Read-only kls semua (sudah ada role) | 🔶 | P1 | 6 |
 | 392 | Audit retention & export policy | ⬜ | P2 | 6 |
-| 393 | Landing dashboard per project (widget stack) | ⬜ | P0 | 6 |
+| 393 | Landing dashboard per project (widget stack) | ✅ | P0 | 6 |
 | 394 | Dark mode konsisten (sudah) | 🔶 | P1 | 6 |
 | 395 | Keyboard shortcuts (g untuk go, / untuk search) | ⬜ | P2 | 6 |
 | 396 | Global search resources (stack, run, secret) | ⬜ | P1 | 6 |
