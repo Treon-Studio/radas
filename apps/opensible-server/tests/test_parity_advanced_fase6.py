@@ -88,3 +88,70 @@ def test_api_backup_export_and_restore(data_dir):
     resp_restore = client.post("/api/byoc/backup/restore", json=backup_data, headers=headers)
     assert resp_restore.status_code == 200
     assert resp_restore.get_json()["ok"] is True
+
+
+def test_diff_inventory_unmanaged_resources(data_dir, monkeypatch):
+    """UC320: Diff cloud inventory against adopted/managed resources."""
+    acct = byoc.create_account({
+        "name": "Unmanaged Test Account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "tok-unmanaged"},
+    })
+
+    fake_inv = {
+        "account_id": acct["id"],
+        "resources": [
+            {"id": "vm-managed-1", "name": "app-server", "type": "server"},
+            {"id": "vm-unmanaged-2", "name": "rogue-server", "type": "server"},
+            {"id": "vol-unmanaged-3", "name": "orphaned-volume", "type": "volume"},
+        ],
+    }
+    monkeypatch.setattr(byoc, "get_inventory", lambda account_id: fake_inv)
+    monkeypatch.setattr(byoc, "list_managed_resources", lambda account_id: [{"resource_id": "vm-managed-1"}])
+
+    diff_res = byoc.diff_inventory_unmanaged_resources(acct["id"])
+    assert diff_res["total_resources"] == 3
+    assert diff_res["managed_count"] == 1
+    assert diff_res["unmanaged_count"] == 2
+    assert diff_res["coverage_percentage"] == 33.3
+    unmanaged_ids = [r["id"] for r in diff_res["unmanaged_resources"]]
+    assert "vm-unmanaged-2" in unmanaged_ids
+    assert "vol-unmanaged-3" in unmanaged_ids
+
+
+def test_api_unmanaged_resources_endpoint(data_dir, monkeypatch):
+    """UC320: GET /api/byoc/accounts/<account_id>/unmanaged REST endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.byoc_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acct = byoc.create_account({
+        "name": "API Unmanaged Account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "tok999"},
+    })
+
+    monkeypatch.setattr(byoc, "diff_inventory_unmanaged_resources", lambda account_id, project_id=None: {
+        "account_id": account_id,
+        "total_resources": 5,
+        "managed_count": 3,
+        "unmanaged_count": 2,
+        "coverage_percentage": 60.0,
+        "unmanaged_resources": [],
+        "managed_resources": [],
+    })
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get(f"/api/byoc/accounts/{acct['id']}/unmanaged", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["unmanaged_count"] == 2
+    assert data["coverage_percentage"] == 60.0

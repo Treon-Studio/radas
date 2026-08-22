@@ -451,6 +451,19 @@ def api_byoc_backup_restore():
         return jsonify({"error": str(exc)}), 400
 
 
+@bp.route('/api/byoc/accounts/<account_id>/unmanaged', methods=['GET'])
+@require_auth
+def api_byoc_unmanaged(account_id):
+    from services.byoc import diff_inventory_unmanaged_resources
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = diff_inventory_unmanaged_resources(account_id, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+
 
 
 

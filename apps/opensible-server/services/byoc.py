@@ -853,3 +853,59 @@ def restore_accounts_encrypted(backup_data: Dict[str, Any], project_id: Optional
         "total_accounts": len(existing_map),
         "restored_at": int(time.time()),
     }
+
+
+def diff_inventory_unmanaged_resources(account_id: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Compare cloud account inventory against managed/adopted resources to find unmanaged ones (UC320)."""
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+
+    inv = get_inventory(account_id)
+    all_resources = inv.get("resources") or []
+
+    managed_resources = list_managed_resources(account_id)
+    managed_ids = {str(r.get("resource_id") or r.get("id")) for r in managed_resources}
+
+    # Also check import mappings across project stacks in postgres
+    try:
+        from storage import pg
+        rows = pg.query_all("SELECT stack, data FROM stack_meta")
+        for row in rows:
+            data = row.get("data") or {}
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except Exception:
+                    data = {}
+            for m in (data.get("byoc_import_mapping") or {}).get("mappings") or []:
+                rid = str(m.get("resource_id"))
+                if rid:
+                    managed_ids.add(rid)
+    except Exception:
+        pass
+
+    unmanaged = []
+    managed = []
+
+    for r in all_resources:
+        rid = str(r.get("id"))
+        if rid in managed_ids:
+            managed.append(r)
+        else:
+            unmanaged.append(r)
+
+    total = len(all_resources)
+    unmanaged_count = len(unmanaged)
+    managed_count = len(managed)
+    coverage_pct = round((managed_count / total * 100), 1) if total > 0 else 100.0
+
+    return {
+        "account_id": account_id,
+        "total_resources": total,
+        "managed_count": managed_count,
+        "unmanaged_count": unmanaged_count,
+        "coverage_percentage": coverage_pct,
+        "unmanaged_resources": unmanaged,
+        "managed_resources": managed,
+    }
