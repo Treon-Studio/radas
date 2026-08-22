@@ -71,3 +71,31 @@ def test_api_stack_pin_endpoints(data_dir):
     resp_get = client.get("/api/cloud-provisioning/stacks/app-stack/pin", headers=headers)
     assert resp_get.status_code == 200
     assert resp_get.get_json()["worker_pin"]["worker_id"] == "worker-02"
+
+
+def test_policy_exemptions_lifecycle(data_dir):
+    """UC547: Create policy exemption, check active exemption, and list exemptions."""
+    from services import cloud_policy
+
+    proj = "proj-exemption"
+    stk = "legacy-app"
+    rule = "deny_public_ingress"
+
+    # Initially not exempted
+    assert cloud_policy.is_rule_exempted(proj, stk, rule) is False
+
+    # Create exemption
+    ex = cloud_policy.create_policy_exemption(
+        proj, stk, rule, reason="Legacy migration grace period", requested_by="dev1", approved_by="sec_lead", ttl_seconds=3600
+    )
+    assert ex["status"] == "active"
+    assert ex["rule_id"] == rule
+
+    # Verify is_rule_exempted returns True
+    assert cloud_policy.is_rule_exempted(proj, stk, rule) is True
+    assert cloud_policy.is_rule_exempted(proj, stk, "other_rule") is False
+
+    # List exemptions
+    all_ex = cloud_policy.list_policy_exemptions(proj, stack=stk)
+    assert len(all_ex) >= 1
+    assert all_ex[0]["rule_id"] == rule
