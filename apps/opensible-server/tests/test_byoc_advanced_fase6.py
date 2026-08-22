@@ -1,6 +1,6 @@
 """Tests for BYOC & Multi-Cloud Resource Import Advanced Fase 6.
 
-UC273: IAM Role-Based (Assume-Role / Service Account) Authentication.
+UC273, UC294, UC306, UC307.
 """
 from __future__ import annotations
 
@@ -178,3 +178,50 @@ def test_api_export_inventory_csv_endpoint(data_dir, monkeypatch):
     assert "text/csv" in resp.content_type
     assert "attachment; filename=byoc-inventory.csv" in resp.headers.get("Content-Disposition", "")
     assert "col1,col2" in resp.get_data(as_text=True)
+
+
+def test_adopt_resources_import_only(data_dir, monkeypatch):
+    """UC307: Adopt resources in import-only mode without full terraform apply."""
+    from services import byoc_import_mapping
+    from storage import pg
+
+    # Setup org, project, and stack in pg
+    org_id = "org-adopt"
+    proj_id = "proj-adopt"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "Adopt Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "Adopt Project", org_id, 1000))
+    pg.execute("INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "adopt-stack", json.dumps({"status": "active"})))
+
+    acct = byoc.create_account({
+        "name": "Hetzner Adopt",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "token-adopt"},
+        "org_id": org_id,
+        "project_id": proj_id,
+    })
+
+    fake_inv = {
+        "account_id": acct["id"],
+        "resources": [
+            {"id": "vm-adopt-1", "name": "app-server", "type": "hcloud_server", "address": "hcloud_server.app"},
+        ],
+    }
+    monkeypatch.setattr(byoc, "get_inventory", lambda account_id: fake_inv)
+
+    res = byoc_import_mapping.adopt_resources_import_only(
+        acct["id"],
+        project_id=proj_id,
+        stack="adopt-stack",
+        resource_ids=["vm-adopt-1"],
+        actor_id="__internal__",
+    )
+
+    assert res["ok"] is True
+    assert res["mode"] == "import_only"
+    assert res["adopted_count"] == 1
+    assert "import {\n  to = hcloud_server.app" in res["import_block"]
+
+    # Verify managed_resources has the entry marked managed
+    managed = byoc.list_managed_resources(acct["id"])
+    managed_ids = [m["resource_id"] for m in managed]
+    assert "vm-adopt-1" in managed_ids

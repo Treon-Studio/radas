@@ -130,3 +130,40 @@ def prepare_import_mapping(
         "mappings": mappings,
         "import_block": import_block,
     }
+
+
+def adopt_resources_import_only(
+    account_id: str,
+    *,
+    project_id: str,
+    stack: str,
+    resource_ids: list[str],
+    address_overrides: Mapping[str, str] | None = None,
+    actor_id: str | None = None,
+) -> dict[str, Any]:
+    """Adopt discovered BYOC resources in import-only mode without executing apply (UC307)."""
+    mapping_res = prepare_import_mapping(
+        account_id,
+        project_id=project_id,
+        stack=stack,
+        resource_ids=resource_ids,
+        address_overrides=address_overrides,
+        actor_id=actor_id,
+    )
+
+    # Mark resources as managed in the BYOC account without full terraform apply
+    byoc.set_resource_management(account_id, resource_ids, managed=True)
+
+    return {
+        "ok": True,
+        "mode": "import_only",
+        "adopted_count": len(mapping_res.get("mappings") or []),
+        "account_id": account_id,
+        "project_id": project_id,
+        "stack": stack,
+        "mappings": mapping_res.get("mappings"),
+        "import_block": mapping_res.get("import_block"),
+        "message": f"Successfully adopted {len(mapping_res.get('mappings') or [])} resources into stack '{stack}' in import-only mode",
+    }
+
+

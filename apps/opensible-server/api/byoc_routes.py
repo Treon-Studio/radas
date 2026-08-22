@@ -344,3 +344,32 @@ def api_byoc_export_inventory_csv():
     )
 
 
+@bp.route('/api/byoc/adopt-only', methods=['POST'])
+@require_auth
+def api_byoc_adopt_only():
+    from services.byoc_import_mapping import adopt_resources_import_only
+    data = request.get_json(silent=True) or {}
+    account_id = data.get("account_id")
+    project_id = data.get("project_id") or request.headers.get("X-Project-Id")
+    stack = data.get("stack")
+    resource_ids = data.get("resource_ids") or []
+    address_overrides = data.get("address_overrides") or {}
+
+    if not account_id or not stack:
+        return jsonify({"error": "account_id and stack required"}), 400
+
+    try:
+        res = adopt_resources_import_only(
+            account_id,
+            project_id=project_id,
+            stack=stack,
+            resource_ids=resource_ids,
+            address_overrides=address_overrides,
+            actor_id=(getattr(request, "current_user", {}) or {}).get("user_id"),
+        )
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
