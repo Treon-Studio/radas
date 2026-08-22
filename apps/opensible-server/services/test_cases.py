@@ -790,3 +790,90 @@ def latest_failed_blocker(project_id: Optional[str], stack: str) -> Optional[Dic
             continue
         return r
     return None
+
+
+def compute_stack_security_score(project_id: Optional[str] = None, stack: str = "") -> Dict[str, Any]:
+    """Compute security & compliance score (0-100) per stack based on latest test results (UC202)."""
+    # 1. Retrieve all test cases for this project and optional stack filter
+    all_tcs = list_test_cases(project_id)
+    if stack:
+        target_tcs = [tc for tc in all_tcs if tc.get("stack") == stack]
+    else:
+        target_tcs = all_tcs
+
+    target_tc_map = {tc["id"]: tc for tc in target_tcs}
+    target_ids = set(target_tc_map.keys())
+
+    # 2. Retrieve all test results for the project and find latest result per test_id
+    all_results = list_test_results(5000, project_id=project_id)
+    latest_results_by_test: Dict[str, Dict[str, Any]] = {}
+    for r in all_results:
+        tid = r.get("test_id")
+        if not tid:
+            continue
+        if target_ids and tid not in target_ids:
+            continue
+        if not target_ids and stack and r.get("stack") != stack:
+            continue
+        if tid not in latest_results_by_test:
+            latest_results_by_test[tid] = r
+
+    # Determine unique tests evaluated
+    # Include tests from target_tc_map or those with results matching stack
+    total_evaluated_tids = set(latest_results_by_test.keys())
+
+    passed_count = 0
+    failed_count = 0
+    b_count = 0
+    w_count = 0
+    i_count = 0
+
+    for tid, res in latest_results_by_test.items():
+        is_passed = bool(res.get("passed"))
+        if is_passed:
+            passed_count += 1
+        else:
+            failed_count += 1
+            severity = str(res.get("severity") or (target_tc_map.get(tid, {}).get("severity")) or "warning").lower()
+            if severity == "blocker":
+                b_count += 1
+            elif severity == "info":
+                i_count += 1
+            else:  # warning / default
+                w_count += 1
+
+    total_count = passed_count + failed_count
+    deductions_blocker = b_count * 30
+    deductions_warning = w_count * 10
+    deductions_info = i_count * 2
+    total_deductions = deductions_blocker + deductions_warning + deductions_info
+
+    raw_score = 100 - total_deductions
+    score = max(0, min(100, raw_score))
+
+    if score >= 90:
+        grade = "A"
+    elif score >= 80:
+        grade = "B"
+    elif score >= 70:
+        grade = "C"
+    elif score >= 60:
+        grade = "D"
+    else:
+        grade = "F"
+
+    return {
+        "project_id": project_id,
+        "stack": stack,
+        "score": score,
+        "grade": grade,
+        "total_tests": total_count,
+        "passed_tests": passed_count,
+        "failed_tests": failed_count,
+        "deductions": {
+            "blocker": deductions_blocker,
+            "warning": deductions_warning,
+            "info": deductions_info,
+        },
+        "timestamp": int(time.time()),
+    }

@@ -233,4 +233,140 @@ def test_dispatch_test_failure_notification_direct(data_dir):
         assert "test.blocker_failed" in events
 
 
+def test_compute_stack_security_score_perfect(data_dir):
+    """UC202: Security score calculation with perfect score (100, Grade A)."""
+    _seed_stack(data_dir, project_id="p-score", name="stack-clean")
+    tc = test_cases.create_test_case({
+        "name": "Check VM count clean",
+        "stack": "stack-clean",
+        "kind": "assertion",
+        "assertions": ["vm_count_zero"],
+        "severity": "info",
+    }, project_id="p-score")
+
+    # Run the test so it passes
+    test_cases.run_test_case(project_id="p-score", test_id=tc["id"])
+
+    score_data = test_cases.compute_stack_security_score(project_id="p-score", stack="stack-clean")
+    assert score_data["project_id"] == "p-score"
+    assert score_data["stack"] == "stack-clean"
+    assert score_data["score"] == 100
+    assert score_data["grade"] == "A"
+    assert score_data["total_tests"] == 1
+    assert score_data["passed_tests"] == 1
+    assert score_data["failed_tests"] == 0
+    assert score_data["deductions"] == {"blocker": 0, "warning": 0, "info": 0}
+    assert isinstance(score_data["timestamp"], int)
+
+
+def test_compute_stack_security_score_deductions_and_floor(data_dir):
+    """UC202: Deductions per failing severity and floor at 0."""
+    sd = _seed_stack(data_dir, project_id="p-deduct", name="stack-dirty")
+    (sd / "terraform.tfvars").write_text('cidr_block = "0.0.0.0/0"\n')
+
+    # Create 1 failing blocker (-30), 1 failing warning (-10), 1 failing info (-2)
+    # Total deduction: 42 -> Score = 58 -> Grade F
+    tc1 = test_cases.create_test_case({
+        "name": "Blocker CIDR",
+        "stack": "stack-dirty",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "blocker",
+    }, project_id="p-deduct")
+    tc2 = test_cases.create_test_case({
+        "name": "Warning CIDR",
+        "stack": "stack-dirty",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "warning",
+    }, project_id="p-deduct")
+    tc3 = test_cases.create_test_case({
+        "name": "Info CIDR",
+        "stack": "stack-dirty",
+        "kind": "assertion",
+        "assertions": ["cidr_public"],
+        "severity": "info",
+    }, project_id="p-deduct")
+
+    test_cases.run_test_case(project_id="p-deduct", test_id=tc1["id"])
+    test_cases.run_test_case(project_id="p-deduct", test_id=tc2["id"])
+    test_cases.run_test_case(project_id="p-deduct", test_id=tc3["id"])
+
+    score_data = test_cases.compute_stack_security_score(project_id="p-deduct", stack="stack-dirty")
+    assert score_data["score"] == 58
+    assert score_data["grade"] == "F"
+    assert score_data["total_tests"] == 3
+    assert score_data["passed_tests"] == 0
+    assert score_data["failed_tests"] == 3
+    assert score_data["deductions"] == {"blocker": 30, "warning": 10, "info": 2}
+
+    # Add 3 more failing blockers: deduction = 30*4 + 10 + 2 = 132 -> Score should be bounded to 0 (floor)
+    for i in range(3):
+        tc_extra = test_cases.create_test_case({
+            "name": f"Extra Blocker {i}",
+            "stack": "stack-dirty",
+            "kind": "assertion",
+            "assertions": ["cidr_public"],
+            "severity": "blocker",
+        }, project_id="p-deduct")
+        test_cases.run_test_case(project_id="p-deduct", test_id=tc_extra["id"])
+
+    score_floor = test_cases.compute_stack_security_score(project_id="p-deduct", stack="stack-dirty")
+    assert score_floor["score"] == 0
+    assert score_floor["grade"] == "F"
+    assert score_floor["failed_tests"] == 6
+
+
+def test_api_security_score_endpoint(data_dir):
+    """UC202: GET /api/test-cases/score with auth and project scoping."""
+    import time
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from storage import pg
+    from services.org_service import create_org
+    from api.test_case_routes import bp
+
+    # Seed org and projects
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("u1", "alice", "x"))
+    org_a = create_org("Org A", "u1")
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("project-score", org_a["id"], "u1", "project-score", "", time.time()),
+    )
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "X-Project-Id": "project-score",
+        "Authorization": f"Bearer {token}",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    # Create a test case and run it
+    tc = test_cases.create_test_case({
+        "name": "Score Route Test",
+        "stack": "stack-route",
+        "kind": "assertion",
+        "assertions": ["vm_count_zero"],
+        "severity": "warning",
+    }, project_id="project-score")
+    test_cases.run_test_case(project_id="project-score", test_id=tc["id"])
+
+    # Query GET /api/test-cases/score?project_id=project-score&stack=stack-route
+    res = client.get("/api/test-cases/score?project_id=project-score&stack=stack-route", headers=headers)
+    assert res.status_code == 200, res.data
+    body = res.get_json()
+    assert body["project_id"] == "project-score"
+    assert body["stack"] == "stack-route"
+    assert "score" in body
+    assert "grade" in body
+    assert "deductions" in body
+
+
+
 

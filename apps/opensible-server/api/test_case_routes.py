@@ -224,3 +224,14 @@ def api_test_results():
     page = all_results[offset:offset + limit]
     next_offset = offset + limit if offset + limit < len(all_results) else None
     return jsonify({"results": page, "limit": limit, "offset": offset, "next_offset": next_offset, "has_more": next_offset is not None})
+
+
+@bp.route('/api/test-cases/score', methods=['GET'])
+@bp.route('/api/tests/score', methods=['GET'])
+@require_project_access
+def api_test_security_score():
+    from services.test_cases import compute_stack_security_score
+    stack = (request.args.get("stack") or "").strip()
+    score_data = compute_stack_security_score(project_id=_pid(), stack=stack)
+    return jsonify(score_data)
+
