@@ -12,6 +12,7 @@ except ImportError:
 from services.feature_flag_registry import (
     archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags, export_flags_env,
     list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag, get_ui_flags,
+    diff_flags_between_scopes,
 )
 
 
@@ -581,4 +582,58 @@ def api_copy_flag(key):
         return jsonify({"error": msg}), 400
 
     return jsonify({"success": True, "flag": flag}), 201
+
+
+@bp.route('/api/flags/diff', methods=['POST'])
+@require_auth
+def api_diff_flags():
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
+
+    # Parse source scope
+    source_payload = {}
+    if "source_scope_type" in data:
+        source_payload["scope_type"] = data["source_scope_type"]
+    elif "scope_type" in data:
+        source_payload["scope_type"] = data["scope_type"]
+    if "source_scope_id" in data:
+        source_payload["scope_id"] = data["source_scope_id"]
+    elif "scope_id" in data:
+        source_payload["scope_id"] = data["scope_id"]
+    if "source_project_id" in data:
+        source_payload["project_id"] = data["source_project_id"]
+    if "source_org_id" in data:
+        source_payload["org_id"] = data["source_org_id"]
+
+    source_context, error = _scoped(source_payload, mutation=False)
+    if error:
+        return error
+    source_scope_type, source_scope_id, source_org_id = source_context
+
+    # Parse target scope
+    target_payload = {}
+    if "target_scope_type" in data:
+        target_payload["scope_type"] = data["target_scope_type"]
+    if "target_scope_id" in data:
+        target_payload["scope_id"] = data["target_scope_id"]
+    if "target_project_id" in data:
+        target_payload["project_id"] = data["target_project_id"]
+    if "target_org_id" in data:
+        target_payload["org_id"] = data["target_org_id"]
+
+    target_context, error = _scoped(target_payload, mutation=False)
+    if error:
+        return error
+    target_scope_type, target_scope_id, target_org_id = target_context
+
+    diff_result = diff_flags_between_scopes(
+        source_scope_type=source_scope_type,
+        source_scope_id=source_scope_id,
+        target_scope_type=target_scope_type,
+        target_scope_id=target_scope_id,
+        org_id=source_org_id or target_org_id,
+    )
+    return jsonify(diff_result), 200
+
 

@@ -1263,6 +1263,135 @@ def test_preview_creation_blocked_by_feature_flag(data_dir, tmp_path, monkeypatc
         preview_envs.create(project_id="project-a", base_stack="demo", pr_number=42)
 
 
+def test_diff_flags_between_scopes_missing_differing_identical(data_dir):
+    org_a, org_b, _ = _seed(data_dir)
+    from services.feature_flag_registry import create_flag, diff_flags_between_scopes
+
+    # Common flag with identical config
+    create_flag(
+        {"key": "common.identical", "enabled": True, "rollout_percent": 100, "tags": ["prod"]},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    create_flag(
+        {"key": "common.identical", "enabled": True, "rollout_percent": 100, "tags": ["prod"]},
+        scope_type="organization",
+        scope_id=org_b["id"],
+        org_id=org_b["id"],
+    )
+
+    # Flag only in source (project-a)
+    create_flag(
+        {"key": "only.in.source", "enabled": True},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+
+    # Flag only in target (org_b)
+    create_flag(
+        {"key": "only.in.target", "enabled": False},
+        scope_type="organization",
+        scope_id=org_b["id"],
+        org_id=org_b["id"],
+    )
+
+    # Flag in both but differing
+    create_flag(
+        {"key": "common.differing", "enabled": True, "rollout_percent": 50, "environments": {"dev": True, "prod": True}},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    create_flag(
+        {"key": "common.differing", "enabled": False, "rollout_percent": 100, "environments": {"dev": True, "prod": False}},
+        scope_type="organization",
+        scope_id=org_b["id"],
+        org_id=org_b["id"],
+    )
+
+    result = diff_flags_between_scopes(
+        source_scope_type="project",
+        source_scope_id="project-a",
+        target_scope_type="organization",
+        target_scope_id=org_b["id"],
+        org_id=org_a["id"],
+    )
+
+    assert result["source_scope"] == {"type": "project", "id": "project-a"}
+    assert result["target_scope"] == {"type": "organization", "id": org_b["id"]}
+    assert "only.in.source" in result["missing_in_target"]
+    assert "only.in.target" in result["missing_in_source"]
+    assert "common.identical" in result["identical"]
+
+    diff_keys = [d["key"] for d in result["differing"]]
+    assert "common.differing" in diff_keys
+    diff_item = next(d for d in result["differing"] if d["key"] == "common.differing")
+    assert "enabled" in diff_item["differences"] or "rollout_percent" in diff_item["differences"]
+    assert diff_item["source_value"]["enabled"] is True
+    assert diff_item["target_value"]["enabled"] is False
+
+    assert result["total_source"] >= 3
+    assert result["total_target"] >= 3
+
+
+def test_diff_flags_api_endpoint(data_dir):
+    org_a, org_b, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    from services.feature_flag_registry import create_flag
+
+    create_flag(
+        {"key": "diff.api.flag", "enabled": True, "rollout_percent": 10},
+        scope_type="project",
+        scope_id="project-a",
+        org_id=org_a["id"],
+    )
+    create_flag(
+        {"key": "diff.api.flag", "enabled": True, "rollout_percent": 90},
+        scope_type="organization",
+        scope_id=org_a["id"],
+        org_id=org_a["id"],
+    )
+
+    # Call POST /api/flags/diff
+    resp = client.post(
+        "/api/flags/diff",
+        json={
+            "source_scope_type": "project",
+            "source_scope_id": "project-a",
+            "source_project_id": "project-a",
+            "target_scope_type": "organization",
+            "target_scope_id": org_a["id"],
+            "target_org_id": org_a["id"],
+        },
+        headers=tokens["owner"],
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["source_scope"]["type"] == "project"
+    assert data["target_scope"]["type"] == "organization"
+    differing_keys = [d["key"] for d in data["differing"]]
+    assert "diff.api.flag" in differing_keys
+
+    # Unauthorized access test (outsider cannot access project-a)
+    resp_unauth = client.post(
+        "/api/flags/diff",
+        json={
+            "source_scope_type": "project",
+            "source_scope_id": "project-a",
+            "source_project_id": "project-a",
+            "target_scope_type": "organization",
+            "target_scope_id": org_b["id"],
+            "target_org_id": org_b["id"],
+        },
+        headers=tokens["outsider"],
+    )
+    assert resp_unauth.status_code == 403
+
+
+
 
 
 
