@@ -171,3 +171,55 @@ def test_api_force_unlock_endpoint(data_dir):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     assert resp.get_json()["lock_id"] == "lock-999"
+
+
+def test_stack_apply_cooldown(data_dir):
+    """UC536: Stack failure cooldown activation and remaining countdown."""
+    from services import cloud_provisioning
+
+    proj = "proj-cd"
+    stk = "unstable-stack"
+
+    # Initially 0
+    assert cloud_provisioning.get_stack_cooldown_remaining(proj, stk) == 0
+
+    # Trigger cooldown for 100 seconds
+    res = cloud_provisioning.set_stack_cooldown(proj, stk, cooldown_seconds=100)
+    assert res["in_cooldown"] is True
+
+    rem = cloud_provisioning.get_stack_cooldown_remaining(proj, stk)
+    assert rem > 90
+    assert rem <= 100
+
+
+def test_api_stack_cooldown_endpoint(data_dir):
+    """UC536: GET /api/cloud-provisioning/stacks/<stack>/cooldown."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp, set_stack_cooldown
+    from storage import pg
+
+    org_id = "org-cd"
+    proj_id = "proj-cd-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "CD Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "CD Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Project-Id": proj_id,
+    }
+
+    set_stack_cooldown(proj_id, "busy-stack", cooldown_seconds=60)
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    resp = client.get("/api/cloud-provisioning/stacks/busy-stack/cooldown", headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()["in_cooldown"] is True
+    assert resp.get_json()["remaining_seconds"] > 0

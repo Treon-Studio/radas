@@ -2594,6 +2594,66 @@ def api_force_unlock_stack(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC536: Stack Apply Failure Cooldown Period (Anti-Spam Throttling)
+# ---------------------------------------------------------------------------
+
+def set_stack_cooldown(
+    project_id: Optional[str],
+    stack: str,
+    cooldown_seconds: int = 60,
+) -> Dict[str, Any]:
+    """Activate cooldown throttling window after a failure (UC536)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    now = int(time.time())
+    until = now + max(1, int(cooldown_seconds))
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cooldown_data = {
+        "cooldown_until": until,
+        "cooldown_seconds": int(cooldown_seconds),
+        "triggered_at": now,
+    }
+    meta["cooldown"] = cooldown_data
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "cooldown_until": until,
+        "cooldown_seconds": int(cooldown_seconds),
+        "in_cooldown": True,
+    }
+
+
+def get_stack_cooldown_remaining(project_id: Optional[str], stack: str) -> int:
+    """Get remaining seconds in cooldown window; returns 0 if not in cooldown (UC536)."""
+    meta = _load_meta(project_id, stack)
+    cooldown_data = meta.get("cooldown") or {}
+    until = int(cooldown_data.get("cooldown_until", 0))
+    now = int(time.time())
+    if until > now:
+        return until - now
+    return 0
+
+
+@bp.route("/stacks/<name>/cooldown", methods=["GET"])
+@require_project_access
+def api_get_stack_cooldown(name: str):
+    pid = _get_project_id()
+    rem = get_stack_cooldown_remaining(pid, name)
+    return jsonify({
+        "stack": name,
+        "project_id": pid,
+        "in_cooldown": rem > 0,
+        "remaining_seconds": rem,
+    }), 200
+
+
+
 
 
 
