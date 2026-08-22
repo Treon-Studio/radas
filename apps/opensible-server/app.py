@@ -2624,6 +2624,18 @@ def server_claim_next_execution(worker_id, worker_data, project_id=None, max_con
                         
                         # ( )
                         active_runs = get_worker_active_runs_count(worker_id)
+                        admission_lease = None
+                        if proj_id:
+                            try:
+                                from services.quota_service import get_quota
+                                from storage import project_admission
+                                with pg.transaction() as admission_conn:
+                                    limit = int((get_quota(proj_id) or {}).get('max_concurrent_runs') or 0)
+                                    admission_lease = project_admission.admit(admission_conn, proj_id, limit=limit, kind='legacy_execution', reference_id=str(execution_id), worker_id=worker_id, lease_until=time.time() + 3600)
+                                    if admission_lease is None:
+                                        continue
+                            except Exception:
+                                continue
                         if active_runs >= max_concurrency:
                             try:
                                 pruned = _index_db.prune_stale_running_for_worker(

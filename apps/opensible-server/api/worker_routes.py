@@ -439,6 +439,15 @@ def api_worker_execution_finish(execution_id):
             )
 
         update_execution_record(execution_id, updates, project_id=project_id)
+
+        from storage import project_admission
+        from storage import pg
+        try:
+            with pg.transaction() as conn:
+                project_admission.release(conn, reference_id=execution_id)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to release admission lease for {execution_id}: {e}")
+
         if (execution.get('runParams') or {}).get('execution_type') == 'TOFU_RUN':
             from services.audit_events import record_audit_event
             run_params = execution.get('runParams') or {}

@@ -234,6 +234,14 @@ def api_cancel_execution(project_id, execution_id):
 
         append_execution_log(execution_id, '[api] Canceled by user\n', project_id=project_id)
 
+        from storage import project_admission
+        from storage import pg
+        try:
+            with pg.transaction() as conn:
+                project_admission.release(conn, reference_id=execution_id)
+        except Exception as e:
+            _logger().warning(f"Failed to release admission lease for {execution_id}: {e}")
+
         _logger().info(f"Canceled execution {execution_id} in project {project_id}")
         return jsonify({'success': True, 'status': 'CANCELED'})
 
@@ -747,4 +755,11 @@ def api_retry_execution(execution_id):
     new_id = retry_execution(execution_id, project_id=project_id)
     if not new_id:
         return jsonify({'error': 'not found', 'message': 'execution not found'}), 404
+    from storage import project_admission
+    from storage import pg
+    try:
+        with pg.transaction() as conn:
+            project_admission.release(conn, reference_id=execution_id)
+    except Exception as e:
+        current_app.logger.warning(f"Failed to release admission lease for {execution_id}: {e}")
     return jsonify({'success': True, 'new_execution_id': new_id, 'retry_of': execution_id}), 201
