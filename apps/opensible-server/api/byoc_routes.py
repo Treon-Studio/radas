@@ -372,4 +372,32 @@ def api_byoc_adopt_only():
         return jsonify({"error": str(exc)}), 400
 
 
+@bp.route('/api/byoc/clash-check', methods=['POST'])
+@require_auth
+def api_byoc_clash_check():
+    from services.byoc_import_mapping import check_resource_clash
+    data = request.get_json(silent=True) or {}
+    account_id = data.get("account_id") or ""
+    resource_id = data.get("resource_id") or ""
+    resource_type = data.get("resource_type") or ""
+    target_stack = data.get("target_stack") or data.get("stack") or ""
+    project_id = data.get("project_id") or request.headers.get("X-Project-Id")
+
+    if not resource_id or not target_stack:
+        return jsonify({"error": "resource_id and target_stack required"}), 400
+
+    try:
+        res = check_resource_clash(
+            account_id=account_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            target_stack=target_stack,
+            project_id=project_id,
+        )
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 

@@ -225,3 +225,82 @@ def test_adopt_resources_import_only(data_dir, monkeypatch):
     managed = byoc.list_managed_resources(acct["id"])
     managed_ids = [m["resource_id"] for m in managed]
     assert "vm-adopt-1" in managed_ids
+
+
+def test_check_resource_clash(data_dir, monkeypatch):
+    """UC308: Detect if a resource is already managed in another stack."""
+    from services import byoc_import_mapping
+    from storage import pg
+
+    proj_id = "proj-clash"
+    org_id = "org-clash"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "Clash Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "Clash Proj", org_id, 1000))
+
+    # Stack A manages res-clash-1
+    mapping_data = {
+        "byoc_import_mapping": {
+            "mappings": [{"resource_id": "res-clash-1", "address": "aws_instance.web", "mapped_at": 1000}]
+        }
+    }
+    pg.execute("INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "stack-a", json.dumps(mapping_data)))
+
+    # Check clash when trying to import res-clash-1 into stack-b -> should detect clash
+    clash_res = byoc_import_mapping.check_resource_clash(
+        account_id="dummy-acct",
+        resource_type="aws_instance",
+        resource_id="res-clash-1",
+        target_stack="stack-b",
+        project_id=proj_id,
+    )
+    assert clash_res["clash"] is True
+    assert len(clash_res["clashing_stacks"]) >= 1
+    assert clash_res["clashing_stacks"][0]["stack"] == "stack-a"
+
+    # Check non-clashing resource
+    no_clash = byoc_import_mapping.check_resource_clash(
+        account_id="dummy-acct",
+        resource_type="aws_instance",
+        resource_id="res-free-999",
+        target_stack="stack-b",
+        project_id=proj_id,
+    )
+    assert no_clash["clash"] is False
+    assert len(no_clash["clashing_stacks"]) == 0
+
+
+def test_api_clash_check_endpoint(data_dir, monkeypatch):
+    """UC308: POST /api/byoc/clash-check REST endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.byoc_routes import bp
+    from services import byoc_import_mapping
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    monkeypatch.setattr(byoc_import_mapping, "check_resource_clash", lambda **kwargs: {
+        "clash": False,
+        "resource_id": "res-123",
+        "target_stack": "web-stack",
+        "clashing_stacks": [],
+    })
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.post(
+        "/api/byoc/clash-check",
+        json={"resource_id": "res-123", "target_stack": "web-stack"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["clash"] is False
+    assert data["resource_id"] == "res-123"
