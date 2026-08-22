@@ -272,3 +272,58 @@ def test_api_circuit_breaker_endpoints(data_dir):
     resp_reset = client.post("/api/cloud-provisioning/stacks/app-stack/circuit-breaker/reset", headers=headers)
     assert resp_reset.status_code == 200
     assert resp_reset.get_json()["is_open"] is False
+
+
+def test_secret_scanner_plan_output():
+    """UC420: Secret scanning and automatic masking in plan output."""
+    from services import cloud_provisioning
+
+    dirty_plan = """
+    # OpenTofu Plan
+    + resource "aws_instance" "web" {
+        + ami           = "ami-123456"
+        + instance_type = "t3.micro"
+        + user_data     = "export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\\nexport GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz\\npassword = \\"superSecretPassword123\\""
+    }
+    """
+
+    res = cloud_provisioning.scan_and_mask_secrets(dirty_plan)
+    assert res["clean"] is False
+    assert res["findings_count"] >= 3
+    assert "[REDACTED_AWS_KEY]" in res["masked_text"]
+    assert "[REDACTED_GITHUB_TOKEN]" in res["masked_text"]
+    assert "[REDACTED_SECRET]" in res["masked_text"]
+    assert "AKIAIOSFODNN7EXAMPLE" not in res["masked_text"]
+    assert "ghp_1234567890" not in res["masked_text"]
+    assert "superSecretPassword123" not in res["masked_text"]
+
+
+
+def test_api_scan_plan_endpoint():
+    """UC420: POST /api/cloud-provisioning/scan-plan."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    resp = client.post(
+        "/api/cloud-provisioning/scan-plan",
+        json={"text": "database_password = \"mySecretP@ssw0rd\""},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["clean"] is False
+    assert data["findings_count"] >= 1
+    assert "[REDACTED_SECRET]" in data["masked_text"]

@@ -2227,6 +2227,80 @@ def api_reset_circuit_breaker(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC420: Secret Scanning in Plan Output & Logs
+# ---------------------------------------------------------------------------
+
+_SECRET_PATTERNS = [
+    (r"(AKIA[0-9A-Z]{16})", "AWS Access Key", "[REDACTED_AWS_KEY]"),
+    (r"([a-zA-Z0-9+/]{40})", "AWS Secret / API Key Candidate", None),
+    (r"(ghp_[a-zA-Z0-9]{36,40}|github_pat_[a-zA-Z0-9_]{60,82})", "GitHub Token", "[REDACTED_GITHUB_TOKEN]"),
+    (r"(---\s*BEGIN[ A-Z0-9_-]+PRIVATE KEY\s*---[\s\S]*?---\s*END[ A-Z0-9_-]+PRIVATE KEY\s*---)", "Private Key", "[REDACTED_PRIVATE_KEY]"),
+    (r'(?i)(password|secret|token|api_key|client_secret)\s*[:=]\s*["\']([^"\']{6,})["\']', "Credential Value", "[REDACTED_SECRET]"),
+]
+
+
+def scan_and_mask_secrets(text: str) -> Dict[str, Any]:
+    """Scan and automatically mask exposed secrets in OpenTofu plan outputs or execution logs (UC420)."""
+    if not text:
+        return {"clean": True, "findings_count": 0, "findings": [], "masked_text": ""}
+
+    masked = str(text)
+    findings = []
+
+    # 1. AWS Access Key
+    for m in re.finditer(r"\b(AKIA[0-9A-Z]{16})\b", text):
+        val = m.group(1)
+        findings.append({"type": "AWS Access Key", "match_prefix": val[:6] + "..."})
+        masked = masked.replace(val, "[REDACTED_AWS_KEY]")
+
+    # 2. GitHub Token
+    for m in re.finditer(r"\b(ghp_[a-zA-Z0-9]{36,40}|github_pat_[a-zA-Z0-9_]{60,82})\b", text):
+        val = m.group(1)
+        findings.append({"type": "GitHub Token", "match_prefix": val[:8] + "..."})
+        masked = masked.replace(val, "[REDACTED_GITHUB_TOKEN]")
+
+    # 3. Private Key Block
+    for m in re.finditer(r"-----BEGIN [A-Z0-9_-]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9_-]+ PRIVATE KEY-----", text):
+        val = m.group(0)
+        findings.append({"type": "Private Key", "match_prefix": "-----BEGIN..."})
+        masked = masked.replace(val, "[REDACTED_PRIVATE_KEY]")
+
+    # 4. Explicit password/secret strings
+    def _mask_kw(match):
+        prefix = match.group(1)
+        quote = match.group(2) or ''
+        secret_val = match.group(3)
+        if len(secret_val) >= 4 and not secret_val.startswith("[REDACTED"):
+            findings.append({"type": f"Secret Value ({prefix.strip()})", "match_prefix": f"{prefix.strip()}=..."})
+            return f'{prefix}{quote}[REDACTED_SECRET]{quote}'
+        return match.group(0)
+
+    masked = re.sub(
+        r'(?i)\b([a-zA-Z0-9_-]*(?:password|secret|token|api_key|client_secret)[a-zA-Z0-9_-]*\s*[:=]\s*)(\\?["\'])([^"\'\\\n]{3,})(\\?["\'])',
+        _mask_kw,
+        masked
+    )
+
+    return {
+        "clean": len(findings) == 0,
+        "findings_count": len(findings),
+        "findings": findings,
+        "masked_text": masked,
+    }
+
+
+
+@bp.route("/scan-plan", methods=["POST"])
+@require_auth
+def api_scan_plan_secrets():
+    data = request.get_json(silent=True) or {}
+    text = data.get("text") or data.get("plan_output") or data.get("output") or ""
+    res = scan_and_mask_secrets(text)
+    return jsonify(res), 200
+
+
+
 
 
 
