@@ -275,13 +275,13 @@ fitur terpisah:
 | 129 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | ✅ | P1 | 6 |
 | 131 | Deteksi flag mati/duplicate key pada saat create | ✅ | P1 | 6 |
 | 133 | Bulk import/export flag (JSON) untuk migrasi | ✅ | P2 | 6 |
-| 134 | Flag sebagai target aturan remediation (remediate only if flag) | ⬜ | P2 | 6 |
+| 134 | Flag sebagai target aturan remediation (remediate only if flag) | ✅ | P2 | 6 |
 | 135 | Evaluasi flag di worker sebelum eksekusi apply/destroy | ✅ | P1 | 6 |
 | 136 | Flag per stack group / VPC / environment bundle | ⬜ | P2 | 6 |
 | 137 | Penjadwalan flag: aktif saat jam kerja saja | ✅ | P2 | 6 |
 | 138 | Perbandingan perilaku stack dengan flag on/off | ⬜ | P2 | 6 |
 | 139 | Integrasi OpenFeature SDK untuk evaluasi konsisten | ⬜ | P2 | 6 |
-| 140 | Flag untuk fitur UI (menampilkan/menyembunyikan modul) | ⬜ | P1 | 6 |
+| 140 | Flag untuk fitur UI (menampilkan/menyembunyikan modul) | ✅ | P1 | 6 |
 | 141 | Safety valve: auto-disable flag jika error rate stack naik | ✅ | P2 | 6 |
 | 142 | Flag ber-budget: block apply bila cost flag region melebihi ambang | ⬜ | P2 | 6 |
 | 143 | Halaman console Feature Flags dengan toggle real-time | ✅ | P0 | 6 |
@@ -289,17 +289,17 @@ fitur terpisah:
 | 145 | Daftar flag yang men-depend (referenced-by) sebuah stack | 🔶 | P2 | 6 |
 | 146 | Copy flag (duplicate sebagai template) | ✅ | P2 | 6 |
 | 147 | Search/filter flag by tag, env, status | ✅ | P1 | 6 |
-| 148 | Notifikasi saat flag diubah oleh user lain | ⬜ | P2 | 6 |
-| 150 | Export key flag ke environment untuk CI (evaluasi di pipeline) | ⬜ | P2 | 6 |
+| 148 | Notifikasi saat flag diubah oleh user lain | ✅ | P2 | 6 |
+| 150 | Export key flag ke environment untuk CI (evaluasi di pipeline) | ✅ | P2 | 6 |
 | 151 | Flag webhook: panggil URL saat flag berubah | ✅ | P2 | 6 |
 | 152 | Multi-tenant: flag per project dengan inherit global | ✅ | P1 | 6 |
 | 153 | Graceful degradation: kegagalan evaluasi -> default safe (off) | ✅ | P1 | 6 |
 | 154 | Caching hasil evaluasi (TTL) untuk performa | ✅ | P2 | 6 |
 | 155 | Flag schedule override via cron (aktivasi libur) | ⬜ | P2 | 6 |
 | 156 | Riwayat evaluasi per stack (log decision reason) | ✅ | P2 | 6 |
-| 157 | Flag untuk mengontrol preview env (izinkan/tolak preview) | ⬜ | P1 | 6 |
+| 157 | Flag untuk mengontrol preview env (izinkan/tolak preview) | ✅ | P1 | 6 |
 | 158 | Perbaikan intest: flag expired auto-archive | ✅ | P2 | 6 |
-| 159 | Diff audit: bandingkan konfigurasi flag antar project | ⬜ | P2 | 6 |
+| 159 | Diff audit: bandingkan konfigurasi flag antar project | ✅ | P2 | 6 |
 | 160 | Dokumentasi otomatis flag aktif di halaman stack | ⬜ | P2 | 6 |
 
 ## L. Test Case Management & IaC Validation (161–215)
