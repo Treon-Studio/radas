@@ -97,3 +97,33 @@ def test_validate_schema_decorator_endpoint():
     resp_valid = client.post("/test-schema", json={"key": "test", "value": 15})
     assert resp_valid.status_code == 200
     assert resp_valid.get_json()["ok"] is True
+
+
+def test_trace_context_propagation():
+    """UC463: Distributed trace context initialization and response header propagation."""
+    import flask
+    from utils.trace_ctx import init_trace_context, get_current_trace_id
+    from auth.middleware import with_trace_context
+
+    app = flask.Flask(__name__)
+
+    @app.route("/trace-test", methods=["GET"])
+    @with_trace_context
+    def sample_trace():
+        current_tid = get_current_trace_id()
+        return flask.jsonify({"trace_id": current_tid}), 200
+
+    client = app.test_client()
+
+    # 1. Custom incoming X-Trace-Id
+    resp_custom = client.get("/trace-test", headers={"X-Trace-Id": "custom-trace-999"})
+    assert resp_custom.status_code == 200
+    assert resp_custom.headers.get("X-Trace-Id") == "custom-trace-999"
+    assert resp_custom.get_json()["trace_id"] == "custom-trace-999"
+
+    # 2. Auto-generated trace ID
+    resp_auto = client.get("/trace-test")
+    assert resp_auto.status_code == 200
+    auto_tid = resp_auto.headers.get("X-Trace-Id")
+    assert auto_tid.startswith("trc-")
+    assert resp_auto.get_json()["trace_id"] == auto_tid

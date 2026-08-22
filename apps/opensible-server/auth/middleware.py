@@ -488,4 +488,25 @@ def validate_schema(schema: Dict[str, Any]):
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# UC463: Distributed Trace ID & Request ID Propagation
+# ---------------------------------------------------------------------------
+
+def with_trace_context(f: Callable) -> Callable:
+    """Decorator to bind and propagate X-Trace-Id on request and response headers (UC463)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        from utils.trace_ctx import init_trace_context
+        from flask import current_app, make_response
+        tid = init_trace_context()
+        result = f(*args, **kwargs)
+        resp = make_response(result)
+        resp.headers["X-Trace-Id"] = tid
+        resp.headers["X-Request-Id"] = tid
+        return resp
+    return decorated_function
+
+
+
+
 
