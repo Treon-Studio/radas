@@ -99,3 +99,26 @@ def test_policy_exemptions_lifecycle(data_dir):
     all_ex = cloud_policy.list_policy_exemptions(proj, stack=stk)
     assert len(all_ex) >= 1
     assert all_ex[0]["rule_id"] == rule
+
+
+def test_cost_anomaly_detection(data_dir):
+    """UC550: Cost anomaly threshold configuration and spike detection."""
+    from services import usage_service
+
+    proj = "proj-anomaly"
+
+    # Configure thresholds: spike >= 40%, delta >= $50
+    cfg = usage_service.set_cost_anomaly_config(proj, max_percentage_spike=40, max_amount_delta=50.0)
+    assert cfg["max_percentage_spike"] == 40
+    assert cfg["max_amount_delta"] == 50.0
+
+    # 1. Normal change: $100 -> $120 (20% spike, delta $20) -> Not anomaly
+    res_normal = usage_service.detect_cost_anomaly(proj, previous_cost=100.0, current_cost=120.0)
+    assert res_normal["is_anomaly"] is False
+    assert res_normal["delta_amount"] == 20.0
+    assert res_normal["percentage_spike"] == 20.0
+
+    # 2. Abnormal spike: $100 -> $200 (100% spike, delta $100) -> Anomaly!
+    res_spike = usage_service.detect_cost_anomaly(proj, previous_cost=100.0, current_cost=200.0)
+    assert res_spike["is_anomaly"] is True
+    assert len(res_spike["reasons"]) >= 1
