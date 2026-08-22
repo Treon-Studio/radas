@@ -2653,6 +2653,75 @@ def api_get_stack_cooldown(name: str):
     }), 200
 
 
+# ---------------------------------------------------------------------------
+# UC533: Stack Worker Pinning & Execution Placement Policy
+# ---------------------------------------------------------------------------
+
+def set_stack_worker_pin(
+    project_id: Optional[str],
+    stack: str,
+    worker_id: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    strict: bool = True,
+) -> Dict[str, Any]:
+    """Configure execution placement pinning to specific worker or tags (UC533)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    pin_data = {
+        "worker_id": str(worker_id).strip() if worker_id else None,
+        "required_tags": list(tags or []),
+        "strict": bool(strict),
+        "updated_at": int(time.time()),
+    }
+    meta["worker_pin"] = pin_data
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "worker_pin": pin_data,
+    }
+
+
+def get_stack_worker_pin(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve worker placement pinning configuration for a stack (UC533)."""
+    meta = _load_meta(project_id, stack)
+    return meta.get("worker_pin") or {
+        "worker_id": None,
+        "required_tags": [],
+        "strict": False,
+    }
+
+
+@bp.route("/stacks/<name>/pin", methods=["GET"])
+@require_project_access
+def api_get_stack_pin(name: str):
+    pid = _get_project_id()
+    pin = get_stack_worker_pin(pid, name)
+    return jsonify({"stack": name, "project_id": pid, "worker_pin": pin}), 200
+
+
+@bp.route("/stacks/<name>/pin", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_pin(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    wid = data.get("worker_id") or data.get("workerId")
+    tags = data.get("tags") or data.get("required_tags") or []
+    strict = bool(data.get("strict", True))
+
+    try:
+        res = set_stack_worker_pin(pid, name, worker_id=wid, tags=tags, strict=strict)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
