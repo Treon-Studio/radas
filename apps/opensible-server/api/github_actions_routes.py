@@ -379,3 +379,13 @@ def api_gh_scan_secrets():
     content = data.get("content") or data.get("yaml_content") or ""
     res = scan_workflow_secrets_exposure(content)
     return jsonify(res), 200
+
+
+@bp.route('/api/github/workflows/validate-pinning', methods=['POST'])
+@require_auth
+def api_gh_validate_pinning():
+    from services.github_actions import validate_workflow_sha_pinning
+    data = request.get_json(silent=True) or {}
+    content = data.get("content") or data.get("yaml_content") or ""
+    res = validate_workflow_sha_pinning(content)
+    return jsonify(res), 200

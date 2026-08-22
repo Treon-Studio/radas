@@ -331,3 +331,68 @@ def test_api_scan_workflow_secrets_endpoint(data_dir):
     data = resp.get_json()
     assert data["safe"] is False
     assert data["total_findings"] == 1
+
+
+def test_validate_workflow_sha_pinning():
+    """UC257: Validate that third-party actions are pinned to 40-char commit SHAs."""
+    pinned_yaml = """
+name: Secure CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde56f73888c63b88b013b066d8624ec66870
+      - uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236
+      - uses: ./.github/actions/local-step
+"""
+    res_pinned = github_actions.validate_workflow_sha_pinning(pinned_yaml)
+    assert res_pinned["compliant"] is True
+    assert len(res_pinned["unpinned_actions"]) == 0
+    assert len(res_pinned["pinned_actions"]) == 2
+
+    unpinned_yaml = """
+name: Mutable CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@main
+"""
+    res_unpinned = github_actions.validate_workflow_sha_pinning(unpinned_yaml)
+    assert res_unpinned["compliant"] is False
+    assert len(res_unpinned["unpinned_actions"]) == 2
+    actions = [u["action"] for u in res_unpinned["unpinned_actions"]]
+    assert "actions/checkout" in actions
+    assert "actions/setup-node" in actions
+
+
+def test_api_validate_workflow_pinning_endpoint(data_dir):
+    """UC257: POST /api/github/workflows/validate-pinning REST endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.github_actions_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.post(
+        "/api/github/workflows/validate-pinning",
+        json={"content": "steps:\n  - uses: actions/checkout@v3\n"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["compliant"] is False
+    assert len(data["unpinned_actions"]) == 1

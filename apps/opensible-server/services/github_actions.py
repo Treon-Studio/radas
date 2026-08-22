@@ -841,6 +841,65 @@ def scan_workflow_secrets_exposure(yaml_content: str) -> Dict[str, Any]:
     }
 
 
+def validate_workflow_sha_pinning(yaml_content: str) -> Dict[str, Any]:
+    """Validate that GitHub Actions in workflow YAML are pinned to full 40-character commit SHAs (UC257)."""
+    if not yaml_content or not yaml_content.strip():
+        return {"compliant": True, "unpinned_actions": [], "pinned_actions": [], "total_actions": 0}
+
+    unpinned = []
+    pinned = []
+    sha_pattern = re.compile(r'^[a-f0-9]{40}$', re.IGNORECASE)
+    uses_pattern = re.compile(r'uses:\s*([^\s#]+)')
+
+    for idx, line in enumerate(yaml_content.splitlines(), 1):
+        clean = line.strip()
+        if not clean or clean.startswith('#'):
+            continue
+        match = uses_pattern.search(clean)
+        if match:
+            target = match.group(1).strip()
+            # Local actions (e.g. ./.github/actions/...) or docker images (docker://...)
+            if target.startswith(('.', '/')) or target.startswith('docker://'):
+                continue
+
+            if '@' in target:
+                action_name, ref = target.split('@', 1)
+                action_name = action_name.strip()
+                ref = ref.strip()
+                if sha_pattern.match(ref):
+                    pinned.append({
+                        "line": idx,
+                        "action": action_name,
+                        "ref": ref,
+                        "is_sha": True,
+                    })
+                else:
+                    unpinned.append({
+                        "line": idx,
+                        "action": action_name,
+                        "ref": ref,
+                        "is_sha": False,
+                        "message": f"Action '{action_name}' is pinned to mutable ref '@{ref}' instead of a 40-character commit SHA",
+                    })
+            else:
+                unpinned.append({
+                    "line": idx,
+                    "action": target,
+                    "ref": None,
+                    "is_sha": False,
+                    "message": f"Action '{target}' has no ref specified",
+                })
+
+    total = len(unpinned) + len(pinned)
+    return {
+        "compliant": len(unpinned) == 0,
+        "unpinned_actions": unpinned,
+        "pinned_actions": pinned,
+        "total_actions": total,
+    }
+
+
+
 
 
 
