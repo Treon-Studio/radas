@@ -550,6 +550,36 @@ def require_domain_admin(domain: str):
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# UC495: Kill-Switch Action Gating (Restricted to Superadmin/Owner)
+# ---------------------------------------------------------------------------
+
+def can_execute_kill_switch(user_roles: List[str]) -> bool:
+    """Evaluate if the user has superadmin or owner authority to execute emergency kill switches (UC495)."""
+    roles = [str(r).lower() for r in (user_roles or [])]
+    return "superadmin" in roles or "owner" in roles or "admin" in roles
+
+
+def require_kill_switch_privilege(f: Callable) -> Callable:
+    """Decorator guarding emergency kill switch and force-stop mutations (UC495)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        cu = getattr(request, "current_user", {}) or {}
+        user_roles = cu.get("roles") or cu.get("role") or []
+        if isinstance(user_roles, str):
+            user_roles = [user_roles]
+
+        if not can_execute_kill_switch(user_roles):
+            return jsonify({
+                "error": "Forbidden",
+                "message": "Emergency kill-switch actions are strictly restricted to organization owners and administrators.",
+            }), 403
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+
 
 
 

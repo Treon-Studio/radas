@@ -52,3 +52,43 @@ def test_require_domain_admin_decorator():
         flask.request.current_user = {"username": "flag_mgr", "roles": ["flags_admin"]}
         resp = app.dispatch_request()
         assert resp[1] == 200
+
+
+def test_kill_switch_privilege_evaluation():
+    """UC495: Evaluate kill switch permissions for user roles."""
+    from auth import middleware
+
+    assert middleware.can_execute_kill_switch(["superadmin"]) is True
+    assert middleware.can_execute_kill_switch(["owner"]) is True
+    assert middleware.can_execute_kill_switch(["admin"]) is True
+
+    # Developer, operator, qa, flags_admin are denied
+    assert middleware.can_execute_kill_switch(["developer"]) is False
+    assert middleware.can_execute_kill_switch(["operator"]) is False
+    assert middleware.can_execute_kill_switch(["qa"]) is False
+    assert middleware.can_execute_kill_switch(["flags_admin"]) is False
+
+
+def test_require_kill_switch_privilege_decorator():
+    """UC495: @require_kill_switch_privilege endpoint protection."""
+    from auth import middleware
+
+    app = flask.Flask(__name__)
+
+    @app.route("/api/system/emergency-stop", methods=["POST"])
+    @middleware.require_kill_switch_privilege
+    def emergency_stop():
+        return flask.jsonify({"status": "halted"}), 200
+
+    # 1. Developer -> 403 Forbidden
+    with app.test_request_context("/api/system/emergency-stop", method="POST"):
+        flask.request.current_user = {"username": "dev_user", "roles": ["developer"]}
+        resp = app.dispatch_request()
+        assert resp[1] == 403
+
+    # 2. Superadmin -> 200 OK
+    with app.test_request_context("/api/system/emergency-stop", method="POST"):
+        flask.request.current_user = {"username": "root_admin", "roles": ["superadmin"]}
+        resp = app.dispatch_request()
+        assert resp[1] == 200
+        assert resp[0].get_json()["status"] == "halted"
