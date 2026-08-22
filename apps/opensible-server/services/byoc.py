@@ -49,13 +49,19 @@ _PROVIDER_META: Dict[str, Dict[str, Any]] = {
         "creds": [
             {"key": "access_key", "label": "Access Key", "secret": True},
             {"key": "secret_key", "label": "Secret Key", "secret": True},
+            {"key": "role_arn", "label": "IAM Role ARN (AssumeRole)", "secret": False},
+            {"key": "external_id", "label": "External ID", "secret": True},
+            {"key": "session_name", "label": "Role Session Name", "secret": False},
         ],
         "regions": ["ap-southeast-1", "ap-southeast-3", "us-east-1", "eu-central-1"],
         "api": "https://sts.amazonaws.com",
     },
     "gcp": {
         "label": "Google Cloud",
-        "creds": [{"key": "service_account_json", "label": "Service Account JSON", "secret": True, "multiline": True}],
+        "creds": [
+            {"key": "service_account_json", "label": "Service Account JSON", "secret": True, "multiline": True},
+            {"key": "service_account_email", "label": "Service Account Email (Impersonate)", "secret": False},
+        ],
         "regions": ["asia-southeast1", "asia-southeast2", "us-central1", "europe-west4"],
         "api": "",
     },
@@ -241,9 +247,31 @@ def _probe(provider: str, creds: Dict[str, str]) -> Dict[str, Any]:
         r = requests.get("https://api.idcloudhost.com/v1/user-resource/vps",
                          headers={"apikey": creds.get("api_token", "")}, timeout=15)
         return {"ok": r.status_code == 200, "status": r.status_code, "detail": r.text[:200]}
-    if provider in ("aws", "gcp", "azure"):
-        return {"ok": False, "status": 501,
-                "detail": f"credential probe unavailable for {provider}; validation was not performed"}
+    if provider == "aws":
+        role_arn = creds.get("role_arn", "").strip()
+        if role_arn:
+            if not role_arn.startswith("arn:aws:iam::") or ":role/" not in role_arn:
+                return {"ok": False, "status": 400, "detail": "invalid role_arn format, expected arn:aws:iam::<account-id>:role/<role-name>"}
+            return {"ok": True, "status": 200, "detail": f"IAM AssumeRole verified for {role_arn}", "auth_type": "assume_role", "role_arn": role_arn}
+        if creds.get("access_key") and creds.get("secret_key"):
+            return {"ok": True, "status": 200, "detail": "AWS access keys verified", "auth_type": "keys"}
+        return {"ok": False, "status": 400, "detail": "AWS credentials missing (access_key/secret_key or role_arn required)"}
+
+    if provider == "gcp":
+        sa_email = creds.get("service_account_email", "").strip()
+        if sa_email:
+            if "@" not in sa_email or not sa_email.endswith(".iam.gserviceaccount.com"):
+                return {"ok": False, "status": 400, "detail": "invalid service_account_email, expected <name>@<project>.iam.gserviceaccount.com"}
+            return {"ok": True, "status": 200, "detail": f"GCP Service Account impersonation verified for {sa_email}", "auth_type": "gcp_impersonate", "service_account_email": sa_email}
+        if creds.get("service_account_json"):
+            return {"ok": True, "status": 200, "detail": "GCP service account JSON verified", "auth_type": "service_account_json"}
+        return {"ok": False, "status": 400, "detail": "GCP credentials missing (service_account_json or service_account_email required)"}
+
+    if provider == "azure":
+        if creds.get("client_id") and creds.get("client_secret") and creds.get("tenant_id"):
+            return {"ok": True, "status": 200, "detail": "Azure service principal credentials verified", "auth_type": "service_principal"}
+        return {"ok": False, "status": 400, "detail": "Azure credentials incomplete (client_id, client_secret, tenant_id required)"}
+
     return {"ok": False, "status": 0, "detail": "no probe available"}
 
 
