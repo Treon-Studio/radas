@@ -651,7 +651,7 @@ fitur terpisah:
 | 480 | Worker drain: selesaikan run sebelum restart | ⬜ | P2 | 6 |
 | 481 | Timeout eksekusi per action (default) | ⬜ | P1 | 6 |
 | 482 | Retry policy per stack (sudah ada retry_policy) | ✅ | P1 | 6 |
-| 483 | Concurrency limit per project | ⬜ | P1 | 6 |
+| 483 | Concurrency limit per project | ✅ | P1 | 6 |
 | 484 | Quota worker (sudah quota stacks/vms) | 🔶 | P1 | 6 |
 | 485 | Harga: estimasi instance per provider CSP | ⬜ | P2 | 6 |
 | 486 | Cost guard: cek biaya sebelum apply (sudah budget) | 🔶 | P1 | 6 |
