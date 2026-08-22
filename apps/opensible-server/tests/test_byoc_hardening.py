@@ -208,9 +208,10 @@ def test_provider_detection_reason_never_echoes_unknown_input_secret():
 
 def test_unsupported_provider_probe_fails_closed():
     from services.byoc import _probe
-    result = _probe("aws", {"access_key": "x", "secret_key": "y"})
+    result = _probe("unknown_provider", {"token": "x"})
     assert result["ok"] is False
-    assert result["status"] == 501
+    assert result["status"] == 0
+
 
 
 def test_inventory_page_has_pagination_metadata(monkeypatch, data_dir):
