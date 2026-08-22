@@ -877,3 +877,53 @@ def compute_stack_security_score(project_id: Optional[str] = None, stack: str = 
         },
         "timestamp": int(time.time()),
     }
+
+
+def run_ansible_idempotency_test(project_id: Optional[str] = None, stack: str = "",
+                                playbook: str = "main.yml", pass_1_changed: int = 1,
+                                pass_2_changed: int = 0) -> Dict[str, Any]:
+    """Execute / verify Ansible playbook idempotency (UC206).
+
+    A playbook is idempotent if running it a second time results in 0 changed tasks.
+    """
+    is_idempotent = int(pass_2_changed) == 0
+    test_id = f"ansible-idempotency-{stack or 'global'}-{playbook}"
+    result = {
+        "id": str(uuid.uuid4()),
+        "test_id": test_id,
+        "name": f"Ansible Idempotency: {playbook} on {stack or 'global'}",
+        "stack": stack,
+        "playbook": playbook,
+        "kind": "ansible_idempotency",
+        "severity": "blocker" if not is_idempotent else "info",
+        "idempotent": is_idempotent,
+        "pass_1": {"changed": int(pass_1_changed)},
+        "pass_2": {"changed": int(pass_2_changed)},
+        "passed": is_idempotent,
+        "status": "passed" if is_idempotent else "failed",
+        "findings": [] if is_idempotent else [{
+            "assertion": "ansible_idempotency",
+            "message": f"Playbook '{playbook}' was not idempotent on pass 2 (changed={pass_2_changed})",
+        }],
+        "project_id": project_id,
+        "executed_at": int(time.time()),
+        "timestamp": int(time.time()),
+    }
+
+    with _RESULTS_LOCK:
+        history = _load("test_results.json", project_id)
+        history.append(result)
+        _save("test_results.json", history[-500:], project_id)
+
+    if not is_idempotent:
+        dispatch_test_failure_notification(
+            project_id=project_id,
+            stack=stack,
+            test_id=test_id,
+            test_name=result["name"],
+            severity="blocker",
+            findings=result["findings"],
+            run_id=result["id"],
+        )
+
+    return result

@@ -307,32 +307,22 @@ class PlaybookValidator:
                 required_roles = deps.get('requires_roles', [])
                 
                 for required_role in required_roles:
-                    # Comment removed.
-                    found_after = False
-                    for j in range(i + 1, len(roles)):
-                        if roles[j].get('role_name') == required_role:
-                            found_after = True
-                            break
+                    # check if the required role is executed before this role
+                    found_before = any(
+                        roles[k].get('role_name') == required_role
+                        for k in range(i)
+                    )
                     
-                    # Comment removed.
-                    if not found_after:
-                        found_before = any(
-                            roles[k].get('role_name') == required_role
-                            for k in range(i)
-                        )
-                        
-                        if found_before:
-                            # Comment removed.
-                            continue
-                        else:
-                            # Comment removed.
-                            continue
-                    else:
-                        # Comment removed.
-                        continue
-                    
-                    # Comment removed.
-                    # Comment removed.
+                    if not found_before:
+                        warnings.append(ValidationIssue(
+                            level='warning',
+                            code='ROLE_ORDERING_VIOLATION',
+                            message=f"Role '{role_name}' requires role '{required_role}' to be executed before it",
+                            field='roles',
+                            play_id=play_id,
+                            role_name=role_name,
+                            required_role=required_role
+                        ).to_dict())
         
         return warnings
     

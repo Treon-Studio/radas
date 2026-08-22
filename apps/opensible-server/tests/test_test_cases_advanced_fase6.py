@@ -368,5 +368,91 @@ def test_api_security_score_endpoint(data_dir):
     assert "deductions" in body
 
 
+def test_run_ansible_idempotency_test_passed(data_dir):
+    """UC206: Idempotent playbook execution (pass_2_changed = 0) -> passed."""
+    res = test_cases.run_ansible_idempotency_test(
+        project_id="p-idem",
+        stack="web-stack",
+        playbook="site.yml",
+        pass_1_changed=3,
+        pass_2_changed=0,
+    )
+    assert res["idempotent"] is True
+    assert res["status"] == "passed"
+    assert res["passed"] is True
+    assert res["findings"] == []
+    assert res["pass_1"]["changed"] == 3
+    assert res["pass_2"]["changed"] == 0
+
+    # Ensure saved to test results history
+    history = test_cases.list_test_results(project_id="p-idem")
+    assert len(history) >= 1
+    assert any(r["test_id"] == res["test_id"] and r["passed"] is True for r in history)
+
+
+def test_run_ansible_idempotency_test_failed(data_dir):
+    """UC206: Non-idempotent playbook execution (pass_2_changed > 0) -> failed."""
+    res = test_cases.run_ansible_idempotency_test(
+        project_id="p-idem-fail",
+        stack="db-stack",
+        playbook="db.yml",
+        pass_1_changed=2,
+        pass_2_changed=1,
+    )
+    assert res["idempotent"] is False
+    assert res["status"] == "failed"
+    assert res["passed"] is False
+    assert len(res["findings"]) == 1
+    assert "Playbook 'db.yml' was not idempotent" in res["findings"][0]["message"]
+
+    history = test_cases.list_test_results(project_id="p-idem-fail")
+    assert len(history) >= 1
+    assert any(r["test_id"] == res["test_id"] and r["passed"] is False for r in history)
+
+
+def test_api_ansible_idempotency_endpoint(data_dir):
+    """UC206: POST /api/test-cases/ansible-idempotency route with auth & scoping."""
+    import time
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from storage import pg
+    from services.org_service import create_org
+    from api.test_case_routes import bp
+
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("u-idem", "idem_user", "x"))
+    org_a = create_org("Org Idem", "u-idem")
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("proj-idem-api", org_a["id"], "u-idem", "proj-idem-api", "", time.time()),
+    )
+
+    token = generate_token("u-idem", "idem_user", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "X-Project-Id": "proj-idem-api",
+        "Authorization": f"Bearer {token}",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.post(
+        "/api/test-cases/ansible-idempotency",
+        json={"stack": "app-tier", "playbook": "deploy.yml", "pass_1_changed": 5, "pass_2_changed": 0},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.data
+    data = resp.get_json()
+    assert data["idempotent"] is True
+    assert data["status"] == "passed"
+    assert data["project_id"] == "proj-idem-api"
+    assert data["stack"] == "app-tier"
+    assert data["playbook"] == "deploy.yml"
+
+
+
 
 

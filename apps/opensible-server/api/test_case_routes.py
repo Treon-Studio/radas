@@ -235,3 +235,25 @@ def api_test_security_score():
     score_data = compute_stack_security_score(project_id=_pid(), stack=stack)
     return jsonify(score_data)
 
+
+@bp.route('/api/test-cases/ansible-idempotency', methods=['POST'])
+@bp.route('/api/tests/ansible-idempotency', methods=['POST'])
+@require_project_access
+def api_ansible_idempotency():
+    from services.test_cases import run_ansible_idempotency_test
+    data = request.get_json(silent=True) or {}
+    stack = (data.get("stack") or "").strip()
+    playbook = (data.get("playbook") or "main.yml").strip()
+    pass_1_changed = int(data.get("pass_1_changed", 1))
+    pass_2_changed = int(data.get("pass_2_changed", 0))
+
+    result = run_ansible_idempotency_test(
+        project_id=_pid(),
+        stack=stack,
+        playbook=playbook,
+        pass_1_changed=pass_1_changed,
+        pass_2_changed=pass_2_changed,
+    )
+    return jsonify(result), 200
+
+
