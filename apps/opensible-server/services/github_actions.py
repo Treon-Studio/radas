@@ -668,3 +668,62 @@ def set_environment_protection(owner: str, repo: str, environment: str, reviewer
     data = _gh_api("PUT", f"{_repo_path(owner, repo)}/environments/{urllib.parse.quote(environment, safe='')}", body=body)
     return {"ok": True, "name": environment, "wait_timer": wait_timer,
             "reviewers": reviewers or [], "deployment_branch_policy": body["deployment_branch_policy"], "raw": data}
+
+
+def evaluate_run_auto_retry(owner: str, repo: str, run_id: int, project_id: Optional[str] = None,
+                            max_retries: int = 2,
+                            retry_conclusions: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Evaluate if a failed/timed_out workflow run is eligible for auto-retry (UC249)."""
+    if retry_conclusions is None:
+        retry_conclusions = ["failure", "timed_out", "cancelled"]
+
+    run_info = run_detail(owner, repo, int(run_id))
+    status = run_info.get("status")
+    conclusion = run_info.get("conclusion") or ""
+    run_attempt = int(run_info.get("run_attempt") or 1)
+
+    if status != "completed":
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"run is not completed (status: {status})",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+        }
+
+    if conclusion not in retry_conclusions:
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"conclusion '{conclusion}' is not in retryable list",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+        }
+
+    if run_attempt > max_retries:
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"max retries exceeded (attempt {run_attempt} > max {max_retries})",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+            "max_retries": max_retries,
+        }
+
+    # Trigger re-run of failed jobs / workflow
+    try:
+        re_run_res = rerun(owner, repo, int(run_id))
+    except Exception as exc:
+        re_run_res = {"error": str(exc)}
+
+    return {
+        "retried": True,
+        "run_id": int(run_id),
+        "previous_attempt": run_attempt,
+        "max_retries": max_retries,
+        "conclusion": conclusion,
+        "action": "re_run_triggered",
+        "result": re_run_res,
+    }
+
+

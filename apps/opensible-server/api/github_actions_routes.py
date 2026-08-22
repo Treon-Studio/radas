@@ -315,3 +315,32 @@ def api_gh_variables(owner, repo):
         return jsonify({"variables": list_variables(owner, repo)})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/github/runs/<int:run_id>/auto-retry', methods=['POST'])
+@bp.route('/api/github/repos/<owner>/<repo>/runs/<int:run_id>/auto-retry', methods=['POST'])
+@require_auth
+def api_gh_auto_retry(run_id, owner=None, repo=None):
+    from services.github_actions import evaluate_run_auto_retry
+    data = request.get_json(silent=True) or {}
+    owner = owner or data.get("owner")
+    repo = repo or data.get("repo")
+    if not owner or not repo:
+        return jsonify({"error": "owner and repo required"}), 400
+
+    max_retries = int(data.get("max_retries", 2))
+    retry_conclusions = data.get("retry_conclusions")
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+
+    try:
+        result = evaluate_run_auto_retry(
+            owner=owner,
+            repo=repo,
+            run_id=run_id,
+            project_id=project_id,
+            max_retries=max_retries,
+            retry_conclusions=retry_conclusions,
+        )
+        return jsonify(result), 200
+    except (RuntimeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
