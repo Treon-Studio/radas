@@ -15,8 +15,8 @@ def setup_user(pg_db):
         CREATE TABLE IF NOT EXISTS onboarding_status (
             user_id TEXT PRIMARY KEY,
             completed_at REAL,
-            created_at REAL DEFAULT (strftime('%s', 'now')),
-            updated_at REAL DEFAULT (strftime('%s', 'now'))
+            created_at REAL DEFAULT (EXTRACT(epoch FROM NOW())),
+            updated_at REAL DEFAULT (EXTRACT(epoch FROM NOW()))
         )
     """)
     # Create a test user

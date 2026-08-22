@@ -653,6 +653,35 @@ _V21_DDL: List[str] = [
     """CREATE INDEX IF NOT EXISTS idx_tofu_modules_org_slug ON tofu_modules(org_id, slug)""",
 ]
 
+_V23_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS project_locks (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        actor TEXT,
+        operation TEXT NOT NULL,
+        run_id TEXT,
+        acquired_at REAL NOT NULL,
+        expires_at REAL NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_project_locks_project_expires ON project_locks(project_id, expires_at)""",
+]
+
+_V24_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS remote_state_locks (
+        id TEXT PRIMARY KEY,
+        stack TEXT NOT NULL,
+        backend_type TEXT NOT NULL,
+        backend_key TEXT NOT NULL,
+        actor TEXT,
+        operation TEXT NOT NULL,
+        run_id TEXT,
+        acquired_at REAL NOT NULL,
+        expires_at REAL NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_remote_state_locks_stack_backend ON remote_state_locks(stack, backend_type, backend_key)""",
+    """CREATE INDEX IF NOT EXISTS idx_remote_state_locks_expires ON remote_state_locks(expires_at)""",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
@@ -661,6 +690,7 @@ MIGRATIONS = (
     (11, _V11_DDL), (12, _V12_DDL), (13, _V13_DDL), (14, _V14_DDL),
     (15, _V15_DDL), (16, _V16_DDL), (17, _V17_DDL), (18, _V18_DDL),
     (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL), (22, _V22_DDL),
+    (23, _V23_DDL), (24, _V24_DDL),
 )
 
 

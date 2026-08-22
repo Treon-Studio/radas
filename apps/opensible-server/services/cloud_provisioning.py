@@ -1173,7 +1173,32 @@ def stacks_action(name):
                          f"or force-unlock from the State management panel.",
                 "lock": _existing,
             }), 409
-        pass
+
+        # Acquire remote state lock (UC331) for stacks using a remote backend.
+        try:
+            from services import remote_state_lock
+            from services.cloud_state import read_backend_config
+            bc = read_backend_config(_stack_dir(pid, name))
+            if bc.get("backend_type") not in ("local", None):
+                backend_type = bc.get("backend_type")
+                backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{name}.tfstate"
+                rsl = remote_state_lock.acquire(
+                    name, backend_type, backend_key,
+                    actor=_tb or "unknown",
+                    operation=action,
+                )
+                if not rsl["ok"]:
+                    return jsonify({
+                        "error": f"Remote state is locked by {rsl['lock'].get('actor')} "
+                                 f"({rsl['lock'].get('operation')}) for {rsl['lock'].get('stack')}. "
+                                 "Wait for that run to finish or force-unlock.",
+                        "lock": rsl["lock"],
+                    }), 409
+                # Store lock id in meta for later release
+                _save_meta(pid, name, _remote_state_lock_id=rsl["lock"]["id"])
+        except Exception as e:
+            current_app.logger.warning(f"[cloud] remote state lock check failed: {e}")
+            # If remote state lock fails, still allow operation but log warning
 
     try:
         eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid, priority=_priority)
