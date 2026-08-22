@@ -30,6 +30,23 @@ def api_put_retry_policy(project_id):
     return jsonify({"success": True, "retry_policy": pol})
 
 
+@bp.route('/api/retry-policy/<project_id>/stacks/<stack_name>', methods=['GET'])
+@require_project_access
+def api_get_stack_retry_policy(project_id, stack_name):
+    return jsonify({"retry_policy": get_policy(project_id, stack_name)})
+
+
+@bp.route('/api/retry-policy/<project_id>/stacks/<stack_name>', methods=['PUT'])
+@require_project_access
+def api_put_stack_retry_policy(project_id, stack_name):
+    data = request.get_json(silent=True) or {}
+    try:
+        pol = save_policy(project_id, int(data.get("max_retries") or 0), int(data.get("backoff_seconds") or 0), stack_name=stack_name)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid policy"}), 400
+    return jsonify({"success": True, "retry_policy": pol})
+
+
 @bp.route('/api/retry-policy/sweep', methods=['POST'])
 @require_auth
 def api_sweep():
