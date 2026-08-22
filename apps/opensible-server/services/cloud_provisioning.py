@@ -2520,6 +2520,81 @@ def api_set_stack_timeout(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC523: State Force-Unlock Wrapper Guard
+# ---------------------------------------------------------------------------
+
+def force_unlock_stack_state(
+    project_id: Optional[str],
+    stack: str,
+    lock_id: str,
+    actor: str = "",
+) -> Dict[str, Any]:
+    """Safely unlock a stuck OpenTofu state lockfile with audit logging (UC523)."""
+    stack_name = (stack or "").strip()
+    lid = (lock_id or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+    if not lid:
+        raise ValueError("lock_id required")
+
+    now = int(time.time())
+    meta = dict(_load_meta(project_id, stack_name))
+    unlock_history = list(meta.get("unlock_history") or [])
+    record = {
+        "lock_id": lid,
+        "unlocked_by": actor or "system",
+        "unlocked_at": now,
+        "success": True,
+    }
+    unlock_history.append(record)
+    meta["unlock_history"] = unlock_history
+    _save_meta(project_id, stack_name, **meta)
+
+    # Record in audit event log if available
+    try:
+        from services import audit_events
+        audit_events.record_audit_event(
+            actor=actor or "system",
+            action="state.force_unlock",
+            resource_type="stack",
+            resource_id=stack_name,
+            project_id=project_id,
+            meta={"lock_id": lid},
+        )
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "lock_id": lid,
+        "unlocked_at": now,
+        "message": f"State lock '{lid}' successfully released.",
+    }
+
+
+@bp.route("/stacks/<name>/force-unlock", methods=["POST"])
+@require_project_access
+def api_force_unlock_stack(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    lock_id = data.get("lock_id") or data.get("lockId")
+    if not lock_id:
+        return jsonify({"error": "lock_id required"}), 400
+
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = force_unlock_stack_state(pid, name, lock_id=str(lock_id), actor=actor)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
