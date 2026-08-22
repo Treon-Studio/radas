@@ -508,6 +508,18 @@ def api_worker_execution_finish(execution_id):
             current_app.logger.warning(
                 f"[api_worker_execution_finish] Scheduled drift completion hook failed: {drift_e}"
             )
+        if status == 'FAILED':
+            try:
+                from services.notification_service import notify_execution_failure
+                notify_execution_failure(
+                    execution,
+                    project_id=project_id,
+                    error_detail=str(result.get('error') if isinstance(result, dict) else (result or '')),
+                )
+            except Exception as notif_e:
+                current_app.logger.warning(
+                    f"[api_worker_execution_finish] Failure notification hook failed: {notif_e}"
+                )
         current_app.logger.info(
             f"[api_worker_execution_finish] Updated execution {execution_id} with status {status}, "
             f"result={'present' if result else 'none'}"

@@ -404,7 +404,7 @@ fitur terpisah:
 | 248 | Commit workflow file via Contents API (create/update) | ✅ | P0 | 6 |
 | 249 | Auto-retry policy untuk run gagal (configurable) | ⬜ | P2 | 6 |
 | 250 | Webhook peristiwa run masuk ke audit log | ⬜ | P1 | 6 |
-| 251 | Notifikasi Slack/Discord untuk run gagal | ⬜ | P1 | 6 |
+| 251 | Notifikasi Slack/Discord untuk run gagal | ✅ | P1 | 6 |
 | 252 | Search runs by commit SHA | ⬜ | P1 | 6 |
 | 253 | Manage multiple org/repo (multi-koneksi) | ⬜ | P2 | 6 |
 | 254 | Rate limit handling & backoff untuk GitHub API | ⬜ | P1 | 6 |
@@ -512,7 +512,7 @@ fitur terpisah:
 | 346 | Policy as code multi-format (OPA, custom) | ⬜ | P1 | 6 |
 | 347 | Context policy: tug context (PR, stack, env) | ⬜ | P2 | 6 |
 | 348 | Stack dependencies: graph antar stack (korelasi) | ⬜ | P1 | 6 |
-| 349 | Notification hook ke Slack/Discord/Teams/Webhook | ⬜ | P1 | 6 |
+| 349 | Notification hook ke Slack/Discord/Teams/Webhook | ✅ | P1 | 6 |
 | 350 | Self-hosted agent (worker) dengan label & constraint | 🔶 | P1 | 6 |
 | 351 | Terragrunt support (run Terragrunt) | ⬜ | P2 | 6 |
 | 352 | Serverless/Pulumi integration überhaupt | ⬜ | P2 | 6 |
