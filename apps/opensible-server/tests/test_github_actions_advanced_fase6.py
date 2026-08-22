@@ -266,3 +266,68 @@ def test_api_repo_metadata_endpoint(data_dir, monkeypatch):
     data = resp.get_json()
     assert data["name"] == "iac-platform"
     assert data["language"] == "Python"
+
+
+def test_scan_workflow_secrets_exposure():
+    """UC256: Detect plaintext tokens and unsafe secret expression echoes."""
+    safe_yaml = """
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Build starting"
+"""
+    res_safe = github_actions.scan_workflow_secrets_exposure(safe_yaml)
+    assert res_safe["safe"] is True
+    assert res_safe["total_findings"] == 0
+
+    dirty_yaml = """
+name: Deploy
+on: [push]
+jobs:
+  leak:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Token is ${{ secrets.GITHUB_TOKEN }}"
+      - run: ghp_1234567890abcdefghijklmnopqrstuvwxyz12
+      - run: printenv
+"""
+    res_dirty = github_actions.scan_workflow_secrets_exposure(dirty_yaml)
+    assert res_dirty["safe"] is False
+    assert res_dirty["total_findings"] >= 3
+    rules = [f["rule"] for f in res_dirty["findings"]]
+    assert "echo_secret_expression" in rules
+    assert "plaintext_token" in rules
+    assert "dump_env" in rules
+
+
+def test_api_scan_workflow_secrets_endpoint(data_dir):
+    """UC256: POST /api/github/workflows/scan-secrets REST endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.github_actions_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.post(
+        "/api/github/workflows/scan-secrets",
+        json={"content": "steps:\n  - run: echo ${{ secrets.API_KEY }}\n"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["safe"] is False
+    assert data["total_findings"] == 1

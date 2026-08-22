@@ -803,5 +803,44 @@ def get_repo_metadata(owner: str, repo: str, project_id: Optional[str] = None) -
     }
 
 
+def scan_workflow_secrets_exposure(yaml_content: str) -> Dict[str, Any]:
+    """Scan workflow YAML content for potential secrets exposure and unsafe echoes (UC256)."""
+    if not yaml_content or not yaml_content.strip():
+        return {"safe": True, "findings": [], "total_findings": 0}
+
+    findings = []
+    lines = yaml_content.splitlines()
+
+    # Pattern definitions for sensitive patterns
+    patterns = [
+        ("plaintext_token", re.compile(r'(?:ghp_|gho_|github_pat_|glpat-|sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16})', re.IGNORECASE), "high"),
+        ("echo_secret_expression", re.compile(r'echo\s+.*?\$\{\{\s*secrets\.\w+\s*\}\}', re.IGNORECASE), "high"),
+        ("dump_env", re.compile(r'(?:env\s*\|\s*sort|printenv|dump[-_]env)', re.IGNORECASE), "medium"),
+        ("hardcoded_password", re.compile(r'(?:password|secret|api_key|token)\s*[:=]\s*["\'](?![${\w\.-]+[\'"])[a-zA-Z0-9_\-\.\@\#\$]{8,}["\']', re.IGNORECASE), "medium"),
+    ]
+
+    for idx, line in enumerate(lines, 1):
+        clean_line = line.strip()
+        if not clean_line or clean_line.startswith('#'):
+            continue
+        for rule_id, regex, severity in patterns:
+            match = regex.search(clean_line)
+            if match:
+                findings.append({
+                    "rule": rule_id,
+                    "line": idx,
+                    "snippet": clean_line[:120],
+                    "severity": severity,
+                    "matched": match.group(0)[:30],
+                })
+
+    return {
+        "safe": len(findings) == 0,
+        "findings": findings,
+        "total_findings": len(findings),
+    }
+
+
+
 
 

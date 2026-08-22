@@ -369,3 +369,13 @@ def api_gh_repo_metadata(owner, repo):
         return jsonify(meta), 200
     except (RuntimeError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/github/workflows/scan-secrets', methods=['POST'])
+@require_auth
+def api_gh_scan_secrets():
+    from services.github_actions import scan_workflow_secrets_exposure
+    data = request.get_json(silent=True) or {}
+    content = data.get("content") or data.get("yaml_content") or ""
+    res = scan_workflow_secrets_exposure(content)
+    return jsonify(res), 200
