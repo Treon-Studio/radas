@@ -659,13 +659,13 @@ fitur terpisah:
 | 491 | 2FA enforce untuk admin (sudah TOTP) | ✅ | P2 | 6 |
 | 492 | Password reset flow secure | ✅ | P1 | 6 |
 | 493 | OIDC login (sudah) ditambah SAML | ⬜ | P2 | 6 |
-| 494 | RBAC: role flags_admin, tests_admin, byoc_admin | ⬜ | P1 | 6 |
-| 495 | Policy: hanya admin boleh kill-switch | ⬜ | P1 | 6 |
+| 494 | RBAC: role flags_admin, tests_admin, byoc_admin | ✅ | P1 | 6 |
+| 495 | Policy: hanya admin boleh kill-switch | ✅ | P1 | 6 |
 | 496 | Audit untuk change flag / import resource | ⬜ | P1 | 6 |
 | 497 | Read-only tidak bisa eval tulis | ✅ | P1 | 6 |
 | 498 | API token scope per fitur (sudah roles) | ✅ | P2 | 6 |
 | 499 | Preview env auto-expire (TTL) default | ⬜ | P1 | 6 |
-| 500 | Preview env label pada resource (tag preview=true) | ⬜ | P1 | 6 |
+| 500 | Preview env label pada resource (tag preview=true) | ✅ | P1 | 6 |
 | 501 | Preview env quota terpisah | ⬜ | P2 | 6 |
 | 502 | Promosi preview -> prod dengan approval | ⬜ | P1 | 6 |
 | 503 | Git hook pre-apply (lint test) | ⬜ | P2 | 6 |
@@ -688,7 +688,7 @@ fitur terpisah:
 | 520 | Default template per project | ⬜ | P2 | 6 |
 | 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ⬜ | P1 | 6 |
 | 522 | Backend.hcl edit guard (jangan rusak state key) | ⬜ | P1 | 6 |
-| 523 | Force-unlock state (tofu force-unlock wrapper) | ⬜ | P1 | 6 |
+| 523 | Force-unlock state (tofu force-unlock wrapper) | ✅ | P1 | 6 |
 | 524 | Taint/unt-aint resource dari console | ✅ | P1 | 6 |
 | 525 | Import via console ke stack existing | ⬜ | P1 | 6 |
 | 526 | Output values viewer (state outputs) | ✅ | P1 | 6 |
@@ -701,7 +701,7 @@ fitur terpisah:
 | 533 | Stack yang harus jalan di worker tertentu (pinning) | ⬜ | P1 | 6 |
 | 534 | Worker resource usage monitoring | ⬜ | P2 | 6 |
 | 535 | Worker online/offline status di dasbor | ⬜ | P1 | 6 |
-| 536 | Cooldown after failed apply (anti-spam) | ⬜ | P1 | 6 |
+| 536 | Cooldown after failed apply (anti-spam) | ✅ | P1 | 6 |
 | 537 | Lock stack manual (mode maintenance) | ✅ | P1 | 6 |
 | 538 | Lock reason & who (viewable) | ✅ | P2 | 6 |
 | 539 | DR: restore stack dari snapshot (sudah) | ✅ | P1 | 6 |
@@ -711,7 +711,7 @@ fitur terpisah:
 | 543 | Secret rotation schedule (sudah) -> auto-apply UI | ✅ | P1 | 6 |
 | 544 | Compliance evidence untuk secret rotation | ⬜ | P2 | 6 |
 | 545 | Policy gate plan parse (sudah) -> extend severity | ✅ | P1 | 6 |
-| 546 | Policy violations list permanent | ⬜ | P1 | 6 |
+| 546 | Policy violations list permanent | ✅ | P1 | 6 |
 | 547 | Policy exemptions dengan approval | ⬜ | P2 | 6 |
 | 548 | Quota soft warning vs hard block | ⬜ | P1 | 6 |
 | 549 | Request quota increase workflow | ⬜ | P2 | 6 |
