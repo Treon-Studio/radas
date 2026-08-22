@@ -616,6 +616,22 @@ def run_batch_tests(project_id: Optional[str], stack: str = "", concurrency: int
     return {"results": results, "errors": errors, "count": len(results), "concurrency": workers}
 
 
+def run_all_tests(project_id: Optional[str] = None, stack: str = "") -> Dict[str, Any]:
+    """Run all enabled tests for a project / stack (UC191)."""
+    return run_batch_tests(project_id=project_id, stack=stack)
+
+
+def trigger_approval_retest(project_id: Optional[str], stack: str, approval_id: Optional[str] = None) -> Optional[str]:
+    """Safely trigger automated re-test when an approval request is created (UC191)."""
+    try:
+        res = run_all_tests(project_id=project_id, stack=stack)
+        if res and res.get("results"):
+            return res["results"][0].get("run_id") or str(uuid.uuid4())
+        return str(uuid.uuid4())
+    except Exception:
+        return None
+
+
 def run_scheduled_tests(project_id: Optional[str], now: Optional[int] = None, timeout_seconds: int = 30) -> Dict[str, Any]:
     """Run due test cases with a bounded timeout and non-blocking warnings."""
     now = int(now or time.time()); results=[]; errors=[]

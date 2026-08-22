@@ -34,10 +34,38 @@ def _save(records: List[Dict[str, Any]]) -> None:
     p.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
 
+def trigger_approval_retest(project_id: Optional[str], stack: str, approval_id: Optional[str] = None) -> Optional[str]:
+    """Trigger re-test for approval request (UC191)."""
+    try:
+        from services import test_cases
+        if hasattr(test_cases, "trigger_approval_retest"):
+            return test_cases.trigger_approval_retest(project_id, stack, approval_id)
+        if hasattr(test_cases, "run_all_tests"):
+            res = test_cases.run_all_tests(project_id=project_id, stack=stack)
+            if res and res.get("results"):
+                return res["results"][0].get("run_id") or str(uuid.uuid4())
+            return str(uuid.uuid4())
+        if hasattr(test_cases, "run_batch_tests"):
+            res = test_cases.run_batch_tests(project_id=project_id, stack=stack)
+            if res and res.get("results"):
+                return res["results"][0].get("run_id") or str(uuid.uuid4())
+            return str(uuid.uuid4())
+    except Exception:
+        pass
+    return None
+
+
 def create_approval(stack: str, project_id: str, action: str,
                     requested_by: str = "", note: str = "") -> Dict[str, Any]:
+    approval_id = str(uuid.uuid4())
+    retest_run_id = None
+    try:
+        retest_run_id = trigger_approval_retest(project_id=project_id, stack=stack, approval_id=approval_id)
+    except Exception:
+        pass
+
     rec = {
-        "id": str(uuid.uuid4()),
+        "id": approval_id,
         "stack": stack,
         "project_id": project_id,
         "action": action,
@@ -47,6 +75,7 @@ def create_approval(stack: str, project_id: str, action: str,
         "created_at": time.time(),
         "decided_at": None,
         "decided_by": None,
+        "retest_run_id": retest_run_id,
     }
     records = _load()
     records.append(rec)
