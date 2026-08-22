@@ -91,3 +91,32 @@ resource "aws_instance" "example" {
         f.get("severity") == "info" for f in findings
     )
     assert info_finding
+
+
+def test_playbook_draft_returns_playbook(client):
+    prompt = "install nginx on web servers"
+    response = client.post(
+        '/api/ai/playbook-draft',
+        json={"prompt": prompt},
+        query_string={"project_id": "test-proj"}
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert "playbook" in data
+    assert "source" in data
+    assert data["source"] in ("ai", "template")
+    # Playbook should contain the prompt or a placeholder
+    playbook = data["playbook"]
+    assert isinstance(playbook, str)
+    assert len(playbook) > 10
+
+
+def test_playbook_draft_requires_prompt(client):
+    response = client.post(
+        '/api/ai/playbook-draft',
+        json={},
+        query_string={"project_id": "test-proj"}
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert "error" in data
