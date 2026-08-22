@@ -465,3 +465,27 @@ def is_allowed_cors_origin(origin: Optional[str], custom_whitelist: Optional[Lis
     return clean_origin in whitelist or "*" in whitelist
 
 
+# ---------------------------------------------------------------------------
+# UC457: JSON Schema Validation Utility for REST Mutations
+# ---------------------------------------------------------------------------
+
+def validate_schema(schema: Dict[str, Any]):
+    """Decorator to validate incoming JSON request payloads against a schema (UC457)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            data = request.get_json(silent=True)
+            if data is None and schema.get("required"):
+                return jsonify({"error": "Invalid JSON payload or Content-Type", "message": "Expected application/json body"}), 400
+
+            from utils.schema_validator import validate_payload_schema
+            ok, err_msg = validate_payload_schema(data or {}, schema)
+            if not ok:
+                return jsonify({"error": "Schema validation failed", "message": err_msg}), 400
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+

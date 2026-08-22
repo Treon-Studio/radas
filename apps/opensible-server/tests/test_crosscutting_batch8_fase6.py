@@ -26,3 +26,74 @@ def test_cors_origin_whitelisting(monkeypatch):
     assert middleware.is_allowed_cors_origin("https://console.radas.io") is True
     assert middleware.is_allowed_cors_origin("https://app.radas.io") is True
     assert middleware.is_allowed_cors_origin("https://malicious.com") is False
+
+
+def test_schema_validator_utility():
+    """UC457: Schema validator utility testing type and field constraints."""
+    from utils.schema_validator import validate_payload_schema
+
+    schema = {
+        "required": ["name", "provider"],
+        "properties": {
+            "name": {"type": "string", "min_length": 3, "max_length": 50},
+            "provider": {"type": "string", "enum": ["aws", "gcp", "hetzner"]},
+            "count": {"type": "integer", "min": 1, "max": 100},
+            "tags": {"type": "list"},
+            "enabled": {"type": "boolean"},
+        }
+    }
+
+    # 1. Valid payload
+    valid_payload = {"name": "prod-stack", "provider": "aws", "count": 5, "tags": ["prod"], "enabled": True}
+    ok, err = validate_payload_schema(valid_payload, schema)
+    assert ok is True
+    assert err is None
+
+    # 2. Missing required
+    missing_payload = {"name": "prod-stack"}
+    ok, err = validate_payload_schema(missing_payload, schema)
+    assert ok is False
+    assert "Missing required field: 'provider'" in err
+
+    # 3. Enum mismatch
+    bad_enum = {"name": "prod-stack", "provider": "azure"}
+    ok, err = validate_payload_schema(bad_enum, schema)
+    assert ok is False
+    assert "Field 'provider' must be one of" in err
+
+    # 4. Length error
+    short_name = {"name": "ab", "provider": "aws"}
+    ok, err = validate_payload_schema(short_name, schema)
+    assert ok is False
+    assert "length must be >= 3" in err
+
+
+def test_validate_schema_decorator_endpoint():
+    """UC457: Flask endpoint with @validate_schema decorator."""
+    import flask
+    from auth.middleware import validate_schema
+
+    app = flask.Flask(__name__)
+
+    @app.route("/test-schema", methods=["POST"])
+    @validate_schema({
+        "required": ["key", "value"],
+        "properties": {
+            "key": {"type": "string"},
+            "value": {"type": "integer", "min": 10},
+        }
+    })
+    def sample_validated():
+        return flask.jsonify({"ok": True}), 200
+
+    client = app.test_client()
+
+    # Invalid request (value < 10)
+    resp_invalid = client.post("/test-schema", json={"key": "test", "value": 5})
+    assert resp_invalid.status_code == 400
+    assert "Schema validation failed" in resp_invalid.get_json()["error"]
+
+    # Valid request
+    resp_valid = client.post("/test-schema", json={"key": "test", "value": 15})
+    assert resp_valid.status_code == 200
+    assert resp_valid.get_json()["ok"] is True
