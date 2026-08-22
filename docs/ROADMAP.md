@@ -428,7 +428,7 @@ fitur terpisah:
 |---|---|---|---|---|
 | 271 | Koneksi akun cloud (AWS/GCP/Azure/Hetzner/Biznet/IDCH) dengan kredensial | ✅ | P0 | 6 |
 | 272 | Validasi kredensial: test koneksi sebelum simpan | ✅ | P0 | 6 |
-| 273 | IAM role-based (assume-role) untuk AWS/GCP service account | ⬜ | P1 | 6 |
+| 273 | IAM role-based (assume-role) untuk AWS/GCP service account | ✅ | P1 | 6 |
 | 274 | Simpan secret koneksi terenkripsi (bukan plaintext) | ✅ | P0 | 6 |
 | 275 | Deteksi provider dari kredensial (auto-detect region/endpoint) | ✅ | P1 | 6 |
 | 276 | Multi-account: list akun terhubung dengan status health | ✅ | P1 | 6 |
@@ -449,7 +449,7 @@ fitur terpisah:
 | 291 | Provider Biznet Gio: OpenStack API import (Keystone/Neutron/Nova) | ✅ | P1 | 6 |
 | 292 | Provider IDCloudHost: REST API import | ✅ | P1 | 6 |
 | 293 | Sync state dari existing terraform state (import state) | ✅ | P1 | 6 |
-| 294 | Multiple state file: remote vs local detect | ⬜ | P1 | 6 |
+| 294 | Multiple state file: remote vs local detect | ✅ | P1 | 6 |
 | 295 | Kredensial per stack (bukan hanya per akun) | ⬜ | P1 | 6 |
 | 296 | Rotasi kredensial otomatis (schedule) | ✅ | P2 | 6 |
 | 297 | Health check berkala koneksi (cron ping) | ✅ | P1 | 6 |
@@ -461,11 +461,11 @@ fitur terpisah:
 | 303 | Perbandingan harga antar akun/provider (multi-cloud cost) | ⬜ | P2 | 6 |
 | 304 | Reuse VPC/network resource dari akun untuk stack | ⬜ | P1 | 6 |
 | 305 | Tag grouping untuk resource org (cost center) | ⬜ | P2 | 6 |
-| 306 | Ekspor inventory ke CSV | ⬜ | P2 | 6 |
-| 307 | Import-only mode (tanpa apply, hanya adopt) | ⬜ | P1 | 6 |
-| 308 | Clash detection: resource sudah di stack lain | ⬜ | P2 | 6 |
+| 306 | Ekspor inventory ke CSV | ✅ | P2 | 6 |
+| 307 | Import-only mode (tanpa apply, hanya adopt) | ✅ | P1 | 6 |
+| 308 | Clash detection: resource sudah di stack lain | ✅ | P2 | 6 |
 | 309 | Resource graph: visualisasi dependency akun | ⬜ | P2 | 6 |
-| 310 | Threshold quota per akun (max VM/NAT/network) | ⬜ | P1 | 6 |
+| 310 | Threshold quota per akun (max VM/NAT/network) | ✅ | P1 | 6 |
 | 311 | SLA monitoring: uptime resource via provider API | ⬜ | P2 | 6 |
 | 312 | Backup config akun (export koneksi JSON encrypted) | ⬜ | P2 | 6 |
 | 313 | Permission set minimal (least privilege) otomatis | ⬜ | P2 | 6 |
