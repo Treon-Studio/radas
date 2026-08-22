@@ -198,3 +198,71 @@ def test_api_webhook_ingest_endpoint(data_dir, monkeypatch):
         data = resp.get_json()
         assert data["ok"] is True
         assert data["action"] == "github.workflow_job.in_progress"
+
+
+def test_get_repo_metadata(monkeypatch):
+    """UC255: Extract repository metadata (default branch, visibility, language, topics)."""
+    fake_repo_resp = {
+        "id": 102030,
+        "name": "iac-platform",
+        "full_name": "acme/iac-platform",
+        "owner": {"login": "acme"},
+        "default_branch": "main",
+        "private": True,
+        "visibility": "private",
+        "language": "HCL",
+        "description": "Infrastructure code",
+        "topics": ["opentofu", "cloud", "aws"],
+        "size": 4096,
+        "open_issues_count": 5,
+        "stargazers_count": 12,
+        "forks_count": 2,
+        "html_url": "https://github.com/acme/iac-platform",
+    }
+
+    monkeypatch.setattr(github_actions, "_gh_api", lambda method, path, **kwargs: fake_repo_resp)
+
+    meta = github_actions.get_repo_metadata(owner="acme", repo="iac-platform")
+    assert meta["id"] == 102030
+    assert meta["name"] == "iac-platform"
+    assert meta["full_name"] == "acme/iac-platform"
+    assert meta["default_branch"] == "main"
+    assert meta["private"] is True
+    assert meta["visibility"] == "private"
+    assert meta["language"] == "HCL"
+    assert meta["topics"] == ["opentofu", "cloud", "aws"]
+    assert meta["size_kb"] == 4096
+
+
+def test_api_repo_metadata_endpoint(data_dir, monkeypatch):
+    """UC255: GET /api/github/repos/<owner>/<repo>/metadata endpoint."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.github_actions_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    fake_meta = {
+        "id": 102030,
+        "name": "iac-platform",
+        "full_name": "acme/iac-platform",
+        "default_branch": "main",
+        "visibility": "public",
+        "private": False,
+        "language": "Python",
+        "topics": ["automation"],
+    }
+    monkeypatch.setattr(github_actions, "get_repo_metadata", lambda owner, repo, project_id=None: fake_meta)
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    resp = client.get("/api/github/repos/acme/iac-platform/metadata", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["name"] == "iac-platform"
+    assert data["language"] == "Python"

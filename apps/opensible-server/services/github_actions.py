@@ -778,4 +778,30 @@ def ingest_github_webhook(event: str, payload: Dict[str, Any], project_id: Optio
     }
 
 
+def get_repo_metadata(owner: str, repo: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Retrieve and inspect repository metadata (default branch, visibility, language, topics, size) (UC255)."""
+    data = _gh_api("GET", f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}")
+    return {
+        "id": data.get("id"),
+        "name": data.get("name"),
+        "full_name": data.get("full_name") or f"{owner}/{repo}",
+        "owner": (data.get("owner") or {}).get("login") or owner,
+        "default_branch": data.get("default_branch") or "main",
+        "visibility": data.get("visibility") or ("private" if data.get("private") else "public"),
+        "private": bool(data.get("private")),
+        "language": data.get("language"),
+        "description": data.get("description"),
+        "topics": data.get("topics") or [],
+        "size_kb": data.get("size", 0),
+        "open_issues_count": data.get("open_issues_count", 0),
+        "stargazers_count": data.get("stargazers_count", 0),
+        "forks_count": data.get("forks_count", 0),
+        "created_at": data.get("created_at"),
+        "updated_at": data.get("updated_at"),
+        "pushed_at": data.get("pushed_at"),
+        "html_url": data.get("html_url"),
+    }
+
+
+
 

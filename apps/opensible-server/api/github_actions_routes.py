@@ -356,3 +356,16 @@ def api_gh_webhook_ingest():
 
     res = ingest_github_webhook(event=event, payload=payload, project_id=project_id)
     return jsonify(res), 200
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/metadata', methods=['GET'])
+@bp.route('/api/github/repos/<owner>/<repo>', methods=['GET'])
+@require_auth
+def api_gh_repo_metadata(owner, repo):
+    from services.github_actions import get_repo_metadata
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        meta = get_repo_metadata(owner, repo, project_id=project_id)
+        return jsonify(meta), 200
+    except (RuntimeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
