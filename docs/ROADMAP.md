@@ -495,7 +495,7 @@ fitur terpisah:
 | # | Use case | Status | Prio | Fase |
 |---|---|---|---|---|
 | 331 | Remote state lock global (anti race apply) | ✅ | P0 | 6 |
-| 332 | State versions browsing & rollback (sudah partial, per stack) | 🔶 | P1 | 6 |
+| 332 | State versions browsing & rollback (sudah partial, per stack) | ✅ | P1 | 6 |
 | 333 | Run history dengan comments (diskusi per run) | ⬜ | P2 | 6 |
 | 334 | Private module registry (publish modul internal) | ✅ | P0 | 6 |
 | 335 | Budget alert per workspace (sudah ada) -> per project agg | 🔶 | P1 | 6 |
@@ -506,7 +506,7 @@ fitur terpisah:
 | 340 | API-driven runs (sudah ada execution) | 🔶 | P1 | 6 |
 | 341 | Audit trail full event (action, actor, resource) | ✅ | P0 | 6 |
 | 342 | Drift detection scheduling dengan alert | ✅ | P0 | 6 |
-| 343 | Rollback ke state versi mana pun (sudah ada snapshot) | 🔶 | P0 | 6 |
+| 343 | Rollback ke state versi mana pun (sudah ada snapshot) | ✅ | P0 | 6 |
 | 344 | Multi-cloud provider pluggable (sudah ada) | 🔶 | P1 | 6 |
 | 345 | Review apps: approve/reject flow dengan comment | ⬜ | P1 | 6 |
 | 346 | Policy as code multi-format (OPA, custom) | ⬜ | P1 | 6 |
