@@ -262,7 +262,7 @@ fitur terpisah:
 | 116 | Percentage rollout deterministik (0-100%) via hash konsisten | ✅ | P1 | 6 |
 | 117 | Whitelist/blacklist user untuk targeting | ✅ | P1 | 6 |
 | 118 | Evaluate flag via REST API (key, env, user) -> enabled+reason | ✅ | P0 | 6 |
-| 119 | Enumerasi flag untuk seed default (block_apply, block_destroy, preview, auto_scale) | 🔶 | P1 | 6 |
+| 119 | Enumerasi flag untuk seed default (block_apply, block_destroy, preview, auto_scale) | ✅ | P1 | 6 |
 | 120 | Kill-switch block_apply menahan semua apply stack (423) | ✅ | P1 | 6 |
 | 121 | Flag per-stack stack.<name>.block_apply | ✅ | P1 | 6 |
 | 122 | Audit trail perubahan flag (siapa, kapan, dari-ke) | ✅ | P1 | 6 |
@@ -270,7 +270,7 @@ fitur terpisah:
 | 124 | Flag eksperimen untuk A/B testing safety | ✅ | P2 | 6 |
 | 125 | Progressive rollout otomatis: 10%->25%->50%->100% dengan interval | ✅ | P2 | 6 |
 | 126 | Rollback flag ke nilai sebelumnya (snapshot) | ⬜ | P2 | 6 |
-| 127 | Flag digunakan oleh automation_rules (gate auto-scale/auto-stop) | 🔶 | P1 | 6 |
+| 127 | Flag digunakan oleh automation_rules (gate auto-scale/auto-stop) | ✅ | P1 | 6 |
 | 128 | Flag dipakai di approval flow (skip approval jika flag) | ⬜ | P2 | 6 |
 | 129 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | ✅ | P1 | 6 |
 | 131 | Deteksi flag mati/duplicate key pada saat create | ✅ | P1 | 6 |

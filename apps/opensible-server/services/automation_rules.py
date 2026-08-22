@@ -116,8 +116,14 @@ def run_rules_once() -> Dict[str, int]:
         kind = r.get("kind")
         if kind == "auto_scale" and now.hour == int(r.get("hour") or 0) and _in_day(r.get("days") or [], now.weekday()):
             try:
-                from services.cloud_provisioning import _create_execution, _stack_dir
+                # Check auto_scale feature flag (UC127)
+                from services.feature_flags import evaluate
                 pid, stack = r.get("project_id"), r.get("stack")
+                flag_res = evaluate("auto_scale", env="prod", stack=stack, project_id=pid)
+                if not flag_res.get("enabled", True):
+                    continue
+
+                from services.cloud_provisioning import _create_execution, _stack_dir
                 scale_to = int(r.get("scale_to") or 0)
                 if pid and stack and scale_to > 0 and _stack_dir(pid, stack).exists():
                     tf = _stack_dir(pid, stack) / "terraform.tfvars"
@@ -131,9 +137,19 @@ def run_rules_once() -> Dict[str, int]:
                             queued["auto_scale"] += 1
             except Exception:
                 pass
-        elif kind == "auto_stop" and now.hour == int(r.get("hour") or 0)                 and _in_day(r.get("days") or [], now.weekday()):
-            if _queue(r.get("project_id"), r.get("stack"), r.get("action") or "destroy", "auto_stop"):
-                queued["auto_stop"] += 1
+        elif kind == "auto_stop" and now.hour == int(r.get("hour") or 0) and _in_day(r.get("days") or [], now.weekday()):
+            try:
+                # Check auto_stop / block_destroy feature flags (UC127)
+                from services.feature_flags import evaluate
+                pid, stack = r.get("project_id"), r.get("stack")
+                if not evaluate("auto_stop", env="prod", stack=stack, project_id=pid).get("enabled", True):
+                    continue
+                if evaluate("block_destroy", env="prod", stack=stack, project_id=pid).get("enabled", False):
+                    continue
+                if _queue(pid, stack, r.get("action") or "destroy", "auto_stop"):
+                    queued["auto_stop"] += 1
+            except Exception:
+                pass
         elif kind == "remediate" and r.get("stack"):
             try:
                 from services.cloud_provisioning import _latest_drift_run
