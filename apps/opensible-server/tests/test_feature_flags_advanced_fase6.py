@@ -594,3 +594,125 @@ def test_export_and_import_api_endpoints(data_dir):
     assert query_resp.get_json()["overwritten_count"] == 1
 
 
+def test_should_skip_approval_default_false(data_dir):
+    from services.approval_service import should_skip_approval
+
+    assert should_skip_approval("app", "project-a", "apply") is False
+    assert should_skip_approval("db", "project-b", "destroy") is False
+
+
+def test_should_skip_approval_flag_keys(data_dir):
+    from services.approval_service import should_skip_approval
+    from services.feature_flag_registry import archive_flag, create_flag, delete_flag
+
+    def _cleanup(key):
+        archive_flag(key)
+        delete_flag(key)
+
+    # 1. approval.skip
+    create_flag({"key": "approval.skip", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    _cleanup("approval.skip")
+    assert should_skip_approval("app", "project-a", "apply") is False
+
+    # 2. approval.apply.skip
+    create_flag({"key": "approval.apply.skip", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    assert should_skip_approval("app", "project-a", "destroy") is False
+    _cleanup("approval.apply.skip")
+
+    # 3. approval.skip.apply
+    create_flag({"key": "approval.skip.apply", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    assert should_skip_approval("app", "project-a", "destroy") is False
+    _cleanup("approval.skip.apply")
+
+    # 4. approval.auto_approve
+    create_flag({"key": "approval.auto_approve", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    _cleanup("approval.auto_approve")
+
+    # 5. stack.<stack>.skip_approval
+    create_flag({"key": "stack.app.skip_approval", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    assert should_skip_approval("db", "project-a", "apply") is False
+    _cleanup("stack.app.skip_approval")
+
+    # 6. approval.stack.<stack>.skip
+    create_flag({"key": "approval.stack.app.skip", "enabled": True})
+    assert should_skip_approval("app", "project-a", "apply") is True
+    assert should_skip_approval("db", "project-a", "apply") is False
+    _cleanup("approval.stack.app.skip")
+
+
+def test_should_skip_approval_scopes_and_environments(data_dir):
+    org_a, org_b, _ = _seed(data_dir)
+    from services.approval_service import should_skip_approval
+    from services.feature_flag_registry import create_flag
+
+    # Project scope: only project-a skips approval
+    create_flag({"key": "approval.skip", "enabled": True}, scope_type="project", scope_id="project-a", org_id=org_a["id"])
+    assert should_skip_approval("app", "project-a", "apply") is True
+    assert should_skip_approval("app", "project-b", "apply") is False
+
+    # Org scope: applies when org_id is provided
+    create_flag({"key": "approval.auto_approve", "enabled": True}, scope_type="organization", scope_id=org_a["id"], org_id=org_a["id"])
+    assert should_skip_approval("app", "unscoped-proj", "apply", org_id=org_a["id"]) is True
+    assert should_skip_approval("app", "unscoped-proj", "apply", org_id=org_b["id"]) is False
+
+    # Environment scoping on project-b (which has no org-level auto_approve)
+    create_flag({
+        "key": "approval.destroy.skip",
+        "enabled": True,
+        "environments": {"dev": True, "prod": False},
+    })
+    assert should_skip_approval("app", "project-b", "destroy", env="dev") is True
+    assert should_skip_approval("app", "project-b", "destroy", env="prod") is False
+
+
+def test_cloud_provisioning_approval_gate_bypassed_by_flag(monkeypatch, tmp_path, data_dir):
+    from services import cloud_provisioning as cloud
+    from services.feature_flag_registry import create_flag
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    monkeypatch.setattr(cloud, "_get_project_id", lambda: "project-a")
+    monkeypatch.setattr(cloud, "_stack_dir", lambda project_id, name: tmp_path / name)
+    (tmp_path / "demo").mkdir()
+
+    # Meta requires approval
+    monkeypatch.setattr(cloud, "_load_meta", lambda project_id, name: {"approval_required": True, "env": "dev"})
+    enqueued = []
+    monkeypatch.setattr(cloud, "_create_execution", lambda *args, **kwargs: enqueued.append(args) or "exec-run-1")
+    monkeypatch.setattr("services.cloud_state.read_lock", lambda *args, **kwargs: None)
+    monkeypatch.setattr("services.test_cases.latest_failed_blocker", lambda *args, **kwargs: None)
+
+    app.register_blueprint(cloud.bp)
+
+    # 1. Without flag enabled -> returns 409 Approval required
+    with app.test_request_context(
+        "/api/cloud/stacks/demo/actions",
+        method="POST",
+        json={"action": "apply"},
+        headers={"X-Project-Id": "project-a"},
+    ):
+        resp = cloud.stacks_action.__wrapped__("demo")
+        assert resp[1] == 409
+        assert enqueued == []
+
+    # 2. Enable flag approval.skip
+    create_flag({"key": "approval.skip", "enabled": True})
+
+    # Now the mutating action should bypass approval gate and succeed (202 / execution enqueued)
+    with app.test_request_context(
+        "/api/cloud/stacks/demo/actions",
+        method="POST",
+        json={"action": "apply"},
+        headers={"X-Project-Id": "project-a"},
+    ):
+        resp = cloud.stacks_action.__wrapped__("demo")
+        assert resp[1] == 202
+        assert len(enqueued) == 1
+
+
+

@@ -1145,16 +1145,26 @@ def stacks_action(name):
                                      f"Run tests and fix findings before {action}."}), 409
 
     # Approval gate (Fase 2 — UC 50/68): mutating actions on stacks with
-    # approval_required must have an approved approval record.
+    # approval_required must have an approved approval record unless bypassed by feature flag (UC128).
     if _mutating:
         try:
-            from services.approval_service import has_approved, latest_pending
+            from services.approval_service import has_approved, latest_pending, should_skip_approval
             _req = False
+            _env = None
             try:
-                _req = _load_meta(pid, name).get("approval_required") is True
+                _meta = _load_meta(pid, name)
+                _req = _meta.get("approval_required") is True
+                _env = _meta.get("env")
             except Exception:
                 _req = False
-            if _req and not has_approved(name, pid, action):
+            _org_id = None
+            if pid:
+                try:
+                    from auth.middleware import _org_id_of_project
+                    _org_id = _org_id_of_project(pid)
+                except Exception:
+                    pass
+            if _req and not should_skip_approval(name, pid, action, env=_env or "prod", org_id=_org_id) and not has_approved(name, pid, action):
                 pend = latest_pending(name, pid, action)
                 return jsonify({
                     "error": "Approval required for this action. Request it from the stack's Approval panel.",

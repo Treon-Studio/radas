@@ -100,3 +100,32 @@ def latest_pending(stack: str, project_id: str, action: str) -> Optional[Dict[st
                 and r.get("status") == "pending"):
             return r
     return None
+
+
+def should_skip_approval(stack: str, project_id: str, action: str = "apply", env: str = "",
+                         org_id: Optional[str] = None) -> bool:
+    """Evaluate whether approval gate can be skipped based on feature flags (UC128)."""
+    try:
+        from services.feature_flag_registry import evaluate
+    except Exception:
+        return False
+
+    candidate_keys = [
+        f"approval.skip.{action}",
+        f"approval.{action}.skip",
+        "approval.skip",
+        "approval.auto_approve",
+        f"stack.{stack}.skip_approval",
+        f"approval.stack.{stack}.skip",
+    ]
+
+    for key in candidate_keys:
+        try:
+            res = evaluate(key, env=env or "prod", project_id=project_id, org_id=org_id)
+            if res and res.get("enabled"):
+                return True
+        except Exception:
+            continue
+
+    return False
+
