@@ -389,7 +389,7 @@ fitur terpisah:
 | 233 | Deteksi flaky: workflow sukses setelah retry | ✅ | P2 | 6 |
 | 234 | Buat workflow baru dari template (scaffold tofu/ansible) | ✅ | P0 | 6 |
 | 235 | Template workflow: tofu-plan.yaml, tofu-apply.yaml, ansible-run.yaml | ✅ | P0 | 6 |
-| 236 | Commit workflow file via Contents API (create/update) | ⬜ | P0 | 6 |
+| 236 | Commit workflow file via Contents API (create/update) | ✅ | P0 | 6 |
 | 237 | PR plan comment integration (komentar hasil plan di PR) | ✅ | P1 | 6 |
 | 238 | Required check enforcement: workflow harus sukses sebelum merge | ✅ | P1 | 6 |
 | 239 | Atur environment protection rules (require approval) | ✅ | P1 | 6 |
