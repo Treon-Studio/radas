@@ -520,9 +520,9 @@ fitur terpisah:
 | 357 | TTL environment (auto-destroy setelah durasi) | ✅ | P1 | 6 |
 | 358 | Cost analytics per tag/provider/branch | ⬜ | P1 | 6 |
 | 359 | Policy custom (Cryo) untuk env | ⬜ | P2 | 6 |
-| 360 | Audit log export (JSONL) ke SIEM | ⬜ | P2 | 6 |
+| 360 | Audit log export (JSONL) ke SIEM | ✅ | P2 | 6 |
 | 361 | SSO SAML + SCIM provisioning | ⬜ | P2 | 6 |
-| 362 | Approval workflow multi-step (chain) | ⬜ | P1 | 6 |
+| 362 | Approval workflow multi-step (chain) | ✅ | P1 | 6 |
 | 363 | Parallel workload isolation | ⬜ | P2 | 6 |
 | 364 | Import dari state remote (webhook-style) | ⬜ | P1 | 6 |
 | 365 | Agent per environment group | ⬜ | P2 | 6 |
@@ -565,11 +565,11 @@ fitur terpisah:
 | 402 | CLI parity full (radas <-> console) | ⬜ | P1 | 6 |
 | 403 | WebSocket realtime per stack (sudah SSE) | ✅ | P2 | 6 |
 | 404 | Webhook outbound retry dengan DLQ | ⬜ | P1 | 6 |
-| 405 | Idempotent API keys (idempotency header) | ⬜ | P2 | 6 |
+| 405 | Idempotent API keys (idempotency header) | ✅ | P2 | 6 |
 | 406 | Failover: multiple server instance | ⬜ | P2 | 6 |
 | 407 | State backup S3/GCS (remote state sync) | ⬜ | P1 | 6 |
 | 408 | Plan-only lint sebelum apply otomatis | ⬜ | P1 | 6 |
-| 409 | Circuit breaker: stop apply setelah N kegagalan | ⬜ | P2 | 6 |
+| 409 | Circuit breaker: stop apply setelah N kegagalan | ✅ | P2 | 6 |
 | 410 | Dead-letter queue untuk execution gagal | ⬜ | P1 | 6 |
 | 411 | Forecast bulanan per project (sudah) | ✅ | P2 | 6 |
 | 412 | Anomaly detection cost (tiba-tiba naik) | ⬜ | P2 | 6 |
@@ -580,7 +580,7 @@ fitur terpisah:
 | 417 | Evidence collection otomatis (screenshot config) | ⬜ | P2 | 6 |
 | 418 | Framework templates (SOC2, HIPAA, PCI) | ⬜ | P1 | 6 |
 | 419 | Failing control -> ticket otomatis | ⬜ | P2 | 6 |
-| 420 | Secret scanning di plan output | ⬜ | P1 | 6 |
+| 420 | Secret scanning di plan output | ✅ | P1 | 6 |
 | 421 | Container registry scan untuk worker image | ⬜ | P2 | 6 |
 | 422 | IP allowlist untuk UI/API | ⬜ | P1 | 6 |
 | 423 | Session timeout & inactivity lock | ⬜ | P1 | 6 |
@@ -590,7 +590,7 @@ fitur terpisah:
 | 427 | Stack health score (drift+test+age) | ⬜ | P2 | 6 |
 | 428 | Bulk actions: apply banyak stack sekaligus | ⬜ | P2 | 6 |
 | 429 | Clone stack antar project | ⬜ | P2 | 6 |
-| 430 | Import/export stack config JSON | ⬜ | P1 | 6 |
+| 430 | Import/export stack config JSON | ✅ | P1 | 6 |
 | 431 | Tagging stack untuk filter & automation | ⬜ | P1 | 6 |
 | 432 | Git sync dua arah (sudah pull -> add push) | ✅ | P1 | 6 |
 | 433 | Commit message convention enforcement | ⬜ | P2 | 6 |
