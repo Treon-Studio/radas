@@ -134,8 +134,17 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
         "pr_number": int(pr_number), "repo": repo or "", "status": "active",
         "execution_id": eid, "created_at": int(time.time()),
     }])
+
+    # UC192: Auto-trigger test execution for the preview stack context
+    try:
+        from services.test_cases import run_all_tests
+        run_all_tests(project_id=project_id, stack=name)
+    except Exception:
+        pass
+
     return {"name": name, "base_stack": base_stack, "pr_number": int(pr_number),
             "repo": repo or "", "status": "active", "execution_id": eid}
+
 
 
 def teardown(project_id: Optional[str], name: str, force: bool = False) -> Dict[str, Any]:
