@@ -387,3 +387,48 @@ def require_project_access(f: Callable) -> Callable:
             return jsonify({'error': 'Membership check failed'}), 500
         return f(*args, **kwargs)
     return decorated_function
+
+
+
+def idempotent_mutation(scope_fn: Optional[Callable[..., str]] = None):
+    """Decorator to handle Idempotency-Key headers on mutation requests (UC405)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            idem_key = request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key")
+            if not idem_key:
+                return f(*args, **kwargs)
+
+            scope = scope_fn(*args, **kwargs) if scope_fn else (request.headers.get("X-Project-Id") or "global")
+            try:
+                from services.idempotency import check_idempotency_key, save_idempotency_result
+                cached = check_idempotency_key(idem_key, scope=scope)
+                if cached:
+                    resp_body = cached.get("response_body")
+                    status_code = cached.get("status_code", 200)
+                    resp = jsonify(resp_body) if isinstance(resp_body, dict) else resp_body
+                    if hasattr(resp, "headers"):
+                        resp.headers["X-Cache-Lookup"] = "HIT-IDEMPOTENT"
+                    return resp, status_code
+            except Exception:
+                pass
+
+            result = f(*args, **kwargs)
+
+            try:
+                from services.idempotency import save_idempotency_result
+                status = 200
+                body = result
+                if isinstance(result, tuple):
+                    body = result[0]
+                    status = result[1] if len(result) > 1 else 200
+                if hasattr(body, "get_json"):
+                    body = body.get_json()
+                save_idempotency_result(idem_key, scope=scope, status_code=status, response_body=body)
+            except Exception:
+                pass
+
+            return result
+        return decorated_function
+    return decorator
+

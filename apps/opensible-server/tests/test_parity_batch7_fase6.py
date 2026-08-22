@@ -150,3 +150,57 @@ def test_api_approval_chain_endpoints(data_dir):
     )
     assert resp_step1.status_code == 200
     assert resp_step1.get_json()["approval"]["current_step"] == "ops"
+
+
+def test_idempotency_service_and_caching(data_dir):
+    """UC405: Idempotency key lookup, storage, and caching."""
+    from services import idempotency
+
+    key = "idem-key-12345"
+    scope = "proj-1"
+
+    # 1. First check -> empty
+    assert idempotency.check_idempotency_key(key, scope=scope) is None
+
+    # 2. Save result
+    saved = idempotency.save_idempotency_result(
+        key, scope=scope, status_code=201, response_body={"created": True, "id": "res-99"}
+    )
+    assert saved["key"] == key
+    assert saved["status_code"] == 201
+
+    # 3. Second check -> cached hit
+    cached = idempotency.check_idempotency_key(key, scope=scope)
+    assert cached is not None
+    assert cached["status_code"] == 201
+    assert cached["response_body"]["id"] == "res-99"
+
+
+def test_idempotency_middleware_decorator():
+    """UC405: Idempotency middleware deduplicates POST requests with same Idempotency-Key."""
+    import flask
+    from auth.middleware import idempotent_mutation
+
+    app = flask.Flask(__name__)
+    call_count = 0
+
+    @app.route("/test-mutation", methods=["POST"])
+    @idempotent_mutation()
+    def sample_mutation():
+        nonlocal call_count
+        call_count += 1
+        return flask.jsonify({"call_count": call_count, "status": "executed"}), 201
+
+    client = app.test_client()
+
+    # Request 1 with Idempotency-Key
+    resp1 = client.post("/test-mutation", headers={"Idempotency-Key": "req-idem-1"}, json={"amount": 100})
+    assert resp1.status_code == 201
+    assert resp1.get_json()["call_count"] == 1
+    assert call_count == 1
+
+    # Request 2 with same Idempotency-Key -> should return cached response without incrementing call_count
+    resp2 = client.post("/test-mutation", headers={"Idempotency-Key": "req-idem-1"}, json={"amount": 100})
+    assert resp2.status_code == 201
+    assert resp2.get_json()["call_count"] == 1
+    assert call_count == 1
