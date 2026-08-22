@@ -304,3 +304,84 @@ def test_api_clash_check_endpoint(data_dir, monkeypatch):
     data = resp.get_json()
     assert data["clash"] is False
     assert data["resource_id"] == "res-123"
+
+
+def test_byoc_account_quota_management(data_dir, monkeypatch):
+    """UC310: Account quota threshold limits and evaluation."""
+    acct = byoc.create_account({
+        "name": "Quota Limited Account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "token-quota"},
+    })
+
+    # Set quota limits
+    limits = {"server": 5, "volume": 10}
+    byoc.set_account_quota(acct["id"], limits)
+
+    quota_data = byoc.get_account_quota(acct["id"])
+    assert quota_data["quota_limits"]["server"] == 5
+    assert quota_data["quota_limits"]["volume"] == 10
+
+    # Mock inventory with 4 servers
+    fake_inv = {
+        "account_id": acct["id"],
+        "resources": [
+            {"id": f"srv-{i}", "type": "server"} for i in range(4)
+        ],
+    }
+    monkeypatch.setattr(byoc, "get_inventory", lambda account_id: fake_inv)
+
+    # 1. Requesting 1 additional server -> should be allowed (4 + 1 <= 5)
+    eval_ok = byoc.evaluate_account_quota(acct["id"], resource_type="server", additional_count=1)
+    assert eval_ok["allowed"] is True
+    assert eval_ok["exceeded"] is False
+    assert eval_ok["current_usage"] == 4
+    assert eval_ok["remaining_quota"] == 1
+
+    # 2. Requesting 2 additional servers -> should exceed limit (4 + 2 > 5)
+    eval_exceeded = byoc.evaluate_account_quota(acct["id"], resource_type="server", additional_count=2)
+    assert eval_exceeded["allowed"] is False
+    assert eval_exceeded["exceeded"] is True
+    assert "Quota exceeded" in eval_exceeded["message"]
+
+
+def test_api_account_quota_endpoints(data_dir):
+    """UC310: GET and POST /api/byoc/accounts/<account_id>/quota REST endpoints."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from api.byoc_routes import bp
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    acct = byoc.create_account({
+        "name": "API Quota Account",
+        "provider": "hetzner",
+        "credentials": {"hcloud_token": "tok123"},
+    })
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    # 1. Set quota
+    resp_post = client.post(
+        f"/api/byoc/accounts/{acct['id']}/quota",
+        json={"quota_limits": {"server": 10, "volume": 20}},
+        headers=headers,
+    )
+    assert resp_post.status_code == 200
+    assert resp_post.get_json()["quota_limits"]["server"] == 10
+
+    # 2. Get quota
+    resp_get = client.get(
+        f"/api/byoc/accounts/{acct['id']}/quota",
+        headers=headers,
+    )
+    assert resp_get.status_code == 200
+    assert resp_get.get_json()["quota_limits"]["volume"] == 20

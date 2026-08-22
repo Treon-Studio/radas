@@ -696,3 +696,87 @@ def export_inventory_csv(account_id: Optional[str] = None, project_id: Optional[
             ])
 
     return output.getvalue()
+
+
+def get_account_quota(account_id: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Retrieve quota limits and current resource usage for a BYOC account (UC310)."""
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+
+    quota = dict(acct.get("quota_limits") or {})
+    inv = get_inventory(account_id)
+    resources = inv.get("resources") or []
+
+    type_counts: Dict[str, int] = {}
+    for r in resources:
+        rtype = str(r.get("type") or "other").lower()
+        type_counts[rtype] = type_counts.get(rtype, 0) + 1
+
+    return {
+        "account_id": account_id,
+        "quota_limits": quota,
+        "current_usage": type_counts,
+        "total_resources": len(resources),
+    }
+
+
+def set_account_quota(account_id: str, quota_limits: Dict[str, int], project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Configure quota limits (e.g. max servers, volumes, nat) on a BYOC account (UC310)."""
+    acct = get_account(account_id)
+    if not acct:
+        raise ValueError("account not found")
+
+    clean_limits = {}
+    for k, v in (quota_limits or {}).items():
+        k_clean = str(k).strip().lower()
+        try:
+            clean_limits[k_clean] = max(0, int(v))
+        except (TypeError, ValueError):
+            pass
+
+    items = _load()
+    for a in items:
+        if a.get("id") == account_id:
+            a["quota_limits"] = clean_limits
+            a["updated_at"] = int(time.time())
+    _save(items)
+
+    return get_account_quota(account_id, project_id=project_id)
+
+
+def evaluate_account_quota(
+    account_id: str,
+    resource_type: str = "server",
+    additional_count: int = 1,
+    project_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Evaluate whether adding new resources exceeds the account quota threshold (UC310)."""
+    usage_info = get_account_quota(account_id, project_id=project_id)
+    quota_limits = usage_info.get("quota_limits") or {}
+    current_usage = usage_info.get("current_usage") or {}
+
+    rtype = str(resource_type or "").strip().lower()
+    limit = quota_limits.get(rtype) or quota_limits.get("max_resources") or quota_limits.get("total")
+    current = current_usage.get(rtype, 0)
+
+    if limit is not None:
+        exceeded = (current + additional_count) > limit
+        allowed = not exceeded
+        remaining = max(0, limit - current)
+    else:
+        allowed = True
+        exceeded = False
+        remaining = None
+
+    return {
+        "allowed": allowed,
+        "exceeded": exceeded,
+        "account_id": account_id,
+        "resource_type": rtype,
+        "current_usage": current,
+        "additional_requested": additional_count,
+        "limit": limit,
+        "remaining_quota": remaining,
+        "message": f"Quota exceeded: requested {additional_count} {rtype}(s), current {current}, limit {limit}" if exceeded else "Quota check passed",
+    }

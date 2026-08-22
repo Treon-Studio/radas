@@ -399,5 +399,33 @@ def api_byoc_clash_check():
         return jsonify({"error": str(exc)}), 400
 
 
+@bp.route('/api/byoc/accounts/<account_id>/quota', methods=['GET'])
+@require_auth
+def api_byoc_get_quota(account_id):
+    from services.byoc import get_account_quota
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = get_account_quota(account_id, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@bp.route('/api/byoc/accounts/<account_id>/quota', methods=['POST', 'PUT'])
+@require_auth
+def api_byoc_set_quota(account_id):
+    from services.byoc import set_account_quota
+    data = request.get_json(silent=True) or {}
+    quota_limits = data.get("quota_limits") or data.get("limits") or data
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    try:
+        res = set_account_quota(account_id, quota_limits=quota_limits, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+
 
 
