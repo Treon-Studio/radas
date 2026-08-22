@@ -336,10 +336,10 @@ fitur terpisah:
 | 188 | Test drift: bandingkan state vs config (drift as test) | ✅ | P1 | 6 |
 | 189 | Retry test gagal dengan backoff (max N) | ✅ | P2 | 6 |
 | 190 | Batch run: jalankan semua test untuk stack di environment | ✅ | P1 | 6 |
-| 191 | Approval yang men-trigger re-test otomatis | ⬜ | P2 | 6 |
-| 192 | Test dijalankan pada preview env (CI pipeline) | ⬜ | P1 | 6 |
+| 191 | Approval yang men-trigger re-test otomatis | ✅ | P2 | 6 |
+| 192 | Test dijalankan pada preview env (CI pipeline) | ✅ | P1 | 6 |
 | 193 | Ekspor hasil test ke JSON untuk CI/artifacts | ✅ | P2 | 6 |
-| 194 | Test yang menelurkan issue otomatis (create issue/webhook) | ⬜ | P2 | 6 |
+| 194 | Test yang menelurkan issue otomatis (create issue/webhook) | ✅ | P2 | 6 |
 | 195 | Ekspor hasil test ke JSON untuk CI/artifacts | ✅ | P2 | 6 |
 | 196 | Test Hanya untuk stack tertentu (targeting) | ⬜ | P1 | 6 |
 | 197 | Severity policy configurable per project | ✅ | P1 | 6 |
@@ -347,15 +347,15 @@ fitur terpisah:
 | 199 | Paralelisme test (concurrency configurable) | ✅ | P2 | 6 |
 | 200 | Test per resource vs per stack | ⬜ | P2 | 6 |
 | 201 | Batas waktu eksekusi test (timeout) | ✅ | P1 | 6 |
-| 202 | Score keamanan stack dari hasil test (0-100) | ⬜ | P2 | 6 |
+| 202 | Score keamanan stack dari hasil test (0-100) | ✅ | P2 | 6 |
 | 203 | Baseline test: snaphot pass untuk deteksi regresi | ✅ | P2 | 6 |
 | 204 | Notifikasi Discord/Slack saat test blocker gagal | ✅ | P1 | 6 |
 | 205 | Test untuk Ansible (yaml lint + syntax check) | ✅ | P1 | 6 |
-| 206 | Test idempotensi playbook (run 2x bandingkan) | ⬜ | P2 | 6 |
+| 206 | Test idempotensi playbook (run 2x bandingkan) | ✅ | P2 | 6 |
 | 207 | Test untuk Ansible (yaml lint + syntax check) | ✅ | P1 | 6 |
 | 208 | Only-run test pada perubahan (diff-based) | ⬜ | P2 | 6 |
 | 209 | Versioning test definition dengan rollback | ✅ | P2 | 6 |
-| 210 | Import test dari file .tftest.hcl ke registry | ⬜ | P1 | 6 |
+| 210 | Import test dari file .tftest.hcl ke registry | ✅ | P1 | 6 |
 | 211 | Validate ekspresi assertion sebelum simpan (dry-run) | ✅ | P1 | 6 |
 | 212 | Test pada state kosong/inisial (terraform plan -refresh=false) | ⬜ | P2 | 6 |
 | 213 | Mock provider offline test (tanpa cloud) | ✅ | P1 | 6 |
