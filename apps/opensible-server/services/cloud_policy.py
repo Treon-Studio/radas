@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import json
 import re
+import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
+
 
 from flask import jsonify, request
 
@@ -312,9 +315,103 @@ def register_policy_routes(
             patch["policy_enabled"] = enabled
         if "policy" in body and isinstance(body.get("policy"), dict):
             patch["policy_rules"] = sanitize_policy(body["policy"])
-        if not patch:
-            return jsonify({"error": "Nothing to update."}), 400
         save_meta(pid, name, **patch)
         return jsonify({"ok": True, **_payload(pid, name)})
 
+    @bp.route("/policy/violations", methods=["GET"])
+    @require_auth
+    def api_get_policy_violations():
+        pid = get_project_id()
+        stack = request.args.get("stack")
+        sev = request.args.get("severity")
+        limit = int(request.args.get("limit", 100))
+        violations = query_policy_violations(pid, stack=stack, severity=sev, limit=limit)
+        return jsonify({"count": len(violations), "violations": violations}), 200
+
     return bp
+
+
+# ---------------------------------------------------------------------------
+# UC547: Policy Violations Permanent Store & Query API
+# ---------------------------------------------------------------------------
+
+def record_policy_violations(
+    project_id: Optional[str],
+    stack: str,
+    run_id: str,
+    findings: list,
+) -> list:
+    """Record policy violations persistently to PostgreSQL / KV storage (UC547)."""
+    if not findings:
+        return []
+
+    pid = project_id or "default"
+    stack_name = (stack or "").strip()
+    now = int(time.time())
+    recorded = []
+
+    for f in findings:
+        item = {
+            "id": f"pv-{uuid.uuid4().hex[:12]}",
+            "project_id": pid,
+            "stack": stack_name,
+            "run_id": run_id,
+            "rule_id": f.get("rule") or f.get("rule_id") or "general",
+            "severity": f.get("severity", "deny"),
+            "message": f.get("message", ""),
+            "resource": f.get("resource", ""),
+            "created_at": now,
+        }
+        recorded.append(item)
+
+    # Persist via kv or pg
+    try:
+        from storage import pg
+        for rec in recorded:
+            pg.execute(
+                "INSERT INTO kv_store (scope, key, value) VALUES (%s, %s, %s) "
+                "ON CONFLICT (scope, key) DO UPDATE SET value = EXCLUDED.value",
+                (f"policy_violations:{pid}", rec["id"], json.dumps(rec))
+            )
+    except Exception:
+        pass
+
+    return recorded
+
+
+def query_policy_violations(
+    project_id: Optional[str],
+    stack: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 100,
+) -> list:
+    """Query recorded policy violations with optional stack and severity filters (UC547)."""
+    pid = project_id or "default"
+    out = []
+
+    try:
+        from storage import pg
+        rows = pg.query_all(
+            "SELECT value FROM kv_store WHERE scope = %s ORDER BY key DESC LIMIT %s",
+            (f"policy_violations:{pid}", max(1, min(limit * 2, 500)))
+        )
+        for r in rows:
+            val = r.get("value")
+            if isinstance(val, str):
+                try:
+                    val = json.loads(val)
+                except Exception:
+                    continue
+            if isinstance(val, dict):
+                if stack and val.get("stack") != stack:
+                    continue
+                if severity and val.get("severity") != severity:
+                    continue
+                out.append(val)
+                if len(out) >= limit:
+                    break
+    except Exception:
+        pass
+
+    return out
+

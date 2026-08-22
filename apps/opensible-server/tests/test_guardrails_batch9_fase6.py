@@ -223,3 +223,35 @@ def test_api_stack_cooldown_endpoint(data_dir):
     assert resp.status_code == 200
     assert resp.get_json()["in_cooldown"] is True
     assert resp.get_json()["remaining_seconds"] > 0
+
+
+def test_policy_violations_record_and_query(data_dir):
+    """UC547: Record policy violations and query with filtering."""
+    from services import cloud_policy
+
+    proj = "proj-policy-viol"
+    stk = "db-stack"
+    run_id = "run-001"
+
+    findings = [
+        {"rule": "deny_public_ingress", "severity": "deny", "resource": "aws_security_group.db", "message": "Port 22 open"},
+        {"rule": "require_tags", "severity": "warn", "resource": "aws_instance.worker", "message": "Missing owner tag"},
+    ]
+
+    recorded = cloud_policy.record_policy_violations(proj, stk, run_id, findings)
+    assert len(recorded) == 2
+    assert recorded[0]["stack"] == stk
+    assert recorded[0]["severity"] == "deny"
+
+    # Query all for project
+    all_viols = cloud_policy.query_policy_violations(proj)
+    assert len(all_viols) >= 2
+
+    # Query by severity
+    deny_only = cloud_policy.query_policy_violations(proj, severity="deny")
+    assert len(deny_only) >= 1
+    assert all(v["severity"] == "deny" for v in deny_only)
+
+    # Query by stack
+    stack_viols = cloud_policy.query_policy_violations(proj, stack=stk)
+    assert len(stack_viols) >= 2
