@@ -92,3 +92,26 @@ def test_require_kill_switch_privilege_decorator():
         resp = app.dispatch_request()
         assert resp[1] == 200
         assert resp[0].get_json()["status"] == "halted"
+
+
+def test_preview_auto_tagging():
+    """UC500: Standard preview resource tag injection."""
+    from services.preview_envs import inject_preview_standard_tags
+
+    existing_vars = {
+        "instance_type": "t3.micro",
+        "tags": {"App": "web"},
+    }
+
+    tagged = inject_preview_standard_tags(existing_vars, pr_number=42, project_id="proj-preview-99", base_stack="web-prod")
+    assert tagged["instance_type"] == "t3.micro"
+    assert tagged["preview"] is True
+
+    tags = tagged["tags"]
+    assert tags["App"] == "web"
+    assert tags["Environment"] == "preview"
+    assert tags["ManagedBy"] == "radas"
+    assert tags["PRNumber"] == "42"
+    assert tags["AutoExpire"] == "true"
+    assert tags["BaseStack"] == "web-prod"
+    assert tags["Project"] == "proj-preview-99"
