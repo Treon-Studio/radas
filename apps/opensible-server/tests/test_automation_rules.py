@@ -73,3 +73,56 @@ def test_automation_rules_gated_by_feature_flags(monkeypatch):
     res = automation_rules.run_rules_once()
     assert res["auto_stop"] == 0
     assert len(queued_actions) == 0
+
+
+def test_remediation_gated_by_feature_flags(monkeypatch):
+    """UC134: Remediation Rule Feature Flag Gating (remediate only if flag)."""
+    monkeypatch.setattr("services.automation_rules.in_maintenance", lambda pid: False)
+
+    rules = [
+        {"id": "r3", "kind": "remediate", "project_id": "p1", "stack": "prod-stack", "enabled": True},
+    ]
+    monkeypatch.setattr("services.automation_rules.load", lambda: rules)
+    monkeypatch.setattr("services.cloud_provisioning._latest_drift_run", lambda pid, stack: {"returnCode": 2})
+
+    queued_actions = []
+    def mock_queue(pid, stack, action, why):
+        queued_actions.append({"pid": pid, "stack": stack, "action": action, "why": why})
+        return True
+
+    monkeypatch.setattr("services.automation_rules._queue", mock_queue)
+
+    flag_evals = {}
+    def mock_evaluate(key, **kwargs):
+        return {"enabled": flag_evals.get(key, True)}
+
+    monkeypatch.setattr("services.feature_flags.evaluate", mock_evaluate)
+
+    # 1. Default/all flags enabled -> remediate queues action
+    flag_evals = {"remediation.enabled": True, "remediation.prod-stack.enabled": True, "auto_remediate": True}
+    res = automation_rules.run_rules_once()
+    assert res["remediate"] == 1
+    assert len(queued_actions) == 1
+    assert queued_actions[0]["why"] == "remediate"
+
+    # 2. auto_remediate = False -> remediation skipped
+    queued_actions.clear()
+    flag_evals = {"auto_remediate": False}
+    res = automation_rules.run_rules_once()
+    assert res["remediate"] == 0
+    assert len(queued_actions) == 0
+
+    # 3. remediation.enabled = False -> remediation skipped
+    queued_actions.clear()
+    flag_evals = {"remediation.enabled": False, "auto_remediate": True}
+    res = automation_rules.run_rules_once()
+    assert res["remediate"] == 0
+    assert len(queued_actions) == 0
+
+    # 4. remediation.<stack>.enabled = False -> remediation skipped
+    queued_actions.clear()
+    flag_evals = {"remediation.enabled": True, "remediation.prod-stack.enabled": False, "auto_remediate": True}
+    res = automation_rules.run_rules_once()
+    assert res["remediate"] == 0
+    assert len(queued_actions) == 0
+
