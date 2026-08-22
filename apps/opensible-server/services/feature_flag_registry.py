@@ -14,6 +14,47 @@ _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 _EVALUATION_CACHE: Dict[Tuple[str, str, str, Optional[str], Optional[str]], Tuple[float, Dict[str, Any]]] = {}
 
 
+def _dispatch_flag_webhook(
+    event_type: str,
+    key: Any,
+    operation: str,
+    scope_type: str = "global",
+    scope_id: Optional[str] = None,
+    actor: str = "",
+    actor_name: str = "",
+    changes: Optional[Dict[str, Any]] = None,
+    flag: Optional[Dict[str, Any]] = None,
+    **extra: Any,
+) -> None:
+    """Safely dispatch outbound webhooks on feature flag mutations."""
+    try:
+        from services import webhook_dispatcher
+        payload = {
+            "event": event_type,
+            "key": key,
+            "operation": operation,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "actor": actor or "system",
+            "actor_name": actor_name or "",
+            "timestamp": int(time.time()),
+            "changes": changes,
+            "flag": flag,
+            **extra,
+        }
+        # Dispatch specific event (e.g. flag.created, flag.updated, flag.deleted, flag.rollback, flag.copied, flag.imported)
+        webhook_dispatcher.dispatch_event(event_type, payload)
+        # Dispatch generic event (flag.changed)
+        if event_type != "flag.changed":
+            changed_payload = dict(payload)
+            changed_payload["event"] = "flag.changed"
+            webhook_dispatcher.dispatch_event("flag.changed", changed_payload)
+    except Exception:
+        # Non-blocking: never raise exceptions or fail flag operations
+        pass
+
+
+
 def _history_key(scope_type: str, scope_id: Optional[str]) -> str:
     return f"flag_audit:{scope_type}:{scope_id or 'default'}"
 
@@ -327,7 +368,9 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
     _save(flags, scope_type, scope_id)
     _EVALUATION_CACHE.clear()
     _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": flag["created_at"], "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
-    return _decorate(flag, scope_type, scope_id)
+    decorated = _decorate(flag, scope_type, scope_id)
+    _dispatch_flag_webhook("flag.created", key, "create", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flag=decorated)
+    return decorated
 
 
 def _registry_index(flags: List[Dict[str, Any]], key: str) -> Optional[int]:
@@ -420,7 +463,17 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     _save(flags, scope_type, scope_id)
     _EVALUATION_CACHE.clear()
     _append_history({"operation": operation, "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": before, "after": candidate, "changes": _diff(before, candidate), "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
-    return _decorate(candidate, scope_type, scope_id)
+    decorated = _decorate(candidate, scope_type, scope_id)
+    changes = _diff(before, candidate)
+    op_events = {
+        "rollback": "flag.rollback",
+        "archive": "flag.archived",
+        "restore": "flag.restored",
+    }
+    event_type = op_events.get(operation, "flag.updated")
+    _dispatch_flag_webhook(event_type, key, operation, scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, changes=changes, flag=decorated)
+    return decorated
+
 
 
 def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
@@ -450,7 +503,9 @@ def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = 
         flags.pop(index)
     _save(flags, scope_type, scope_id)
     _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+    _dispatch_flag_webhook("flag.deleted", key, "delete", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flag=visible)
     return True
+
 
 
 def _validate_batch_dependency_graph(flags: List[Dict[str, Any]], scope_type: str, scope_id: Optional[str],
@@ -548,9 +603,11 @@ def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] 
                     scope_id,
                 )
         _EVALUATION_CACHE.clear()
+        decorated_flags = [_decorate(flag, scope_type, scope_id) for flag in raw_candidates]
+        _dispatch_flag_webhook("flag.imported", import_keys, "import", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flags=decorated_flags, count=len(raw_candidates))
         return {
             "batch_id": batch_id,
-            "flags": [_decorate(flag, scope_type, scope_id) for flag in raw_candidates],
+            "flags": decorated_flags,
             "imported_count": len(raw_candidates),
             "overwritten_count": 0,
         }
@@ -619,9 +676,11 @@ def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] 
             )
 
     _EVALUATION_CACHE.clear()
+    decorated_all = [_decorate(f, scope_type, scope_id) for f in all_processed]
+    _dispatch_flag_webhook("flag.imported", import_keys, "import", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flags=decorated_all, count=len(all_processed))
     return {
         "batch_id": batch_id,
-        "flags": [_decorate(f, scope_type, scope_id) for f in all_processed],
+        "flags": decorated_all,
         "imported_count": len(new_flags),
         "overwritten_count": len(updated_entries),
     }
@@ -863,7 +922,10 @@ def copy_flag(source_key: str, target_key: str, scope_type: str = "global", scop
         "scope_type": t_scope_type,
         "scope_id": t_scope_id,
     }, t_scope_type, t_scope_id)
-    return _decorate(flag, t_scope_type, t_scope_id)
+    decorated = _decorate(flag, t_scope_type, t_scope_id)
+    _dispatch_flag_webhook("flag.copied", target_key, "copy", scope_type=t_scope_type, scope_id=t_scope_id, actor=actor, actor_name=actor_name, flag=decorated, source_key=source_key, source_scope_type=scope_type, source_scope_id=scope_id)
+    return decorated
+
 
 
 

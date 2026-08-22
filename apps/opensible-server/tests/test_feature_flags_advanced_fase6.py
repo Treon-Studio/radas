@@ -715,4 +715,158 @@ def test_cloud_provisioning_approval_gate_bypassed_by_flag(monkeypatch, tmp_path
         assert len(enqueued) == 1
 
 
+def test_webhook_dispatched_on_flag_create_and_update(monkeypatch, data_dir):
+    from services.feature_flag_registry import create_flag, update_flag
+    import services.webhook_dispatcher as webhook_dispatcher
+
+    dispatched = []
+
+    def mock_dispatch(event, payload):
+        dispatched.append((event, payload))
+        return 1
+
+    monkeypatch.setattr(webhook_dispatcher, "dispatch_event", mock_dispatch)
+
+    # 1. Create flag
+    flag = create_flag(
+        {"key": "wh.test.flag", "rollout_percent": 80, "description": "Webhook test flag"},
+        actor="admin-alice",
+        actor_name="Alice",
+    )
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.created" in events
+    assert "flag.changed" in events
+
+    created_event = next(d for d in dispatched if d[0] == "flag.created")
+    assert created_event[1]["operation"] == "create"
+    assert created_event[1]["key"] == "wh.test.flag"
+    assert created_event[1]["actor"] == "admin-alice"
+    assert created_event[1]["actor_name"] == "Alice"
+    assert created_event[1]["scope_type"] == "global"
+    assert created_event[1]["flag"]["key"] == "wh.test.flag"
+    assert isinstance(created_event[1]["timestamp"], int)
+
+    # 2. Update flag
+    dispatched.clear()
+    update_flag(
+        "wh.test.flag",
+        {"rollout_percent": 30, "description": "Updated description"},
+        actor="admin-bob",
+        actor_name="Bob",
+    )
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.updated" in events
+    assert "flag.changed" in events
+
+    updated_event = next(d for d in dispatched if d[0] == "flag.updated")
+    assert updated_event[1]["operation"] == "update"
+    assert updated_event[1]["key"] == "wh.test.flag"
+    assert updated_event[1]["actor"] == "admin-bob"
+    assert updated_event[1]["changes"]["rollout_percent"] == {"before": 80, "after": 30}
+    assert updated_event[1]["changes"]["description"] == {"before": "Webhook test flag", "after": "Updated description"}
+
+
+def test_webhook_dispatched_on_delete_archive_rollback_copy_import(monkeypatch, data_dir):
+    from services.feature_flag_registry import (
+        archive_flag,
+        copy_flag,
+        create_flag,
+        delete_flag,
+        import_flags,
+        rollback_flag,
+        update_flag,
+    )
+    import services.webhook_dispatcher as webhook_dispatcher
+
+    dispatched = []
+
+    def mock_dispatch(event, payload):
+        dispatched.append((event, payload))
+        return 1
+
+    monkeypatch.setattr(webhook_dispatcher, "dispatch_event", mock_dispatch)
+
+    # Setup base flag
+    create_flag({"key": "wh.ops.flag", "rollout_percent": 50}, actor="admin1")
+    update_flag("wh.ops.flag", {"rollout_percent": 90}, actor="admin2")
+    dispatched.clear()
+
+    # Rollback
+    rollback_flag("wh.ops.flag", steps=1, actor="admin3", actor_name="Admin Three")
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.rollback" in events
+    assert "flag.changed" in events
+    rb_payload = next(d[1] for d in dispatched if d[0] == "flag.rollback")
+    assert rb_payload["operation"] == "rollback"
+    assert rb_payload["key"] == "wh.ops.flag"
+    assert rb_payload["actor"] == "admin3"
+    dispatched.clear()
+
+    # Copy
+    copy_flag("wh.ops.flag", "wh.copied.flag", actor="admin4", actor_name="Admin Four")
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.copied" in events
+    assert "flag.changed" in events
+    cp_payload = next(d[1] for d in dispatched if d[0] == "flag.copied")
+    assert cp_payload["operation"] == "copy"
+    assert cp_payload["key"] == "wh.copied.flag"
+    assert cp_payload["actor"] == "admin4"
+    dispatched.clear()
+
+    # Import
+    import_flags([{"key": "wh.imported.flag", "rollout_percent": 25}], actor="admin5")
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.imported" in events
+    assert "flag.changed" in events
+    imp_payload = next(d[1] for d in dispatched if d[0] == "flag.imported")
+    assert imp_payload["operation"] == "import"
+    assert imp_payload["actor"] == "admin5"
+    dispatched.clear()
+
+    # Archive
+    archive_flag("wh.ops.flag", actor="admin6", reason="retiring flag")
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert ("flag.updated" in events or "flag.archived" in events)
+    assert "flag.changed" in events
+    dispatched.clear()
+
+    # Delete
+    delete_flag("wh.ops.flag", actor="admin7")
+    assert len(dispatched) == 2
+    events = [d[0] for d in dispatched]
+    assert "flag.deleted" in events
+    assert "flag.changed" in events
+    del_payload = next(d[1] for d in dispatched if d[0] == "flag.deleted")
+    assert del_payload["operation"] == "delete"
+    assert del_payload["key"] == "wh.ops.flag"
+    assert del_payload["actor"] == "admin7"
+
+
+def test_webhook_dispatch_error_does_not_break_flag_operations(monkeypatch, data_dir):
+    from services.feature_flag_registry import create_flag, get_flag, update_flag
+    import services.webhook_dispatcher as webhook_dispatcher
+
+    def buggy_dispatch(event, payload):
+        raise RuntimeError("Webhook dispatcher network/storage failure!")
+
+    monkeypatch.setattr(webhook_dispatcher, "dispatch_event", buggy_dispatch)
+
+    # Operations should succeed without raising exceptions
+    flag = create_flag({"key": "wh.resilient.flag", "rollout_percent": 100})
+    assert flag["key"] == "wh.resilient.flag"
+
+    updated = update_flag("wh.resilient.flag", {"rollout_percent": 50})
+    assert updated["rollout_percent"] == 50
+
+    latest = get_flag("wh.resilient.flag")
+    assert latest["rollout_percent"] == 50
+
+
+
 
