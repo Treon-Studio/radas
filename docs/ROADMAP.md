@@ -272,10 +272,8 @@ fitur terpisah:
 | 126 | Rollback flag ke nilai sebelumnya (snapshot) | ⬜ | P2 | 6 |
 | 127 | Flag digunakan oleh automation_rules (gate auto-scale/auto-stop) | 🔶 | P1 | 6 |
 | 128 | Flag dipakai di approval flow (skip approval jika flag) | ⬜ | P2 | 6 |
-| 129 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | 🔶 | P1 | 6 |
-| 130 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | ⬜ | P1 | 6 |
+| 129 | Seeder flag bawaan aktif otomatis saat inisialisasi workspace | ✅ | P1 | 6 |
 | 131 | Deteksi flag mati/duplicate key pada saat create | ✅ | P1 | 6 |
-| 132 | Deteksi flag mati/duplicate key pada saat create | ⬜ | P1 | 6 |
 | 133 | Bulk import/export flag (JSON) untuk migrasi | ⬜ | P2 | 6 |
 | 134 | Flag sebagai target aturan remediation (remediate only if flag) | ⬜ | P2 | 6 |
 | 135 | Evaluasi flag di worker sebelum eksekusi apply/destroy | ✅ | P1 | 6 |
@@ -292,10 +290,9 @@ fitur terpisah:
 | 146 | Copy flag (duplicate sebagai template) | ⬜ | P2 | 6 |
 | 147 | Search/filter flag by tag, env, status | ✅ | P1 | 6 |
 | 148 | Notifikasi saat flag diubah oleh user lain | ⬜ | P2 | 6 |
-| 149 | Search/filter flag by tag, env, status | 🔶 | P1 | 6 |
 | 150 | Export key flag ke environment untuk CI (evaluasi di pipeline) | ⬜ | P2 | 6 |
 | 151 | Flag webhook: panggil URL saat flag berubah | ⬜ | P2 | 6 |
-| 152 | Multi-tenant: flag per project dengan inherit global | ✅ | ⬜ | P1 | 6 |
+| 152 | Multi-tenant: flag per project dengan inherit global | ✅ | P1 | 6 |
 | 153 | Graceful degradation: kegagalan evaluasi -> default safe (off) | ✅ | P1 | 6 |
 | 154 | Caching hasil evaluasi (TTL) untuk performa | ✅ | P2 | 6 |
 | 155 | Flag schedule override via cron (aktivasi libur) | ⬜ | P2 | 6 |
@@ -441,7 +438,7 @@ fitur terpisah:
 | 280 | Generate import block OpenTofu (tofu import block) | ✅ | P1 | 6 |
 | 281 | Wizard import: pilih resource dari inventory -> buat stack impor | 🔶 | P1 | 6 |
 | 282 | Import beberapa resource sekaligus (batch) | ✅ | P1 | 6 |
-| 283 | Import beberapa resource sekaligus (batch) | ⬜ | P1 | 6 |
+| 283 | Import beberapa resource sekaligus (batch) | ✅ | P1 | 6 |
 | 284 | Managed-imported tracking: tandai resource yang dikelola radas | ✅ | P1 | 6 |
 | 285 | Exclude resource dari manajemen (release) | ✅ | P1 | 6 |
 | 286 | Drift detection untuk resource imported | ✅ | P1 | 6 |
@@ -551,9 +548,9 @@ fitur terpisah:
 | 385 | Smart inventory: dynamic host groups | ⬜ | P1 | 6 |
 | 386 | Workflow templates multi-playbook (chain) | ⬜ | P1 | 6 |
 | 387 | Callback/webhook untuk job launch | ⬜ | P2 | 6 |
-| 388 | RBAC granular: role per resource type (stack, secret, key) | ✅ | ⬜ | P0 | 6 |
-| 389 | Project hierarchy: org -> project -> env | ✅ | ⬜ | P1 | 6 |
-| 390 | Delegated admin (project admin) | ✅ | ⬜ | P2 | 6 |
+| 388 | RBAC granular: role per resource type (stack, secret, key) | ✅ | P0 | 6 |
+| 389 | Project hierarchy: org -> project -> env | ✅ | P1 | 6 |
+| 390 | Delegated admin (project admin) | ✅ | P2 | 6 |
 | 391 | Read-only kls semua (sudah ada role) | 🔶 | P1 | 6 |
 | 392 | Audit retention & export policy | ⬜ | P2 | 6 |
 | 393 | Landing dashboard per project (widget stack) | ✅ | P0 | 6 |

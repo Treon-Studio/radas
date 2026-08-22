@@ -546,3 +546,31 @@ def test_mapping_rejects_account_without_durable_ownership(monkeypatch, pg_db):
             resource_ids=["r-a"],
             actor_id=USER,
         )
+
+
+def test_batch_resource_import_mapping(monkeypatch, pg_db):
+    """Test importing multiple resources at once (UC283 batch import)."""
+    seed_project_stack()
+    monkeypatch.setattr(byoc_import_mapping.byoc, "get_account", lambda _: {
+        "id": ACCOUNT, "provider": "aws", "org_id": ORG, "project_id": PROJECT
+    })
+    monkeypatch.setattr(byoc_import_mapping.byoc, "get_inventory", lambda _: {
+        "resources": [
+            {"id": f"res-{i}", "type": "aws_instance", "address": f"aws_instance.server_{i}"}
+            for i in range(10)
+        ]
+    })
+
+    batch_ids = [f"res-{i}" for i in range(10)]
+    result = byoc_import_mapping.prepare_import_mapping(
+        ACCOUNT,
+        project_id=PROJECT,
+        stack="network-prod",
+        resource_ids=batch_ids,
+        actor_id=USER,
+    )
+
+    assert result["resource_count"] == 10
+    assert len(result["mappings"]) == 10
+    assert [m["resource_id"] for m in result["mappings"]] == sorted(batch_ids)
+    assert result["import_block"].count("import {") == 10
