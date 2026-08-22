@@ -671,6 +671,96 @@ def rollback_flag(key: str, snapshot_id: Optional[str] = None, steps: int = 1,
     return update_flag(key, target_state, scope_type, scope_id, actor=actor, actor_name=actor_name, operation="rollback", org_id=org_id)
 
 
+def copy_flag(source_key: str, target_key: str, scope_type: str = "global", scope_id: Optional[str] = None,
+              target_scope_type: Optional[str] = None, target_scope_id: Optional[str] = None,
+              actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Copy / clone an existing feature flag as a template into the same or different scope."""
+    try:
+        source_key = _normalize_key(source_key, "Source flag key")
+    except ValueError as exc:
+        raise ValueError(str(exc))
+
+    try:
+        target_key = _normalize_key(target_key, "Target flag key")
+    except ValueError as exc:
+        raise ValueError(str(exc))
+
+    source = get_flag(source_key, scope_type, scope_id)
+    if not source:
+        raise ValueError(f"Source flag '{source_key}' not found")
+
+    t_scope_type = (target_scope_type or scope_type).lower()
+    if t_scope_type == "global":
+        t_scope_id = None
+    else:
+        t_scope_id = target_scope_id if target_scope_type is not None else scope_id
+        if not t_scope_id:
+            raise ValueError(f"Target scope '{t_scope_type}' requires a scope identifier")
+
+    if any(item.get("key") == target_key for item in _load_registry(t_scope_type, t_scope_id)):
+        raise ValueError(f"Flag '{target_key}' already exists in target scope")
+
+    target_data: Dict[str, Any] = {
+        "key": target_key,
+        "name": source.get("name") or target_key,
+        "description": source.get("description", ""),
+        "enabled": bool(source.get("enabled", True)),
+        "environments": copy.deepcopy(source.get("environments") or {}),
+        "rollout_percent": source.get("rollout_percent", 100),
+        "users_whitelist": list(source.get("users_whitelist") or []),
+        "users_blacklist": list(source.get("users_blacklist") or []),
+        "tags": list(source.get("tags") or []),
+        "kill_switch": bool(source.get("kill_switch")),
+        "type": source.get("type"),
+        "reason": source.get("reason", ""),
+        "parent_key": source.get("parent_key"),
+        "prerequisites": list(source.get("prerequisites") or []),
+    }
+    if source.get("variants") is not None:
+        target_data["variants"] = copy.deepcopy(source.get("variants"))
+    if source.get("evaluation_cache_ttl_seconds") is not None:
+        target_data["evaluation_cache_ttl_seconds"] = source.get("evaluation_cache_ttl_seconds")
+    if source.get("ttl_seconds") is not None:
+        target_data["ttl_seconds"] = source.get("ttl_seconds")
+    if source.get("scheduled_expire_at") is not None:
+        target_data["scheduled_expire_at"] = source.get("scheduled_expire_at")
+
+    flag = _new_flag(target_data, t_scope_type, t_scope_id, actor)
+
+    if source.get("rollout_schedule") is not None:
+        flag["rollout_schedule"] = copy.deepcopy(source.get("rollout_schedule"))
+    if source.get("working_hours") is not None:
+        flag["working_hours"] = copy.deepcopy(source.get("working_hours"))
+
+    if t_scope_type == "organization":
+        effective_org_id = t_scope_id
+    elif t_scope_type == "project":
+        effective_org_id = _scope_org_id(t_scope_type, t_scope_id) or org_id
+    else:
+        effective_org_id = None
+
+    _validate_dependency_graph(flag, t_scope_type, t_scope_id, effective_org_id)
+    flags = _load_registry(t_scope_type, t_scope_id)
+    flags.append(flag)
+    _save(flags, t_scope_type, t_scope_id)
+    _EVALUATION_CACHE.clear()
+    _append_history({
+        "operation": "copy",
+        "key": target_key,
+        "source_key": source_key,
+        "source_scope_type": scope_type,
+        "source_scope_id": scope_id,
+        "actor": actor or "system",
+        "actor_name": actor_name or "",
+        "at": flag["created_at"],
+        "after": flag,
+        "scope_type": t_scope_type,
+        "scope_id": t_scope_id,
+    }, t_scope_type, t_scope_id)
+    return _decorate(flag, t_scope_type, t_scope_id)
+
+
+
 def _is_registry_global_key(key: str) -> bool:
     return any(flag.get("key") == key for flag in _load_registry("global", None))
 

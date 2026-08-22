@@ -11,7 +11,7 @@ except ImportError:
 
 from services.feature_flag_registry import (
     archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags,
-    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag,
+    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag,
 )
 
 bp = Blueprint("feature_flag_api", __name__)
@@ -435,13 +435,91 @@ def api_flag_rollback(key):
     snapshot_id = data.get("snapshot_id")
     steps = data.get("steps", 1)
     actor_id, actor_name = _actor()
+
+    if snapshot_id is not None or steps != 1:
+        try:
+            restored = rollback_flag(key, snapshot_id=snapshot_id, steps=steps, scope_type=scope_type, scope_id=scope_id, actor=actor_id, actor_name=actor_name, org_id=org_id)
+        except ValueError as exc:
+            msg = str(exc)
+            if "not found" in msg.lower():
+                return jsonify({"error": msg}), 404
+            return jsonify({"error": msg}), 400
+        if not restored:
+            return jsonify({"error": "not found or conflicted"}), 409
+        return jsonify({"success": True, "flag": restored})
+
+    rows = audit(scope_type, scope_id, key, 50)
+    previous = next((row.get("before") for row in rows if row.get("before")), None)
+    if not previous:
+        return jsonify({"error": "no previous version"}), 404
     try:
-        restored = rollback_flag(key, snapshot_id=snapshot_id, steps=steps, scope_type=scope_type, scope_id=scope_id, actor=actor_id, actor_name=actor_name, org_id=org_id)
+        restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback", org_id=org_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not restored:
+        return jsonify({"error": "not found or conflicted"}), 409
+    return jsonify({"success": True, "flag": restored})
+
+
+@bp.route('/api/flags/<key>/copy', methods=['POST'])
+@bp.route('/api/flags/<key>/clone', methods=['POST'])
+@require_auth
+def api_copy_flag(key):
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
+
+    target_key = (data.get("target_key") or data.get("new_key") or data.get("name") or "").strip()
+    if not target_key:
+        return jsonify({"error": "target_key is required"}), 400
+
+    has_target_scope = any(k in data for k in ("target_scope_type", "target_scope_id", "target_project_id", "target_org_id"))
+
+    source_context, error = _scoped(data, mutation=False)
+    if error:
+        return error
+    source_scope_type, source_scope_id, source_org_id = source_context
+
+    if has_target_scope:
+        target_payload = {}
+        if "target_scope_type" in data:
+            target_payload["scope_type"] = data["target_scope_type"]
+        if "target_scope_id" in data:
+            target_payload["scope_id"] = data["target_scope_id"]
+        if "target_project_id" in data:
+            target_payload["project_id"] = data["target_project_id"]
+        if "target_org_id" in data:
+            target_payload["org_id"] = data["target_org_id"]
+        target_context, error = _scoped(target_payload, mutation=True)
+        if error:
+            return error
+        target_scope_type, target_scope_id, target_org_id = target_context
+    else:
+        target_context, error = _scoped(data, mutation=True)
+        if error:
+            return error
+        target_scope_type, target_scope_id, target_org_id = target_context
+
+    actor_id, actor_name = _actor()
+    try:
+        flag = copy_flag(
+            source_key=key,
+            target_key=target_key,
+            scope_type=source_scope_type,
+            scope_id=source_scope_id,
+            target_scope_type=target_scope_type,
+            target_scope_id=target_scope_id,
+            actor=actor_id,
+            actor_name=actor_name,
+            org_id=target_org_id or source_org_id,
+        )
     except ValueError as exc:
         msg = str(exc)
         if "not found" in msg.lower():
             return jsonify({"error": msg}), 404
+        if "already exists" in msg.lower():
+            return jsonify({"error": msg}), 409
         return jsonify({"error": msg}), 400
-    if not restored:
-        return jsonify({"error": "not found or conflicted"}), 409
-    return jsonify({"success": True, "flag": restored})
+
+    return jsonify({"success": True, "flag": flag}), 201
+

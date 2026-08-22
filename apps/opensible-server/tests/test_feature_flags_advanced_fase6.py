@@ -207,3 +207,226 @@ def test_rollback_flag_api_route(data_dir):
     # Test unauthorized (non-admin trying to mutate global flag)
     rb_unauth = client.post("/api/flags/api.rollback.flag/rollback", json={}, headers=tokens["member"])
     assert rb_unauth.status_code == 403
+
+
+def test_copy_flag_same_scope(data_dir):
+    from services.feature_flag_registry import audit, copy_flag, create_flag, get_flag
+
+    source_data = {
+        "key": "template.source.flag",
+        "name": "Source Template Flag",
+        "description": "Original flag for template tests",
+        "enabled": True,
+        "environments": {"dev": True, "staging": True, "prod": False, "preview": True},
+        "rollout_percent": 75,
+        "users_whitelist": ["alice", "bob"],
+        "users_blacklist": ["charlie"],
+        "tags": ["template", "experiment"],
+        "kill_switch": False,
+        "variants": [{"key": "control", "weight": 40}, {"key": "treatment", "weight": 60}],
+        "evaluation_cache_ttl_seconds": 60,
+        "ttl_seconds": 3600,
+        "scheduled_expire_at": 2000000000,
+        "reason": "Created as template",
+    }
+    src = create_flag(source_data, actor="admin-alice", actor_name="Alice")
+
+    target = copy_flag(
+        source_key="template.source.flag",
+        target_key="template.cloned.flag",
+        actor="admin-bob",
+        actor_name="Bob",
+    )
+
+    assert target["key"] == "template.cloned.flag"
+    assert target["name"] == "Source Template Flag"
+    assert target["description"] == "Original flag for template tests"
+    assert target["enabled"] is True
+    assert target["environments"] == {"dev": True, "staging": True, "prod": False, "preview": True}
+    assert target["rollout_percent"] == 75
+    assert target["users_whitelist"] == ["alice", "bob"]
+    assert target["users_blacklist"] == ["charlie"]
+    assert target["tags"] == ["template", "experiment"]
+    assert target["variants"] == [{"key": "control", "weight": 40}, {"key": "treatment", "weight": 60}]
+    assert target["evaluation_cache_ttl_seconds"] == 60
+    assert target["ttl_seconds"] == 3600
+    assert target["scheduled_expire_at"] == 2000000000
+    assert target["reason"] == "Created as template"
+
+    # ID and timestamps must be fresh, not identical to source
+    assert target["id"] != src["id"]
+    assert target["owner_id"] == "admin-bob"
+
+    # Verify source remains untouched
+    original = get_flag("template.source.flag")
+    assert original["id"] == src["id"]
+    assert original["key"] == "template.source.flag"
+
+    # Check audit log for copy operation
+    entries = audit(key="template.cloned.flag")
+    assert len(entries) == 1
+    assert entries[0]["operation"] == "copy"
+    assert entries[0]["key"] == "template.cloned.flag"
+    assert entries[0]["source_key"] == "template.source.flag"
+    assert entries[0]["actor"] == "admin-bob"
+    assert entries[0]["after"]["key"] == "template.cloned.flag"
+
+
+def test_copy_flag_across_scopes(data_dir):
+    org_a, _, _ = _seed(data_dir)
+    from services.feature_flag_registry import copy_flag, create_flag, get_flag
+
+    # Create global template flag
+    create_flag(
+        {"key": "global.template.auth", "rollout_percent": 50, "description": "Global Auth Template"},
+        actor="admin",
+    )
+
+    # Copy global -> organization scope
+    org_flag = copy_flag(
+        source_key="global.template.auth",
+        target_key="org.auth.cloned",
+        scope_type="global",
+        target_scope_type="organization",
+        target_scope_id=org_a["id"],
+        org_id=org_a["id"],
+        actor="org-owner",
+    )
+    assert org_flag["key"] == "org.auth.cloned"
+    assert org_flag["scope_type"] == "organization"
+    assert org_flag["scope_id"] == org_a["id"]
+    assert org_flag["rollout_percent"] == 50
+    assert org_flag["description"] == "Global Auth Template"
+
+    # Ensure not present in global scope
+    assert get_flag("org.auth.cloned", scope_type="global") is None
+    # Ensure present in org scope
+    assert get_flag("org.auth.cloned", scope_type="organization", scope_id=org_a["id"]) is not None
+
+    # Copy organization -> project scope
+    proj_flag = copy_flag(
+        source_key="org.auth.cloned",
+        target_key="project.auth.cloned",
+        scope_type="organization",
+        scope_id=org_a["id"],
+        target_scope_type="project",
+        target_scope_id="project-a",
+        org_id=org_a["id"],
+        actor="project-dev",
+    )
+    assert proj_flag["key"] == "project.auth.cloned"
+    assert proj_flag["scope_type"] == "project"
+    assert proj_flag["scope_id"] == "project-a"
+    assert proj_flag["rollout_percent"] == 50
+
+    # Ensure present in project scope
+    assert get_flag("project.auth.cloned", scope_type="project", scope_id="project-a") is not None
+
+
+def test_copy_flag_validation_errors(data_dir):
+    from services.feature_flag_registry import copy_flag, create_flag
+
+    create_flag({"key": "valid.source.flag", "rollout_percent": 100})
+
+    # Source does not exist
+    with pytest.raises(ValueError, match=r"(?i)source.*not found"):
+        copy_flag("nonexistent.flag", "valid.target.flag")
+
+    # Target key already exists in same scope
+    with pytest.raises(ValueError, match=r"(?i)already exists"):
+        copy_flag("valid.source.flag", "valid.source.flag")
+
+    # Invalid target key
+    with pytest.raises(ValueError, match=r"(?i)malformed|at least 2 chars|non-empty"):
+        copy_flag("valid.source.flag", "INVALID KEY WITH SPACES & CAPS!")
+
+    # Invalid source key
+    with pytest.raises(ValueError, match=r"(?i)malformed|at least 2 chars|non-empty|not found"):
+        copy_flag("INVALID SOURCE KEY!", "target.key")
+
+
+def test_copy_flag_api_endpoints(data_dir):
+    org_a, _, tokens = _seed(data_dir)
+    client = _app(data_dir).test_client()
+
+    # Create source flag via API
+    resp = client.post(
+        "/api/flags",
+        json={"key": "api.template.base", "rollout_percent": 80, "description": "Base template for API copy tests"},
+        headers=tokens["admin"],
+    )
+    assert resp.status_code == 201
+
+    # POST /api/flags/<key>/copy
+    copy_resp = client.post(
+        "/api/flags/api.template.base/copy",
+        json={"target_key": "api.cloned.via.copy"},
+        headers=tokens["admin"],
+    )
+    assert copy_resp.status_code == 201
+    copy_data = copy_resp.get_json()
+    assert copy_data["success"] is True
+    assert copy_data["flag"]["key"] == "api.cloned.via.copy"
+    assert copy_data["flag"]["rollout_percent"] == 80
+
+    # POST /api/flags/<key>/clone
+    clone_resp = client.post(
+        "/api/flags/api.template.base/clone",
+        json={"target_key": "api.cloned.via.clone"},
+        headers=tokens["admin"],
+    )
+    assert clone_resp.status_code == 201
+    clone_data = clone_resp.get_json()
+    assert clone_data["success"] is True
+    assert clone_data["flag"]["key"] == "api.cloned.via.clone"
+
+    # POST copy across scopes (global -> project)
+    scoped_copy_resp = client.post(
+        "/api/flags/api.template.base/copy",
+        json={
+            "target_key": "api.project.cloned",
+            "target_scope_type": "project",
+            "target_scope_id": "project-a",
+            "target_project_id": "project-a",
+        },
+        headers=tokens["owner"],
+    )
+    assert scoped_copy_resp.status_code == 201
+    scoped_data = scoped_copy_resp.get_json()
+    assert scoped_data["flag"]["key"] == "api.project.cloned"
+    assert scoped_data["flag"]["scope_type"] == "project"
+    assert scoped_data["flag"]["scope_id"] == "project-a"
+
+    # Error cases:
+    # 1. Source not found -> 404
+    err_404 = client.post(
+        "/api/flags/nonexistent.flag/copy",
+        json={"target_key": "any.target"},
+        headers=tokens["admin"],
+    )
+    assert err_404.status_code == 404
+
+    # 2. Target key already exists -> 409
+    err_409 = client.post(
+        "/api/flags/api.template.base/copy",
+        json={"target_key": "api.cloned.via.copy"},
+        headers=tokens["admin"],
+    )
+    assert err_409.status_code == 409
+
+    # 3. Missing target_key -> 400
+    err_400 = client.post(
+        "/api/flags/api.template.base/copy",
+        json={},
+        headers=tokens["admin"],
+    )
+    assert err_400.status_code == 400
+
+    # 4. Unauthorized mutation (member cloning to global scope) -> 403
+    err_403 = client.post(
+        "/api/flags/api.template.base/copy",
+        json={"target_key": "unauthorized.global.flag"},
+        headers=tokens["member"],
+    )
+    assert err_403.status_code == 403
+
