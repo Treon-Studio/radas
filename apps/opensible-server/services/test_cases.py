@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SEVERITIES = ("blocker", "warning", "info")
-KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "iac_scan", "smoke")
+KINDS = ("assertion", "tofu_validate", "tofu_test", "tftest", "ansible_validate", "ansible_idempotency", "iac_scan", "smoke")
 _RESULTS_LOCK = threading.Lock()
 
 
@@ -262,10 +262,17 @@ def create_test_case(data: Dict[str, Any], project_id: Optional[str] = None) -> 
         "created_at": int(time.time()),
         "updated_at": int(time.time()),
     }
+    if "command" in data:
+        tc["command"] = str(data["command"])
+    if "tftest_content" in data:
+        tc["tftest_content"] = str(data["tftest_content"])
+    if "tftest_assertions" in data:
+        tc["tftest_assertions"] = data["tftest_assertions"]
+
     if tc["kind"] not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
     invalid_assertions = [a for a in tc["assertions"] if a not in ASSERTIONS]
-    if invalid_assertions:
+    if invalid_assertions and tc["kind"] == "assertion":
         raise ValueError(f"unknown assertions: {', '.join(invalid_assertions)}")
     if not all(isinstance(k, str) and k.strip() for k in tc["parameters"]):
         raise ValueError("parameter keys must be non-empty strings")
@@ -927,3 +934,94 @@ def run_ansible_idempotency_test(project_id: Optional[str] = None, stack: str = 
         )
 
     return result
+
+
+def import_tftest_hcl(content: str, project_id: Optional[str] = None, stack: str = "", actor: str = "") -> List[Dict[str, Any]]:
+    """Parse .tftest.hcl content and register test cases in the test registry (UC210)."""
+    if not content or not content.strip():
+        return []
+
+    run_pattern = re.compile(r'run\s+["\']([^"\']+)["\']\s*\{')
+    imported: List[Dict[str, Any]] = []
+
+    for match in run_pattern.finditer(content):
+        run_name = match.group(1).strip()
+        start_idx = match.end() - 1
+        depth = 0
+        end_idx = start_idx
+        for i in range(start_idx, len(content)):
+            if content[i] == '{':
+                depth += 1
+            elif content[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break
+        block_content = content[start_idx + 1:end_idx].strip()
+        full_block = content[match.start():end_idx + 1]
+
+        cmd_match = re.search(r'command\s*=\s*["\']?(\w+)["\']?', block_content)
+        command = cmd_match.group(1).lower() if cmd_match else "apply"
+
+        assertions = []
+        assert_pattern = re.compile(r'assert\s*\{')
+        for a_match in assert_pattern.finditer(block_content):
+            a_start = a_match.end() - 1
+            a_depth = 0
+            a_end = a_start
+            for j in range(a_start, len(block_content)):
+                if block_content[j] == '{':
+                    a_depth += 1
+                elif block_content[j] == '}':
+                    a_depth -= 1
+                    if a_depth == 0:
+                        a_end = j
+                        break
+            assert_body = block_content[a_start + 1:a_end].strip()
+
+            cond_m = re.search(r'condition\s*=\s*(.+?)(?=\n\s*(?:error_message\b|\Z)|\Z)', assert_body, re.DOTALL)
+            err_m = re.search(r'error_message\s*=\s*["\'](.*?)["\']', assert_body, re.DOTALL)
+
+            condition = cond_m.group(1).strip() if cond_m else ""
+            error_message = err_m.group(1).strip() if err_m else ""
+            assertions.append({
+                "condition": condition,
+                "error_message": error_message,
+            })
+
+        variables: Dict[str, Any] = {}
+        var_match = re.search(r'variables\s*\{([^}]*)\}', block_content, re.DOTALL)
+        if var_match:
+            var_body = var_match.group(1)
+            for line in var_body.splitlines():
+                line = line.strip()
+                if not line or line.startswith(('#', '//')):
+                    continue
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    k = k.strip()
+                    v = v.strip().strip('"\'')
+                    if k:
+                        variables[k] = v
+
+        tc_data = {
+            "name": f"{stack}: {run_name}" if stack else run_name,
+            "stack": stack,
+            "kind": "tofu_test",
+            "severity": "warning",
+            "enabled": True,
+            "tags": ["imported", "tftest"] + ([stack] if stack else []),
+            "command": command,
+            "tftest_content": full_block,
+            "tftest_assertions": assertions,
+            "parameters": {
+                "command": command,
+                "variables": variables,
+                "run_name": run_name,
+                "imported_by": actor,
+            },
+        }
+        created = create_test_case(tc_data, project_id=project_id)
+        imported.append(created)
+
+    return imported

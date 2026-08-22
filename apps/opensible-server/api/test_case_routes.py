@@ -257,3 +257,34 @@ def api_ansible_idempotency():
     return jsonify(result), 200
 
 
+@bp.route('/api/test-cases/import/tftest', methods=['POST'])
+@bp.route('/api/tests/import/tftest', methods=['POST'])
+@require_project_access
+def api_import_tftest():
+    from services.test_cases import import_tftest_hcl
+    content = ""
+    stack = ""
+
+    if request.content_type and "multipart/form-data" in request.content_type:
+        uploaded = request.files.get("file")
+        if uploaded:
+            content = uploaded.read().decode("utf-8", errors="replace")
+        stack = (request.form.get("stack") or "").strip()
+    else:
+        data = request.get_json(silent=True) or {}
+        content = str(data.get("content") or "")
+        stack = str(data.get("stack") or "").strip()
+
+    if not content.strip():
+        return jsonify({"error": "content or file required"}), 400
+
+    imported = import_tftest_hcl(
+        content=content,
+        project_id=_pid(),
+        stack=stack,
+        actor=getattr(request, "actor", "") or "",
+    )
+    return jsonify({"success": True, "imported_count": len(imported), "tests": imported}), 201
+
+
+

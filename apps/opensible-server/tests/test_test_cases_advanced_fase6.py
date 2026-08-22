@@ -453,6 +453,176 @@ def test_api_ansible_idempotency_endpoint(data_dir):
     assert data["playbook"] == "deploy.yml"
 
 
+def test_import_tftest_hcl_unit(data_dir):
+    """UC210: import_tftest_hcl parses run blocks, variables, and assertions."""
+    tftest_content = """
+variables {
+  environment = "production"
+}
+
+run "verify_instance_type" {
+  command = plan
+
+  variables {
+    instance_type = "t3.micro"
+  }
+
+  assert {
+    condition     = aws_instance.web.instance_type == "t3.micro"
+    error_message = "Instance type must be t3.micro"
+  }
+
+  assert {
+    condition     = aws_instance.web.associate_public_ip_address == false
+    error_message = "Web instance must not have a public IP"
+  }
+}
+
+run "verify_vpc_cidr" {
+  command = apply
+
+  assert {
+    condition     = aws_vpc.main.cidr_block == "10.0.0.0/16"
+    error_message = "VPC CIDR block incorrect"
+  }
+}
+"""
+    imported = test_cases.import_tftest_hcl(
+        content=tftest_content,
+        project_id="p-tftest",
+        stack="web-stack",
+        actor="dev-user",
+    )
+
+    assert len(imported) == 2
+
+    # Test 1: verify_instance_type
+    t1 = next(t for t in imported if "verify_instance_type" in t["name"])
+    assert t1["stack"] == "web-stack"
+    assert t1["name"] == "web-stack: verify_instance_type"
+    assert t1["command"] == "plan"
+    assert t1["project_id"] == "p-tftest"
+    assert "t3.micro" in t1["tftest_content"]
+    assert len(t1["tftest_assertions"]) == 2
+    assert t1["tftest_assertions"][0]["error_message"] == "Instance type must be t3.micro"
+    assert t1["parameters"]["variables"]["instance_type"] == "t3.micro"
+
+    # Test 2: verify_vpc_cidr
+    t2 = next(t for t in imported if "verify_vpc_cidr" in t["name"])
+    assert t2["stack"] == "web-stack"
+    assert t2["name"] == "web-stack: verify_vpc_cidr"
+    assert t2["command"] == "apply"
+    assert len(t2["tftest_assertions"]) == 1
+    assert t2["tftest_assertions"][0]["condition"] == 'aws_vpc.main.cidr_block == "10.0.0.0/16"'
+
+    # Verify they are stored in the project test registry
+    registry_tests = test_cases.list_test_cases(project_id="p-tftest")
+    assert len(registry_tests) == 2
 
 
+def test_api_import_tftest_json_endpoint(data_dir):
+    """UC210: POST /api/test-cases/import/tftest via JSON body."""
+    import time
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from storage import pg
+    from services.org_service import create_org
+    from api.test_case_routes import bp
 
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("u-tftest", "tftest_user", "x"))
+    org_a = create_org("Org Tftest", "u-tftest")
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("proj-tftest-api", org_a["id"], "u-tftest", "proj-tftest-api", "", time.time()),
+    )
+
+    token = generate_token("u-tftest", "tftest_user", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "X-Project-Id": "proj-tftest-api",
+        "Authorization": f"Bearer {token}",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    hcl = """
+run "check_db_engine" {
+  command = plan
+  assert {
+    condition     = aws_db_instance.db.engine == "postgres"
+    error_message = "DB engine must be postgres"
+  }
+}
+"""
+    resp = client.post(
+        "/api/test-cases/import/tftest",
+        json={"content": hcl, "stack": "db-stack"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.data
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["imported_count"] == 1
+    assert len(data["tests"]) == 1
+    assert data["tests"][0]["stack"] == "db-stack"
+    assert data["tests"][0]["name"] == "db-stack: check_db_engine"
+
+
+def test_api_import_tftest_file_upload(data_dir):
+    """UC210: POST /api/tests/import/tftest via multipart file upload."""
+    import io
+    import time
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from storage import pg
+    from services.org_service import create_org
+    from api.test_case_routes import bp
+
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s,%s,%s)", ("u-tftest2", "tftest_user2", "x"))
+    org_a = create_org("Org Tftest 2", "u-tftest2")
+    pg.execute(
+        "INSERT INTO projects (id, org_id, owner_id, name, description, is_archived, updated_at) "
+        "VALUES (%s,%s,%s,%s,%s,0,%s)",
+        ("proj-tftest-file", org_a["id"], "u-tftest2", "proj-tftest-file", "", time.time()),
+    )
+
+    token = generate_token("u-tftest2", "tftest_user2", ["admin"], Path("/tmp"), token_type="access")
+    headers = {
+        "X-Project-Id": "proj-tftest-file",
+        "Authorization": f"Bearer {token}",
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp)
+    client = app.test_client()
+
+    file_content = b"""
+run "check_s3_bucket" {
+  command = apply
+  assert {
+    condition     = aws_s3_bucket.bucket.bucket != ""
+    error_message = "Bucket name cannot be empty"
+  }
+}
+"""
+    data = {
+        "file": (io.BytesIO(file_content), "main.tftest.hcl"),
+        "stack": "storage-stack",
+    }
+    resp = client.post(
+        "/api/tests/import/tftest",
+        data=data,
+        content_type="multipart/form-data",
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.data
+    body = resp.get_json()
+    assert body["success"] is True
+    assert body["imported_count"] == 1
+    assert body["tests"][0]["name"] == "storage-stack: check_s3_bucket"
