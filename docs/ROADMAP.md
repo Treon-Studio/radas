@@ -467,7 +467,7 @@ fitur terpisah:
 | 309 | Resource graph: visualisasi dependency akun | ⬜ | P2 | 6 |
 | 310 | Threshold quota per akun (max VM/NAT/network) | ✅ | P1 | 6 |
 | 311 | SLA monitoring: uptime resource via provider API | ⬜ | P2 | 6 |
-| 312 | Backup config akun (export koneksi JSON encrypted) | ⬜ | P2 | 6 |
+| 312 | Backup config akun (export koneksi JSON encrypted) | ✅ | P2 | 6 |
 | 313 | Permission set minimal (least privilege) otomatis | ⬜ | P2 | 6 |
 | 314 | Onboarding checklist multi-akun (wizard) | ⬜ | P1 | 6 |
 | 315 | Owner per akun (pemilik bertanggung jawab) | ⬜ | P2 | 6 |
@@ -475,10 +475,10 @@ fitur terpisah:
 | 317 | Integrasi provider mirror untuk akun offline | ⬜ | P2 | 6 |
 | 318 | Resource type coverage: VM, LB, DNS, storage, K8s | ⬜ | P1 | 6 |
 | 319 | Bulk import via terraformer-style (resource scanning) | ⬜ | P2 | 6 |
-| 320 | Diff antara inventory vs stack (unmanaged resources) | ⬜ | P1 | 6 |
+| 320 | Diff antara inventory vs stack (unmanaged resources) | ✅ | P1 | 6 |
 | 321 | Unmanaged resource notification (sisa tak terkelola) | ⬜ | P2 | 6 |
 | 322 | Destroy imported stack -> lepaskan saja (force destroy off) | ⬜ | P1 | 6 |
-| 323 | Protect resource penting (delete protection) | ⬜ | P1 | 6 |
+| 323 | Protect resource penting (delete protection) | ✅ | P1 | 6 |
 | 324 | Multi-session credential parkir (variabel env per eksekusi) | ⬜ | P2 | 6 |
 | 325 | UI halaman BYOC: koneksi + inventory + import | ✅ | P0 | 6 |
 | 326 | Wizard tambah akun dengan pilihan provider | ⬜ | P1 | 6 |
@@ -493,7 +493,7 @@ fitur terpisah:
 |---|---|---|---|---|
 | 331 | Remote state lock global (anti race apply) | ✅ | P0 | 6 |
 | 332 | State versions browsing & rollback (sudah partial, per stack) | ✅ | P1 | 6 |
-| 333 | Run history dengan comments (diskusi per run) | ⬜ | P2 | 6 |
+| 333 | Run history dengan comments (diskusi per run) | ✅ | P2 | 6 |
 | 334 | Private module registry (publish modul internal) | ✅ | P0 | 6 |
 | 335 | Budget alert per workspace (sudah ada) -> per project agg | ✅ | P1 | 6 |
 | 336 | Sentinel/OPA policy set versioned | ⬜ | P1 | 6 |
@@ -508,7 +508,7 @@ fitur terpisah:
 | 345 | Review apps: approve/reject flow dengan comment | ⬜ | P1 | 6 |
 | 346 | Policy as code multi-format (OPA, custom) | ⬜ | P1 | 6 |
 | 347 | Context policy: tug context (PR, stack, env) | ⬜ | P2 | 6 |
-| 348 | Stack dependencies: graph antar stack (korelasi) | ⬜ | P1 | 6 |
+| 348 | Stack dependencies: graph antar stack (korelasi) | ✅ | P1 | 6 |
 | 349 | Notification hook ke Slack/Discord/Teams/Webhook | ✅ | P1 | 6 |
 | 350 | Self-hosted agent (worker) dengan label & constraint | ✅ | P1 | 6 |
 | 351 | Terragrunt support (run Terragrunt) | ⬜ | P2 | 6 |
@@ -517,7 +517,7 @@ fitur terpisah:
 | 354 | Rollout envelopes (gradual rollout per env) | ⬜ | P2 | 6 |
 | 355 | Drift auto-fix (apply config saat drift) | ⬜ | P2 | 6 |
 | 356 | Custom IAM role switching di environment | ⬜ | P2 | 6 |
-| 357 | TTL environment (auto-destroy setelah durasi) | ⬜ | P1 | 6 |
+| 357 | TTL environment (auto-destroy setelah durasi) | ✅ | P1 | 6 |
 | 358 | Cost analytics per tag/provider/branch | ⬜ | P1 | 6 |
 | 359 | Policy custom (Cryo) untuk env | ⬜ | P2 | 6 |
 | 360 | Audit log export (JSONL) ke SIEM | ⬜ | P2 | 6 |
