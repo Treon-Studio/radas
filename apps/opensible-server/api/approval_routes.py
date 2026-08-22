@@ -76,3 +76,35 @@ def api_check_approval():
         return jsonify({"error": "stack and project_id required"}), 400
     return jsonify({"approved": has_approved(stack, pid, action),
                     "pending": bool(latest_pending(stack, pid, action))})
+
+
+@bp.route('/api/approvals/chain', methods=['POST'])
+@require_project_access
+def api_create_approval_chain():
+    from services.approval_service import create_approval_chain
+    data = request.get_json(silent=True) or {}
+    stack = (data.get("stack") or "").strip()
+    action = (data.get("action") or "").strip().lower()
+    pid = data.get("project_id") or _get_pid_raw(lambda: None)
+    steps = data.get("steps") or ["tech-lead", "devops"]
+    if not stack or not pid:
+        return jsonify({"error": "stack and project_id required"}), 400
+    if action not in ACTIONS:
+        return jsonify({"error": f"action must be one of {ACTIONS}"}), 400
+    rec = create_approval_chain(stack, pid, action, steps=steps, requested_by=_who(), note=(data.get("note") or ""))
+    return jsonify({"success": True, "approval": rec}), 201
+
+
+@bp.route('/api/approvals/<approval_id>/step', methods=['POST'])
+@require_project_access
+def api_approve_step(approval_id):
+    from services.approval_service import approve_chain_step
+    data = request.get_json(silent=True) or {}
+    step_name = data.get("step") or data.get("step_name")
+    decision = data.get("decision") or "approved"
+    try:
+        rec = approve_chain_step(approval_id, step_name=step_name, approver=_who(), decision=decision)
+        return jsonify({"success": True, "approval": rec}), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+

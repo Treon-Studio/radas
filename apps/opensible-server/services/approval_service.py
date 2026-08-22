@@ -158,3 +158,134 @@ def should_skip_approval(stack: str, project_id: str, action: str = "apply", env
 
     return False
 
+
+# ---------------------------------------------------------------------------
+# UC362: Multi-step Approval Workflow Chain
+# ---------------------------------------------------------------------------
+
+def create_approval_chain(
+    stack: str,
+    project_id: str,
+    action: str,
+    steps: List[str],
+    requested_by: str = "",
+    note: str = "",
+) -> Dict[str, Any]:
+    """Create a sequential multi-step approval chain (UC362)."""
+    approval_id = str(uuid.uuid4())
+    clean_steps = [str(s).strip() for s in (steps or ["tech-lead", "devops"]) if str(s).strip()]
+    if not clean_steps:
+        clean_steps = ["tech-lead", "devops"]
+
+    chain_state = [
+        {
+            "step": s,
+            "status": "pending",
+            "approver": None,
+            "approved_at": None,
+        }
+        for s in clean_steps
+    ]
+
+    retest_run_id = None
+    try:
+        retest_run_id = trigger_approval_retest(project_id=project_id, stack=stack, approval_id=approval_id)
+    except Exception:
+        pass
+
+    rec = {
+        "id": approval_id,
+        "stack": stack,
+        "project_id": project_id,
+        "action": action,
+        "status": "pending",
+        "is_chain": True,
+        "steps": chain_state,
+        "current_step_index": 0,
+        "current_step": clean_steps[0],
+        "requested_by": requested_by,
+        "note": note,
+        "created_at": time.time(),
+        "decided_at": None,
+        "decided_by": None,
+        "retest_run_id": retest_run_id,
+    }
+    records = _load()
+    records.append(rec)
+    _save(records)
+    return rec
+
+
+def approve_chain_step(
+    approval_id: str,
+    step_name: Optional[str] = None,
+    approver: str = "approver",
+    decision: str = "approved",
+) -> Dict[str, Any]:
+    """Approve or reject a specific step in a multi-step approval chain (UC362)."""
+    records = _load()
+    target = None
+    for r in records:
+        if r.get("id") == approval_id:
+            target = r
+            break
+
+    if not target:
+        raise ValueError("approval not found")
+
+    if not target.get("is_chain"):
+        # Single step approval fallback
+        return decide(approval_id, decision, decided_by=approver) or target
+
+    if target.get("status") in ("approved", "rejected"):
+        return target
+
+    steps = target.get("steps") or []
+    idx = target.get("current_step_index", 0)
+
+    if decision == "rejected":
+        target["status"] = "rejected"
+        target["decided_at"] = time.time()
+        target["decided_by"] = approver
+        if idx < len(steps):
+            steps[idx]["status"] = "rejected"
+            steps[idx]["approver"] = approver
+            steps[idx]["approved_at"] = time.time()
+        _save(records)
+        return target
+
+    # Find step to approve
+    if idx < len(steps):
+        step_rec = steps[idx]
+        if step_name and step_rec.get("step") != step_name:
+            raise ValueError(f"Expected approval for step '{step_rec.get('step')}', got '{step_name}'")
+
+        step_rec["status"] = "approved"
+        step_rec["approver"] = approver
+        step_rec["approved_at"] = time.time()
+
+        next_idx = idx + 1
+        if next_idx >= len(steps):
+            # All steps completed!
+            target["status"] = "approved"
+            target["current_step_index"] = next_idx
+            target["current_step"] = None
+            target["decided_at"] = time.time()
+            target["decided_by"] = approver
+            _save(records)
+
+            if target.get("action") == "apply":
+                try:
+                    from services.cloud_provisioning import _create_execution
+                    _create_execution(target.get("project_id"), target.get("stack"), "apply",
+                                      triggered_by=f"approval:{approval_id}")
+                except Exception:
+                    pass
+        else:
+            target["current_step_index"] = next_idx
+            target["current_step"] = steps[next_idx].get("step")
+            _save(records)
+
+    return target
+
+
