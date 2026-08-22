@@ -2429,6 +2429,98 @@ def api_import_stack_config(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC481: Execution Timeout Policy per Action (Configurable Deadline Guard)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_ACTION_TIMEOUTS = {
+    "plan": 600,       # 10 minutes
+    "apply": 1800,     # 30 minutes
+    "destroy": 1800,   # 30 minutes
+    "test": 300,       # 5 minutes
+    "remediate": 600,  # 10 minutes
+}
+
+
+def get_execution_timeout(project_id: Optional[str], stack: str, action: str = "apply") -> int:
+    """Get the configured timeout limit in seconds for a specific action on a stack (UC481)."""
+    stack_name = (stack or "").strip()
+    act = (action or "apply").strip().lower()
+
+    if stack_name:
+        meta = _load_meta(project_id, stack_name)
+        timeouts = meta.get("timeouts") or {}
+        if act in timeouts and isinstance(timeouts[act], int):
+            return timeouts[act]
+
+    return _DEFAULT_ACTION_TIMEOUTS.get(act, 1800)
+
+
+def set_execution_timeout(
+    project_id: Optional[str],
+    stack: str,
+    action: str,
+    timeout_seconds: int,
+) -> Dict[str, Any]:
+    """Set custom timeout limit in seconds for a specific action on a stack (UC481)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    act = (action or "apply").strip().lower()
+    if timeout_seconds < 10 or timeout_seconds > 86400:
+        raise ValueError("timeout_seconds must be between 10 and 86400")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    timeouts = dict(meta.get("timeouts") or {})
+    timeouts[act] = int(timeout_seconds)
+    meta["timeouts"] = timeouts
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "action": act,
+        "timeout_seconds": int(timeout_seconds),
+        "all_timeouts": timeouts,
+    }
+
+
+def check_execution_timed_out(started_at: float, timeout_seconds: int) -> bool:
+    """Evaluate whether an execution has exceeded its deadline (UC481)."""
+    if not started_at or timeout_seconds <= 0:
+        return False
+    elapsed = time.time() - started_at
+    return elapsed > timeout_seconds
+
+
+@bp.route("/stacks/<name>/timeout", methods=["GET"])
+@require_project_access
+def api_get_stack_timeouts(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    timeouts = meta.get("timeouts") or _DEFAULT_ACTION_TIMEOUTS
+    return jsonify({"stack": name, "project_id": pid, "timeouts": timeouts}), 200
+
+
+@bp.route("/stacks/<name>/timeout", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_timeout(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    action = data.get("action") or "apply"
+    timeout_sec = data.get("timeout_seconds") or data.get("seconds") or data.get("timeout")
+    if timeout_sec is None:
+        return jsonify({"error": "timeout_seconds required"}), 400
+
+    try:
+        res = set_execution_timeout(pid, name, action=str(action), timeout_seconds=int(timeout_sec))
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 

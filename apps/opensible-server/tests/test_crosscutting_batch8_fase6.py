@@ -193,3 +193,68 @@ def test_test_completion_webhook_dispatch(monkeypatch):
     assert p["passed_tests"] == 1
     assert p["failed_tests"] == 1
     assert p["duration_ms"] == 450
+
+
+def test_execution_timeout_policy():
+    """UC481: Configurable execution timeout policy and deadline evaluation."""
+    import time
+    from services import cloud_provisioning
+
+    proj = "proj-timeout"
+    stk = "large-cluster"
+
+    # Default timeout for apply is 1800s
+    assert cloud_provisioning.get_execution_timeout(proj, stk, "apply") == 1800
+
+    # Custom timeout: 300s for plan
+    res = cloud_provisioning.set_execution_timeout(proj, stk, action="plan", timeout_seconds=300)
+    assert res["timeout_seconds"] == 300
+    assert cloud_provisioning.get_execution_timeout(proj, stk, "plan") == 300
+
+    # Deadline evaluation
+    now = time.time()
+    # Started 10s ago, timeout 100s -> not timed out
+    assert cloud_provisioning.check_execution_timed_out(now - 10, timeout_seconds=100) is False
+    # Started 150s ago, timeout 100s -> timed out!
+    assert cloud_provisioning.check_execution_timed_out(now - 150, timeout_seconds=100) is True
+
+
+def test_api_execution_timeout_endpoints(data_dir):
+    """UC481: GET & POST /api/cloud-provisioning/stacks/<stack>/timeout."""
+    from pathlib import Path
+    import flask
+    from auth.service import generate_token
+    from services.cloud_provisioning import bp
+    from storage import pg
+
+    org_id = "org-timeout"
+    proj_id = "proj-timeout-api"
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "Timeout Org", 1000))
+    pg.execute("INSERT INTO projects (id, name, org_id, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (proj_id, "Timeout Proj", org_id, 1000))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (org_id, "u1", "admin", 1000))
+
+    token = generate_token("u1", "alice", ["admin"], Path("/tmp"), token_type="access", org_id=org_id)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Project-Id": proj_id,
+    }
+
+    app = flask.Flask(__name__)
+    app.config["TESTING"] = True
+    app.register_blueprint(bp, url_prefix="/api/cloud-provisioning")
+    client = app.test_client()
+
+    # 1. Set timeout
+    resp_set = client.post(
+        "/api/cloud-provisioning/stacks/worker-stack/timeout",
+        json={"action": "apply", "timeout_seconds": 900},
+        headers=headers,
+    )
+    assert resp_set.status_code == 200
+    assert resp_set.get_json()["timeout_seconds"] == 900
+
+    # 2. Get timeouts
+    resp_get = client.get("/api/cloud-provisioning/stacks/worker-stack/timeout", headers=headers)
+    assert resp_get.status_code == 200
+    assert resp_get.get_json()["timeouts"]["apply"] == 900
