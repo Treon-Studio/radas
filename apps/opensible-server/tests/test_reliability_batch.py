@@ -16,7 +16,10 @@ def test_blocker_failure_queues_notification(monkeypatch, data_dir):
     monkeypatch.setattr("services.webhook_dispatcher.dispatch_event", lambda event, payload: sent.append((event, payload)) or 1)
     result = test_cases.run_scheduled_tests("project", now=int(time.time()), timeout_seconds=1)
     assert result["results"][0]["blocker_notification"]["queued"] is True
-    assert sent[0][0] == "test.blocker_failed"
+    assert len(sent) >= 2
+    events = [s[0] for s in sent]
+    assert "test.failed" in events
+    assert "test.blocker_failed" in events
 
 
 def test_flag_gate_fails_closed(monkeypatch):

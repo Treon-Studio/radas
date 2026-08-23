@@ -668,3 +668,314 @@ def set_environment_protection(owner: str, repo: str, environment: str, reviewer
     data = _gh_api("PUT", f"{_repo_path(owner, repo)}/environments/{urllib.parse.quote(environment, safe='')}", body=body)
     return {"ok": True, "name": environment, "wait_timer": wait_timer,
             "reviewers": reviewers or [], "deployment_branch_policy": body["deployment_branch_policy"], "raw": data}
+
+
+def evaluate_run_auto_retry(owner: str, repo: str, run_id: int, project_id: Optional[str] = None,
+                            max_retries: int = 2,
+                            retry_conclusions: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Evaluate if a failed/timed_out workflow run is eligible for auto-retry (UC249)."""
+    if retry_conclusions is None:
+        retry_conclusions = ["failure", "timed_out", "cancelled"]
+
+    run_info = run_detail(owner, repo, int(run_id))
+    status = run_info.get("status")
+    conclusion = run_info.get("conclusion") or ""
+    run_attempt = int(run_info.get("run_attempt") or 1)
+
+    if status != "completed":
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"run is not completed (status: {status})",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+        }
+
+    if conclusion not in retry_conclusions:
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"conclusion '{conclusion}' is not in retryable list",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+        }
+
+    if run_attempt > max_retries:
+        return {
+            "retried": False,
+            "run_id": int(run_id),
+            "reason": f"max retries exceeded (attempt {run_attempt} > max {max_retries})",
+            "conclusion": conclusion,
+            "run_attempt": run_attempt,
+            "max_retries": max_retries,
+        }
+
+    # Trigger re-run of failed jobs / workflow
+    try:
+        re_run_res = rerun(owner, repo, int(run_id))
+    except Exception as exc:
+        re_run_res = {"error": str(exc)}
+
+    return {
+        "retried": True,
+        "run_id": int(run_id),
+        "previous_attempt": run_attempt,
+        "max_retries": max_retries,
+        "conclusion": conclusion,
+        "action": "re_run_triggered",
+        "result": re_run_res,
+    }
+
+
+def ingest_github_webhook(event: str, payload: Dict[str, Any], project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Ingest incoming GitHub webhook event (workflow_run, workflow_job, etc.) into audit log (UC250)."""
+    event_name = (event or "").strip()
+    action = payload.get("action") or "triggered"
+    target_action = f"github.{event_name}.{action}" if event_name else f"github.webhook.{action}"
+
+    repo_data = payload.get("repository") or {}
+    repo_full_name = repo_data.get("full_name") or f"{repo_data.get('owner', {}).get('login', '')}/{repo_data.get('name', '')}".strip("/")
+    sender = (payload.get("sender") or {}).get("login") or "github-webhook"
+
+    run_data = payload.get("workflow_run") or payload.get("check_run") or payload.get("workflow_job") or {}
+    target_id = str(run_data.get("id") or repo_full_name or "unknown")
+    target_type = "workflow_run" if payload.get("workflow_run") else ("workflow_job" if payload.get("workflow_job") else "github_repository")
+
+    meta = {
+        "event": event_name,
+        "action": action,
+        "repository": repo_full_name,
+        "sender": sender,
+        "project_id": project_id,
+        "run_id": run_data.get("id"),
+        "run_number": run_data.get("run_number"),
+        "status": run_data.get("status"),
+        "conclusion": run_data.get("conclusion"),
+        "head_branch": run_data.get("head_branch"),
+        "head_sha": run_data.get("head_sha"),
+    }
+
+    try:
+        from services.audit_events import record_audit_event
+        record_audit_event(
+            action=target_action,
+            actor_user_id=sender,
+            target_type=target_type,
+            target_id=target_id,
+            meta=meta,
+        )
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "ingested": True,
+        "event": event_name,
+        "action": target_action,
+        "target_id": target_id,
+        "target_type": target_type,
+        "repository": repo_full_name,
+    }
+
+
+def get_repo_metadata(owner: str, repo: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Retrieve and inspect repository metadata (default branch, visibility, language, topics, size) (UC255)."""
+    data = _gh_api("GET", f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}")
+    return {
+        "id": data.get("id"),
+        "name": data.get("name"),
+        "full_name": data.get("full_name") or f"{owner}/{repo}",
+        "owner": (data.get("owner") or {}).get("login") or owner,
+        "default_branch": data.get("default_branch") or "main",
+        "visibility": data.get("visibility") or ("private" if data.get("private") else "public"),
+        "private": bool(data.get("private")),
+        "language": data.get("language"),
+        "description": data.get("description"),
+        "topics": data.get("topics") or [],
+        "size_kb": data.get("size", 0),
+        "open_issues_count": data.get("open_issues_count", 0),
+        "stargazers_count": data.get("stargazers_count", 0),
+        "forks_count": data.get("forks_count", 0),
+        "created_at": data.get("created_at"),
+        "updated_at": data.get("updated_at"),
+        "pushed_at": data.get("pushed_at"),
+        "html_url": data.get("html_url"),
+    }
+
+
+def scan_workflow_secrets_exposure(yaml_content: str) -> Dict[str, Any]:
+    """Scan workflow YAML content for potential secrets exposure and unsafe echoes (UC256)."""
+    if not yaml_content or not yaml_content.strip():
+        return {"safe": True, "findings": [], "total_findings": 0}
+
+    findings = []
+    lines = yaml_content.splitlines()
+
+    # Pattern definitions for sensitive patterns
+    patterns = [
+        ("plaintext_token", re.compile(r'(?:ghp_|gho_|github_pat_|glpat-|sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16})', re.IGNORECASE), "high"),
+        ("echo_secret_expression", re.compile(r'echo\s+.*?\$\{\{\s*secrets\.\w+\s*\}\}', re.IGNORECASE), "high"),
+        ("dump_env", re.compile(r'(?:env\s*\|\s*sort|printenv|dump[-_]env)', re.IGNORECASE), "medium"),
+        ("hardcoded_password", re.compile(r'(?:password|secret|api_key|token)\s*[:=]\s*["\'](?![${\w\.-]+[\'"])[a-zA-Z0-9_\-\.\@\#\$]{8,}["\']', re.IGNORECASE), "medium"),
+    ]
+
+    for idx, line in enumerate(lines, 1):
+        clean_line = line.strip()
+        if not clean_line or clean_line.startswith('#'):
+            continue
+        for rule_id, regex, severity in patterns:
+            match = regex.search(clean_line)
+            if match:
+                findings.append({
+                    "rule": rule_id,
+                    "line": idx,
+                    "snippet": clean_line[:120],
+                    "severity": severity,
+                    "matched": match.group(0)[:30],
+                })
+
+    return {
+        "safe": len(findings) == 0,
+        "findings": findings,
+        "total_findings": len(findings),
+    }
+
+
+def validate_workflow_sha_pinning(yaml_content: str) -> Dict[str, Any]:
+    """Validate that GitHub Actions in workflow YAML are pinned to full 40-character commit SHAs (UC257)."""
+    if not yaml_content or not yaml_content.strip():
+        return {"compliant": True, "unpinned_actions": [], "pinned_actions": [], "total_actions": 0}
+
+    unpinned = []
+    pinned = []
+    sha_pattern = re.compile(r'^[a-f0-9]{40}$', re.IGNORECASE)
+    uses_pattern = re.compile(r'uses:\s*([^\s#]+)')
+
+    for idx, line in enumerate(yaml_content.splitlines(), 1):
+        clean = line.strip()
+        if not clean or clean.startswith('#'):
+            continue
+        match = uses_pattern.search(clean)
+        if match:
+            target = match.group(1).strip()
+            # Local actions (e.g. ./.github/actions/...) or docker images (docker://...)
+            if target.startswith(('.', '/')) or target.startswith('docker://'):
+                continue
+
+            if '@' in target:
+                action_name, ref = target.split('@', 1)
+                action_name = action_name.strip()
+                ref = ref.strip()
+                if sha_pattern.match(ref):
+                    pinned.append({
+                        "line": idx,
+                        "action": action_name,
+                        "ref": ref,
+                        "is_sha": True,
+                    })
+                else:
+                    unpinned.append({
+                        "line": idx,
+                        "action": action_name,
+                        "ref": ref,
+                        "is_sha": False,
+                        "message": f"Action '{action_name}' is pinned to mutable ref '@{ref}' instead of a 40-character commit SHA",
+                    })
+            else:
+                unpinned.append({
+                    "line": idx,
+                    "action": target,
+                    "ref": None,
+                    "is_sha": False,
+                    "message": f"Action '{target}' has no ref specified",
+                })
+
+    total = len(unpinned) + len(pinned)
+    return {
+        "compliant": len(unpinned) == 0,
+        "unpinned_actions": unpinned,
+        "pinned_actions": pinned,
+        "total_actions": total,
+    }
+
+
+def check_github_connection_health(project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Perform health check on GitHub connection, rate limit, and token validity (UC263)."""
+    avail = is_available()
+    if not avail.get("available") and not os.environ.get("GH_TOKEN"):
+        return {
+            "healthy": False,
+            "status": "disconnected",
+            "message": "No GitHub credentials configured (neither gh CLI nor GH_TOKEN)",
+            "rate_limit": None,
+            "user": None,
+        }
+
+    try:
+        user_data = _gh_api("GET", "/user")
+        rate_data = _gh_api("GET", "/rate_limit")
+        core_rate = (rate_data.get("resources") or {}).get("core") or {}
+
+        limit = core_rate.get("limit", 5000)
+        remaining = core_rate.get("remaining", 5000)
+        reset_at = core_rate.get("reset")
+
+        return {
+            "healthy": True,
+            "status": "connected",
+            "user": {
+                "login": user_data.get("login"),
+                "id": user_data.get("id"),
+                "type": user_data.get("type"),
+            },
+            "rate_limit": {
+                "limit": limit,
+                "remaining": remaining,
+                "used": limit - remaining,
+                "reset_at": reset_at,
+            },
+            "connection_via": avail.get("via", "token"),
+            "checked_at": int(time.time()),
+        }
+    except Exception as exc:
+        return {
+            "healthy": False,
+            "status": "error",
+            "message": str(exc),
+            "rate_limit": None,
+            "user": None,
+            "checked_at": int(time.time()),
+        }
+
+
+def rotate_github_token(new_token: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """Rotate the GitHub access token and verify its validity (UC263)."""
+    token = (new_token or "").strip()
+    if not token or len(token) < 10:
+        raise ValueError("Valid GitHub personal access token required for rotation")
+
+    os.environ["GH_TOKEN"] = token
+
+    # Check connection with newly rotated token
+    health = check_github_connection_health(project_id=project_id)
+    if not health.get("healthy"):
+        return {
+            "ok": False,
+            "message": f"Token rotated but health check failed: {health.get('message')}",
+            "health": health,
+        }
+
+    return {
+        "ok": True,
+        "message": "GitHub token successfully rotated and verified",
+        "user": (health.get("user") or {}).get("login"),
+        "health": health,
+        "rotated_at": int(time.time()),
+    }
+
+
+
+
+
+
+

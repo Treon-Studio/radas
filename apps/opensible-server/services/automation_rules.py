@@ -152,8 +152,17 @@ def run_rules_once() -> Dict[str, int]:
                 pass
         elif kind == "remediate" and r.get("stack"):
             try:
+                # Check remediation feature flags (UC134)
+                from services.feature_flags import evaluate
+                pid, stack = r.get("project_id"), r.get("stack")
+                if not evaluate("auto_remediate", env="prod", stack=stack, project_id=pid).get("enabled", True):
+                    continue
+                if not evaluate("remediation.enabled", env="prod", stack=stack, project_id=pid).get("enabled", True):
+                    continue
+                if stack and not evaluate(f"remediation.{stack}.enabled", env="prod", stack=stack, project_id=pid).get("enabled", True):
+                    continue
+
                 from services.cloud_provisioning import _latest_drift_run
-                pid = r.get("project_id")
                 dr = _latest_drift_run(pid, r["stack"]) or {}
                 if int(dr.get("returnCode") or 0) == 2 and _queue(pid, r["stack"], "apply", "remediate"):
                     queued["remediate"] += 1

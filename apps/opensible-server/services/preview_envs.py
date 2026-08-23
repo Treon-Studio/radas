@@ -35,8 +35,31 @@ def _save(items: List[Dict[str, Any]]) -> None:
     kv.kv_save("preview_envs", items)
 
 
+def inject_preview_standard_tags(
+    tfvars: Optional[Dict[str, Any]],
+    pr_number: int,
+    project_id: Optional[str] = None,
+    base_stack: str = "",
+) -> Dict[str, Any]:
+    """Inject standard cloud resource tags for preview environments (UC500)."""
+    res = dict(tfvars or {})
+    current_tags = dict(res.get("tags") or {})
+    standard_tags = {
+        "Environment": "preview",
+        "ManagedBy": "radas",
+        "PRNumber": str(int(pr_number)),
+        "AutoExpire": "true",
+        "BaseStack": base_stack or "default",
+        "Project": project_id or "default",
+    }
+    current_tags.update(standard_tags)
+    res["tags"] = current_tags
+    res["preview"] = True
+    return res
+
 
 def list_previews(project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+
     _cleanup_finished(project_id)
     items = _load()
     out = []
@@ -94,10 +117,11 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
     dst = _stack_dir(project_id, name)
     existing = next((r for r in _load()
                      if r.get("name") == name and r.get("project_id") == project_id), None)
-
     if existing and existing.get("status") == "active":
         if not refresh:
             raise ValueError(f"Preview {name} already exists. Use refresh=true or tear down first.")
+
+
     # Clear any leftover clone (fresh or refresh) before copying.
     if dst.exists():
         shutil.rmtree(dst, ignore_errors=True)
@@ -106,10 +130,27 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
         shutil.rmtree(sdd, ignore_errors=True)
 
     if not src.exists():
-        raise ValueError(f"Base stack '{base_stack}' not found")
+        raise FileNotFoundError(f"Base stack '{base_stack}' workspace directory not found")
+
+    from services.feature_flag_registry import can_create_preview_env
+    if not can_create_preview_env(project_id=project_id, preview_name=name, env="preview"):
+        raise ValueError(f"Preview environment creation is blocked by feature flag for '{name}'")
 
     # Clone workspace dir (envs/<name>) into envs/pr-<n>.
     shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
+    # UC500: Inject standard tags into values.auto.tfvars.json
+    tfvars_path = dst / "values.auto.tfvars.json"
+    existing_vars = {}
+    if tfvars_path.exists():
+        try:
+            existing_vars = json.loads(tfvars_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing_vars = {}
+    tagged_vars = inject_preview_standard_tags(existing_vars, int(pr_number), project_id=project_id, base_stack=base_stack)
+    tfvars_path.write_text(json.dumps(tagged_vars, indent=2), encoding="utf-8")
+
     # Clone control-plane data dir (meta/secrets/snapshots) too.
     sdd = _stack_data_dir(project_id, base_stack)
     if sdd.exists():
@@ -122,16 +163,27 @@ def create(project_id: Optional[str], base_stack: str, pr_number: int,
         backend_path.write_text(_render_backend_hcl(name), encoding="utf-8")
     _save_meta(project_id, name, preview=True, base_stack=base_stack,
                pr_number=int(pr_number), repo=repo or "", env="preview",
-               preview_status="active")
+               preview_status="active", tags=tagged_vars.get("tags"))
     eid = _create_execution(project_id, name, "apply", triggered_by=f"preview:pr-{int(pr_number)}")
 
     _save([r for r in _load() if r.get("name") != name] + [{
         "project_id": project_id, "name": name, "base_stack": base_stack,
         "pr_number": int(pr_number), "repo": repo or "", "status": "active",
         "execution_id": eid, "created_at": int(time.time()),
+        "tags": tagged_vars.get("tags"),
     }])
+
+
+    # UC192: Auto-trigger test execution for the preview stack context
+    try:
+        from services.test_cases import run_all_tests
+        run_all_tests(project_id=project_id, stack=name)
+    except Exception:
+        pass
+
     return {"name": name, "base_stack": base_stack, "pr_number": int(pr_number),
             "repo": repo or "", "status": "active", "execution_id": eid}
+
 
 
 def teardown(project_id: Optional[str], name: str, force: bool = False) -> Dict[str, Any]:

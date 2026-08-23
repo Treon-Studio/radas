@@ -14,12 +14,103 @@ _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 _EVALUATION_CACHE: Dict[Tuple[str, str, str, Optional[str], Optional[str]], Tuple[float, Dict[str, Any]]] = {}
 
 
+def _dispatch_flag_notification(
+    event_type: str,
+    key: Any,
+    operation: str,
+    actor: str = "",
+    actor_name: str = "",
+    scope_type: str = "global",
+    scope_id: Optional[str] = None,
+    changes: Optional[Dict[str, Any]] = None,
+    flag: Optional[Dict[str, Any]] = None,
+    **extra: Any,
+) -> None:
+    """Safely attempt to record notification to notification system for team awareness."""
+    try:
+        from services import notification_service
+        # Non-blocking notification dispatch
+        payload = {
+            "event": event_type,
+            "key": key,
+            "operation": operation,
+            "actor": actor or "system",
+            "actor_name": actor_name or "",
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "changes": changes,
+            "flag": flag,
+            "timestamp": int(time.time()),
+            **extra,
+        }
+        if hasattr(notification_service, "dispatch_event"):
+            notification_service.dispatch_event(event_type, payload)
+    except Exception:
+        # Non-blocking: never raise exceptions or fail flag operations
+        pass
+
+
+def _dispatch_flag_webhook(
+    event_type: str,
+    key: Any,
+    operation: str,
+    scope_type: str = "global",
+    scope_id: Optional[str] = None,
+    actor: str = "",
+    actor_name: str = "",
+    changes: Optional[Dict[str, Any]] = None,
+    flag: Optional[Dict[str, Any]] = None,
+    **extra: Any,
+) -> None:
+    """Safely dispatch outbound webhooks and team notifications on feature flag mutations."""
+    # First trigger team notification
+    _dispatch_flag_notification(
+        event_type=event_type,
+        key=key,
+        operation=operation,
+        actor=actor,
+        actor_name=actor_name,
+        scope_type=scope_type,
+        scope_id=scope_id,
+        changes=changes,
+        flag=flag,
+        **extra,
+    )
+    try:
+        from services import webhook_dispatcher
+        payload = {
+            "event": event_type,
+            "key": key,
+            "operation": operation,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "actor": actor or "system",
+            "actor_name": actor_name or "",
+            "timestamp": int(time.time()),
+            "changes": changes,
+            "flag": flag,
+            **extra,
+        }
+        # Dispatch specific event (e.g. flag.created, flag.updated, flag.deleted, flag.rollback, flag.copied, flag.imported)
+        webhook_dispatcher.dispatch_event(event_type, payload)
+        # Dispatch generic event (flag.changed)
+        if event_type != "flag.changed":
+            changed_payload = dict(payload)
+            changed_payload["event"] = "flag.changed"
+            webhook_dispatcher.dispatch_event("flag.changed", changed_payload)
+    except Exception:
+        # Non-blocking: never raise exceptions or fail flag operations
+        pass
+
+
+
 def _history_key(scope_type: str, scope_id: Optional[str]) -> str:
     return f"flag_audit:{scope_type}:{scope_id or 'default'}"
 
 
 def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> None:
     from storage import kv
+    entry.setdefault("id", str(uuid.uuid4()))
     rows = kv.kv_get(_history_key(scope_type, scope_id), "entries") or []
     rows = (rows if isinstance(rows, list) else [])[-999:] + [entry]
     kv.kv_set(_history_key(scope_type, scope_id), "entries", rows)
@@ -28,6 +119,7 @@ def _append_history(entry: Dict[str, Any], scope_type: str, scope_id: Optional[s
 def _append_history_tx(conn: Any, entry: Dict[str, Any], scope_type: str, scope_id: Optional[str]) -> None:
     """Append audit history on the caller's transaction connection."""
     from storage import kv
+    entry.setdefault("id", str(uuid.uuid4()))
     scope = _history_key(scope_type, scope_id)
     row = conn.execute("SELECT value FROM kv_store WHERE scope = %s AND key = %s", (scope, "entries")).fetchone()
     current = row["value"] if isinstance(row, dict) else (row[0] if row else None)
@@ -325,7 +417,9 @@ def create_flag(data: Dict[str, Any], scope_type: str = "global", scope_id: Opti
     _save(flags, scope_type, scope_id)
     _EVALUATION_CACHE.clear()
     _append_history({"operation": "create", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": flag["created_at"], "after": flag, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
-    return _decorate(flag, scope_type, scope_id)
+    decorated = _decorate(flag, scope_type, scope_id)
+    _dispatch_flag_webhook("flag.created", key, "create", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flag=decorated)
+    return decorated
 
 
 def _registry_index(flags: List[Dict[str, Any]], key: str) -> Optional[int]:
@@ -418,7 +512,17 @@ def update_flag(key: str, patch: Dict[str, Any], scope_type: str = "global", sco
     _save(flags, scope_type, scope_id)
     _EVALUATION_CACHE.clear()
     _append_history({"operation": operation, "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": before, "after": candidate, "changes": _diff(before, candidate), "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
-    return _decorate(candidate, scope_type, scope_id)
+    decorated = _decorate(candidate, scope_type, scope_id)
+    changes = _diff(before, candidate)
+    op_events = {
+        "rollback": "flag.rollback",
+        "archive": "flag.archived",
+        "restore": "flag.restored",
+    }
+    event_type = op_events.get(operation, "flag.updated")
+    _dispatch_flag_webhook(event_type, key, operation, scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, changes=changes, flag=decorated)
+    return decorated
+
 
 
 def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = None, actor: str = "",
@@ -448,7 +552,9 @@ def delete_flag(key: str, scope_type: str = "global", scope_id: Optional[str] = 
         flags.pop(index)
     _save(flags, scope_type, scope_id)
     _append_history({"operation": "delete", "key": key, "actor": actor or "system", "actor_name": actor_name or "", "at": int(time.time()), "before": removed, "scope_type": scope_type, "scope_id": scope_id}, scope_type, scope_id)
+    _dispatch_flag_webhook("flag.deleted", key, "delete", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flag=visible)
     return True
+
 
 
 def _validate_batch_dependency_graph(flags: List[Dict[str, Any]], scope_type: str, scope_id: Optional[str],
@@ -488,35 +594,171 @@ def _validate_batch_dependency_graph(flags: List[Dict[str, Any]], scope_type: st
         walk(key)
 
 
+def export_flags(scope_type: str = "global", scope_id: Optional[str] = None,
+                 org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Export decorated feature flags for a given scope."""
+    flags = list_flags(scope_type, scope_id, org_id=org_id)
+    return {
+        "flags": flags,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+        "exported_at": int(time.time()),
+        "version": "1.0",
+    }
+
+
+def export_flags_env(scope_type: str = "global", scope_id: Optional[str] = None,
+                     prefix: str = "FF_", env: str = "prod", user_id: str = "",
+                     org_id: Optional[str] = None) -> str:
+    """Export evaluated feature flags as .env key-value pairs."""
+    flags = list_flags(scope_type, scope_id, effective=True, org_id=org_id)
+    pref = prefix if prefix is not None else "FF_"
+    lines: List[str] = []
+    sorted_flags = sorted(flags, key=lambda f: str(f.get("key", "")).lower())
+    for flag in sorted_flags:
+        if not isinstance(flag, dict) or not flag.get("key"):
+            continue
+        key = str(flag["key"])
+        evaluation = evaluate(
+            key,
+            env=env or "prod",
+            user=user_id or "",
+            project_id=scope_id if scope_type == "project" else None,
+            org_id=org_id,
+        )
+        is_enabled = bool(evaluation.get("enabled", False))
+        val_str = "true" if is_enabled else "false"
+        formatted_key = f"{pref}{key.replace('.', '_').replace('-', '_').upper()}"
+        lines.append(f"{formatted_key}={val_str}")
+    return "\n".join(lines)
+
+
 def import_flags(data: Any, scope_type: str = "global", scope_id: Optional[str] = None,
-                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+                 actor: str = "", actor_name: str = "", org_id: Optional[str] = None,
+                 overwrite: bool = False) -> Dict[str, Any]:
     """Atomically persist a validated import batch; nothing is written on failure."""
-    if not isinstance(data, list):
+    if isinstance(data, dict) and "flags" in data:
+        items = data["flags"]
+    elif isinstance(data, list):
+        items = data
+    else:
+        raise ValueError("flags must be a list or object containing a flags array")
+
+    if not isinstance(items, list):
         raise ValueError("flags must be a list")
-    if not all(isinstance(item, dict) for item in data):
+    if not all(isinstance(item, dict) for item in items):
         raise ValueError("Every imported flag must be an object")
-    flags = [_new_flag(item, scope_type, scope_id, actor) for item in data]
+
+    raw_candidates = [_new_flag(item, scope_type, scope_id, actor) for item in items]
+    import_keys = [flag["key"] for flag in raw_candidates]
+    if len(import_keys) != len(set(import_keys)):
+        raise ValueError("Duplicate flag keys in import batch")
+
     current = _load_registry(scope_type, scope_id)
-    current_keys = {str(item.get("key")) for item in current if isinstance(item, dict)}
-    if any(flag["key"] in current_keys for flag in flags):
-        raise ValueError("An imported flag already exists")
-    _validate_batch_dependency_graph(flags, scope_type, scope_id, org_id)
-    if not flags:
-        return {"batch_id": str(uuid.uuid4()), "flags": []}
+    current_keys = {str(item.get("key")) for item in current if isinstance(item, dict) and not item.get("_deleted")}
     batch_id = str(uuid.uuid4())
+    now = int(time.time())
+
+    if not overwrite:
+        if any(flag["key"] in current_keys for flag in raw_candidates):
+            raise ValueError("An imported flag already exists")
+        _validate_batch_dependency_graph(raw_candidates, scope_type, scope_id, org_id)
+        if not raw_candidates:
+            return {"batch_id": batch_id, "flags": [], "imported_count": 0, "overwritten_count": 0}
+        from storage import pg
+        with pg.transaction() as conn:
+            _save_tx(conn, current + raw_candidates, scope_type, scope_id)
+            for flag in raw_candidates:
+                _append_history_tx(
+                    conn,
+                    {"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
+                     "actor_name": actor_name or "", "at": now, "after": flag,
+                     "scope_type": scope_type, "scope_id": scope_id},
+                    scope_type,
+                    scope_id,
+                )
+        _EVALUATION_CACHE.clear()
+        decorated_flags = [_decorate(flag, scope_type, scope_id) for flag in raw_candidates]
+        _dispatch_flag_webhook("flag.imported", import_keys, "import", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flags=decorated_flags, count=len(raw_candidates))
+        return {
+            "batch_id": batch_id,
+            "flags": decorated_flags,
+            "imported_count": len(raw_candidates),
+            "overwritten_count": 0,
+        }
+
+    # overwrite=True handling
+    new_flags = []
+    updated_entries = []
+    updated_current = copy.deepcopy(current)
+
+    for item, candidate in zip(items, raw_candidates):
+        key = candidate["key"]
+        idx = _registry_index(updated_current, key)
+        if idx is not None:
+            before = copy.deepcopy(updated_current[idx])
+            after = copy.deepcopy(candidate)
+            after["id"] = before.get("id", after["id"])
+            after["created_at"] = before.get("created_at", after["created_at"])
+            after["updated_at"] = now
+            updated_current[idx] = after
+            updated_entries.append((before, after))
+        else:
+            new_flags.append(candidate)
+            updated_current.append(candidate)
+
+    all_processed = [entry[1] for entry in updated_entries] + new_flags
+    _validate_batch_dependency_graph(all_processed, scope_type, scope_id, org_id)
+
     from storage import pg
     with pg.transaction() as conn:
-        _save_tx(conn, current + flags, scope_type, scope_id)
-        for flag in flags:
+        _save_tx(conn, updated_current, scope_type, scope_id)
+        for before, after in updated_entries:
             _append_history_tx(
                 conn,
-                {"operation": "import", "batch_id": batch_id, "key": flag["key"], "actor": actor or "system",
-                 "actor_name": actor_name or "", "at": int(time.time()), "after": flag,
-                 "scope_type": scope_type, "scope_id": scope_id},
+                {
+                    "operation": "import_overwrite",
+                    "batch_id": batch_id,
+                    "key": after["key"],
+                    "actor": actor or "system",
+                    "actor_name": actor_name or "",
+                    "at": now,
+                    "before": before,
+                    "after": after,
+                    "changes": _diff(before, after),
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                },
                 scope_type,
                 scope_id,
             )
-    return {"batch_id": batch_id, "flags": [_decorate(flag, scope_type, scope_id) for flag in flags]}
+        for flag in new_flags:
+            _append_history_tx(
+                conn,
+                {
+                    "operation": "import",
+                    "batch_id": batch_id,
+                    "key": flag["key"],
+                    "actor": actor or "system",
+                    "actor_name": actor_name or "",
+                    "at": now,
+                    "after": flag,
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                },
+                scope_type,
+                scope_id,
+            )
+
+    _EVALUATION_CACHE.clear()
+    decorated_all = [_decorate(f, scope_type, scope_id) for f in all_processed]
+    _dispatch_flag_webhook("flag.imported", import_keys, "import", scope_type=scope_type, scope_id=scope_id, actor=actor, actor_name=actor_name, flags=decorated_all, count=len(all_processed))
+    return {
+        "batch_id": batch_id,
+        "flags": decorated_all,
+        "imported_count": len(new_flags),
+        "overwritten_count": len(updated_entries),
+    }
 
 
 def _expire_at(flag: Dict[str, Any]) -> Optional[int]:
@@ -617,6 +859,149 @@ def restore_flag(key: str, scope_type: str = "global", scope_id: Optional[str] =
                  actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     return update_flag(key, {"enabled": False, "archived": False}, scope_type, scope_id,
                        actor=actor, actor_name=actor_name, operation="restore", org_id=org_id)
+
+
+def rollback_flag(key: str, snapshot_id: Optional[str] = None, steps: int = 1,
+                  scope_type: str = "global", scope_id: Optional[str] = None,
+                  actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Roll back a feature flag to a prior snapshot or N steps back in audit history."""
+    try:
+        key = _normalize_key(key)
+    except ValueError:
+        raise ValueError(f"Invalid flag key '{key}'")
+
+    current = get_flag(key, scope_type, scope_id)
+    if not current:
+        raise ValueError(f"Flag '{key}' not found")
+
+    rows = audit(scope_type, scope_id, key=key, limit=500)
+
+    if snapshot_id is not None:
+        matching = None
+        for row in rows:
+            if (row.get("id") == snapshot_id
+                    or row.get("snapshot_id") == snapshot_id
+                    or str(row.get("at")) == snapshot_id
+                    or row.get("batch_id") == snapshot_id
+                    or (isinstance(row.get("after"), dict) and row["after"].get("id") == snapshot_id)
+                    or (isinstance(row.get("before"), dict) and row["before"].get("id") == snapshot_id)):
+                matching = row
+                break
+        if not matching:
+            raise ValueError(f"Snapshot '{snapshot_id}' not found for flag '{key}'")
+        target_state = matching.get("after") if matching.get("operation") != "delete" else matching.get("before")
+        if not target_state:
+            target_state = matching.get("before")
+        if not target_state:
+            raise ValueError(f"Snapshot '{snapshot_id}' contains no valid state")
+    else:
+        try:
+            steps_int = int(steps)
+        except (TypeError, ValueError):
+            raise ValueError("steps must be an integer")
+        if steps_int < 1:
+            raise ValueError("steps must be at least 1")
+        prior_states = [row["before"] for row in rows if row.get("before")]
+        if not prior_states:
+            raise ValueError(f"No previous version found to rollback for flag '{key}'")
+        if steps_int > len(prior_states):
+            raise ValueError(f"Cannot rollback {steps_int} steps: only {len(prior_states)} prior versions available")
+        target_state = prior_states[steps_int - 1]
+
+    return update_flag(key, target_state, scope_type, scope_id, actor=actor, actor_name=actor_name, operation="rollback", org_id=org_id)
+
+
+def copy_flag(source_key: str, target_key: str, scope_type: str = "global", scope_id: Optional[str] = None,
+              target_scope_type: Optional[str] = None, target_scope_id: Optional[str] = None,
+              actor: str = "", actor_name: str = "", org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Copy / clone an existing feature flag as a template into the same or different scope."""
+    try:
+        source_key = _normalize_key(source_key, "Source flag key")
+    except ValueError as exc:
+        raise ValueError(str(exc))
+
+    try:
+        target_key = _normalize_key(target_key, "Target flag key")
+    except ValueError as exc:
+        raise ValueError(str(exc))
+
+    source = get_flag(source_key, scope_type, scope_id)
+    if not source:
+        raise ValueError(f"Source flag '{source_key}' not found")
+
+    t_scope_type = (target_scope_type or scope_type).lower()
+    if t_scope_type == "global":
+        t_scope_id = None
+    else:
+        t_scope_id = target_scope_id if target_scope_type is not None else scope_id
+        if not t_scope_id:
+            raise ValueError(f"Target scope '{t_scope_type}' requires a scope identifier")
+
+    if any(item.get("key") == target_key for item in _load_registry(t_scope_type, t_scope_id)):
+        raise ValueError(f"Flag '{target_key}' already exists in target scope")
+
+    target_data: Dict[str, Any] = {
+        "key": target_key,
+        "name": source.get("name") or target_key,
+        "description": source.get("description", ""),
+        "enabled": bool(source.get("enabled", True)),
+        "environments": copy.deepcopy(source.get("environments") or {}),
+        "rollout_percent": source.get("rollout_percent", 100),
+        "users_whitelist": list(source.get("users_whitelist") or []),
+        "users_blacklist": list(source.get("users_blacklist") or []),
+        "tags": list(source.get("tags") or []),
+        "kill_switch": bool(source.get("kill_switch")),
+        "type": source.get("type"),
+        "reason": source.get("reason", ""),
+        "parent_key": source.get("parent_key"),
+        "prerequisites": list(source.get("prerequisites") or []),
+    }
+    if source.get("variants") is not None:
+        target_data["variants"] = copy.deepcopy(source.get("variants"))
+    if source.get("evaluation_cache_ttl_seconds") is not None:
+        target_data["evaluation_cache_ttl_seconds"] = source.get("evaluation_cache_ttl_seconds")
+    if source.get("ttl_seconds") is not None:
+        target_data["ttl_seconds"] = source.get("ttl_seconds")
+    if source.get("scheduled_expire_at") is not None:
+        target_data["scheduled_expire_at"] = source.get("scheduled_expire_at")
+
+    flag = _new_flag(target_data, t_scope_type, t_scope_id, actor)
+
+    if source.get("rollout_schedule") is not None:
+        flag["rollout_schedule"] = copy.deepcopy(source.get("rollout_schedule"))
+    if source.get("working_hours") is not None:
+        flag["working_hours"] = copy.deepcopy(source.get("working_hours"))
+
+    if t_scope_type == "organization":
+        effective_org_id = t_scope_id
+    elif t_scope_type == "project":
+        effective_org_id = _scope_org_id(t_scope_type, t_scope_id) or org_id
+    else:
+        effective_org_id = None
+
+    _validate_dependency_graph(flag, t_scope_type, t_scope_id, effective_org_id)
+    flags = _load_registry(t_scope_type, t_scope_id)
+    flags.append(flag)
+    _save(flags, t_scope_type, t_scope_id)
+    _EVALUATION_CACHE.clear()
+    _append_history({
+        "operation": "copy",
+        "key": target_key,
+        "source_key": source_key,
+        "source_scope_type": scope_type,
+        "source_scope_id": scope_id,
+        "actor": actor or "system",
+        "actor_name": actor_name or "",
+        "at": flag["created_at"],
+        "after": flag,
+        "scope_type": t_scope_type,
+        "scope_id": t_scope_id,
+    }, t_scope_type, t_scope_id)
+    decorated = _decorate(flag, t_scope_type, t_scope_id)
+    _dispatch_flag_webhook("flag.copied", target_key, "copy", scope_type=t_scope_type, scope_id=t_scope_id, actor=actor, actor_name=actor_name, flag=decorated, source_key=source_key, source_scope_type=scope_type, source_scope_id=scope_id)
+    return decorated
+
+
 
 
 def _is_registry_global_key(key: str) -> bool:
@@ -942,3 +1327,138 @@ def find_dependents(key: str, scope_type: str = "global", scope_id: Optional[str
                 dependents.append({"key": flag.get("key"), "scope_type": dependent_scope_type,
                                    "scope_id": dependent_scope_id, "relationship": "prerequisite"})
     return sorted(dependents, key=lambda item: (item["scope_type"], item["scope_id"] or "", item["key"] or "", item["relationship"]))
+
+
+def get_ui_flags(scope_type: str = "global", scope_id: Optional[str] = None,
+                 user_id: Optional[str] = None, env: str = "prod",
+                 org_id: Optional[str] = None) -> Dict[str, bool]:
+    """Retrieve evaluated boolean flags relevant for UI/Console modules."""
+    flags = list_flags(scope_type, scope_id, effective=True, org_id=org_id)
+    ui_flags: Dict[str, bool] = {}
+    for flag in flags:
+        if not isinstance(flag, dict) or not flag.get("key"):
+            continue
+        key = str(flag["key"])
+        tags = [str(t).lower() for t in (flag.get("tags") or [])]
+        if key.startswith("ui.") or key.startswith("console.") or "ui" in tags:
+            evaluation = evaluate(
+                key,
+                env=env,
+                user=user_id or "",
+                project_id=scope_id if scope_type == "project" else None,
+                org_id=org_id,
+            )
+            ui_flags[key] = bool(evaluation.get("enabled", False))
+    return ui_flags
+
+
+def can_create_preview_env(project_id: Optional[str] = None, preview_name: str = "",
+                           env: str = "preview", user_id: str = "",
+                           org_id: Optional[str] = None) -> bool:
+    """Check if preview environment / stack creation is permitted by feature flags (UC157).
+
+    Evaluates:
+    - `block_preview`: if enabled -> False
+    - `preview.allow`: if configured and False -> False
+    - `preview.enabled`: if configured and False -> False
+    - `preview.<preview_name>.enabled`: if configured and False -> False
+
+    Defaults to True if no preview restriction flag is configured.
+    """
+    # 1. Check block_preview kill switch
+    res_block = evaluate("block_preview", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_block.get("enabled") is True:
+        return False
+
+    # 2. Check preview.enabled
+    res_enabled = evaluate("preview.enabled", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_enabled.get("source") != "legacy-global" or res_enabled.get("reason") != "unknown_flag":
+        if res_enabled.get("enabled") is False:
+            return False
+
+    # 3. Check preview.allow
+    res_allow = evaluate("preview.allow", env=env, user=user_id, project_id=project_id, org_id=org_id)
+    if res_allow.get("source") != "legacy-global" or res_allow.get("reason") != "unknown_flag":
+        if res_allow.get("enabled") is False:
+            return False
+
+    # 4. Check specific preview name flag if provided (e.g. preview.<preview_name>.enabled)
+    if preview_name:
+        clean_name = str(preview_name).strip().lower()
+        if clean_name:
+            res_spec = evaluate(f"preview.{clean_name}.enabled", env=env, user=user_id, project_id=project_id, org_id=org_id)
+            if res_spec.get("source") != "legacy-global" or res_spec.get("reason") != "unknown_flag":
+                if res_spec.get("enabled") is False:
+                    return False
+
+    return True
+
+
+def diff_flags_between_scopes(
+    source_scope_type: str = "project",
+    source_scope_id: Optional[str] = None,
+    target_scope_type: str = "project",
+    target_scope_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compare effective feature flag configurations across two scopes (UC159).
+
+    Identifies:
+    - missing_in_target: present in source scope, absent in target scope
+    - missing_in_source: present in target scope, absent in source scope
+    - differing: present in both but values/attributes differ
+    - identical: present in both with identical attributes
+    """
+    # Load effective flags for both scopes
+    source_flags_list = list_flags(source_scope_type, source_scope_id, effective=True, org_id=org_id)
+    target_flags_list = list_flags(target_scope_type, target_scope_id, effective=True, org_id=org_id)
+
+    src_map = {str(f["key"]): f for f in source_flags_list if isinstance(f, dict) and f.get("key")}
+    tgt_map = {str(f["key"]): f for f in target_flags_list if isinstance(f, dict) and f.get("key")}
+
+    all_keys = sorted(set(src_map) | set(tgt_map))
+    missing_in_target: List[str] = []
+    missing_in_source: List[str] = []
+    differing: List[Dict[str, Any]] = []
+    identical: List[str] = []
+
+    # Ignored metadata fields when comparing equivalence across scopes
+    ignore_fields = {"id", "scope_type", "scope_id", "created_at", "updated_at", "owner_id"}
+
+    for key in all_keys:
+        if key in src_map and key not in tgt_map:
+            missing_in_target.append(key)
+        elif key in tgt_map and key not in src_map:
+            missing_in_source.append(key)
+        else:
+            sf = src_map[key]
+            tf = tgt_map[key]
+            
+            # Clean copy without scope/instance-specific metadata
+            s_clean = {k: v for k, v in sf.items() if k not in ignore_fields}
+            t_clean = {k: v for k, v in tf.items() if k not in ignore_fields}
+
+            diffs = _diff(s_clean, t_clean)
+            if diffs:
+                differing.append({
+                    "key": key,
+                    "source_value": sf,
+                    "target_value": tf,
+                    "differences": diffs,
+                })
+            else:
+                identical.append(key)
+
+    return {
+        "source_scope": {"type": source_scope_type, "id": source_scope_id},
+        "target_scope": {"type": target_scope_type, "id": target_scope_id},
+        "missing_in_target": missing_in_target,
+        "missing_in_source": missing_in_source,
+        "differing": differing,
+        "identical": identical,
+        "total_source": len(src_map),
+        "total_target": len(tgt_map),
+    }
+
+
+

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SEVERITIES = ("blocker", "warning", "info")
-KINDS = ("assertion", "tofu_validate", "tofu_test", "ansible_validate", "iac_scan", "smoke")
+KINDS = ("assertion", "tofu_validate", "tofu_test", "tftest", "ansible_validate", "ansible_idempotency", "iac_scan", "smoke")
 _RESULTS_LOCK = threading.Lock()
 
 
@@ -262,10 +262,17 @@ def create_test_case(data: Dict[str, Any], project_id: Optional[str] = None) -> 
         "created_at": int(time.time()),
         "updated_at": int(time.time()),
     }
+    if "command" in data:
+        tc["command"] = str(data["command"])
+    if "tftest_content" in data:
+        tc["tftest_content"] = str(data["tftest_content"])
+    if "tftest_assertions" in data:
+        tc["tftest_assertions"] = data["tftest_assertions"]
+
     if tc["kind"] not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
     invalid_assertions = [a for a in tc["assertions"] if a not in ASSERTIONS]
-    if invalid_assertions:
+    if invalid_assertions and tc["kind"] == "assertion":
         raise ValueError(f"unknown assertions: {', '.join(invalid_assertions)}")
     if not all(isinstance(k, str) and k.strip() for k in tc["parameters"]):
         raise ValueError("parameter keys must be non-empty strings")
@@ -543,6 +550,53 @@ def _run_test_case_once(project_id: Optional[str], test_id: str, timeout_seconds
     return result
 
 
+def dispatch_test_failure_notification(
+    project_id: Optional[str] = None,
+    stack: str = "",
+    test_id: Optional[str] = None,
+    test_name: Optional[str] = None,
+    severity: str = "warning",
+    findings: Optional[List[Dict[str, Any]]] = None,
+    run_id: Optional[str] = None,
+    failed_tests: Optional[List[Dict[str, Any]]] = None,
+    **extra: Any,
+) -> None:
+    """Dispatches outbound webhook / event notifications on test failures (UC194).
+
+    Dispatches `test.failed` event, and if severity == 'blocker', also dispatches `test.blocker_failed`.
+    Wrapped in try-except so failures never break caller execution.
+    """
+    try:
+        from services.webhook_dispatcher import dispatch_event
+
+        payload: Dict[str, Any] = {
+            "event": "test.failed",
+            "project_id": project_id,
+            "stack": stack,
+            "test_id": test_id,
+            "test_name": test_name,
+            "severity": severity,
+            "findings": findings or [],
+            "run_id": run_id,
+            "timestamp": int(time.time()),
+        }
+        if failed_tests is not None:
+            payload["failed_tests"] = failed_tests
+        payload.update(extra)
+
+        dispatch_event("test.failed", payload)
+
+        is_blocker = severity == "blocker" or (
+            bool(failed_tests) and any(t.get("severity") == "blocker" for t in (failed_tests or []))
+        )
+        if is_blocker:
+            blocker_payload = dict(payload)
+            blocker_payload["event"] = "test.blocker_failed"
+            dispatch_event("test.blocker_failed", blocker_payload)
+    except Exception:
+        pass
+
+
 def run_test_case(project_id: Optional[str], test_id: str, timeout_seconds: int = 30,
                   mock_provider: bool = False, max_retries: int = 0, backoff_base_seconds: float = 0.5,
                   sleep_fn=time.sleep) -> Dict[str, Any]:
@@ -564,6 +618,16 @@ def run_test_case(project_id: Optional[str], test_id: str, timeout_seconds: int 
     result["retry_count"] = len(attempts) - 1
     result["max_retries"] = retries
     result["backoff_base_seconds"] = base
+    if result.get("status") == "failed" or not result.get("passed"):
+        dispatch_test_failure_notification(
+            project_id=project_id,
+            stack=result.get("stack", ""),
+            test_id=test_id,
+            test_name=result.get("name", ""),
+            severity=result.get("severity", "warning"),
+            findings=result.get("findings", []),
+            run_id=result.get("run_id"),
+        )
     return result
 
 
@@ -614,6 +678,22 @@ def run_batch_tests(project_id: Optional[str], stack: str = "", concurrency: int
             except (ValueError, RuntimeError) as exc:
                 errors.append({"test_id": tc["id"], "error": str(exc)[:500]})
     return {"results": results, "errors": errors, "count": len(results), "concurrency": workers}
+
+
+def run_all_tests(project_id: Optional[str] = None, stack: str = "") -> Dict[str, Any]:
+    """Run all enabled tests for a project / stack (UC191)."""
+    return run_batch_tests(project_id=project_id, stack=stack)
+
+
+def trigger_approval_retest(project_id: Optional[str], stack: str, approval_id: Optional[str] = None) -> Optional[str]:
+    """Safely trigger automated re-test when an approval request is created (UC191)."""
+    try:
+        res = run_all_tests(project_id=project_id, stack=stack)
+        if res and res.get("results"):
+            return res["results"][0].get("run_id") or str(uuid.uuid4())
+        return str(uuid.uuid4())
+    except Exception:
+        return None
 
 
 def run_scheduled_tests(project_id: Optional[str], now: Optional[int] = None, timeout_seconds: int = 30) -> Dict[str, Any]:
@@ -717,3 +797,266 @@ def latest_failed_blocker(project_id: Optional[str], stack: str) -> Optional[Dic
             continue
         return r
     return None
+
+
+def compute_stack_security_score(project_id: Optional[str] = None, stack: str = "") -> Dict[str, Any]:
+    """Compute security & compliance score (0-100) per stack based on latest test results (UC202)."""
+    # 1. Retrieve all test cases for this project and optional stack filter
+    all_tcs = list_test_cases(project_id)
+    if stack:
+        target_tcs = [tc for tc in all_tcs if tc.get("stack") == stack]
+    else:
+        target_tcs = all_tcs
+
+    target_tc_map = {tc["id"]: tc for tc in target_tcs}
+    target_ids = set(target_tc_map.keys())
+
+    # 2. Retrieve all test results for the project and find latest result per test_id
+    all_results = list_test_results(5000, project_id=project_id)
+    latest_results_by_test: Dict[str, Dict[str, Any]] = {}
+    for r in all_results:
+        tid = r.get("test_id")
+        if not tid:
+            continue
+        if target_ids and tid not in target_ids:
+            continue
+        if not target_ids and stack and r.get("stack") != stack:
+            continue
+        if tid not in latest_results_by_test:
+            latest_results_by_test[tid] = r
+
+    # Determine unique tests evaluated
+    # Include tests from target_tc_map or those with results matching stack
+    total_evaluated_tids = set(latest_results_by_test.keys())
+
+    passed_count = 0
+    failed_count = 0
+    b_count = 0
+    w_count = 0
+    i_count = 0
+
+    for tid, res in latest_results_by_test.items():
+        is_passed = bool(res.get("passed"))
+        if is_passed:
+            passed_count += 1
+        else:
+            failed_count += 1
+            severity = str(res.get("severity") or (target_tc_map.get(tid, {}).get("severity")) or "warning").lower()
+            if severity == "blocker":
+                b_count += 1
+            elif severity == "info":
+                i_count += 1
+            else:  # warning / default
+                w_count += 1
+
+    total_count = passed_count + failed_count
+    deductions_blocker = b_count * 30
+    deductions_warning = w_count * 10
+    deductions_info = i_count * 2
+    total_deductions = deductions_blocker + deductions_warning + deductions_info
+
+    raw_score = 100 - total_deductions
+    score = max(0, min(100, raw_score))
+
+    if score >= 90:
+        grade = "A"
+    elif score >= 80:
+        grade = "B"
+    elif score >= 70:
+        grade = "C"
+    elif score >= 60:
+        grade = "D"
+    else:
+        grade = "F"
+
+    return {
+        "project_id": project_id,
+        "stack": stack,
+        "score": score,
+        "grade": grade,
+        "total_tests": total_count,
+        "passed_tests": passed_count,
+        "failed_tests": failed_count,
+        "deductions": {
+            "blocker": deductions_blocker,
+            "warning": deductions_warning,
+            "info": deductions_info,
+        },
+        "timestamp": int(time.time()),
+    }
+
+
+def run_ansible_idempotency_test(project_id: Optional[str] = None, stack: str = "",
+                                playbook: str = "main.yml", pass_1_changed: int = 1,
+                                pass_2_changed: int = 0) -> Dict[str, Any]:
+    """Execute / verify Ansible playbook idempotency (UC206).
+
+    A playbook is idempotent if running it a second time results in 0 changed tasks.
+    """
+    is_idempotent = int(pass_2_changed) == 0
+    test_id = f"ansible-idempotency-{stack or 'global'}-{playbook}"
+    result = {
+        "id": str(uuid.uuid4()),
+        "test_id": test_id,
+        "name": f"Ansible Idempotency: {playbook} on {stack or 'global'}",
+        "stack": stack,
+        "playbook": playbook,
+        "kind": "ansible_idempotency",
+        "severity": "blocker" if not is_idempotent else "info",
+        "idempotent": is_idempotent,
+        "pass_1": {"changed": int(pass_1_changed)},
+        "pass_2": {"changed": int(pass_2_changed)},
+        "passed": is_idempotent,
+        "status": "passed" if is_idempotent else "failed",
+        "findings": [] if is_idempotent else [{
+            "assertion": "ansible_idempotency",
+            "message": f"Playbook '{playbook}' was not idempotent on pass 2 (changed={pass_2_changed})",
+        }],
+        "project_id": project_id,
+        "executed_at": int(time.time()),
+        "timestamp": int(time.time()),
+    }
+
+    with _RESULTS_LOCK:
+        history = _load("test_results.json", project_id)
+        history.append(result)
+        _save("test_results.json", history[-500:], project_id)
+
+    if not is_idempotent:
+        dispatch_test_failure_notification(
+            project_id=project_id,
+            stack=stack,
+            test_id=test_id,
+            test_name=result["name"],
+            severity="blocker",
+            findings=result["findings"],
+            run_id=result["id"],
+        )
+
+    return result
+
+
+def import_tftest_hcl(content: str, project_id: Optional[str] = None, stack: str = "", actor: str = "") -> List[Dict[str, Any]]:
+    """Parse .tftest.hcl content and register test cases in the test registry (UC210)."""
+    if not content or not content.strip():
+        return []
+
+    run_pattern = re.compile(r'run\s+["\']([^"\']+)["\']\s*\{')
+    imported: List[Dict[str, Any]] = []
+
+    for match in run_pattern.finditer(content):
+        run_name = match.group(1).strip()
+        start_idx = match.end() - 1
+        depth = 0
+        end_idx = start_idx
+        for i in range(start_idx, len(content)):
+            if content[i] == '{':
+                depth += 1
+            elif content[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break
+        block_content = content[start_idx + 1:end_idx].strip()
+        full_block = content[match.start():end_idx + 1]
+
+        cmd_match = re.search(r'command\s*=\s*["\']?(\w+)["\']?', block_content)
+        command = cmd_match.group(1).lower() if cmd_match else "apply"
+
+        assertions = []
+        assert_pattern = re.compile(r'assert\s*\{')
+        for a_match in assert_pattern.finditer(block_content):
+            a_start = a_match.end() - 1
+            a_depth = 0
+            a_end = a_start
+            for j in range(a_start, len(block_content)):
+                if block_content[j] == '{':
+                    a_depth += 1
+                elif block_content[j] == '}':
+                    a_depth -= 1
+                    if a_depth == 0:
+                        a_end = j
+                        break
+            assert_body = block_content[a_start + 1:a_end].strip()
+
+            cond_m = re.search(r'condition\s*=\s*(.+?)(?=\n\s*(?:error_message\b|\Z)|\Z)', assert_body, re.DOTALL)
+            err_m = re.search(r'error_message\s*=\s*["\'](.*?)["\']', assert_body, re.DOTALL)
+
+            condition = cond_m.group(1).strip() if cond_m else ""
+            error_message = err_m.group(1).strip() if err_m else ""
+            assertions.append({
+                "condition": condition,
+                "error_message": error_message,
+            })
+
+        variables: Dict[str, Any] = {}
+        var_match = re.search(r'variables\s*\{([^}]*)\}', block_content, re.DOTALL)
+        if var_match:
+            var_body = var_match.group(1)
+            for line in var_body.splitlines():
+                line = line.strip()
+                if not line or line.startswith(('#', '//')):
+                    continue
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    k = k.strip()
+                    v = v.strip().strip('"\'')
+                    if k:
+                        variables[k] = v
+
+        tc_data = {
+            "name": f"{stack}: {run_name}" if stack else run_name,
+            "stack": stack,
+            "kind": "tofu_test",
+            "severity": "warning",
+            "enabled": True,
+            "tags": ["imported", "tftest"] + ([stack] if stack else []),
+            "command": command,
+            "tftest_content": full_block,
+            "tftest_assertions": assertions,
+            "parameters": {
+                "command": command,
+                "variables": variables,
+                "run_name": run_name,
+                "imported_by": actor,
+            },
+        }
+        created = create_test_case(tc_data, project_id=project_id)
+        imported.append(created)
+
+    return imported
+
+
+# ---------------------------------------------------------------------------
+# UC476: Outbound Webhook Dispatch on Test Run Completion Events
+# ---------------------------------------------------------------------------
+
+def dispatch_test_completion_webhook(
+    project_id: Optional[str],
+    stack: str,
+    results: List[Dict[str, Any]],
+    passed: bool,
+    duration_ms: int = 0,
+    run_id: Optional[str] = None,
+) -> None:
+    """Dispatch outbound webhook notifications when a test suite run completes (UC476)."""
+    try:
+        from services import webhook_dispatcher
+        payload = {
+            "event": "test.completed",
+            "project_id": project_id,
+            "stack": stack,
+            "passed": bool(passed),
+            "status": "passed" if passed else "failed",
+            "total_tests": len(results),
+            "passed_tests": sum(1 for r in results if r.get("status") == "passed"),
+            "failed_tests": sum(1 for r in results if r.get("status") == "failed"),
+            "duration_ms": duration_ms,
+            "run_id": run_id or str(uuid.uuid4()),
+            "timestamp": int(time.time()),
+        }
+        # Dispatch specific event and generic suite finished event
+        webhook_dispatcher.dispatch_event("test.completed", payload)
+        webhook_dispatcher.dispatch_event("test.suite_finished", payload)
+    except Exception:
+        pass

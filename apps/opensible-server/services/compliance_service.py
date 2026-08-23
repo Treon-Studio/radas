@@ -108,3 +108,62 @@ def report(project_id: str) -> Dict[str, Any]:
         "mfa_users": mfa_users(),
         "scorecard": scorecard(project_id),
     }
+
+
+def export_compliance_report(project_id: Optional[str] = None, format_type: str = "html") -> str:
+    """Generate a printable HTML or JSON compliance & security audit report (UC608)."""
+    pid = project_id or "default"
+    data = report(pid)
+    sc = data.get("scorecard") or {}
+
+    if format_type.lower() == "json":
+        return json.dumps(data, indent=2)
+
+    checks_html = ""
+    for c in sc.get("checks", []):
+        badge = '<span style="color:green;font-weight:bold;">PASS</span>' if c.get("ok") else '<span style="color:red;font-weight:bold;">FAIL</span>'
+        checks_html += f"""
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{c.get('label')}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{c.get('weight')}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{badge}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #666;">{c.get('detail', '')}</td>
+        </tr>
+        """
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Compliance & Security Audit Report - {pid}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #222; }}
+        h1 {{ border-bottom: 2px solid #0052cc; padding-bottom: 10px; color: #0052cc; }}
+        .score {{ font-size: 24px; font-weight: bold; margin: 20px 0; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 15px; }}
+        th {{ background: #f4f5f7; text-align: left; padding: 10px 8px; border-bottom: 2px solid #ddd; }}
+    </style>
+</head>
+<body>
+    <h1>Compliance & Security Audit Report</h1>
+    <p><strong>Project:</strong> {pid}</p>
+    <p><strong>Generated At:</strong> {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}</p>
+    
+    <h2>Scorecard Overview</h2>
+    <div class="score">Compliance Score: {sc.get('score', 0)} / {sc.get('max', 100)}</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Security Check</th>
+                <th>Weight</th>
+                <th>Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {checks_html}
+        </tbody>
+    </table>
+</body>
+</html>"""
+    return html

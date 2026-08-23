@@ -1,0 +1,165 @@
+import pytest
+
+
+def test_module_registry_publish(pg_db):
+    from services.module_publisher import publish_module_tarball
+    from storage import pg
+
+    # 1. Seed org
+    pg.execute(
+        "INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s)",
+        ("org-pub-01", "Acme Cloud", 1700000000.0),
+    )
+
+    manifest = {"inputs": {"vpc_cidr": {"type": "string"}}, "outputs": {"vpc_id": {"type": "string"}}}
+    fake_tarball = b"fake-tarball-archive-bytes-for-vpc-module"
+
+    res = publish_module_tarball(
+        org_id="org-pub-01",
+        slug="aws-vpc-hardened",
+        version="1.2.0",
+        manifest=manifest,
+        archive_bytes=fake_tarball,
+        publisher="admin-alice",
+    )
+    assert res["success"] is True
+    assert res["org_id"] == "org-pub-01"
+    assert res["slug"] == "aws-vpc-hardened"
+    assert res["version"] == "1.2.0"
+    assert len(res["sha256"]) == 64
+    assert res["size"] == len(fake_tarball)
+
+
+def test_multi_org_project_access_guard(pg_db):
+    from services.multi_org_guard import validate_org_project_access
+    from storage import pg
+
+    # 1. Seed orgs, user, membership, and project
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s)", ("org-alpha", "Alpha Corp", 1700000000.0))
+    pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s)", ("org-beta", "Beta LLC", 1700000000.0))
+    pg.execute("INSERT INTO users (id, username, password_hash) VALUES (%s, %s, %s)", ("user-dan", "dan", "hash"))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s)", ("org-alpha", "user-dan", "developer", 1700000000.0))
+    pg.execute("INSERT INTO projects (id, org_id, name) VALUES (%s, %s, %s)", ("p-alpha-core", "org-alpha", "Alpha Core"))
+    pg.execute("INSERT INTO projects (id, org_id, name) VALUES (%s, %s, %s)", ("p-beta-core", "org-beta", "Beta Core"))
+
+    # 2. Access to own org's project is allowed
+    assert validate_org_project_access("user-dan", "org-alpha", "p-alpha-core") is True
+
+    # 3. Access to other org's project is blocked
+    assert validate_org_project_access("user-dan", "org-beta", "p-beta-core") is False
+    assert validate_org_project_access("user-dan", "org-alpha", "p-beta-core") is False
+
+
+def test_stack_tfvars_storage(pg_db):
+    from services.stack_tfvars_manager import save_stack_tfvars, get_stack_tfvars
+
+    tfvars_content = 'environment = "production"\ninstance_count = 5\nenable_ssl = true\n'
+
+    # 1. Initially empty
+    assert get_stack_tfvars("p-stack-demo", "web-cluster") == ""
+
+    # 2. Save tfvars
+    save_res = save_stack_tfvars("p-stack-demo", "web-cluster", tfvars_content)
+    assert save_res["success"] is True
+
+    # 3. Retrieve
+    saved = get_stack_tfvars("p-stack-demo", "web-cluster")
+    assert "instance_count = 5" in saved
+    assert "environment = \"production\"" in saved
+
+
+def test_resource_import_command_generation():
+    from services.resource_importer import generate_import_command
+
+    res = generate_import_command(
+        resource_address="aws_s3_bucket.data_lake",
+        cloud_id="corp-lake-bucket-2026",
+        provider="aws",
+    )
+    assert res["command"] == "tofu import aws_s3_bucket.data_lake corp-lake-bucket-2026"
+    assert res["resource_type"] == "aws_s3_bucket"
+    assert res["resource_name"] == "data_lake"
+
+
+def test_resource_dag_synthesis():
+    from services.resource_dag_synthesizer import build_resource_dag
+
+    resources = [
+        {"id": "aws_vpc.main", "type": "aws_vpc", "depends_on": []},
+        {"id": "aws_subnet.public", "type": "aws_subnet", "depends_on": ["aws_vpc.main"]},
+        {"id": "aws_instance.web", "type": "aws_instance", "depends_on": ["aws_subnet.public"]},
+    ]
+
+    dag = build_resource_dag(resources)
+    assert dag["node_count"] == 3
+    assert dag["edge_count"] == 2
+    assert {"from": "aws_vpc.main", "to": "aws_subnet.public"} in dag["edges"]
+    assert {"from": "aws_subnet.public", "to": "aws_instance.web"} in dag["edges"]
+    assert dag["has_cycles"] is False
+
+
+def test_run_timeline_builder():
+    from services.run_timeline_builder import build_run_timeline
+
+    raw_steps = [
+        {"step": "init", "status": "completed", "start_time": 100.0, "end_time": 110.0},
+        {"step": "validate", "status": "completed", "start_time": 110.0, "end_time": 112.0},
+        {"step": "plan", "status": "completed", "start_time": 112.0, "end_time": 125.0},
+        {"step": "apply", "status": "in_progress", "start_time": 125.0, "end_time": None},
+    ]
+
+    timeline = build_run_timeline(raw_steps)
+    assert len(timeline) == 4
+    assert timeline[0]["step"] == "init"
+    assert timeline[0]["duration"] == 10.0
+    assert timeline[2]["step"] == "plan"
+    assert timeline[2]["duration"] == 13.0
+    assert timeline[3]["step"] == "apply"
+    assert timeline[3]["duration"] is None
+
+
+def test_worker_module_cache_registration(pg_db):
+    from services.worker_module_cache import register_worker_cached_module, get_worker_cached_module
+
+    # 1. Initially uncached
+    assert get_worker_cached_module("worker-gpu-01", "terraform-aws-modules/vpc/aws", "v3.14.0") is None
+
+    # 2. Register cache
+    reg_res = register_worker_cached_module(
+        worker_id="worker-gpu-01",
+        module_source="terraform-aws-modules/vpc/aws",
+        version="v3.14.0",
+        local_path="/var/cache/worker/modules/vpc-v3.14.0",
+    )
+    assert reg_res["success"] is True
+
+    # 3. Retrieve
+    cached = get_worker_cached_module("worker-gpu-01", "terraform-aws-modules/vpc/aws", "v3.14.0")
+    assert cached is not None
+    assert cached["local_path"] == "/var/cache/worker/modules/vpc-v3.14.0"
+
+
+def test_multi_stack_cost_trend_overlay():
+    from services.cost_trend_overlay import generate_multi_stack_cost_overlay
+
+    histories = {
+        "stack-prod-web": [
+            {"date": "2026-01-01", "cost": 100.0},
+            {"date": "2026-02-01", "cost": 120.0},
+            {"date": "2026-03-01", "cost": 130.0},
+        ],
+        "stack-prod-db": [
+            {"date": "2026-01-01", "cost": 250.0},
+            {"date": "2026-02-01", "cost": 260.0},
+            {"date": "2026-03-01", "cost": 280.0},
+        ],
+    }
+
+    overlay = generate_multi_stack_cost_overlay(histories)
+    assert len(overlay["stacks"]) == 2
+    assert overlay["timestamps"] == ["2026-01-01", "2026-02-01", "2026-03-01"]
+    assert overlay["series"]["stack-prod-web"] == [100.0, 120.0, 130.0]
+    assert overlay["series"]["stack-prod-db"] == [250.0, 260.0, 280.0]
+
+
+

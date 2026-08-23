@@ -315,3 +315,103 @@ def api_gh_variables(owner, repo):
         return jsonify({"variables": list_variables(owner, repo)})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/github/runs/<int:run_id>/auto-retry', methods=['POST'])
+@bp.route('/api/github/repos/<owner>/<repo>/runs/<int:run_id>/auto-retry', methods=['POST'])
+@require_auth
+def api_gh_auto_retry(run_id, owner=None, repo=None):
+    from services.github_actions import evaluate_run_auto_retry
+    data = request.get_json(silent=True) or {}
+    owner = owner or data.get("owner")
+    repo = repo or data.get("repo")
+    if not owner or not repo:
+        return jsonify({"error": "owner and repo required"}), 400
+
+    max_retries = int(data.get("max_retries", 2))
+    retry_conclusions = data.get("retry_conclusions")
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+
+    try:
+        result = evaluate_run_auto_retry(
+            owner=owner,
+            repo=repo,
+            run_id=run_id,
+            project_id=project_id,
+            max_retries=max_retries,
+            retry_conclusions=retry_conclusions,
+        )
+        return jsonify(result), 200
+    except (RuntimeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/github/webhooks/ingest', methods=['POST'])
+@bp.route('/api/github/webhook', methods=['POST'])
+def api_gh_webhook_ingest():
+    from services.github_actions import ingest_github_webhook
+    event = request.headers.get("X-GitHub-Event") or request.headers.get("X-Github-Event") or "webhook"
+    payload = request.get_json(silent=True) or {}
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    res = ingest_github_webhook(event=event, payload=payload, project_id=project_id)
+    return jsonify(res), 200
+
+
+@bp.route('/api/github/repos/<owner>/<repo>/metadata', methods=['GET'])
+@bp.route('/api/github/repos/<owner>/<repo>', methods=['GET'])
+@require_auth
+def api_gh_repo_metadata(owner, repo):
+    from services.github_actions import get_repo_metadata
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        meta = get_repo_metadata(owner, repo, project_id=project_id)
+        return jsonify(meta), 200
+    except (RuntimeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/github/workflows/scan-secrets', methods=['POST'])
+@require_auth
+def api_gh_scan_secrets():
+    from services.github_actions import scan_workflow_secrets_exposure
+    data = request.get_json(silent=True) or {}
+    content = data.get("content") or data.get("yaml_content") or ""
+    res = scan_workflow_secrets_exposure(content)
+    return jsonify(res), 200
+
+
+@bp.route('/api/github/workflows/validate-pinning', methods=['POST'])
+@require_auth
+def api_gh_validate_pinning():
+    from services.github_actions import validate_workflow_sha_pinning
+    data = request.get_json(silent=True) or {}
+    content = data.get("content") or data.get("yaml_content") or ""
+    res = validate_workflow_sha_pinning(content)
+    return jsonify(res), 200
+
+
+@bp.route('/api/github/connection/health', methods=['GET'])
+@require_auth
+def api_gh_connection_health():
+    from services.github_actions import check_github_connection_health
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    res = check_github_connection_health(project_id=project_id)
+    return jsonify(res), 200 if res.get("healthy") else 503
+
+
+@bp.route('/api/github/connection/rotate-token', methods=['POST'])
+@require_auth
+def api_gh_rotate_token():
+    from services.github_actions import rotate_github_token
+    data = request.get_json(silent=True) or {}
+    new_token = (data.get("token") or data.get("new_token") or "").strip()
+    if not new_token:
+        return jsonify({"error": "token or new_token required"}), 400
+
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+    try:
+        res = rotate_github_token(new_token=new_token, project_id=project_id)
+        return jsonify(res), 200 if res.get("ok") else 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400

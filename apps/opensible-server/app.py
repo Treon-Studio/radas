@@ -213,66 +213,99 @@ def _reset_current_log_file(path: Path):
         pass
 
 
-_reset_current_log_file(LOG_FILE)
-file_handler = RotatingFileHandler(
-    LOG_FILE,
-    encoding='utf-8',
-    maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # MB bytes
-    backupCount=5  # 5 
-)
-file_handler.setLevel(LOG_LEVEL)
-file_formatter = logging.Formatter(
-    UNIFIED_LOG_FORMAT,
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-file_handler.setFormatter(file_formatter)
+# Factor XI: Logs (Treat logs as event streams)
+# In production, we log exclusively to stdout/stderr.
+# For development/testing/local support, we keep the file-based rotating logger.
+from logging.handlers import RotatingFileHandler
+from utils.runtime_secrets import is_production_environment
 
-# handler
-console_handler = logging.StreamHandler()
-# INFO , LOG_LEVEL
-console_level = LOG_LEVEL if LOG_LEVEL >= logging.INFO else logging.INFO
-console_handler.setLevel(console_level)
-console_formatter = logging.Formatter(
-    UNIFIED_LOG_FORMAT,
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-console_handler.setFormatter(console_formatter)
+if is_production_environment():
+    # Only console handler in production
+    root_logger = logging.getLogger()
+    root_logger.setLevel(LOG_LEVEL)
+    root_logger.handlers.clear()
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(LOG_LEVEL)
+    console_formatter = logging.Formatter(
+        UNIFIED_LOG_FORMAT,
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(console_formatter)
+    root_logger.addHandler(console_handler)
+    
+    app.logger.handlers.clear()
+    app.logger.setLevel(LOG_LEVEL)
+    app.logger.propagate = True
+    
+    # Werkzeug
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    
+    # Mock frontend logger to root in prod
+    frontend_logger = logging.getLogger('frontend')
+    frontend_logger.setLevel(LOG_LEVEL)
+    frontend_logger.propagate = True
+else:
+    _reset_current_log_file(LOG_FILE)
+    file_handler = RotatingFileHandler(
+        LOG_FILE,
+        encoding='utf-8',
+        maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # MB bytes
+        backupCount=5  # 5 
+    )
+    file_handler.setLevel(LOG_LEVEL)
+    file_formatter = logging.Formatter(
+        UNIFIED_LOG_FORMAT,
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(file_formatter)
 
-# handlers logger
-# Flask's app.logger has its own default stderr handler. If we also attach our
-# file+console handlers and keep propagation enabled, every app.logger message is
-# printed multiple times in `docker logs`. Use the root logger as the single
-# console/file pipeline and let app.logger propagate to it.
-app.logger.handlers.clear()
-app.logger.setLevel(LOG_LEVEL)
-app.logger.propagate = True
+    # handler
+    console_handler = logging.StreamHandler()
+    # INFO , LOG_LEVEL
+    console_level = LOG_LEVEL if LOG_LEVEL >= logging.INFO else logging.INFO
+    console_handler.setLevel(console_level)
+    console_formatter = logging.Formatter(
+        UNIFIED_LOG_FORMAT,
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(console_formatter)
 
-# root logger (source_sync_service, git_source_manager, routes, app.logger)
-root_logger = logging.getLogger()
-root_logger.setLevel(LOG_LEVEL)
-root_logger.handlers.clear()
-root_logger.addHandler(file_handler)
-root_logger.addHandler(console_handler)
+    # handlers logger
+    # Flask's app.logger has its own default stderr handler. If we also attach our
+    # file+console handlers and keep propagation enabled, every app.logger message is
+    # printed multiple times in `docker logs`. Use the root logger as the single
+    # console/file pipeline and let app.logger propagate to it.
+    app.logger.handlers.clear()
+    app.logger.setLevel(LOG_LEVEL)
+    app.logger.propagate = True
 
-# Werkzeug ( handler)
-logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    # root logger (source_sync_service, git_source_manager, routes, app.logger)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(LOG_LEVEL)
+    root_logger.handlers.clear()
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
 
-# logger frontend 
-FRONTEND_LOG_FILE = LOG_DIR / 'frontend.log'
-_reset_current_log_file(FRONTEND_LOG_FILE)
-frontend_file_handler = RotatingFileHandler(
-    FRONTEND_LOG_FILE,
-    encoding='utf-8',
-    maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # MB bytes
-    backupCount=5  # 5 
-)
-frontend_file_handler.setLevel(LOG_LEVEL)
-frontend_file_handler.setFormatter(file_formatter)
+    # Werkzeug ( handler)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
-frontend_logger = logging.getLogger('frontend')
-frontend_logger.setLevel(LOG_LEVEL)
-frontend_logger.addHandler(frontend_file_handler)
-frontend_logger.propagate = False  # root logger
+    # logger frontend 
+    FRONTEND_LOG_FILE = LOG_DIR / 'frontend.log'
+    _reset_current_log_file(FRONTEND_LOG_FILE)
+    frontend_file_handler = RotatingFileHandler(
+        FRONTEND_LOG_FILE,
+        encoding='utf-8',
+        maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # MB bytes
+        backupCount=5  # 5 
+    )
+    frontend_file_handler.setLevel(LOG_LEVEL)
+    frontend_file_handler.setFormatter(file_formatter)
+
+    frontend_logger = logging.getLogger('frontend')
+    frontend_logger.setLevel(LOG_LEVEL)
+    frontend_logger.addHandler(frontend_file_handler)
+    frontend_logger.propagate = False  # root logger
 
 
 # Phase 1 refactor: these helpers moved to backend/utils/.

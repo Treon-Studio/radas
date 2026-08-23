@@ -16,30 +16,14 @@ from auth.validators import validate_password, validate_username
 
 bp = Blueprint("auth_api", __name__)
 
-# --- Login brute-force rate limiting (module-local state) -------------------
+from services.login_security import (
+    record_login_attempt,
+    is_login_rate_limited,
+    reset_login_rate_limit,
+)
+
+# Back-compat alias for tests that monkeypatch _login_attempts
 _login_attempts: dict = {}
-_login_attempts_lock = threading.Lock()
-_LOGIN_WINDOW_SECONDS = 60
-_LOGIN_MAX_FAILURES = 5
-
-
-def _login_rate_limit_allow(key: str) -> bool:
-    now = time.time()
-    cutoff = now - _LOGIN_WINDOW_SECONDS
-    with _login_attempts_lock:
-        arr = [t for t in _login_attempts.get(key, []) if t > cutoff]
-        _login_attempts[key] = arr
-        return len(arr) < _LOGIN_MAX_FAILURES
-
-
-def _login_rate_limit_record_failure(key: str) -> None:
-    with _login_attempts_lock:
-        _login_attempts.setdefault(key, []).append(time.time())
-
-
-def _login_rate_limit_reset(key: str) -> None:
-    with _login_attempts_lock:
-        _login_attempts.pop(key, None)
 
 
 def _services():
@@ -67,27 +51,35 @@ def api_auth_login():
 
         client_ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
                      or request.remote_addr or "unknown")
-        rl_key = f"{client_ip}|{username.lower()}"
-        if not _login_rate_limit_allow(rl_key):
-            current_app.logger.warning(f"Login rate limit hit for {rl_key}")
-            return jsonify({"success": False, "error": "Too many login attempts. Please wait a minute and try again."}), 429
+        is_blocked, retry_after = is_login_rate_limited(username, client_ip)
+        if is_blocked:
+            from services.login_security import get_rate_limit_headers
+            current_app.logger.warning(f"Login rate limit hit for {client_ip}|{username}")
+            resp = jsonify({
+                "success": False,
+                "error": f"Too many login attempts. Please wait {retry_after}s and try again.",
+                "retry_after": retry_after,
+            })
+            for k, v in get_rate_limit_headers(username, client_ip).items():
+                resp.headers[k] = v
+            return resp, 429
 
         is_valid, error_msg = validate_username(username)
         if not is_valid:
-            _login_rate_limit_record_failure(rl_key)
+            record_login_attempt(username, client_ip, success=False)
             return jsonify({"success": False, "error": error_msg}), 400
 
         if not password or not isinstance(password, str):
-            _login_rate_limit_record_failure(rl_key)
+            record_login_attempt(username, client_ip, success=False)
             return jsonify({"success": False, "error": "Password is required"}), 400
 
         user = user_service.authenticate(username, password)
         if not user:
-            _login_rate_limit_record_failure(rl_key)
+            record_login_attempt(username, client_ip, success=False)
             current_app.logger.warning(f"Failed login attempt for username: {username} from {client_ip}")
             return jsonify({"success": False, "error": "Incorrect username or password"}), 401
 
-        _login_rate_limit_reset(rl_key)
+        record_login_attempt(username, client_ip, success=True)
 
         role_names = []
         for role_id in user.roles:
@@ -163,14 +155,14 @@ def api_auth_forgot_password():
 
         client_ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
                      or request.remote_addr or "unknown")
-        rl_key = f"forgot|{client_ip}|{username.lower()}"
-        if not _login_rate_limit_allow(rl_key):
-            current_app.logger.warning(f"Forgot-password rate limit hit for {rl_key}")
-            return jsonify({"success": False, "error": "Too many requests. Please wait a minute and try again."}), 429
+        is_blocked, retry_after = is_login_rate_limited(f"forgot:{username}", client_ip)
+        if is_blocked:
+            current_app.logger.warning(f"Forgot-password rate limit hit for {client_ip}|forgot:{username}")
+            return jsonify({"success": False, "error": f"Too many requests. Please wait {retry_after}s and try again."}), 429
 
         is_valid, error_msg = validate_username(username)
         if not is_valid:
-            _login_rate_limit_record_failure(rl_key)
+            record_login_attempt(f"forgot:{username}", client_ip, success=False)
             return jsonify({"success": False, "error": error_msg}), 400
 
         # Always behave the same whether or not the user exists (no oracle).
@@ -271,6 +263,24 @@ def api_auth_logout():
     except Exception as e:
         current_app.logger.error(f"Error in logout: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Logout error"}), 500
+
+
+@bp.route("/api/auth/revoke-all-sessions", methods=["POST"])
+@require_auth
+def api_auth_revoke_all_sessions():
+    """Revoke all current sessions and active tokens for the authenticated user (UC635)."""
+    from auth.service import revoke_all_user_sessions
+    _, _, _, DATA_DIR = _services()
+    try:
+        user_id = request.current_user.get("user_id")
+        if not user_id:
+            return jsonify({"success": False, "error": "User not authenticated"}), 401
+        cutoff = revoke_all_user_sessions(user_id, DATA_DIR)
+        current_app.logger.info(f"User {user_id} revoked all sessions at {cutoff}")
+        return jsonify({"success": True, "message": "All sessions and tokens revoked", "revoked_at": cutoff})
+    except Exception as e:
+        current_app.logger.error(f"Error revoking sessions: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Revoke sessions error"}), 500
 
 
 @bp.route("/api/auth/refresh", methods=["POST"])

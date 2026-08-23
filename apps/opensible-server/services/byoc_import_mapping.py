@@ -130,3 +130,103 @@ def prepare_import_mapping(
         "mappings": mappings,
         "import_block": import_block,
     }
+
+
+def adopt_resources_import_only(
+    account_id: str,
+    *,
+    project_id: str,
+    stack: str,
+    resource_ids: list[str],
+    address_overrides: Mapping[str, str] | None = None,
+    actor_id: str | None = None,
+) -> dict[str, Any]:
+    """Adopt discovered BYOC resources in import-only mode without executing apply (UC307)."""
+    mapping_res = prepare_import_mapping(
+        account_id,
+        project_id=project_id,
+        stack=stack,
+        resource_ids=resource_ids,
+        address_overrides=address_overrides,
+        actor_id=actor_id,
+    )
+
+    # Mark resources as managed in the BYOC account without full terraform apply
+    byoc.set_resource_management(account_id, resource_ids, managed=True)
+
+    return {
+        "ok": True,
+        "mode": "import_only",
+        "adopted_count": len(mapping_res.get("mappings") or []),
+        "account_id": account_id,
+        "project_id": project_id,
+        "stack": stack,
+        "mappings": mapping_res.get("mappings"),
+        "import_block": mapping_res.get("import_block"),
+        "message": f"Successfully adopted {len(mapping_res.get('mappings') or [])} resources into stack '{stack}' in import-only mode",
+    }
+
+
+def check_resource_clash(
+    account_id: str,
+    resource_type: str,
+    resource_id: str,
+    target_stack: str,
+    project_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Check if a BYOC resource is already adopted or managed in another stack (UC308)."""
+    r_id = str(resource_id or "").strip()
+    r_type = str(resource_type or "").strip()
+    t_stack = str(target_stack or "").strip()
+    if not r_id:
+        raise ValueError("resource_id required")
+
+    clashes = []
+
+    # 1. Check in stack_meta for any stack that has this resource in its byoc_import_mapping
+    rows = pg.query_all("SELECT project_id, stack, data FROM stack_meta")
+    for row in rows:
+        stk = row.get("stack")
+        pid = row.get("project_id")
+        if stk == t_stack and (not project_id or pid == project_id):
+            continue
+        data = row.get("data") or {}
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception:
+                data = {}
+        mapping = data.get("byoc_import_mapping") or {}
+        for m in mapping.get("mappings") or []:
+            if str(m.get("resource_id")) == r_id:
+                clashes.append({
+                    "stack": stk,
+                    "project_id": pid,
+                    "address": m.get("address"),
+                    "mapped_at": m.get("mapped_at"),
+                    "source": "import_mapping",
+                })
+
+    # 2. Check account managed_resources tracking
+    acct = byoc.get_account(account_id) or {}
+    for m in (acct.get("managed_resources") or []):
+        if str(m.get("resource_id") or m.get("id")) == r_id and m.get("stack") and m.get("stack") != t_stack:
+            clashes.append({
+                "stack": m.get("stack"),
+                "project_id": acct.get("project_id"),
+                "address": m.get("address"),
+                "source": "account_managed",
+            })
+
+    has_clash = len(clashes) > 0
+    return {
+        "clash": has_clash,
+        "resource_id": r_id,
+        "resource_type": r_type,
+        "target_stack": t_stack,
+        "clashing_stacks": clashes,
+        "message": f"Resource '{r_id}' is already managed in {len(clashes)} other stack(s)" if has_clash else f"Resource '{r_id}' is free to be adopted into '{t_stack}'",
+    }
+
+
+

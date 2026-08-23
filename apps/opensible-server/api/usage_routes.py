@@ -48,3 +48,18 @@ def check_service_quota(project_id, service_id):
         result = quota_service.check_service_quota(project_id, body.get("resources") or {})
         return success_response(result) if result.get("allowed") else error_response(result["code"], result["reason"], 409, details=result)
     except Exception as exc: return _err(exc)
+
+
+
+@bp.get("/api/projects/<project_id>/usage/export/csv")
+@bp.get("/api/usage/export/csv")
+@require_project_access
+def project_usage_export_csv(project_id: str = "default"):
+    from flask import Response
+    csv_text = usage_service.export_cost_usage_csv(project_id=project_id)
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=usage-{project_id}.csv"},
+    )
+

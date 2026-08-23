@@ -5,7 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, request
 
 from auth.middleware import require_auth
-from services import global_search
+from services import global_search, unified_search
 from utils.request_ctx import get_project_id_from_request as _get_pid_raw
 
 bp = Blueprint("search_api", __name__)
@@ -14,7 +14,7 @@ bp = Blueprint("search_api", __name__)
 @bp.route("/api/search", methods=["GET"])
 @require_auth
 def api_search():
-    """Global search across stacks, runs, and secrets.
+    """Global search across stacks, runs, playbooks, and secrets.
 
     Query params:
         q: Search string (required, min 2 chars)
@@ -32,5 +32,5 @@ def api_search():
         limit = 20
     limit = max(1, min(limit, 100))
 
-    results = global_search.search(q, project_id=project_id, limit=limit)
+    results = unified_search.search_all(q, project_id=project_id, limit=limit)
     return results

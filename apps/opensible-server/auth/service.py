@@ -120,11 +120,90 @@ def is_token_blacklisted(data_dir: Path, token: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# User session revocations (UC635)
+# ---------------------------------------------------------------------------
+_revocation_lock = threading.Lock()
+
+
+def get_user_session_revocations_path(data_dir: Path) -> Path:
+    auth_dir = data_dir / 'auth'
+    auth_dir.mkdir(exist_ok=True)
+    return auth_dir / 'session_revocations.json'
+
+
+def load_user_session_revocations(data_dir: Path) -> dict:
+    path = get_user_session_revocations_path(data_dir)
+    if not path.exists():
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.error(f"Error loading session revocations: {e}")
+        return {}
+
+
+def save_user_session_revocations(data_dir: Path, revocations: dict) -> None:
+    path = get_user_session_revocations_path(data_dir)
+    try:
+        tmp = path.with_suffix(path.suffix + '.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(revocations, f, indent=2)
+        os.replace(tmp, path)
+    except Exception as e:
+        logger.error(f"Error saving session revocations: {e}")
+
+
+def revoke_all_user_sessions(user_id: str, data_dir: Path) -> int:
+    """Revoke all current sessions and tokens for a user by setting a cutoff timestamp."""
+    import time
+    now = int(time.time())
+    with _revocation_lock:
+        revocations = load_user_session_revocations(data_dir)
+        revocations[user_id] = now
+        save_user_session_revocations(data_dir, revocations)
+
+    try:
+        from storage import pg
+        pg.execute(
+            "UPDATE sessions SET revoked_at = %s WHERE user_id = %s AND revoked_at IS NULL",
+            (datetime.utcnow().isoformat(), user_id),
+        )
+    except Exception:
+        pass
+
+    logger.info(f"Revoked all sessions for user {user_id} (cutoff={now})")
+    return now
+
+
+def are_user_sessions_revoked(user_id: str, iat: Any, data_dir: Path) -> bool:
+    """Check if a token's iat timestamp is earlier than or equal to the user's session revocation cutoff."""
+    if not user_id:
+        return False
+    revocations = load_user_session_revocations(data_dir)
+    cutoff = revocations.get(user_id)
+    if cutoff is None:
+        return False
+
+    iat_ts = iat
+    if isinstance(iat, datetime):
+        iat_ts = iat.timestamp()
+    elif isinstance(iat, (int, float, str)):
+        try:
+            iat_ts = float(iat)
+        except ValueError:
+            return False
+
+    return int(iat_ts) <= int(cutoff)
+
+
+# ---------------------------------------------------------------------------
 # Token generation / verification
 # ---------------------------------------------------------------------------
 def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
                    token_type: str = 'access', expires_delta: Optional[timedelta] = None,
-                   org_id: Optional[str] = None) -> str:
+                   org_id: Optional[str] = None, extra_claims: Optional[Dict[str, Any]] = None) -> str:
     if expires_delta is None:
         if token_type == 'refresh':
             expires_delta = timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
@@ -142,6 +221,8 @@ def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
     }
     if org_id:
         payload['org_id'] = org_id
+    if extra_claims and isinstance(extra_claims, dict):
+        payload.update(extra_claims)
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
@@ -154,6 +235,11 @@ def verify_token(token: str, data_dir: Path, token_type: str = 'access') -> Opti
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         if payload.get('token_type') != token_type:
             logger.warning(f"Invalid token type. Expected {token_type}, got {payload.get('token_type')}")
+            return None
+        user_id = payload.get('user_id')
+        iat = payload.get('iat')
+        if user_id and iat is not None and are_user_sessions_revoked(user_id, iat, data_dir):
+            logger.warning(f"Token for user {user_id} revoked by session revocation cutoff")
             return None
         return payload
     except jwt.ExpiredSignatureError:

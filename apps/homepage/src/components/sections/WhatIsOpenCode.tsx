@@ -3,32 +3,32 @@ import { TextScramble } from '@/components/ui/TextScramble'
 export function WhatIsOpenCode() {
     const features = [
         {
-            title: 'LSP enabled',
-            description: 'Automatically loads the right LSPs for the LLM',
+            title: 'OpenTofu & Ansible Orchestration',
+            description: 'Execute declarative infrastructure plans, applies, and Ansible playbooks with live streamed logs',
         },
         {
-            title: 'Multi-session',
-            description: 'Start multiple agents in parallel on the same project',
+            title: 'BYOC Code Registry',
+            description: 'Shadcn-style adoption for reusable OpenTofu modules and Ansible roles directly into your stacks',
         },
         {
-            title: 'Share links',
-            description: 'Share a link to any session for reference or to debug',
+            title: 'Targeted Feature Flags',
+            description: 'Granular user whitelist, environment toggles, percentage rollouts, and instant emergency kill-switches',
         },
         {
-            title: 'Claude Pro',
-            description: 'Log in with Anthropic to use your Claude Pro or Max account',
+            title: 'FinOps & Cloud Cost Protection',
+            description: 'Real-time multi-cloud cost anomaly detection, monthly budget alerts, and speculative PR cost diffs',
         },
         {
-            title: 'ChatGPT Plus/Pro',
-            description: 'Log in with OpenAI to use your ChatGPT Plus or Pro account',
+            title: 'High-Availability Workers',
+            description: 'Distributed Go worker daemon pool with heartbeat tracking, graceful draining, and round-robin fair queue scheduling',
         },
         {
-            title: 'Any model',
-            description: '75+ LLM providers through Models.dev, including local models',
+            title: 'Atlantis GitOps PR Automation',
+            description: 'Automated GitHub/GitLab pull request plan diff comments, pre-apply validation hooks, and multi-check merge gates',
         },
         {
-            title: 'Any editor',
-            description: 'Available as a terminal interface, desktop app, and IDE extension',
+            title: 'Enterprise Multi-Org & SAML SSO',
+            description: 'Organization tenant boundaries, SAML 2.0 XML assertion login, audit logging, and automated compliance evidence exports',
         },
     ]
 
@@ -39,17 +39,17 @@ export function WhatIsOpenCode() {
                 <div className="px-4 sm:px-8">
                     {/* Section Label */}
                     <div className="text-base uppercase tracking-widest font-light mb-2 text-greptile-green">
-                        <TextScramble text="[ SHIP FASTER ]" className="font-mono" />
+                        <TextScramble text="[ PLATFORM OVERVIEW ]" className="font-mono" />
                     </div>
 
                     {/* Title */}
-                    <h2 className="text-primary mb-6">
-                        What is OpenCode?
+                    <h2 className="text-primary mb-6 text-2xl sm:text-4xl font-bold">
+                        What is RADAS?
                     </h2>
 
                     {/* Description */}
-                    <p className="text-tertiary text-base mb-8">
-                        OpenCode is an open source agent that helps you write code in your terminal, IDE, or desktop.
+                    <p className="text-tertiary text-base sm:text-lg mb-8 max-w-3xl">
+                        RADAS is an open, self-hosted infrastructure platform that brings the developer experience of modern software delivery to cloud engineering and systems automation.
                     </p>
 
                     {/* Features List */}
@@ -59,7 +59,7 @@ export function WhatIsOpenCode() {
                                 <span className="text-tertiary text-sm font-mono flex-shrink-0">[*]</span>
                                 <p className="text-tertiary text-sm sm:text-base">
                                     <span className="text-primary font-semibold">{feature.title}</span>
-                                    <span className="ml-2">{feature.description}</span>
+                                    <span className="ml-2">— {feature.description}</span>
                                 </p>
                             </div>
                         ))}
@@ -67,10 +67,10 @@ export function WhatIsOpenCode() {
 
                     {/* CTA Button */}
                     <a
-                        href="#docs"
-                        className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 text-sm font-medium hover:bg-opacity-90 transition-all"
+                        href="http://localhost:8080"
+                        className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 text-sm font-medium hover:bg-opacity-90 transition-all font-mono"
                     >
-                        Read docs
+                        Explore RADAS Console
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             width={14}

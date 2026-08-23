@@ -1,12 +1,9 @@
 import { useState } from 'react'
 
 const navLinks = [
-  { href: '/pricing', label: 'Github', icon: 'git' },
-  {
-    label: 'Docs',
-    icon: 'book',
-    href: 'https://radas.com/docs',
-  },
+  { href: 'https://github.com/raizora/radas', label: 'GitHub', icon: 'git' },
+  { href: 'http://localhost:8080', label: 'Console', icon: 'sparkle' },
+  { href: '/docs', label: 'Docs', icon: 'book' },
 ]
 
 const icons: Record<string, JSX.Element> = {
@@ -149,16 +146,14 @@ export function Navbar() {
                     ))}
                   </div>
 
-                  {/* CTA Button - Try Now */}
+                  {/* CTA Button - Launch Console */}
                   <div className="mt-4 flex flex-col items-start space-y-2 lg:mt-0 lg:flex-row lg:items-center lg:gap-2 lg:space-y-0 lg:ml-4">
-                    <button
-                      onClick={() => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' })
-                      }}
-                      className="px-6 py-2 bg-greptile-green text-white font-medium hover:bg-greptile-green/90 transition-all text-sm"
+                    <a
+                      href="http://localhost:8080"
+                      className="px-6 py-2 bg-greptile-green text-white font-medium hover:bg-greptile-green/90 transition-all text-sm font-mono inline-block text-center"
                     >
-                      Try Now
-                    </button>
+                      Launch Console
+                    </a>
                   </div>
                 </div>
               </div>

@@ -109,6 +109,10 @@ class CompatCursor:
     def __iter__(self) -> Iterator[CompatRow]:
         return iter(self._rows)
 
+    @property
+    def rowcount(self) -> int:
+        return self._cur.rowcount if hasattr(self._cur, "rowcount") and self._cur.rowcount is not None else -1
+
 
 class CompatConnection:
     """sqlite3-compatible facade over a pooled psycopg connection."""

@@ -68,3 +68,141 @@ def _summary(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
 
 def export(project_id: str, actor_id: str | None) -> list[dict[str, Any]]:
     return project(project_id, actor_id)["snapshots"]
+
+
+# ---------------------------------------------------------------------------
+# UC550: Cost Anomaly Alert Threshold Configuration
+# ---------------------------------------------------------------------------
+
+def set_cost_anomaly_config(
+    project_id: str,
+    max_percentage_spike: int = 50,
+    max_amount_delta: float = 100.0,
+    alert_emails: list[str] | None = None,
+) -> dict[str, Any]:
+    """Configure cost anomaly detection thresholds for a project (UC550)."""
+    pid = project_id or "default"
+    config = {
+        "project_id": pid,
+        "max_percentage_spike": max(1, int(max_percentage_spike)),
+        "max_amount_delta": max(0.0, float(max_amount_delta)),
+        "alert_emails": list(alert_emails or []),
+        "updated_at": int(time.time()),
+    }
+    try:
+        from storage import kv
+        kv.kv_save(f"cost_anomaly_config:{pid}", config)
+    except Exception:
+        pass
+    return config
+
+
+def get_cost_anomaly_config(project_id: str) -> dict[str, Any]:
+    """Retrieve cost anomaly configuration for a project (UC550)."""
+    pid = project_id or "default"
+    try:
+        from storage import kv
+        val = kv.kv_load(f"cost_anomaly_config:{pid}")
+        if isinstance(val, dict):
+            return val
+    except Exception:
+        pass
+    return {
+        "project_id": pid,
+        "max_percentage_spike": 50,
+        "max_amount_delta": 100.0,
+        "alert_emails": [],
+    }
+
+
+def detect_cost_anomaly(
+    project_id: str,
+    previous_cost: float,
+    current_cost: float,
+) -> dict[str, Any]:
+    """Detect whether a cost change constitutes an abnormal spike (UC550)."""
+    cfg = get_cost_anomaly_config(project_id)
+    prev = max(0.0, float(previous_cost))
+    curr = max(0.0, float(current_cost))
+
+    delta_amount = curr - prev
+    percentage_spike = 0.0
+    if prev > 0:
+        percentage_spike = (delta_amount / prev) * 100.0
+    elif curr > 0:
+        percentage_spike = 100.0
+
+    is_anomaly = False
+    reasons = []
+
+    if delta_amount > cfg["max_amount_delta"]:
+        is_anomaly = True
+        reasons.append(f"Absolute delta ${delta_amount:.2f} exceeds threshold ${cfg['max_amount_delta']:.2f}")
+
+    if prev > 0 and percentage_spike >= cfg["max_percentage_spike"]:
+        is_anomaly = True
+        reasons.append(f"Percentage spike {percentage_spike:.1f}% exceeds threshold {cfg['max_percentage_spike']}%")
+
+    return {
+        "project_id": project_id,
+        "previous_cost": prev,
+        "current_cost": curr,
+        "delta_amount": round(delta_amount, 2),
+        "percentage_spike": round(percentage_spike, 1),
+        "is_anomaly": is_anomaly,
+        "reasons": reasons,
+        "thresholds": cfg,
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# UC560: Monthly Cost Usage Export to CSV
+# ---------------------------------------------------------------------------
+
+def export_cost_usage_csv(
+    project_id: str | None = None,
+    month: str | None = None,
+) -> str:
+    """Export normalized usage and cost data to CSV format (UC560)."""
+    import csv
+    import io
+
+    query = "SELECT * FROM service_usage_snapshots"
+    params: list[Any] = []
+    if project_id and project_id != "all":
+        query += " WHERE project_id = %s"
+        params.append(project_id)
+    query += " ORDER BY observed_at DESC LIMIT 1000"
+
+    try:
+        from storage import pg
+        rows = pg.query_all(query, tuple(params))
+    except Exception:
+        rows = []
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "org_id", "project_id", "instance_id", "runtime_id",
+        "cpu_millicores", "memory_mb", "storage_gb", "running_seconds",
+        "observed_at"
+    ])
+
+    for r in rows:
+        writer.writerow([
+            r.get("id", ""),
+            r.get("org_id", ""),
+            r.get("project_id", ""),
+            r.get("instance_id", ""),
+            r.get("runtime_id", ""),
+            r.get("cpu_millicores", 0),
+            r.get("memory_mb", 0),
+            r.get("storage_gb", 0),
+            r.get("running_seconds", 0.0),
+            int(r.get("observed_at") or time.time()),
+        ])
+
+    return output.getvalue()
+
+

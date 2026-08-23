@@ -224,3 +224,67 @@ def api_test_results():
     page = all_results[offset:offset + limit]
     next_offset = offset + limit if offset + limit < len(all_results) else None
     return jsonify({"results": page, "limit": limit, "offset": offset, "next_offset": next_offset, "has_more": next_offset is not None})
+
+
+@bp.route('/api/test-cases/score', methods=['GET'])
+@bp.route('/api/tests/score', methods=['GET'])
+@require_project_access
+def api_test_security_score():
+    from services.test_cases import compute_stack_security_score
+    stack = (request.args.get("stack") or "").strip()
+    score_data = compute_stack_security_score(project_id=_pid(), stack=stack)
+    return jsonify(score_data)
+
+
+@bp.route('/api/test-cases/ansible-idempotency', methods=['POST'])
+@bp.route('/api/tests/ansible-idempotency', methods=['POST'])
+@require_project_access
+def api_ansible_idempotency():
+    from services.test_cases import run_ansible_idempotency_test
+    data = request.get_json(silent=True) or {}
+    stack = (data.get("stack") or "").strip()
+    playbook = (data.get("playbook") or "main.yml").strip()
+    pass_1_changed = int(data.get("pass_1_changed", 1))
+    pass_2_changed = int(data.get("pass_2_changed", 0))
+
+    result = run_ansible_idempotency_test(
+        project_id=_pid(),
+        stack=stack,
+        playbook=playbook,
+        pass_1_changed=pass_1_changed,
+        pass_2_changed=pass_2_changed,
+    )
+    return jsonify(result), 200
+
+
+@bp.route('/api/test-cases/import/tftest', methods=['POST'])
+@bp.route('/api/tests/import/tftest', methods=['POST'])
+@require_project_access
+def api_import_tftest():
+    from services.test_cases import import_tftest_hcl
+    content = ""
+    stack = ""
+
+    if request.content_type and "multipart/form-data" in request.content_type:
+        uploaded = request.files.get("file")
+        if uploaded:
+            content = uploaded.read().decode("utf-8", errors="replace")
+        stack = (request.form.get("stack") or "").strip()
+    else:
+        data = request.get_json(silent=True) or {}
+        content = str(data.get("content") or "")
+        stack = str(data.get("stack") or "").strip()
+
+    if not content.strip():
+        return jsonify({"error": "content or file required"}), 400
+
+    imported = import_tftest_hcl(
+        content=content,
+        project_id=_pid(),
+        stack=stack,
+        actor=getattr(request, "actor", "") or "",
+    )
+    return jsonify({"success": True, "imported_count": len(imported), "tests": imported}), 201
+
+
+

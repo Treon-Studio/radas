@@ -387,3 +387,200 @@ def require_project_access(f: Callable) -> Callable:
             return jsonify({'error': 'Membership check failed'}), 500
         return f(*args, **kwargs)
     return decorated_function
+
+
+
+def idempotent_mutation(scope_fn: Optional[Callable[..., str]] = None):
+    """Decorator to handle Idempotency-Key headers on mutation requests (UC405)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            idem_key = request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key")
+            if not idem_key:
+                return f(*args, **kwargs)
+
+            scope = scope_fn(*args, **kwargs) if scope_fn else (request.headers.get("X-Project-Id") or "global")
+            try:
+                from services.idempotency import check_idempotency_key, save_idempotency_result
+                cached = check_idempotency_key(idem_key, scope=scope)
+                if cached:
+                    resp_body = cached.get("response_body")
+                    status_code = cached.get("status_code", 200)
+                    resp = jsonify(resp_body) if isinstance(resp_body, dict) else resp_body
+                    if hasattr(resp, "headers"):
+                        resp.headers["X-Cache-Lookup"] = "HIT-IDEMPOTENT"
+                    return resp, status_code
+            except Exception:
+                pass
+
+            result = f(*args, **kwargs)
+
+            try:
+                from services.idempotency import save_idempotency_result
+                status = 200
+                body = result
+                if isinstance(result, tuple):
+                    body = result[0]
+                    status = result[1] if len(result) > 1 else 200
+                if hasattr(body, "get_json"):
+                    body = body.get_json()
+                save_idempotency_result(idem_key, scope=scope, status_code=status, response_body=body)
+            except Exception:
+                pass
+
+            return result
+        return decorated_function
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# UC456: Strict CORS Origin Whitelisting
+# ---------------------------------------------------------------------------
+
+_DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
+]
+
+
+def is_allowed_cors_origin(origin: Optional[str], custom_whitelist: Optional[List[str]] = None) -> bool:
+    """Validate if request Origin is within strict whitelist (UC456)."""
+    if not origin:
+        return False
+
+    clean_origin = str(origin).strip().rstrip("/")
+    whitelist = list(custom_whitelist or []) if custom_whitelist is not None else list(_DEFAULT_ALLOWED_ORIGINS)
+
+    # Check env var ALLOWED_ORIGINS as well
+    env_origins = os.environ.get("ALLOWED_ORIGINS", "")
+    if env_origins:
+        for o in env_origins.split(","):
+            if o.strip():
+                whitelist.append(o.strip().rstrip("/"))
+
+    return clean_origin in whitelist or "*" in whitelist
+
+
+# ---------------------------------------------------------------------------
+# UC457: JSON Schema Validation Utility for REST Mutations
+# ---------------------------------------------------------------------------
+
+def validate_schema(schema: Dict[str, Any]):
+    """Decorator to validate incoming JSON request payloads against a schema (UC457)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            data = request.get_json(silent=True)
+            if data is None and schema.get("required"):
+                return jsonify({"error": "Invalid JSON payload or Content-Type", "message": "Expected application/json body"}), 400
+
+            from utils.schema_validator import validate_payload_schema
+            ok, err_msg = validate_payload_schema(data or {}, schema)
+            if not ok:
+                return jsonify({"error": "Schema validation failed", "message": err_msg}), 400
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# UC463: Distributed Trace ID & Request ID Propagation
+# ---------------------------------------------------------------------------
+
+def with_trace_context(f: Callable) -> Callable:
+    """Decorator to bind and propagate X-Trace-Id on request and response headers (UC463)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        from utils.trace_ctx import init_trace_context
+        from flask import current_app, make_response
+        tid = init_trace_context()
+        result = f(*args, **kwargs)
+        resp = make_response(result)
+        resp.headers["X-Trace-Id"] = tid
+        resp.headers["X-Request-Id"] = tid
+        return resp
+    return decorated_function
+
+
+# ---------------------------------------------------------------------------
+# UC494: Granular RBAC Roles (flags_admin, tests_admin, byoc_admin)
+# ---------------------------------------------------------------------------
+
+_DOMAIN_ROLES_MAP = {
+    "flags": ["flags_admin", "feature_flags_admin", "admin", "owner"],
+    "tests": ["tests_admin", "test_cases_admin", "qa_admin", "admin", "owner"],
+    "byoc": ["byoc_admin", "cloud_admin", "infra_admin", "admin", "owner"],
+    "preview": ["preview_admin", "devops_admin", "admin", "owner"],
+}
+
+
+def has_domain_permission(user_roles: List[str], domain: str) -> bool:
+    """Check if the user has domain-specific administrative rights (UC494)."""
+    roles = [str(r).lower() for r in (user_roles or [])]
+    if "admin" in roles or "owner" in roles or "superadmin" in roles:
+        return True
+
+    allowed_roles = _DOMAIN_ROLES_MAP.get(str(domain).lower(), ["admin", "owner"])
+    return any(r in allowed_roles for r in roles)
+
+
+def require_domain_admin(domain: str):
+    """Decorator requiring domain-specific administrative rights or superadmin (UC494)."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            cu = getattr(request, "current_user", {}) or {}
+            user_roles = cu.get("roles") or cu.get("role") or []
+            if isinstance(user_roles, str):
+                user_roles = [user_roles]
+
+            if not has_domain_permission(user_roles, domain):
+                return jsonify({
+                    "error": "Forbidden",
+                    "message": f"Requires administrative privileges for domain: '{domain}'",
+                }), 403
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# UC495: Kill-Switch Action Gating (Restricted to Superadmin/Owner)
+# ---------------------------------------------------------------------------
+
+def can_execute_kill_switch(user_roles: List[str]) -> bool:
+    """Evaluate if the user has superadmin or owner authority to execute emergency kill switches (UC495)."""
+    roles = [str(r).lower() for r in (user_roles or [])]
+    return "superadmin" in roles or "owner" in roles or "admin" in roles
+
+
+def require_kill_switch_privilege(f: Callable) -> Callable:
+    """Decorator guarding emergency kill switch and force-stop mutations (UC495)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        cu = getattr(request, "current_user", {}) or {}
+        user_roles = cu.get("roles") or cu.get("role") or []
+        if isinstance(user_roles, str):
+            user_roles = [user_roles]
+
+        if not can_execute_kill_switch(user_roles):
+            return jsonify({
+                "error": "Forbidden",
+                "message": "Emergency kill-switch actions are strictly restricted to organization owners and administrators.",
+            }), 403
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+
+
+
+
+

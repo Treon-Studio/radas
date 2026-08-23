@@ -768,6 +768,25 @@ def stacks_create():
     if _stack_dir(pid, name).exists():
         return jsonify({"error": f"Stack '{name}' already exists."}), 409
 
+    # Preview environment feature flag gate (UC157)
+    _stack_env = (values.get("env") or "").strip().lower()
+    if _stack_env == "preview" or name.startswith("pr-") or name.startswith("preview-") or name.startswith("preview"):
+        try:
+            from services.feature_flag_registry import can_create_preview_env
+            _cu = getattr(request, "current_user", {}) or {}
+            _user = (_cu.get("username") or "")
+            _org_id = None
+            if pid:
+                try:
+                    from auth.middleware import _org_id_of_project
+                    _org_id = _org_id_of_project(pid)
+                except Exception:
+                    pass
+            if not can_create_preview_env(project_id=pid, preview_name=name, env=_stack_env or "preview", user_id=_user, org_id=_org_id):
+                return jsonify({"error": f"Preview environment creation is blocked by feature flag policy for '{name}'."}), 423
+        except Exception:
+            pass
+
     # ByteDC-specific network reuse validation.
     if provider == "bytedc":
         _apply_reuse_toggles(values)
@@ -1102,6 +1121,12 @@ def stacks_action(name):
                 _ff_result = _ff_evaluate(_fkey, env=_env or "prod", user=_user, project_id=pid, org_id=_org_id)
                 if _ff_result.get("enabled"):
                     return jsonify({"error": f"Operation blocked by feature flag '{_fkey}' ({_ff_result.get('reason')}).", "flag": _ff_result}), 423
+
+            # Preview environment gate (UC157)
+            if (_env == "preview" or name.startswith("pr-") or name.startswith("preview-") or name.startswith("preview")):
+                from services.feature_flag_registry import can_create_preview_env
+                if not can_create_preview_env(project_id=pid, preview_name=name, env=_env or "preview", user_id=_user, org_id=_org_id):
+                    return jsonify({"error": f"Preview environment action is blocked by feature flag policy for '{name}'."}), 423
         except Exception as exc:
             current_app.logger.exception("Feature flag evaluation failed for stack action")
             return jsonify({"error": "Unable to verify safety flags; operation refused.", "detail": str(exc)}), 503
@@ -1145,16 +1170,26 @@ def stacks_action(name):
                                      f"Run tests and fix findings before {action}."}), 409
 
     # Approval gate (Fase 2 — UC 50/68): mutating actions on stacks with
-    # approval_required must have an approved approval record.
+    # approval_required must have an approved approval record unless bypassed by feature flag (UC128).
     if _mutating:
         try:
-            from services.approval_service import has_approved, latest_pending
+            from services.approval_service import has_approved, latest_pending, should_skip_approval
             _req = False
+            _env = None
             try:
-                _req = _load_meta(pid, name).get("approval_required") is True
+                _meta = _load_meta(pid, name)
+                _req = _meta.get("approval_required") is True
+                _env = _meta.get("env")
             except Exception:
                 _req = False
-            if _req and not has_approved(name, pid, action):
+            _org_id = None
+            if pid:
+                try:
+                    from auth.middleware import _org_id_of_project
+                    _org_id = _org_id_of_project(pid)
+                except Exception:
+                    pass
+            if _req and not should_skip_approval(name, pid, action, env=_env or "prod", org_id=_org_id) and not has_approved(name, pid, action):
                 pend = latest_pending(name, pid, action)
                 return jsonify({
                     "error": "Approval required for this action. Request it from the stack's Approval panel.",
@@ -1676,6 +1711,1243 @@ def stacks_state(name):
         "lineage": state.get("lineage"),
         "tofu_version": state.get("terraform_version"),
     })
+
+
+# ---------------------------------------------------------------------------
+# UC323: Resource Delete Protection
+# ---------------------------------------------------------------------------
+
+def set_resource_protection(project_id: Optional[str], stack: str, protected_resources: List[str]) -> Dict[str, Any]:
+    """Configure delete protection on critical resources within a stack (UC323)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    clean_resources = sorted({str(r).strip() for r in (protected_resources or []) if str(r).strip()})
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["protected_resources"] = clean_resources
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "protected_count": len(clean_resources),
+        "protected_resources": clean_resources,
+    }
+
+
+def get_resource_protection(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve list of delete-protected resources for a stack (UC323)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = _load_meta(project_id, stack_name)
+    protected = list(meta.get("protected_resources") or [])
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "protected_count": len(protected),
+        "protected_resources": protected,
+    }
+
+
+@bp.route("/stacks/<name>/protection", methods=["GET"])
+@require_project_access
+def api_get_resource_protection(name: str):
+    pid = _get_project_id()
+    try:
+        res = get_resource_protection(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/protection", methods=["POST", "PUT"])
+@require_project_access
+def api_set_resource_protection(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    resources = data.get("protected_resources") or data.get("resources") or []
+    try:
+        res = set_resource_protection(pid, name, resources)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC333: Run Execution History Comments
+# ---------------------------------------------------------------------------
+
+def add_execution_comment(project_id: Optional[str], execution_id: str, comment: str, author: str = "system") -> Dict[str, Any]:
+    """Add a collaborative comment/note to an execution run (UC333)."""
+    eid = (execution_id or "").strip()
+    text = (comment or "").strip()
+    if not eid or not text:
+        raise ValueError("execution_id and comment text required")
+
+    from storage import pg
+    now = int(time.time())
+    comment_id = str(uuid.uuid4())
+    payload = {
+        "id": comment_id,
+        "execution_id": eid,
+        "project_id": project_id or "default",
+        "comment": text,
+        "author": author or "system",
+        "created_at": now,
+    }
+
+    pg.execute(
+        "INSERT INTO kv_store (scope, key, value) VALUES (%s, %s, %s) "
+        "ON CONFLICT (scope, key) DO UPDATE SET value = EXCLUDED.value",
+        (f"execution_comments:{eid}", comment_id, json.dumps(payload))
+    )
+
+    return payload
+
+
+def list_execution_comments(project_id: Optional[str], execution_id: str) -> List[Dict[str, Any]]:
+    """List all collaborative comments on an execution run (UC333)."""
+    eid = (execution_id or "").strip()
+    if not eid:
+        raise ValueError("execution_id required")
+
+    from storage import pg
+    rows = pg.query_all("SELECT value FROM kv_store WHERE scope = %s", (f"execution_comments:{eid}",))
+    comments = []
+    for r in rows:
+        val = r.get("value")
+        if isinstance(val, str):
+            try:
+                val = json.loads(val)
+            except Exception:
+                continue
+        if isinstance(val, dict):
+            comments.append(val)
+
+    comments.sort(key=lambda c: c.get("created_at", 0))
+    return comments
+
+
+@bp.route("/executions/<execution_id>/comments", methods=["GET"])
+@require_auth
+def api_list_execution_comments(execution_id: str):
+    pid = _get_project_id()
+    try:
+        res = list_execution_comments(pid, execution_id)
+        return jsonify({"execution_id": execution_id, "count": len(res), "comments": res}), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/executions/<execution_id>/comments", methods=["POST"])
+@require_auth
+def api_add_execution_comment(execution_id: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    text = data.get("comment") or data.get("text") or ""
+    author = (getattr(request, "current_user", {}) or {}).get("username") or data.get("author") or "user"
+    try:
+        res = add_execution_comment(pid, execution_id, comment=text, author=author)
+        return jsonify(res), 201
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC348: Stack Dependencies & Dependency Graph (DAG)
+# ---------------------------------------------------------------------------
+
+def _detect_cycle(graph: Dict[str, List[str]]) -> Optional[List[str]]:
+    """Detect cycle in stack dependency DAG using DFS."""
+    visited: Dict[str, int] = {}  # 0: unvisited, 1: visiting, 2: visited
+
+    def dfs(node: str, path: List[str]) -> Optional[List[str]]:
+        visited[node] = 1
+        for neighbor in graph.get(node, []):
+            if visited.get(neighbor) == 1:
+                return path + [neighbor]
+            if visited.get(neighbor, 0) == 0:
+                cycle = dfs(neighbor, path + [neighbor])
+                if cycle:
+                    return cycle
+        visited[node] = 2
+        return None
+
+    for n in list(graph.keys()):
+        if visited.get(n, 0) == 0:
+            cycle = dfs(n, [n])
+            if cycle:
+                return cycle
+    return None
+
+
+def set_stack_dependencies(project_id: Optional[str], stack: str, depends_on: List[str]) -> Dict[str, Any]:
+    """Configure upstream stack dependencies for a stack, enforcing cycle-free DAG (UC348)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    clean_deps = sorted({str(d).strip() for d in (depends_on or []) if str(d).strip() and str(d).strip() != stack_name})
+
+    # Build prospective dependency graph across all stacks in project
+    graph = get_stack_dependency_graph(project_id).get("graph", {})
+    graph[stack_name] = clean_deps
+
+    cycle = _detect_cycle(graph)
+    if cycle:
+        raise ValueError(f"Circular dependency detected: {' -> '.join(cycle)}")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["depends_on"] = clean_deps
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "depends_on": clean_deps,
+        "dependency_count": len(clean_deps),
+    }
+
+
+def get_stack_dependency_graph(project_id: Optional[str]) -> Dict[str, Any]:
+    """Generate the full dependency graph and execution levels across all project stacks (UC348)."""
+    stacks_list = _list_stacks(project_id)
+    graph: Dict[str, List[str]] = {}
+    nodes: List[Dict[str, Any]] = []
+
+    for s in stacks_list:
+        sname = s.get("name")
+        meta = _load_meta(project_id, sname)
+        deps = list(meta.get("depends_on") or [])
+        graph[sname] = deps
+        nodes.append({
+            "name": sname,
+            "provider": s.get("provider"),
+            "status": s.get("status"),
+            "depends_on": deps,
+        })
+
+    # Also collect stacks from stack_meta in postgres
+    try:
+
+        from storage import pg
+        rows = pg.query_all(
+            "SELECT stack, data FROM stack_meta WHERE project_id = %s",
+            (project_id or "default",)
+        )
+        for r in rows:
+            sname = r.get("stack")
+            if sname and sname not in graph:
+                data = r.get("data") or {}
+                if isinstance(data, str):
+                    try:
+                        data = json.loads(data)
+                    except Exception:
+                        data = {}
+                deps = list(data.get("depends_on") or [])
+                graph[sname] = deps
+                nodes.append({
+                    "name": sname,
+                    "provider": data.get("provider", "bytedc"),
+                    "status": "active",
+                    "depends_on": deps,
+                })
+    except Exception:
+        pass
+
+    # Topological order / tier levels
+    in_degree = {n: 0 for n in graph}
+    for n, deps in graph.items():
+        for d in deps:
+            if d in in_degree:
+                in_degree[n] += 1
+
+
+    return {
+        "project_id": project_id,
+        "total_stacks": len(nodes),
+        "nodes": nodes,
+        "graph": graph,
+    }
+
+
+@bp.route("/dependencies/graph", methods=["GET"])
+@require_project_access
+def api_get_dependency_graph():
+    pid = _get_project_id()
+    try:
+        res = get_stack_dependency_graph(pid)
+        return jsonify(res), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/stacks/<name>/dependencies", methods=["GET"])
+@require_project_access
+def api_get_stack_dependencies(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    deps = list(meta.get("depends_on") or [])
+    return jsonify({"stack": name, "project_id": pid, "depends_on": deps}), 200
+
+
+@bp.route("/stacks/<name>/dependencies", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_dependencies(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    deps = data.get("depends_on") or data.get("dependencies") or []
+    try:
+        res = set_stack_dependencies(pid, name, deps)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC357: Environment TTL (Auto-Destroy Scheduling & Expiration Check)
+# ---------------------------------------------------------------------------
+
+def set_stack_ttl(
+    project_id: Optional[str],
+    stack: str,
+    ttl_seconds: int,
+    auto_destroy: bool = True,
+) -> Dict[str, Any]:
+    """Set Time-to-Live on a stack/environment for scheduled auto-destroy (UC357)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    sec = int(ttl_seconds)
+    if sec <= 0:
+        raise ValueError("ttl_seconds must be positive integer")
+
+    now = int(time.time())
+    expires_at = now + sec
+
+    meta = dict(_load_meta(project_id, stack_name))
+    meta["ttl"] = {
+        "ttl_seconds": sec,
+        "set_at": now,
+        "expires_at": expires_at,
+        "auto_destroy": bool(auto_destroy),
+        "status": "active",
+    }
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "ttl_seconds": sec,
+        "set_at": now,
+        "expires_at": expires_at,
+        "auto_destroy": bool(auto_destroy),
+        "remaining_seconds": sec,
+    }
+
+
+def get_stack_ttl(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve TTL policy and expiration status of a stack (UC357)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = _load_meta(project_id, stack_name)
+    ttl_info = dict(meta.get("ttl") or {})
+    if not ttl_info:
+        return {"stack": stack_name, "project_id": project_id, "ttl_configured": False}
+
+    now = int(time.time())
+    exp = int(ttl_info.get("expires_at") or 0)
+    remaining = max(0, exp - now)
+    is_expired = remaining == 0 and exp > 0
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "ttl_configured": True,
+        "ttl_seconds": ttl_info.get("ttl_seconds"),
+        "set_at": ttl_info.get("set_at"),
+        "expires_at": exp,
+        "auto_destroy": bool(ttl_info.get("auto_destroy", True)),
+        "remaining_seconds": remaining,
+        "is_expired": is_expired,
+        "status": "expired" if is_expired else "active",
+    }
+
+
+def check_expired_ttl_stacks(project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Find all stacks whose TTL has expired and are marked for auto-destroy (UC357)."""
+    expired = []
+    stacks = _list_stacks(project_id)
+    now = int(time.time())
+
+    for s in stacks:
+        sname = s.get("name")
+        meta = _load_meta(project_id, sname)
+        ttl = meta.get("ttl")
+        if ttl and isinstance(ttl, dict):
+            exp = int(ttl.get("expires_at") or 0)
+            if exp > 0 and now >= exp and ttl.get("auto_destroy", True):
+                expired.append({
+                    "stack": sname,
+                    "project_id": project_id,
+                    "expires_at": exp,
+                    "expired_seconds_ago": now - exp,
+                    "action_required": "auto_destroy",
+                })
+    return expired
+
+
+@bp.route("/stacks/<name>/ttl", methods=["GET"])
+@require_project_access
+def api_get_stack_ttl(name: str):
+    pid = _get_project_id()
+    try:
+        res = get_stack_ttl(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/ttl", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_ttl(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    ttl_sec = data.get("ttl_seconds") or data.get("seconds") or data.get("ttl")
+    if ttl_sec is None:
+        return jsonify({"error": "ttl_seconds required"}), 400
+    auto_destroy = bool(data.get("auto_destroy", True))
+
+    try:
+        res = set_stack_ttl(pid, name, ttl_seconds=int(ttl_sec), auto_destroy=auto_destroy)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/ttl/expired", methods=["GET"])
+@require_project_access
+def api_list_expired_ttl():
+    pid = _get_project_id()
+    expired = check_expired_ttl_stacks(pid)
+    return jsonify({"expired_count": len(expired), "stacks": expired}), 200
+
+
+# ---------------------------------------------------------------------------
+# UC409: Circuit Breaker for Stack Apply (Auto-stop on Consecutive Failures)
+# ---------------------------------------------------------------------------
+
+def record_apply_result(
+    project_id: Optional[str],
+    stack: str,
+    success: bool,
+    failure_threshold: int = 3,
+) -> Dict[str, Any]:
+    """Record an apply outcome and trip the circuit breaker if failures hit threshold (UC409)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cb = dict(meta.get("circuit_breaker") or {})
+    consecutive_failures = int(cb.get("consecutive_failures", 0))
+
+    now = int(time.time())
+    if success:
+        consecutive_failures = 0
+        state = "closed"
+        tripped_at = None
+    else:
+        consecutive_failures += 1
+        if consecutive_failures >= max(1, failure_threshold):
+            state = "open"
+            tripped_at = now
+        else:
+            state = "closed"
+            tripped_at = cb.get("tripped_at")
+
+    cb_state = {
+        "state": state,
+        "consecutive_failures": consecutive_failures,
+        "failure_threshold": failure_threshold,
+        "last_updated": now,
+        "tripped_at": tripped_at,
+    }
+    meta["circuit_breaker"] = cb_state
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "circuit_breaker": cb_state,
+        "is_open": state == "open",
+    }
+
+
+def is_circuit_open(project_id: Optional[str], stack: str) -> bool:
+    """Check whether the circuit breaker is open (tripped) for a stack (UC409)."""
+    meta = _load_meta(project_id, stack)
+    cb = meta.get("circuit_breaker") or {}
+    return cb.get("state") == "open"
+
+
+def reset_circuit_breaker(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Manually reset an open circuit breaker to closed state (UC409)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cb = {
+        "state": "closed",
+        "consecutive_failures": 0,
+        "failure_threshold": 3,
+        "last_updated": int(time.time()),
+        "tripped_at": None,
+        "reset_at": int(time.time()),
+    }
+    meta["circuit_breaker"] = cb
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "circuit_breaker": cb,
+        "is_open": False,
+    }
+
+
+@bp.route("/stacks/<name>/circuit-breaker", methods=["GET"])
+@require_project_access
+def api_get_circuit_breaker(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    cb = meta.get("circuit_breaker") or {
+        "state": "closed",
+        "consecutive_failures": 0,
+        "failure_threshold": 3,
+    }
+    return jsonify({
+        "stack": name,
+        "project_id": pid,
+        "circuit_breaker": cb,
+        "is_open": cb.get("state") == "open",
+    }), 200
+
+
+@bp.route("/stacks/<name>/circuit-breaker/reset", methods=["POST"])
+@require_project_access
+def api_reset_circuit_breaker(name: str):
+    pid = _get_project_id()
+    try:
+        res = reset_circuit_breaker(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC420: Secret Scanning in Plan Output & Logs
+# ---------------------------------------------------------------------------
+
+_SECRET_PATTERNS = [
+    (r"(AKIA[0-9A-Z]{16})", "AWS Access Key", "[REDACTED_AWS_KEY]"),
+    (r"([a-zA-Z0-9+/]{40})", "AWS Secret / API Key Candidate", None),
+    (r"(ghp_[a-zA-Z0-9]{36,40}|github_pat_[a-zA-Z0-9_]{60,82})", "GitHub Token", "[REDACTED_GITHUB_TOKEN]"),
+    (r"(---\s*BEGIN[ A-Z0-9_-]+PRIVATE KEY\s*---[\s\S]*?---\s*END[ A-Z0-9_-]+PRIVATE KEY\s*---)", "Private Key", "[REDACTED_PRIVATE_KEY]"),
+    (r'(?i)(password|secret|token|api_key|client_secret)\s*[:=]\s*["\']([^"\']{6,})["\']', "Credential Value", "[REDACTED_SECRET]"),
+]
+
+
+def scan_and_mask_secrets(text: str) -> Dict[str, Any]:
+    """Scan and automatically mask exposed secrets in OpenTofu plan outputs or execution logs (UC420)."""
+    if not text:
+        return {"clean": True, "findings_count": 0, "findings": [], "masked_text": ""}
+
+    masked = str(text)
+    findings = []
+
+    # 1. AWS Access Key
+    for m in re.finditer(r"\b(AKIA[0-9A-Z]{16})\b", text):
+        val = m.group(1)
+        findings.append({"type": "AWS Access Key", "match_prefix": val[:6] + "..."})
+        masked = masked.replace(val, "[REDACTED_AWS_KEY]")
+
+    # 2. GitHub Token
+    for m in re.finditer(r"\b(ghp_[a-zA-Z0-9]{36,40}|github_pat_[a-zA-Z0-9_]{60,82})\b", text):
+        val = m.group(1)
+        findings.append({"type": "GitHub Token", "match_prefix": val[:8] + "..."})
+        masked = masked.replace(val, "[REDACTED_GITHUB_TOKEN]")
+
+    # 3. Private Key Block
+    for m in re.finditer(r"-----BEGIN [A-Z0-9_-]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9_-]+ PRIVATE KEY-----", text):
+        val = m.group(0)
+        findings.append({"type": "Private Key", "match_prefix": "-----BEGIN..."})
+        masked = masked.replace(val, "[REDACTED_PRIVATE_KEY]")
+
+    # 4. Explicit password/secret strings
+    def _mask_kw(match):
+        prefix = match.group(1)
+        quote = match.group(2) or ''
+        secret_val = match.group(3)
+        if len(secret_val) >= 4 and not secret_val.startswith("[REDACTED"):
+            findings.append({"type": f"Secret Value ({prefix.strip()})", "match_prefix": f"{prefix.strip()}=..."})
+            return f'{prefix}{quote}[REDACTED_SECRET]{quote}'
+        return match.group(0)
+
+    masked = re.sub(
+        r'(?i)\b([a-zA-Z0-9_-]*(?:password|secret|token|api_key|client_secret)[a-zA-Z0-9_-]*\s*[:=]\s*)(\\?["\'])([^"\'\\\n]{3,})(\\?["\'])',
+        _mask_kw,
+        masked
+    )
+
+    return {
+        "clean": len(findings) == 0,
+        "findings_count": len(findings),
+        "findings": findings,
+        "masked_text": masked,
+    }
+
+
+
+@bp.route("/scan-plan", methods=["POST"])
+@require_auth
+def api_scan_plan_secrets():
+    data = request.get_json(silent=True) or {}
+    text = data.get("text") or data.get("plan_output") or data.get("output") or ""
+    res = scan_and_mask_secrets(text)
+    return jsonify(res), 200
+
+
+# ---------------------------------------------------------------------------
+# UC630: Secret Leak Scanner in Stack Variables (.tfvars)
+# ---------------------------------------------------------------------------
+
+def scan_variables_for_secrets(variables: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Scan key-value variables / tfvars for plaintext secrets and credentials (UC630)."""
+    if not isinstance(variables, dict):
+        return []
+
+    findings = []
+    for k, v in variables.items():
+        val_str = str(v) if v is not None else ""
+        key_lower = str(k).lower()
+
+        # Check key name indicators
+        is_sensitive_key = any(s in key_lower for s in ["password", "secret", "api_key", "token", "private_key", "auth"])
+        if is_sensitive_key and len(val_str) > 0 and not val_str.startswith(("[REDACTED", "ENC(", "${")):
+            findings.append({
+                "key": str(k),
+                "type": "Sensitive Variable Key",
+                "severity": "high",
+                "message": f"Variable '{k}' appears to contain an unencrypted secret",
+            })
+            continue
+
+        # Check value pattern scan
+        scan_res = scan_and_mask_secrets(f"{k} = \"{val_str}\"")
+        if not scan_res["clean"]:
+            for f in scan_res["findings"]:
+                findings.append({
+                    "key": str(k),
+                    "type": f.get("type", "Secret Pattern Match"),
+                    "severity": "high",
+                    "message": f"Variable '{k}' matched pattern: {f.get('type')}",
+                })
+
+    return findings
+
+
+
+# ---------------------------------------------------------------------------
+# UC430: Import / Export Stack Config JSON (Scaffold & Migration)
+# ---------------------------------------------------------------------------
+
+def export_stack_config_bundle(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Export complete stack configuration bundle (meta, tfvars, dependencies, protection, ttl) to JSON (UC430)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    secrets_map = _load_secrets(project_id, stack_name)
+
+    # Read values.auto.tfvars.json if present
+    tfvars = {}
+    tfvars_file = _stack_dir(project_id, stack_name) / "values.auto.tfvars.json"
+    if tfvars_file.exists():
+        try:
+            tfvars = json.loads(tfvars_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "version": "1.0",
+        "stack": stack_name,
+        "project_id": project_id,
+        "exported_at": int(time.time()),
+        "meta": meta,
+        "tfvars": tfvars,
+        "secret_keys": list(secrets_map.keys()),
+        "dependencies": list(meta.get("depends_on") or []),
+        "protected_resources": list(meta.get("protected_resources") or []),
+        "ttl": meta.get("ttl"),
+    }
+
+
+def import_stack_config_bundle(
+    project_id: Optional[str],
+    stack: str,
+    bundle: Dict[str, Any],
+    overwrite: bool = True,
+) -> Dict[str, Any]:
+    """Import a stack configuration bundle into the project (UC430)."""
+    stack_name = (stack or bundle.get("stack") or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    if not isinstance(bundle, dict):
+        raise ValueError("Invalid bundle format: dict required")
+
+    imported_meta = dict(bundle.get("meta") or {})
+    if bundle.get("dependencies"):
+        imported_meta["depends_on"] = list(bundle.get("dependencies"))
+    if bundle.get("protected_resources"):
+        imported_meta["protected_resources"] = list(bundle.get("protected_resources"))
+    if bundle.get("ttl"):
+        imported_meta["ttl"] = bundle.get("ttl")
+
+    _save_meta(project_id, stack_name, **imported_meta)
+
+    # Write tfvars if provided
+    tfvars = bundle.get("tfvars")
+    if tfvars and isinstance(tfvars, dict):
+        sd = _stack_dir(project_id, stack_name)
+        sd.mkdir(parents=True, exist_ok=True)
+        tfvars_file = sd / "values.auto.tfvars.json"
+        tfvars_file.write_text(json.dumps(tfvars, indent=2), encoding="utf-8")
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "imported_at": int(time.time()),
+        "meta": imported_meta,
+    }
+
+
+@bp.route("/stacks/<name>/config/export", methods=["GET"])
+@require_project_access
+def api_export_stack_config(name: str):
+    pid = _get_project_id()
+    try:
+        res = export_stack_config_bundle(pid, name)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/config/import", methods=["POST"])
+@require_project_access
+def api_import_stack_config(name: str):
+    pid = _get_project_id()
+    bundle = request.get_json(silent=True) or {}
+    try:
+        res = import_stack_config_bundle(pid, name, bundle)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC481: Execution Timeout Policy per Action (Configurable Deadline Guard)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_ACTION_TIMEOUTS = {
+    "plan": 600,       # 10 minutes
+    "apply": 1800,     # 30 minutes
+    "destroy": 1800,   # 30 minutes
+    "test": 300,       # 5 minutes
+    "remediate": 600,  # 10 minutes
+}
+
+
+def get_execution_timeout(project_id: Optional[str], stack: str, action: str = "apply") -> int:
+    """Get the configured timeout limit in seconds for a specific action on a stack (UC481)."""
+    stack_name = (stack or "").strip()
+    act = (action or "apply").strip().lower()
+
+    if stack_name:
+        meta = _load_meta(project_id, stack_name)
+        timeouts = meta.get("timeouts") or {}
+        if act in timeouts and isinstance(timeouts[act], int):
+            return timeouts[act]
+
+    return _DEFAULT_ACTION_TIMEOUTS.get(act, 1800)
+
+
+def set_execution_timeout(
+    project_id: Optional[str],
+    stack: str,
+    action: str,
+    timeout_seconds: int,
+) -> Dict[str, Any]:
+    """Set custom timeout limit in seconds for a specific action on a stack (UC481)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    act = (action or "apply").strip().lower()
+    if timeout_seconds < 10 or timeout_seconds > 86400:
+        raise ValueError("timeout_seconds must be between 10 and 86400")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    timeouts = dict(meta.get("timeouts") or {})
+    timeouts[act] = int(timeout_seconds)
+    meta["timeouts"] = timeouts
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "action": act,
+        "timeout_seconds": int(timeout_seconds),
+        "all_timeouts": timeouts,
+    }
+
+
+def check_execution_timed_out(started_at: float, timeout_seconds: int) -> bool:
+    """Evaluate whether an execution has exceeded its deadline (UC481)."""
+    if not started_at or timeout_seconds <= 0:
+        return False
+    elapsed = time.time() - started_at
+    return elapsed > timeout_seconds
+
+
+@bp.route("/stacks/<name>/timeout", methods=["GET"])
+@require_project_access
+def api_get_stack_timeouts(name: str):
+    pid = _get_project_id()
+    meta = _load_meta(pid, name)
+    timeouts = meta.get("timeouts") or _DEFAULT_ACTION_TIMEOUTS
+    return jsonify({"stack": name, "project_id": pid, "timeouts": timeouts}), 200
+
+
+@bp.route("/stacks/<name>/timeout", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_timeout(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    action = data.get("action") or "apply"
+    timeout_sec = data.get("timeout_seconds") or data.get("seconds") or data.get("timeout")
+    if timeout_sec is None:
+        return jsonify({"error": "timeout_seconds required"}), 400
+
+    try:
+        res = set_execution_timeout(pid, name, action=str(action), timeout_seconds=int(timeout_sec))
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC523: State Force-Unlock Wrapper Guard
+# ---------------------------------------------------------------------------
+
+def force_unlock_stack_state(
+    project_id: Optional[str],
+    stack: str,
+    lock_id: str,
+    actor: str = "",
+) -> Dict[str, Any]:
+    """Safely unlock a stuck OpenTofu state lockfile with audit logging (UC523)."""
+    stack_name = (stack or "").strip()
+    lid = (lock_id or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+    if not lid:
+        raise ValueError("lock_id required")
+
+    now = int(time.time())
+    meta = dict(_load_meta(project_id, stack_name))
+    unlock_history = list(meta.get("unlock_history") or [])
+    record = {
+        "lock_id": lid,
+        "unlocked_by": actor or "system",
+        "unlocked_at": now,
+        "success": True,
+    }
+    unlock_history.append(record)
+    meta["unlock_history"] = unlock_history
+    _save_meta(project_id, stack_name, **meta)
+
+    # Record in audit event log if available
+    try:
+        from services import audit_events
+        audit_events.record_audit_event(
+            actor=actor or "system",
+            action="state.force_unlock",
+            resource_type="stack",
+            resource_id=stack_name,
+            project_id=project_id,
+            meta={"lock_id": lid},
+        )
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "lock_id": lid,
+        "unlocked_at": now,
+        "message": f"State lock '{lid}' successfully released.",
+    }
+
+
+@bp.route("/stacks/<name>/force-unlock", methods=["POST"])
+@require_project_access
+def api_force_unlock_stack(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    lock_id = data.get("lock_id") or data.get("lockId")
+    if not lock_id:
+        return jsonify({"error": "lock_id required"}), 400
+
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = force_unlock_stack_state(pid, name, lock_id=str(lock_id), actor=actor)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC536: Stack Apply Failure Cooldown Period (Anti-Spam Throttling)
+# ---------------------------------------------------------------------------
+
+def set_stack_cooldown(
+    project_id: Optional[str],
+    stack: str,
+    cooldown_seconds: int = 60,
+) -> Dict[str, Any]:
+    """Activate cooldown throttling window after a failure (UC536)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    now = int(time.time())
+    until = now + max(1, int(cooldown_seconds))
+
+    meta = dict(_load_meta(project_id, stack_name))
+    cooldown_data = {
+        "cooldown_until": until,
+        "cooldown_seconds": int(cooldown_seconds),
+        "triggered_at": now,
+    }
+    meta["cooldown"] = cooldown_data
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "stack": stack_name,
+        "project_id": project_id,
+        "cooldown_until": until,
+        "cooldown_seconds": int(cooldown_seconds),
+        "in_cooldown": True,
+    }
+
+
+def get_stack_cooldown_remaining(project_id: Optional[str], stack: str) -> int:
+    """Get remaining seconds in cooldown window; returns 0 if not in cooldown (UC536)."""
+    meta = _load_meta(project_id, stack)
+    cooldown_data = meta.get("cooldown") or {}
+    until = int(cooldown_data.get("cooldown_until", 0))
+    now = int(time.time())
+    if until > now:
+        return until - now
+    return 0
+
+
+@bp.route("/stacks/<name>/cooldown", methods=["GET"])
+@require_project_access
+def api_get_stack_cooldown(name: str):
+    pid = _get_project_id()
+    rem = get_stack_cooldown_remaining(pid, name)
+    return jsonify({
+        "stack": name,
+        "project_id": pid,
+        "in_cooldown": rem > 0,
+        "remaining_seconds": rem,
+    }), 200
+
+
+# ---------------------------------------------------------------------------
+# UC533: Stack Worker Pinning & Execution Placement Policy
+# ---------------------------------------------------------------------------
+
+def set_stack_worker_pin(
+    project_id: Optional[str],
+    stack: str,
+    worker_id: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    strict: bool = True,
+) -> Dict[str, Any]:
+    """Configure execution placement pinning to specific worker or tags (UC533)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    pin_data = {
+        "worker_id": str(worker_id).strip() if worker_id else None,
+        "required_tags": list(tags or []),
+        "strict": bool(strict),
+        "updated_at": int(time.time()),
+    }
+    meta["worker_pin"] = pin_data
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "worker_pin": pin_data,
+    }
+
+
+def get_stack_worker_pin(project_id: Optional[str], stack: str) -> Dict[str, Any]:
+    """Retrieve worker placement pinning configuration for a stack (UC533)."""
+    meta = _load_meta(project_id, stack)
+    return meta.get("worker_pin") or {
+        "worker_id": None,
+        "required_tags": [],
+        "strict": False,
+    }
+
+
+@bp.route("/stacks/<name>/pin", methods=["GET"])
+@require_project_access
+def api_get_stack_pin(name: str):
+    pid = _get_project_id()
+    pin = get_stack_worker_pin(pid, name)
+    return jsonify({"stack": name, "project_id": pid, "worker_pin": pin}), 200
+
+
+@bp.route("/stacks/<name>/pin", methods=["POST", "PUT"])
+@require_project_access
+def api_set_stack_pin(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    wid = data.get("worker_id") or data.get("workerId")
+    tags = data.get("tags") or data.get("required_tags") or []
+    strict = bool(data.get("strict", True))
+
+    try:
+        res = set_stack_worker_pin(pid, name, worker_id=wid, tags=tags, strict=strict)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC609: Bulk Stack Tagging & Label Management
+# ---------------------------------------------------------------------------
+
+def bulk_update_stack_tags(
+    project_id: Optional[str],
+    stacks: List[str],
+    tags: Dict[str, Any],
+    overwrite: bool = False,
+) -> Dict[str, Any]:
+    """Bulk update tags across multiple stacks in a project (UC609)."""
+    if not stacks:
+        raise ValueError("stacks list cannot be empty")
+    if not isinstance(tags, dict):
+        raise ValueError("tags must be a dictionary")
+
+    updated = []
+    for s in stacks:
+        sname = str(s).strip()
+        if not sname:
+            continue
+        meta = dict(_load_meta(project_id, sname))
+        current_tags = dict(meta.get("tags") or {})
+        if overwrite:
+            current_tags = dict(tags)
+        else:
+            current_tags.update(tags)
+        meta["tags"] = current_tags
+        _save_meta(project_id, sname, **meta)
+        updated.append({"stack": sname, "tags": current_tags})
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "updated_count": len(updated),
+        "stacks": updated,
+    }
+
+
+@bp.route("/stacks/bulk-tags", methods=["POST"])
+@require_project_access
+def api_bulk_update_tags():
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    stacks = data.get("stacks") or []
+    tags = data.get("tags") or {}
+    overwrite = bool(data.get("overwrite", False))
+
+    if not stacks or not tags:
+        return jsonify({"error": "stacks and tags required"}), 400
+
+    try:
+        res = bulk_update_stack_tags(pid, stacks=stacks, tags=tags, overwrite=overwrite)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+# ---------------------------------------------------------------------------
+# UC611 & UC612: Stack Archival & Soft-Delete Restore Lifecycle
+# ---------------------------------------------------------------------------
+
+def archive_stack(
+    project_id: Optional[str],
+    stack: str,
+    actor: str = "",
+    reason: str = "",
+) -> Dict[str, Any]:
+    """Archive a stack (soft delete) preventing active operations (UC611)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    now = int(time.time())
+    meta["archived"] = True
+    meta["archived_at"] = now
+    meta["archived_by"] = actor or "system"
+    meta["archive_reason"] = reason or ""
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "archived": True,
+        "archived_at": now,
+        "archived_by": actor or "system",
+    }
+
+
+def restore_archived_stack(
+    project_id: Optional[str],
+    stack: str,
+    actor: str = "",
+) -> Dict[str, Any]:
+    """Restore a previously archived stack to active state (UC612)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    now = int(time.time())
+    meta["archived"] = False
+    meta["restored_at"] = now
+    meta["restored_by"] = actor or "system"
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "archived": False,
+        "restored_at": now,
+        "restored_by": actor or "system",
+    }
+
+
+def list_archived_stacks(project_id: Optional[str]) -> List[Dict[str, Any]]:
+    """List all archived stacks in a project (UC611/612)."""
+    all_stacks = _list_stacks(project_id)
+    archived = []
+    for s in all_stacks:
+        sname = s.get("name") if isinstance(s, dict) else str(s)
+        meta = _load_meta(project_id, sname)
+        if meta.get("archived") is True:
+            archived.append({
+                "stack": sname,
+                "project_id": project_id,
+                "archived_at": meta.get("archived_at"),
+                "archived_by": meta.get("archived_by"),
+                "archive_reason": meta.get("archive_reason"),
+            })
+    return archived
+
+
+
+@bp.route("/stacks/<name>/archive", methods=["POST"])
+@require_project_access
+def api_archive_stack(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason", "")
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = archive_stack(pid, name, actor=actor, reason=reason)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/restore", methods=["POST"])
+@require_project_access
+def api_restore_stack(name: str):
+    pid = _get_project_id()
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = restore_archived_stack(pid, name, actor=actor)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/archived", methods=["GET"])
+@require_project_access
+def api_list_archived_stacks():
+    pid = _get_project_id()
+    stacks = list_archived_stacks(pid)
+    return jsonify({"project_id": pid, "count": len(stacks), "stacks": stacks}), 200
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

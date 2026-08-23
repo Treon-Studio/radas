@@ -10,7 +10,7 @@ try:
 except ImportError:
     from ..auth.middleware import require_auth
 
-from storage.api_tokens_store import create_token, list_tokens, revoke_token, _load_index
+from storage.api_tokens_store import create_token, list_tokens, revoke_token
 
 bp = Blueprint("service_accounts_api", __name__)
 
@@ -24,9 +24,11 @@ def _is_sa(user_id: str) -> bool:
 @bp.route('/api/service-accounts', methods=['GET'])
 @require_auth
 def api_list_service_accounts():
-    data = _load_index()
+    from storage.api_tokens_store import _load_tokens, pg
+    with pg.transaction() as conn:
+        tokens = _load_tokens(conn)
     out = []
-    for t in data.get('tokens', []):
+    for t in tokens:
         if not _is_sa(t.get('userId')):
             continue
         out.append({
@@ -72,8 +74,10 @@ def api_create_service_account():
 @bp.route('/api/service-accounts/<token_id>', methods=['DELETE'])
 @require_auth
 def api_delete_service_account(token_id):
-    data = _load_index()
-    entry = next((t for t in data.get('tokens', []) if t.get('id') == token_id), None)
+    from storage.api_tokens_store import _load_tokens, pg
+    with pg.transaction() as conn:
+        tokens = _load_tokens(conn)
+    entry = next((t for t in tokens if t.get('id') == token_id), None)
     if not entry or not _is_sa(entry.get('userId')):
         return jsonify({"error": "not found"}), 404
     revoke_token(token_id, entry.get('userId'))

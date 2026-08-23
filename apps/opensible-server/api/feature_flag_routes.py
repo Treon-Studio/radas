@@ -10,9 +10,11 @@ except ImportError:
     from ..auth.middleware import require_auth, _org_id_of_project
 
 from services.feature_flag_registry import (
-    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags,
-    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags,
+    archive_flag, audit, create_flag, delete_flag, evaluate, impact, import_flags, export_flags, export_flags_env,
+    list_flags, restore_flag, update_flag, schedule_rollout, apply_scheduled_rollout, filter_flags, evaluation_history, safety_valve, apply_working_hours, safe_evaluate, expire_due_flags, rollback_flag, copy_flag, get_ui_flags,
+    diff_flags_between_scopes,
 )
+
 
 bp = Blueprint("feature_flag_api", __name__)
 
@@ -172,6 +174,32 @@ def api_list_flags():
     enabled_arg = request.args.get("enabled")
     enabled = None if enabled_arg is None else enabled_arg.strip().lower() in {"1", "true", "yes"}
     return jsonify({"flags": filter_flags(flags, request.args.get("tag", ""), request.args.get("env", ""), enabled)})
+
+
+@bp.route('/api/flags/ui', methods=['GET'])
+@require_auth
+def api_get_ui_flags():
+    context, error = _scoped()
+    if error:
+        return error
+    scope_type, scope_id, org_id = context
+    actor_id, _ = _actor()
+    env = request.args.get("env") or "prod"
+    user_id = request.args.get("user_id") or actor_id or ""
+    ui_flags = get_ui_flags(
+        scope_type=scope_type,
+        scope_id=scope_id,
+        user_id=user_id,
+        env=env,
+        org_id=org_id,
+    )
+    return jsonify({
+        "flags": ui_flags,
+        "env": env,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+    })
+
 
 
 @bp.route('/api/flags/expire-due', methods=['POST'])
@@ -337,7 +365,33 @@ def api_export_flags():
     if error:
         return error
     scope_type, scope_id, org_id = context
-    return Response(json.dumps({"flags": list_flags(scope_type, scope_id, org_id=org_id), "scope_type": scope_type, "scope_id": scope_id}, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=radas-flags.json"})
+    export_data = export_flags(scope_type, scope_id, org_id=org_id)
+    return Response(json.dumps(export_data, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=radas-flags.json"})
+
+
+@bp.route('/api/flags/export/env', methods=['GET'])
+@require_auth
+def api_export_flags_env():
+    context, error = _scoped()
+    if error:
+        return error
+    scope_type, scope_id, org_id = context
+    prefix = request.args.get("prefix", "FF_")
+    env = request.args.get("env", "prod") or "prod"
+    user_id = request.args.get("user_id", "") or ""
+    env_text = export_flags_env(
+        scope_type=scope_type,
+        scope_id=scope_id,
+        prefix=prefix,
+        env=env,
+        user_id=user_id,
+        org_id=org_id,
+    )
+    return Response(
+        env_text,
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment; filename=radas-flags.env"},
+    )
 
 
 @bp.route('/api/flags/import', methods=['POST'])
@@ -351,11 +405,17 @@ def api_import_flags():
         return error
     scope_type, scope_id, org_id = context
     actor_id, actor_name = _actor()
+    overwrite = False
+    if "overwrite" in data:
+        overwrite = bool(data["overwrite"])
+    elif request.args.get("overwrite") is not None:
+        overwrite = request.args.get("overwrite", "").lower() in ("true", "1", "yes")
+    payload = data.get("flags") if "flags" in data else data
     try:
-        result = import_flags(data.get("flags"), scope_type, scope_id, actor_id, actor_name, org_id)
+        result = import_flags(payload, scope_type, scope_id, actor_id, actor_name, org_id, overwrite=overwrite)
     except ValueError as exc:
         return jsonify({"error": "invalid import", "errors": [{"message": str(exc)}]}), 400
-    return jsonify({"success": True, "imported": len(result["flags"]), **result}), 201
+    return jsonify({"success": True, "imported": result.get("imported_count", len(result["flags"])), **result}), 201
 
 
 @bp.route('/api/flags/evaluations', methods=['GET'])
@@ -432,11 +492,26 @@ def api_flag_rollback(key):
     if error:
         return error
     scope_type, scope_id, org_id = context
+    snapshot_id = data.get("snapshot_id")
+    steps = data.get("steps", 1)
+    actor_id, actor_name = _actor()
+
+    if snapshot_id is not None or steps != 1:
+        try:
+            restored = rollback_flag(key, snapshot_id=snapshot_id, steps=steps, scope_type=scope_type, scope_id=scope_id, actor=actor_id, actor_name=actor_name, org_id=org_id)
+        except ValueError as exc:
+            msg = str(exc)
+            if "not found" in msg.lower():
+                return jsonify({"error": msg}), 404
+            return jsonify({"error": msg}), 400
+        if not restored:
+            return jsonify({"error": "not found or conflicted"}), 409
+        return jsonify({"success": True, "flag": restored})
+
     rows = audit(scope_type, scope_id, key, 50)
     previous = next((row.get("before") for row in rows if row.get("before")), None)
     if not previous:
         return jsonify({"error": "no previous version"}), 404
-    actor_id, actor_name = _actor()
     try:
         restored = update_flag(key, previous, scope_type, scope_id, actor=actor_id, actor_name=actor_name, operation="rollback", org_id=org_id)
     except ValueError as exc:
@@ -444,3 +519,121 @@ def api_flag_rollback(key):
     if not restored:
         return jsonify({"error": "not found or conflicted"}), 409
     return jsonify({"success": True, "flag": restored})
+
+
+@bp.route('/api/flags/<key>/copy', methods=['POST'])
+@bp.route('/api/flags/<key>/clone', methods=['POST'])
+@require_auth
+def api_copy_flag(key):
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
+
+    target_key = (data.get("target_key") or data.get("new_key") or data.get("name") or "").strip()
+    if not target_key:
+        return jsonify({"error": "target_key is required"}), 400
+
+    has_target_scope = any(k in data for k in ("target_scope_type", "target_scope_id", "target_project_id", "target_org_id"))
+
+    source_context, error = _scoped(data, mutation=False)
+    if error:
+        return error
+    source_scope_type, source_scope_id, source_org_id = source_context
+
+    if has_target_scope:
+        target_payload = {}
+        if "target_scope_type" in data:
+            target_payload["scope_type"] = data["target_scope_type"]
+        if "target_scope_id" in data:
+            target_payload["scope_id"] = data["target_scope_id"]
+        if "target_project_id" in data:
+            target_payload["project_id"] = data["target_project_id"]
+        if "target_org_id" in data:
+            target_payload["org_id"] = data["target_org_id"]
+        target_context, error = _scoped(target_payload, mutation=True)
+        if error:
+            return error
+        target_scope_type, target_scope_id, target_org_id = target_context
+    else:
+        target_context, error = _scoped(data, mutation=True)
+        if error:
+            return error
+        target_scope_type, target_scope_id, target_org_id = target_context
+
+    actor_id, actor_name = _actor()
+    try:
+        flag = copy_flag(
+            source_key=key,
+            target_key=target_key,
+            scope_type=source_scope_type,
+            scope_id=source_scope_id,
+            target_scope_type=target_scope_type,
+            target_scope_id=target_scope_id,
+            actor=actor_id,
+            actor_name=actor_name,
+            org_id=target_org_id or source_org_id,
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            return jsonify({"error": msg}), 404
+        if "already exists" in msg.lower():
+            return jsonify({"error": msg}), 409
+        return jsonify({"error": msg}), 400
+
+    return jsonify({"success": True, "flag": flag}), 201
+
+
+@bp.route('/api/flags/diff', methods=['POST'])
+@require_auth
+def api_diff_flags():
+    data, body_error = _json_object()
+    if body_error:
+        return body_error
+
+    # Parse source scope
+    source_payload = {}
+    if "source_scope_type" in data:
+        source_payload["scope_type"] = data["source_scope_type"]
+    elif "scope_type" in data:
+        source_payload["scope_type"] = data["scope_type"]
+    if "source_scope_id" in data:
+        source_payload["scope_id"] = data["source_scope_id"]
+    elif "scope_id" in data:
+        source_payload["scope_id"] = data["scope_id"]
+    if "source_project_id" in data:
+        source_payload["project_id"] = data["source_project_id"]
+    if "source_org_id" in data:
+        source_payload["org_id"] = data["source_org_id"]
+
+    source_context, error = _scoped(source_payload, mutation=False)
+    if error:
+        return error
+    source_scope_type, source_scope_id, source_org_id = source_context
+
+    # Parse target scope
+    target_payload = {}
+    if "target_scope_type" in data:
+        target_payload["scope_type"] = data["target_scope_type"]
+    if "target_scope_id" in data:
+        target_payload["scope_id"] = data["target_scope_id"]
+    if "target_project_id" in data:
+        target_payload["project_id"] = data["target_project_id"]
+    if "target_org_id" in data:
+        target_payload["org_id"] = data["target_org_id"]
+
+    target_context, error = _scoped(target_payload, mutation=False)
+    if error:
+        return error
+    target_scope_type, target_scope_id, target_org_id = target_context
+
+    diff_result = diff_flags_between_scopes(
+        source_scope_type=source_scope_type,
+        source_scope_id=source_scope_id,
+        target_scope_type=target_scope_type,
+        target_scope_id=target_scope_id,
+        org_id=source_org_id or target_org_id,
+    )
+    return jsonify(diff_result), 200
+
+

@@ -314,3 +314,157 @@ def api_byoc_import(account_id):
         status = 403 if "access" in message or "tenant" in message else 404 if "not found" in message or "latest inventory" in message else 400
         return jsonify({"error": message}), status
     return jsonify(result)
+
+
+@bp.route('/api/byoc/stacks/<stack>/backend-type', methods=['GET'])
+@require_auth
+def api_byoc_stack_backend_type(stack):
+    from services.byoc import detect_stack_backend_type
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = detect_stack_backend_type(project_id=project_id, stack=stack)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/byoc/inventory/export/csv', methods=['GET'])
+@require_auth
+def api_byoc_export_inventory_csv():
+    from flask import Response
+    from services.byoc import export_inventory_csv
+    account_id = request.args.get("account_id")
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    csv_data = export_inventory_csv(account_id=account_id, project_id=project_id)
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=byoc-inventory.csv"},
+    )
+
+
+@bp.route('/api/byoc/adopt-only', methods=['POST'])
+@require_auth
+def api_byoc_adopt_only():
+    from services.byoc_import_mapping import adopt_resources_import_only
+    data = request.get_json(silent=True) or {}
+    account_id = data.get("account_id")
+    project_id = data.get("project_id") or request.headers.get("X-Project-Id")
+    stack = data.get("stack")
+    resource_ids = data.get("resource_ids") or []
+    address_overrides = data.get("address_overrides") or {}
+
+    if not account_id or not stack:
+        return jsonify({"error": "account_id and stack required"}), 400
+
+    try:
+        res = adopt_resources_import_only(
+            account_id,
+            project_id=project_id,
+            stack=stack,
+            resource_ids=resource_ids,
+            address_overrides=address_overrides,
+            actor_id=(getattr(request, "current_user", {}) or {}).get("user_id"),
+        )
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/byoc/clash-check', methods=['POST'])
+@require_auth
+def api_byoc_clash_check():
+    from services.byoc_import_mapping import check_resource_clash
+    data = request.get_json(silent=True) or {}
+    account_id = data.get("account_id") or ""
+    resource_id = data.get("resource_id") or ""
+    resource_type = data.get("resource_type") or ""
+    target_stack = data.get("target_stack") or data.get("stack") or ""
+    project_id = data.get("project_id") or request.headers.get("X-Project-Id")
+
+    if not resource_id or not target_stack:
+        return jsonify({"error": "resource_id and target_stack required"}), 400
+
+    try:
+        res = check_resource_clash(
+            account_id=account_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            target_stack=target_stack,
+            project_id=project_id,
+        )
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/byoc/accounts/<account_id>/quota', methods=['GET'])
+@require_auth
+def api_byoc_get_quota(account_id):
+    from services.byoc import get_account_quota
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = get_account_quota(account_id, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@bp.route('/api/byoc/accounts/<account_id>/quota', methods=['POST', 'PUT'])
+@require_auth
+def api_byoc_set_quota(account_id):
+    from services.byoc import set_account_quota
+    data = request.get_json(silent=True) or {}
+    quota_limits = data.get("quota_limits") or data.get("limits") or data
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+
+    try:
+        res = set_account_quota(account_id, quota_limits=quota_limits, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@bp.route('/api/byoc/backup/export', methods=['GET'])
+@require_auth
+def api_byoc_backup_export():
+    from services.byoc import backup_accounts_encrypted
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    org_id = request.headers.get("X-Org-Id") or request.args.get("org_id")
+    res = backup_accounts_encrypted(project_id=project_id, org_id=org_id)
+    return jsonify(res), 200
+
+
+@bp.route('/api/byoc/backup/restore', methods=['POST'])
+@require_auth
+def api_byoc_backup_restore():
+    from services.byoc import restore_accounts_encrypted
+    data = request.get_json(silent=True) or {}
+    project_id = request.headers.get("X-Project-Id") or data.get("project_id")
+    overwrite = bool(data.get("overwrite", False))
+
+    try:
+        res = restore_accounts_encrypted(data, project_id=project_id, overwrite=overwrite)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route('/api/byoc/accounts/<account_id>/unmanaged', methods=['GET'])
+@require_auth
+def api_byoc_unmanaged(account_id):
+    from services.byoc import diff_inventory_unmanaged_resources
+    project_id = request.headers.get("X-Project-Id") or request.args.get("project_id")
+    try:
+        res = diff_inventory_unmanaged_resources(account_id, project_id=project_id)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+
+
+
+
+
