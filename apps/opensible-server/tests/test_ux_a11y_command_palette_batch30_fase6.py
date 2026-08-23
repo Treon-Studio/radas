@@ -82,3 +82,38 @@ def test_status_code_tooltips():
     assert "404" in tip_404["title"]
     assert "Resource not found" in tip_404["description"]
 
+
+def test_command_palette_search_and_shortcuts():
+    from services.command_palette import search_command_palette
+
+    # 1. Empty query returns top actions
+    all_cmds = search_command_palette()
+    assert len(all_cmds) >= 4
+    shortcuts = {c["title"]: c.get("shortcut") for c in all_cmds}
+    assert "Focus Search" in shortcuts
+    assert shortcuts["Focus Search"] == "/"
+
+    # 2. Search query filter
+    results = search_command_palette("stack")
+    assert any("Stack" in c["title"] for c in results)
+
+
+def test_undo_action_window_and_execution(pg_db):
+    from services.undo_action_manager import register_undoable_action, execute_undo_action
+
+    # 1. Register toggle flag undo
+    revert_data = {"flag_id": "beta-dark-mode", "value": False}
+    reg = register_undoable_action("user-1", "toggle_flag", revert_data, ttl_seconds=5)
+    assert reg["success"] is True
+    action_id = reg["action_id"]
+
+    # 2. Execute undo before TTL
+    reverted = execute_undo_action(action_id)
+    assert reverted["success"] is True
+    assert reverted["reverted_data"] == revert_data
+
+    # 3. Subsequent undo attempt fails
+    second_attempt = execute_undo_action(action_id)
+    assert second_attempt["success"] is False
+
+
