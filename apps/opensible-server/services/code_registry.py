@@ -182,3 +182,74 @@ def uninstall(project_id: Optional[str], stack: str, name: str) -> Dict[str, Any
 def installed(project_id: Optional[str], stack: str) -> List[Dict[str, Any]]:
     m = _load_manifest(project_id, stack)
     return [{"name": n, **v} for n, v in sorted(m.items())]
+
+
+def export_item_bundle(name: str) -> Dict[str, Any]:
+    """Export a registry item and its files as a standalone portable JSON bundle (UC661)."""
+    item = get_item(name)
+    if not item:
+        raise ValueError(f"Registry item '{name}' not found")
+    src = Path(item["path"])
+    meta = _read_meta(src)
+
+    files_dict: Dict[str, str] = {}
+    for f in item.get("files", []):
+        fpath = src / f
+        if fpath.is_file():
+            try:
+                files_dict[f] = fpath.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+    return {
+        "name": item["name"],
+        "type": item["type"],
+        "version": item.get("version", "1.0.0"),
+        "description": item.get("description", ""),
+        "tags": item.get("tags", []),
+        "dependencies": meta.get("dependencies", []),
+        "changelog": meta.get("changelog", []),
+        "files": files_dict,
+    }
+
+
+def import_item_bundle(bundle_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Import a registry item package bundle into the local registry (UC661)."""
+    name = (bundle_data.get("name") or "").strip()
+    if not name:
+        raise ValueError("Item name is required in bundle")
+
+    itype = bundle_data.get("type", "tofu-block")
+    if itype not in ITEM_TYPES:
+        raise ValueError(f"Invalid item type '{itype}'. Allowed: {ITEM_TYPES}")
+
+    root = _registry_root()
+    target_dir = root / itype / name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write metadata
+    meta = {
+        "name": name,
+        "type": itype,
+        "version": bundle_data.get("version", "1.0.0"),
+        "description": bundle_data.get("description", ""),
+        "tags": bundle_data.get("tags", []),
+        "dependencies": bundle_data.get("dependencies", []),
+        "changelog": bundle_data.get("changelog", []),
+    }
+    (target_dir / "radas.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    # Write files
+    files = bundle_data.get("files") or {}
+    for rel_path, content in files.items():
+        dst = target_dir / rel_path
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(content, encoding="utf-8")
+
+    return {
+        "success": True,
+        "name": name,
+        "type": itype,
+        "version": meta["version"],
+        "files_count": len(files),
+    }

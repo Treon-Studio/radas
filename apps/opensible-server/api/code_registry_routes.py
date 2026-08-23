@@ -68,3 +68,27 @@ def api_registry_installed():
     if not stack:
         return jsonify({"error": "stack query param required"}), 400
     return jsonify({"installed": installed(_pid(), stack)})
+
+
+@bp.route('/api/registry/<name>/export', methods=['GET'])
+@require_project_access
+def api_registry_export(name):
+    from services.code_registry import export_item_bundle
+    try:
+        bundle = export_item_bundle(name)
+        return jsonify({"success": True, "bundle": bundle})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@bp.route('/api/registry/import', methods=['POST'])
+@require_project_access
+def api_registry_import():
+    from services.code_registry import import_item_bundle
+    data = request.get_json(silent=True) or {}
+    bundle = data.get("bundle") or data
+    try:
+        res = import_item_bundle(bundle)
+        return jsonify(res), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
