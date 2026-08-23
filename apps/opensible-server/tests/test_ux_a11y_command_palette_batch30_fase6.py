@@ -46,3 +46,39 @@ def test_accessibility_color_contrast():
     res_low = calculate_contrast_ratio("#cccccc", "#ffffff")
     assert res_low["contrast_ratio"] < 3.0
     assert res_low["wcag_aa_normal"] is False
+
+
+def test_motion_transitions_and_reduced_motion():
+    from services.motion_styles import get_transition_class
+
+    # Standard animation
+    anim = get_transition_class("fade_in", prefers_reduced_motion=False)
+    assert "transition-" in anim
+    assert "duration-" in anim
+
+    # Reduced motion override
+    reduced = get_transition_class("fade_in", prefers_reduced_motion=True)
+    assert "motion-reduce:none" in reduced or "transition-none" in reduced
+
+
+def test_skeleton_card_schemas():
+    from services.skeleton_registry import get_skeleton_schema
+
+    schema_stack = get_skeleton_schema("stack_card")
+    assert schema_stack["type"] == "stack_card"
+    assert len(schema_stack["blocks"]) >= 3
+
+    schema_metric = get_skeleton_schema("metric_card")
+    assert schema_metric["type"] == "metric_card"
+
+
+def test_status_code_tooltips():
+    from services.status_tooltip import format_status_tooltip
+
+    tip_200 = format_status_tooltip(200, "OK")
+    assert "Success" in tip_200["description"] or "200" in tip_200["title"]
+
+    tip_404 = format_status_tooltip(404, "Not Found")
+    assert "404" in tip_404["title"]
+    assert "Resource not found" in tip_404["description"]
+
