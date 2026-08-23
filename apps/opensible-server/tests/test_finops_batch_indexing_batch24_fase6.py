@@ -42,3 +42,39 @@ def test_provider_pricing_table_sync(pg_db):
 
     # 3. Unknown returns default fallback or 0.0
     assert get_instance_price("aws", "unknown.tier") == 0.0
+
+
+def test_multi_currency_conversion():
+    from services.currency_converter import convert_currency, format_currency
+
+    # 1. Convert $100 USD to IDR
+    res_idr = convert_currency(100.0, from_curr="USD", to_curr="IDR")
+    assert res_idr["target_amount"] == 1550000.0
+    assert res_idr["target_currency"] == "IDR"
+
+    # 2. Convert $100 USD to EUR
+    res_eur = convert_currency(100.0, from_curr="USD", to_curr="EUR")
+    assert res_eur["target_amount"] == 92.0
+
+    # 3. Currency formatting
+    assert format_currency(1234.5, "USD") == "$1,234.50"
+    assert format_currency(1500000, "IDR") == "Rp 1,500,000"
+
+
+def test_resource_cost_breakdown():
+    from services.resource_cost_breakdown import categorize_resource_costs
+
+    resources = [
+        {"type": "aws_instance", "cost": 120.0},
+        {"type": "aws_s3_bucket", "cost": 30.0},
+        {"type": "aws_db_instance", "cost": 80.0},
+        {"type": "aws_nat_gateway", "cost": 20.0},
+    ]
+
+    breakdown = categorize_resource_costs(resources)
+    assert breakdown["total_cost"] == 250.0
+    assert breakdown["categories"]["Compute"]["cost"] == 120.0
+    assert breakdown["categories"]["Storage"]["cost"] == 30.0
+    assert breakdown["categories"]["Database"]["cost"] == 80.0
+    assert breakdown["categories"]["Networking"]["cost"] == 20.0
+
