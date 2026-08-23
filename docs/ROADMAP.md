@@ -773,12 +773,12 @@ fitur terpisah:
 | 605 | Localization: tanggal & angka per locale | ⬜ | P2 | 6 |
 | 606 | RTL layout readiness | ⬜ | P3 | 6 |
 | 607 | Print-friendly report halaman cost | ⬜ | P2 | 6 |
-| 608 | PDF export laporan compliance | ⬜ | P1 | 6 |
+| 608 | PDF export laporan compliance | ✅ | P1 | 6 |
 | 609 | Bulk tag edit stack | ✅ | P2 | 6 |
-| 610 | Duplicate stack (clone) action | ⬜ | P2 | 6 |
+| 610 | Duplicate stack (clone) action | ✅ | P2 | 6 |
 | 611 | Arsipkan stack (soft delete) | ✅ | P2 | 6 |
 | 612 | Restore dari arsip | ✅ | P2 | 6 |
-| 613 | Stack rename dengan migrasi state key | ⬜ | P2 | 6 |
+| 613 | Stack rename dengan migrasi state key | ✅ | P2 | 6 |
 | 614 | Persetujuan multi-pihak (quorum) | ✅ | P1 | 6 |
 | 615 | Approval expiry (TTL) | ✅ | P1 | 6 |
 | 616 | Reject reason wajib saat tolak | ✅ | P1 | 6 |
@@ -791,13 +791,13 @@ fitur terpisah:
 | 623 | Deactivate user (bukan delete) | ✅ | P1 | 6 |
 | 624 | Welcome email onboarding | ⬜ | P3 | 6 |
 | 625 | Invite link user dengan role | ✅ | P1 | 6 |
-| 626 | Password complexity policy per org | ⬜ | P2 | 6 |
+| 626 | Password complexity policy per org | ✅ | P2 | 6 |
 | 627 | OAuth login (Google/GitHub) opsional | ⬜ | P2 | 6 |
 | 628 | SSO discovery URL setting | ⬜ | P2 | 6 |
 | 629 | JWT issuer verification di toutes (sudah) | ✅ | P1 | 6 |
 | 630 | Secret leak scanner di tfvars | ✅ | P1 | 6 |
-| 631 | Vault integration (HashiCorp) read | ⬜ | P2 | 6 |
-| 632 | KMS key rotation | ⬜ | P2 | 6 |
+| 631 | Vault integration (HashiCorp) read | ✅ | P2 | 6 |
+| 632 | KMS key rotation | ✅ | P2 | 6 |
 | 633 | Service account scoped token per feature | ✅ | P1 | 6 |
 | 634 | Token list dengan last-used | ✅ | P1 | 6 |
 | 635 | Revoke all sessions user | ✅ | P2 | 6 |
@@ -810,11 +810,11 @@ fitur terpisah:
 | 642 | OpenAPI operationId konsisten | ⬜ | P2 | 6 |
 | 643 | Client timeout configurable | ✅ | P2 | 6 |
 | 644 | Retry-After header support | ✅ | P2 | 6 |
-| 645 | Local dev seed data script | ⬜ | P2 | 6 |
-| 646 | Demo mode (sample data) | ⬜ | P2 | 6 |
-| 647 | Startup check dependencies (redis) | ⬜ | P2 | 6 |
+| 645 | Local dev seed data script | ✅ | P2 | 6 |
+| 646 | Demo mode (sample data) | ✅ | P2 | 6 |
+| 647 | Startup check dependencies (redis) | ✅ | P2 | 6 |
 | 648 | Graceful shutdown server (drain) | ✅ | P2 | 6 |
-| 649 | Sistem config migration versioned | ⬜ | P2 | 6 |
+| 649 | Sistem config migration versioned | ✅ | P2 | 6 |
 | 650 | Backup DATA_DIR tooling | ✅ | P1 | 6 |
 | 651 | Restore from backup test (sudah UC 112) | ✅ | P1 | 6 |
 
