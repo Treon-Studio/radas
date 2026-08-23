@@ -48,3 +48,35 @@ def test_multi_org_project_access_guard(pg_db):
     # 3. Access to other org's project is blocked
     assert validate_org_project_access("user-dan", "org-beta", "p-beta-core") is False
     assert validate_org_project_access("user-dan", "org-alpha", "p-beta-core") is False
+
+
+def test_stack_tfvars_storage(pg_db):
+    from services.stack_tfvars_manager import save_stack_tfvars, get_stack_tfvars
+
+    tfvars_content = 'environment = "production"\ninstance_count = 5\nenable_ssl = true\n'
+
+    # 1. Initially empty
+    assert get_stack_tfvars("p-stack-demo", "web-cluster") == ""
+
+    # 2. Save tfvars
+    save_res = save_stack_tfvars("p-stack-demo", "web-cluster", tfvars_content)
+    assert save_res["success"] is True
+
+    # 3. Retrieve
+    saved = get_stack_tfvars("p-stack-demo", "web-cluster")
+    assert "instance_count = 5" in saved
+    assert "environment = \"production\"" in saved
+
+
+def test_resource_import_command_generation():
+    from services.resource_importer import generate_import_command
+
+    res = generate_import_command(
+        resource_address="aws_s3_bucket.data_lake",
+        cloud_id="corp-lake-bucket-2026",
+        provider="aws",
+    )
+    assert res["command"] == "tofu import aws_s3_bucket.data_lake corp-lake-bucket-2026"
+    assert res["resource_type"] == "aws_s3_bucket"
+    assert res["resource_name"] == "data_lake"
+
