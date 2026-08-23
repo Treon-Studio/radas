@@ -117,16 +117,47 @@ def _stack_dir_of(project_id: Optional[str], stack: str) -> Path:
     return sd
 
 
-def install(project_id: Optional[str], stack: str, name: str) -> Dict[str, Any]:
+def get_item_changelog(name: str) -> List[Dict[str, Any]]:
+    """Retrieve the version changelog for a registry item (UC662)."""
+    item = get_item(name)
+    if not item:
+        raise ValueError(f"Registry item '{name}' not found")
+    src = Path(item["path"])
+    meta = _read_meta(src)
+    return meta.get("changelog", [])
+
+
+def install(
+    project_id: Optional[str],
+    stack: str,
+    name: str,
+    version: Optional[str] = None,
+) -> Dict[str, Any]:
     """Copy a registry item's code into the stack workspace. Returns manifest update."""
     item = get_item(name)
     if not item:
         raise ValueError(f"Registry item '{name}' not found")
+    src = Path(item["path"])
+    meta = _read_meta(src)
+
+    target_version = item.get("version", "1.0.0")
+    if version:
+        # Check if version matches current or known versions
+        known_versions = [target_version]
+        if "versions" in meta and isinstance(meta["versions"], dict):
+            known_versions.extend(list(meta["versions"].keys()))
+        if "changelog" in meta and isinstance(meta["changelog"], list):
+            for c in meta["changelog"]:
+                if isinstance(c, dict) and c.get("version"):
+                    known_versions.append(c["version"])
+        if version not in known_versions:
+            raise ValueError(f"Version '{version}' not found for '{name}'")
+        target_version = version
+
     sd = _stack_dir_of(project_id, stack)
     manifest = _load_manifest(project_id, stack)
     if name in manifest:
         raise ValueError(f"'{name}' already installed on stack '{stack}'. Uninstall first.")
-    src = Path(item["path"])
     copied: List[str] = []
     if item["type"] == "tofu-block":
         for f in item["files"]:
@@ -148,10 +179,10 @@ def install(project_id: Optional[str], stack: str, name: str) -> Dict[str, Any]:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(src_file.read_text(encoding="utf-8"), encoding="utf-8")
             copied.append(f"roles/{name}/{f}")
-    manifest[name] = {"type": item["type"], "version": item["version"],
+    manifest[name] = {"type": item["type"], "version": target_version,
                       "installed_at": int(time.time()), "files_copied": copied}
     _save_manifest(project_id, stack, manifest)
-    return {"name": name, "type": item["type"], "version": item["version"],
+    return {"name": name, "type": item["type"], "version": target_version,
             "stack": stack, "files_copied": copied}
 
 

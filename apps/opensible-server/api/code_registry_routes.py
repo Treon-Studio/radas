@@ -33,15 +33,27 @@ def api_registry_item(name):
     return jsonify(it)
 
 
+@bp.route('/api/registry/<name>/changelog', methods=['GET'])
+@require_project_access
+def api_registry_changelog(name):
+    from services.code_registry import get_item_changelog
+    try:
+        cl = get_item_changelog(name)
+        return jsonify({"success": True, "changelog": cl})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
 @bp.route('/api/registry/<name>/install', methods=['POST'])
 @require_project_access
 def api_registry_install(name):
     data = request.get_json(silent=True) or {}
     stack = (data.get("stack") or "").strip()
+    version = (data.get("version") or "").strip() or None
     if not stack:
         return jsonify({"error": "stack required"}), 400
     try:
-        out = install(_pid(), stack, name)
+        out = install(_pid(), stack, name, version=version)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify({"success": True, "installed": out}), 201

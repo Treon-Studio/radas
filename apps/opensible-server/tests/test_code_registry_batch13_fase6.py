@@ -63,3 +63,29 @@ def test_export_and_import_registry_item_bundle(tmp_path, monkeypatch):
     cat = catalog()
     names = [i["name"] for i in cat]
     assert "custom-vpc" in names
+
+
+def test_version_pinning_and_changelog(tmp_path, monkeypatch):
+    from services.code_registry import get_item_changelog, install, installed
+    reg = _seed_base_registry(tmp_path)
+    monkeypatch.setenv("REGISTRY_DIR", str(reg))
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    sd = _seed_test_stack(tmp_path, "demo")
+
+    # 1. Fetch changelog
+    cl = get_item_changelog("vpc")
+    assert len(cl) >= 1
+    assert cl[0]["version"] == "1.0.0"
+    assert "Initial release" in cl[0]["changes"][0]
+
+    # 2. Pin correct version install
+    res = install(None, "demo", "vpc", version="1.0.0")
+    assert res["version"] == "1.0.0"
+    inst = installed(None, "demo")
+    assert inst[0]["version"] == "1.0.0"
+
+    # 3. Pin non-existent version raises ValueError
+    _seed_test_stack(tmp_path, "demo2")
+    with pytest.raises(ValueError, match="Version '2.0.0' not found"):
+        install(None, "demo2", "vpc", version="2.0.0")
+
