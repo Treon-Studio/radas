@@ -157,3 +157,20 @@ def api_registry_update(stack, name):
         return jsonify(res)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/registry/sync-git', methods=['POST'])
+@require_project_access
+def api_registry_sync_git():
+    from services.code_registry import sync_git_registry
+    data = request.get_json(silent=True) or {}
+    git_url = (data.get("git_url") or "").strip()
+    branch = (data.get("branch") or "main").strip()
+    dest_subdir = data.get("dest_subdir")
+    if not git_url:
+        return jsonify({"error": "git_url is required"}), 400
+    try:
+        res = sync_git_registry(git_url=git_url, branch=branch, dest_subdir=dest_subdir)
+        return jsonify(res), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400

@@ -216,5 +216,35 @@ def test_diff_and_update_installed_item(tmp_path, monkeypatch):
     assert inst[0]["version"] == "1.1.0"
 
 
+def test_sync_git_registry(tmp_path, monkeypatch):
+    from services.code_registry import sync_git_registry, catalog, get_item
+    local_reg = tmp_path / "local_registry"
+    monkeypatch.setenv("REGISTRY_DIR", str(local_reg))
+
+    # Create a mock remote git repo structure
+    remote_repo = tmp_path / "mock_git_remote"
+    remote_k8s = remote_repo / "tofu-block" / "k8s-cluster"
+    remote_k8s.mkdir(parents=True)
+    (remote_k8s / "radas.json").write_text(json.dumps({
+        "name": "k8s-cluster",
+        "type": "tofu-block",
+        "version": "2.0.0",
+        "description": "Kubernetes cluster tofu module from remote git",
+    }), encoding="utf-8")
+    (remote_k8s / "k8s.tf").write_text('resource "hcloud_server" "k8s_node" {}\n', encoding="utf-8")
+
+    # 1. Sync remote git registry pointing to the mock repo directory / file URL
+    sync_res = sync_git_registry(git_url=str(remote_repo), branch="main")
+    assert sync_res["success"] is True
+    assert "k8s-cluster" in sync_res["items_synced"]
+
+    # 2. Check local catalog includes imported item
+    item = get_item("k8s-cluster")
+    assert item is not None
+    assert item["version"] == "2.0.0"
+    assert "k8s.tf" in item["files"]
+
+
+
 
 

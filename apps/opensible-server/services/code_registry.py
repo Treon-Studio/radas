@@ -510,3 +510,62 @@ def update_installed_item(
         "stack": stack,
         "files_updated": installed_res["files_copied"],
     }
+
+
+def sync_git_registry(
+    git_url: str,
+    branch: str = "main",
+    dest_subdir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Sync reusable code registry items from a remote or local Git repository (UC666)."""
+    git_url = (git_url or "").strip()
+    if not git_url:
+        raise ValueError("git_url is required")
+
+    import subprocess
+    import tempfile
+
+    synced_items: List[str] = []
+    root = _registry_root()
+    root.mkdir(parents=True, exist_ok=True)
+
+    local_path = Path(git_url.replace("file://", ""))
+    if local_path.exists() and local_path.is_dir():
+        source_dir = local_path
+        cleanup_temp = False
+    else:
+        temp_clone_dir = tempfile.mkdtemp(prefix="radas_reg_git_")
+        cleanup_temp = True
+        try:
+            cmd = ["git", "clone", "--depth", "1", "--branch", branch, git_url, temp_clone_dir]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            source_dir = Path(temp_clone_dir)
+        except Exception as e:
+            shutil.rmtree(temp_clone_dir, ignore_errors=True)
+            raise ValueError(f"Failed to clone Git repository '{git_url}': {e}")
+
+    try:
+        scan_dir = source_dir / dest_subdir if dest_subdir else source_dir
+        for itype in ITEM_TYPES:
+            tdir = scan_dir / itype
+            if not tdir.exists():
+                continue
+            for entry in tdir.iterdir():
+                if entry.is_dir() and (entry / "radas.json").exists():
+                    target = root / itype / entry.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if target.exists():
+                        shutil.rmtree(target, ignore_errors=True)
+                    shutil.copytree(entry, target)
+                    synced_items.append(entry.name)
+    finally:
+        if cleanup_temp:
+            shutil.rmtree(source_dir, ignore_errors=True)
+
+    return {
+        "success": True,
+        "git_url": git_url,
+        "branch": branch,
+        "items_synced": synced_items,
+        "count": len(synced_items),
+    }
