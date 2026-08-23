@@ -86,3 +86,34 @@ def test_snapshot_annotations(pg_db):
     assert "k8s" in retrieved["tags"]
     assert "etcd" in retrieved["description"]
 
+
+def test_snapshot_scheduling(pg_db):
+    from services.snapshot_scheduler import schedule_periodic_snapshots
+
+    sched = schedule_periodic_snapshots("p-sched", "db-prod", cron_interval="0 2 * * *")
+    assert sched["success"] is True
+    assert sched["stack"] == "db-prod"
+    assert sched["cron_interval"] == "0 2 * * *"
+    assert sched["enabled"] is True
+
+
+def test_snapshot_retention_enforcement():
+    from services.snapshot_retention import enforce_snapshot_retention
+
+    snapshots = [
+        {"id": "snap-1", "timestamp": 100},
+        {"id": "snap-2", "timestamp": 200},
+        {"id": "snap-3", "timestamp": 300},
+        {"id": "snap-4", "timestamp": 400},
+        {"id": "snap-5", "timestamp": 500},
+    ]
+
+    # Retain top 3 newest (snap-5, snap-4, snap-3)
+    res = enforce_snapshot_retention(snapshots, max_retention_count=3)
+    assert len(res["retained_snapshots"]) == 3
+    assert res["pruned_count"] == 2
+    pruned_ids = [s["id"] for s in res["pruned_snapshots"]]
+    assert "snap-1" in pruned_ids
+    assert "snap-2" in pruned_ids
+
+
