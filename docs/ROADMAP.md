@@ -721,27 +721,27 @@ fitur terpisah:
 | 553 | Budgets rollup ke heap (parent + child) | ✅ | P2 | 6 |
 | 554 | Bill spike protection (auto-stop VM) | ✅ | P1 | 6 |
 | 555 | Right-sizing rekomendasi dengan confidence | ✅ | P1 | 6 |
-| 556 | Scheduled snapshot sebelum rightsizing | ⬜ | P2 | 6 |
+| 556 | Scheduled snapshot sebelum rightsizing | ✅ | P2 | 6 |
 | 557 | Usage-based cost attribution (per run) | ✅ | P2 | 6 |
-| 558 | Provider pricing table update otomatis | ⬜ | P2 | 6 |
-| 559 | Currency & locale support | ⬜ | P2 | 6 |
+| 558 | Provider pricing table update otomatis | ✅ | P2 | 6 |
+| 559 | Currency & locale support | ✅ | P2 | 6 |
 | 560 | Cost export ke CSV bulanan | ✅ | P1 | 6 |
 | 561 | Trend grafik multi-stack line overlay | ⬜ | P1 | 6 |
-| 562 | Stack cost breakdown per resource | ⬜ | P2 | 6 |
+| 562 | Stack cost breakdown per resource | ✅ | P2 | 6 |
 | 563 | Untagged resource cost detection | ✅ | P2 | 6 |
 | 564 | Performance: daftar stack > 500 lancar | ⬜ | P1 | 6 |
-| 565 | Indexing store untuk pencarian | ⬜ | P2 | 6 |
+| 565 | Indexing store untuk pencarian | ✅ | P2 | 6 |
 | 566 | SSE stream reconnect dengan backoff (sudah) | ✅ | P1 | 6 |
 | 567 | Optimistik UI update untuk toggle flag | ⬜ | P2 | 6 |
-| 568 | Batch ops UI (select banyak run -> retry) | ⬜ | P2 | 6 |
-| 569 | Sari/draft plan dari template JSON | ⬜ | P2 | 6 |
+| 568 | Batch ops UI (select banyak run -> retry) | ✅ | P2 | 6 |
+| 569 | Sari/draft plan dari template JSON | ✅ | P2 | 6 |
 | 570 | Satu klik deploy template (sudah wizard) | ✅ | P1 | 6 |
 | 571 | Template versioning (custom templates) | ✅ | P1 | 6 |
 | 572 | Template market share (shareable URL) | ✅ | P2 | 6 |
 | 573 | Stack dari template dengan init data (sudah) | ✅ | P1 | 6 |
 | 574 | ATS: integration tests untuk UI E2E | ⬜ | P2 | 6 |
 | 575 | Playwright selectors stabil (data-testid) | ⬜ | P2 | 6 |
-| 576 | Snapshot visual komponen | ⬜ | P2 | 6 |
+| 576 | Snapshot visual komponen | ✅ | P2 | 6 |
 | 577 | Bundle size budget (chunk split) | ⬜ | P2 | 6 |
 | 578 | Lazy load halaman berat (charts) | ⬜ | P1 | 6 |
 | 579 | SWR stale-while-revalidate untuk dashboard | ⬜ | P1 | 6 |
