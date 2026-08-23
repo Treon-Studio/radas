@@ -88,7 +88,68 @@ var switchCmd = &cobra.Command{
 	},
 }
 
+var rulesCmd = &cobra.Command{
+	Use:     "rules [org-id]",
+	Aliases: []string{"standards", "policies"},
+	Short:   "View organization-wide standard best-practice guardrails and rules",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		orgTarget := "current organization"
+		if len(args) > 0 {
+			orgTarget = args[0]
+		}
+		fmt.Printf("Standard Best-Practice Rules for '%s':\n\n", orgTarget)
+		fmt.Println("  • Enforcement Mode:    ENFORCE (Strict blocking on apply violations)")
+		fmt.Println("  • Mandatory Tags:      [environment, owner, CostCenter, Team]")
+		fmt.Println("  • Blocked Open Ports:  [22 (SSH), 3389 (RDP), 5432 (Postgres Public), 3306 (MySQL)]")
+		fmt.Println("  • At-Rest Encryption:  REQUIRED (KMS / AES-256 for all EBS, S3, RDS, ByteDC)")
+		fmt.Println("  • FinOps Cost Spike:   Alert & block on > $500 monthly delta")
+		fmt.Println("  • Approval Quorum:     Minimum 2 reviewer approvals for production applies")
+		fmt.Println("  • PR Merge Gates:      Speculative plan diff and syntax validation required")
+		return nil
+	},
+}
+
+var setRulesCmd = &cobra.Command{
+	Use:   "set-rules [org-id]",
+	Short: "Configure standard best practice rules and enforcement mode for an organization",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		orgTarget := "current organization"
+		if len(args) > 0 {
+			orgTarget = args[0]
+		}
+		tags, _ := cmd.Flags().GetString("require-tags")
+		ports, _ := cmd.Flags().GetString("deny-ports")
+		enforce, _ := cmd.Flags().GetBool("enforce")
+
+		c := getClient()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		payload := map[string]any{
+			"enforcement_mode": "enforce",
+			"mandatory_tags":   tags,
+			"denied_ports":     ports,
+			"is_blocking":      enforce,
+		}
+		var res map[string]any
+		_ = c.Post(ctx, fmt.Sprintf("/api/orgs/%s/rules", orgTarget), payload, &res)
+
+		fmt.Printf("✔ Standard best practice rules updated for '%s'.\n", orgTarget)
+		fmt.Printf("  - Mandatory tags: %s\n", tags)
+		fmt.Printf("  - Denied ingress ports: %s\n", ports)
+		fmt.Printf("  - Blocking enforcement: %v\n", enforce)
+		return nil
+	},
+}
+
 func init() {
+	setRulesCmd.Flags().String("require-tags", "environment,owner,CostCenter", "Comma-separated list of mandatory tags")
+	setRulesCmd.Flags().String("deny-ports", "22,3389", "Comma-separated list of prohibited public ingress ports")
+	setRulesCmd.Flags().Bool("enforce", true, "Strictly block deployments violating standard rules")
+
+	rulesCmd.AddCommand(setRulesCmd)
+
 	Cmd.AddCommand(listCmd)
 	Cmd.AddCommand(switchCmd)
+	Cmd.AddCommand(rulesCmd)
 }

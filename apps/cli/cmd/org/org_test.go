@@ -20,4 +20,16 @@ func TestOrgCommands(t *testing.T) {
 	if err := Cmd.Execute(); err != nil {
 		t.Fatalf("org switch failed: %v", err)
 	}
+
+	// 3. Rules
+	Cmd.SetArgs([]string{"rules", "org-global"})
+	if err := Cmd.Execute(); err != nil {
+		t.Fatalf("org rules failed: %v", err)
+	}
+
+	// 4. Set Rules
+	Cmd.SetArgs([]string{"rules", "set-rules", "org-global", "--require-tags", "env,team", "--deny-ports", "22", "--enforce"})
+	if err := Cmd.Execute(); err != nil {
+		t.Fatalf("org set-rules failed: %v", err)
+	}
 }
