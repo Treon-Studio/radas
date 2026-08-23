@@ -2779,6 +2779,124 @@ def api_bulk_update_tags():
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC611 & UC612: Stack Archival & Soft-Delete Restore Lifecycle
+# ---------------------------------------------------------------------------
+
+def archive_stack(
+    project_id: Optional[str],
+    stack: str,
+    actor: str = "",
+    reason: str = "",
+) -> Dict[str, Any]:
+    """Archive a stack (soft delete) preventing active operations (UC611)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    now = int(time.time())
+    meta["archived"] = True
+    meta["archived_at"] = now
+    meta["archived_by"] = actor or "system"
+    meta["archive_reason"] = reason or ""
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "archived": True,
+        "archived_at": now,
+        "archived_by": actor or "system",
+    }
+
+
+def restore_archived_stack(
+    project_id: Optional[str],
+    stack: str,
+    actor: str = "",
+) -> Dict[str, Any]:
+    """Restore a previously archived stack to active state (UC612)."""
+    stack_name = (stack or "").strip()
+    if not stack_name:
+        raise ValueError("stack name required")
+
+    meta = dict(_load_meta(project_id, stack_name))
+    now = int(time.time())
+    meta["archived"] = False
+    meta["restored_at"] = now
+    meta["restored_by"] = actor or "system"
+    _save_meta(project_id, stack_name, **meta)
+
+    return {
+        "ok": True,
+        "stack": stack_name,
+        "project_id": project_id,
+        "archived": False,
+        "restored_at": now,
+        "restored_by": actor or "system",
+    }
+
+
+def list_archived_stacks(project_id: Optional[str]) -> List[Dict[str, Any]]:
+    """List all archived stacks in a project (UC611/612)."""
+    all_stacks = _list_stacks(project_id)
+    archived = []
+    for s in all_stacks:
+        sname = s.get("name") if isinstance(s, dict) else str(s)
+        meta = _load_meta(project_id, sname)
+        if meta.get("archived") is True:
+            archived.append({
+                "stack": sname,
+                "project_id": project_id,
+                "archived_at": meta.get("archived_at"),
+                "archived_by": meta.get("archived_by"),
+                "archive_reason": meta.get("archive_reason"),
+            })
+    return archived
+
+
+
+@bp.route("/stacks/<name>/archive", methods=["POST"])
+@require_project_access
+def api_archive_stack(name: str):
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason", "")
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = archive_stack(pid, name, actor=actor, reason=reason)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/<name>/restore", methods=["POST"])
+@require_project_access
+def api_restore_stack(name: str):
+    pid = _get_project_id()
+    cu = getattr(request, "current_user", {}) or {}
+    actor = cu.get("username") or cu.get("email") or "admin"
+
+    try:
+        res = restore_archived_stack(pid, name, actor=actor)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.route("/stacks/archived", methods=["GET"])
+@require_project_access
+def api_list_archived_stacks():
+    pid = _get_project_id()
+    stacks = list_archived_stacks(pid)
+    return jsonify({"project_id": pid, "count": len(stacks), "stacks": stacks}), 200
+
+
+
 
 
 
