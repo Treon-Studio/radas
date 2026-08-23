@@ -102,3 +102,41 @@ def test_execution_claim_backoff():
     assert calculate_claim_backoff(attempt=10, base_delay=0.5, max_delay=10.0) == 10.0
 
 
+def test_worker_fairness_round_robin():
+    from services.worker_fairness import schedule_fair_round_robin
+
+    tasks = [
+        {"id": "t1", "stack": "stack-A"},
+        {"id": "t2", "stack": "stack-A"},
+        {"id": "t3", "stack": "stack-A"},
+        {"id": "t4", "stack": "stack-B"},
+        {"id": "t5", "stack": "stack-C"},
+    ]
+
+    # Round robin interleaves: stack-A (t1), stack-B (t4), stack-C (t5), stack-A (t2), stack-A (t3)
+    scheduled = schedule_fair_round_robin(tasks)
+    scheduled_stacks = [t["stack"] for t in scheduled]
+    assert scheduled_stacks[:3] == ["stack-A", "stack-B", "stack-C"]
+    assert scheduled_stacks[3:] == ["stack-A", "stack-A"]
+
+
+def test_worker_drain_lifecycle(pg_db):
+    from services.worker_drain import initiate_worker_drain, get_worker_drain_status
+
+    # 1. Initiate drain
+    drain = initiate_worker_drain(worker_id="worker-drain-01", timeout_seconds=120)
+    assert drain["status"] == "draining"
+    assert drain["worker_id"] == "worker-drain-01"
+
+    # 2. Check status while busy
+    st_busy = get_worker_drain_status(worker_id="worker-drain-01", active_jobs_count=2)
+    assert st_busy["draining"] is True
+    assert st_busy["can_shutdown"] is False
+
+    # 3. Check status when idle
+    st_idle = get_worker_drain_status(worker_id="worker-drain-01", active_jobs_count=0)
+    assert st_idle["draining"] is True
+    assert st_idle["can_shutdown"] is True
+
+
+
