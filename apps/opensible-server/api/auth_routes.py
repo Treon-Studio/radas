@@ -254,6 +254,24 @@ def api_auth_logout():
         return jsonify({"success": False, "error": "Logout error"}), 500
 
 
+@bp.route("/api/auth/revoke-all-sessions", methods=["POST"])
+@require_auth
+def api_auth_revoke_all_sessions():
+    """Revoke all current sessions and active tokens for the authenticated user (UC635)."""
+    from auth.service import revoke_all_user_sessions
+    _, _, _, DATA_DIR = _services()
+    try:
+        user_id = request.current_user.get("user_id")
+        if not user_id:
+            return jsonify({"success": False, "error": "User not authenticated"}), 401
+        cutoff = revoke_all_user_sessions(user_id, DATA_DIR)
+        current_app.logger.info(f"User {user_id} revoked all sessions at {cutoff}")
+        return jsonify({"success": True, "message": "All sessions and tokens revoked", "revoked_at": cutoff})
+    except Exception as e:
+        current_app.logger.error(f"Error revoking sessions: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Revoke sessions error"}), 500
+
+
 @bp.route("/api/auth/refresh", methods=["POST"])
 def api_auth_refresh():
     user_service, role_service, _, DATA_DIR = _services()

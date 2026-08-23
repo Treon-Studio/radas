@@ -233,5 +233,42 @@ def test_service_account_scoped_tokens_and_last_used(pg_db, data_dir):
     assert updated_tokens[0]["lastUsedAt"] == matched_entry["lastUsedAt"]
 
 
+def test_revoke_all_user_sessions(pg_db, data_dir):
+    from auth.service import (
+        generate_token,
+        verify_token,
+        revoke_all_user_sessions,
+        are_user_sessions_revoked,
+    )
+
+    # 1. Generate token before revocation
+    token1 = generate_token(
+        user_id="user-revoke-test",
+        username="revoketest",
+        roles=["viewer"],
+        data_dir=data_dir,
+    )
+    assert verify_token(token1, data_dir) is not None
+
+    # 2. Revoke all user sessions
+    time.sleep(0.01)
+    cutoff = revoke_all_user_sessions("user-revoke-test", data_dir)
+    assert cutoff > 0
+
+    # 3. Old token should now be rejected as revoked
+    assert verify_token(token1, data_dir) is None
+
+    # 4. A new token generated AFTER the revocation should succeed (cross 1s second boundary)
+    time.sleep(1.05)
+    token2 = generate_token(
+        user_id="user-revoke-test",
+        username="revoketest",
+        roles=["viewer"],
+        data_dir=data_dir,
+    )
+    assert verify_token(token2, data_dir) is not None
+
+
+
 
 
