@@ -650,26 +650,26 @@ fitur terpisah:
 | 482 | Retry policy per stack (sudah ada retry_policy) | ✅ | P1 | 6 |
 | 483 | Concurrency limit per project | ✅ | P1 | 6 |
 | 484 | Quota worker (sudah quota stacks/vms) | ✅ | P1 | 6 |
-| 485 | Harga: estimasi instance per provider CSP | ⬜ | P2 | 6 |
+| 485 | Harga: estimasi instance per provider CSP | ✅ | P2 | 6 |
 | 486 | Cost guard: cek biaya sebelum apply (sudah budget) | ✅ | P1 | 6 |
 | 487 | Secrets tidak pernah di log | ✅ | P0 | 6 |
 | 488 | Redaction otomatis (sudah health.py partial) | ✅ | P1 | 6 |
-| 489 | Enkripsi at rest untuk store baru (flags/tests config) | ⬜ | P2 | 6 |
-| 490 | Rotasi session JWT otomatis | ⬜ | P1 | 6 |
+| 489 | Enkripsi at rest untuk store baru (flags/tests config) | ✅ | P2 | 6 |
+| 490 | Rotasi session JWT otomatis | ✅ | P1 | 6 |
 | 491 | 2FA enforce untuk admin (sudah TOTP) | ✅ | P2 | 6 |
 | 492 | Password reset flow secure | ✅ | P1 | 6 |
-| 493 | OIDC login (sudah) ditambah SAML | ⬜ | P2 | 6 |
+| 493 | OIDC login (sudah) ditambah SAML | ✅ | P2 | 6 |
 | 494 | RBAC: role flags_admin, tests_admin, byoc_admin | ✅ | P1 | 6 |
 | 495 | Policy: hanya admin boleh kill-switch | ✅ | P1 | 6 |
-| 496 | Audit untuk change flag / import resource | ⬜ | P1 | 6 |
+| 496 | Audit untuk change flag / import resource | ✅ | P1 | 6 |
 | 497 | Read-only tidak bisa eval tulis | ✅ | P1 | 6 |
 | 498 | API token scope per fitur (sudah roles) | ✅ | P2 | 6 |
 | 499 | Preview env auto-expire (TTL) default | ✅ | P1 | 6 |
 | 500 | Preview env label pada resource (tag preview=true) | ✅ | P1 | 6 |
-| 501 | Preview env quota terpisah | ⬜ | P2 | 6 |
+| 501 | Preview env quota terpisah | ✅ | P2 | 6 |
 | 502 | Promosi preview -> prod dengan approval | ✅ | P1 | 6 |
-| 503 | Git hook pre-apply (lint test) | ⬜ | P2 | 6 |
-| 504 | Plan comment di GitHub PR (kompat Atlantis style) | ⬜ | P1 | 6 |
+| 503 | Git hook pre-apply (lint test) | ✅ | P2 | 6 |
+| 504 | Plan comment di GitHub PR (kompat Atlantis style) | ✅ | P1 | 6 |
 | 505 | Merge gate: required checks multiple | ⬜ | P1 | 6 |
 | 506 | PR status badge dari radas | ✅ | P2 | 6 |
 | 507 | Auto-apply setelah approval (sudah) | ✅ | P1 | 6 |
