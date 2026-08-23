@@ -88,3 +88,49 @@ def test_print_friendly_cost_report(pg_db):
     assert data["project_id"] == "proj-cost-1"
     assert "total_monthly_cost" in data
 
+
+def test_slack_interactive_approval_handler(pg_db):
+    from services.slack_interactive import handle_slack_interaction
+    from services.approval_service import request_approval, get_approval
+
+    # 1. Request an approval
+    req = request_approval(stack="prod-app", project_id="p-slack", action="apply", requested_by="alice")
+    apr_id = req["id"]
+
+    # 2. Simulate Slack interactive button payload
+    slack_payload = {
+        "type": "block_actions",
+        "user": {"id": "U12345", "username": "slack_admin"},
+        "actions": [
+            {
+                "action_id": "approval_approve",
+                "value": apr_id,
+            }
+        ],
+    }
+
+    resp = handle_slack_interaction(slack_payload)
+    assert resp["success"] is True
+    assert "approved" in resp["text"].lower()
+
+    # 3. Verify approval in DB is now approved
+    updated_apr = get_approval(apr_id)
+    assert updated_apr["status"] == "approved"
+    assert updated_apr["decided_by"] == "slack_admin"
+
+
+def test_welcome_onboarding_email():
+    from services.welcome_email import send_welcome_onboarding_email
+
+    res = send_welcome_onboarding_email(
+        email="newuser@example.com",
+        username="newbie_dev",
+        login_url="https://radas.internal/login",
+        org_name="Treon Studio",
+    )
+    assert res["success"] is True
+    assert res["recipient"] == "newuser@example.com"
+    assert "Welcome to RADAS" in res["subject"]
+    assert "https://radas.internal/login" in res["body"]
+
+

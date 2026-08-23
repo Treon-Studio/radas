@@ -129,9 +129,27 @@ def decide(approval_id: str, status: str, decided_by: str = "", reason: str = ""
     return None
 
 
+def get_approval(approval_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve an approval by ID."""
+    records = _load()
+    for r in records:
+        if r.get("id") == approval_id:
+            return r
+    return None
+
+
+def approve_approval(approval_id: str, decided_by: str = "", note: str = "") -> Optional[Dict[str, Any]]:
+    """Approve an approval request (UC617)."""
+    return decide(approval_id, "approved", decided_by=decided_by, reason=note)
+
+
 def reject_approval(approval_id: str, rejected_by: str = "", reason: str = "") -> Optional[Dict[str, Any]]:
     """Reject an approval request with mandatory reason (UC616)."""
     return decide(approval_id, "rejected", decided_by=rejected_by, reason=reason)
+
+
+request_approval = create_approval
+
 
 
 
