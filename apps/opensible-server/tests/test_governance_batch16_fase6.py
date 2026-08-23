@@ -79,3 +79,43 @@ def test_component_health_status_page(pg_db, tmp_path, monkeypatch):
     assert "execution_engine" in comp_names
 
 
+def test_product_usage_analytics(pg_db):
+    from services.usage_analytics import get_product_usage_metrics
+    from storage import pg
+
+    # Seed stacks in DB
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s), (%s, %s, %s)",
+        ("p-analytics", "stack-01", json.dumps({"env": "prod"}), "p-analytics", "stack-02", json.dumps({"env": "dev"})),
+    )
+
+    metrics = get_product_usage_metrics(days=30)
+    assert metrics["total_stacks"] >= 2
+    assert "active_stacks_30d" in metrics
+    assert "dau_stacks_24h" in metrics
+    assert metrics["period_days"] == 30
+
+
+def test_anonymized_telemetry_opt_in(pg_db):
+    from services.telemetry import (
+        set_telemetry_opt_in,
+        is_telemetry_opted_in,
+        get_telemetry_payload,
+    )
+
+    # 1. Default: opt-in is False
+    assert is_telemetry_opted_in() is False
+
+    # 2. Toggle opt-in to True
+    set_telemetry_opt_in(True)
+    assert is_telemetry_opted_in() is True
+
+    # 3. Payload must be anonymized (no raw project names / secret keys)
+    payload = get_telemetry_payload(anonymize=True)
+    assert "os" in payload
+    assert "python_version" in payload
+    assert "stack_count_bucket" in payload
+    assert "instance_hash" in payload
+
+
+
