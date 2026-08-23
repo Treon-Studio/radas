@@ -55,8 +55,19 @@ def trigger_approval_retest(project_id: Optional[str], stack: str, approval_id: 
     return None
 
 
+def is_approval_expired(approval_dict: Dict[str, Any]) -> bool:
+    """Check if an approval request has expired (UC615)."""
+    if not approval_dict:
+        return False
+    expires_at = approval_dict.get("expires_at")
+    if expires_at and approval_dict.get("status") == "pending":
+        return time.time() > float(expires_at)
+    return False
+
+
 def create_approval(stack: str, project_id: str, action: str,
-                    requested_by: str = "", note: str = "") -> Dict[str, Any]:
+                    requested_by: str = "", note: str = "",
+                    ttl_seconds: int = 86400) -> Dict[str, Any]:
     approval_id = str(uuid.uuid4())
     retest_run_id = None
     try:
@@ -64,6 +75,7 @@ def create_approval(stack: str, project_id: str, action: str,
     except Exception:
         pass
 
+    now = time.time()
     rec = {
         "id": approval_id,
         "stack": stack,
@@ -72,7 +84,8 @@ def create_approval(stack: str, project_id: str, action: str,
         "status": "pending",
         "requested_by": requested_by,
         "note": note,
-        "created_at": time.time(),
+        "created_at": now,
+        "expires_at": now + max(60, int(ttl_seconds)),
         "decided_at": None,
         "decided_by": None,
         "retest_run_id": retest_run_id,
@@ -87,6 +100,14 @@ def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict
     records = _load()
     for r in records:
         if r.get("id") == approval_id:
+            # Check for TTL expiry
+            if is_approval_expired(r):
+                r["status"] = "expired"
+                r["decided_at"] = time.time()
+                r["decided_by"] = "system"
+                _save(records)
+                return r
+
             r["status"] = status
             r["decided_at"] = time.time()
             r["decided_by"] = decided_by
@@ -104,8 +125,17 @@ def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict
 
 
 def list_approvals(project_id: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    records = _load()
+    changed = False
+    for r in records:
+        if is_approval_expired(r):
+            r["status"] = "expired"
+            changed = True
+    if changed:
+        _save(records)
+
     out = []
-    for r in _load():
+    for r in records:
         if project_id and r.get("project_id") != project_id:
             continue
         if status and r.get("status") != status:
@@ -113,6 +143,7 @@ def list_approvals(project_id: Optional[str] = None, status: Optional[str] = Non
         out.append(r)
     out.sort(key=lambda x: x.get("created_at") or 0, reverse=True)
     return out
+
 
 
 def has_approved(stack: str, project_id: str, action: str) -> bool:

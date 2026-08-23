@@ -38,3 +38,33 @@ def test_quorum_approval_flow(data_dir):
     assert res2["status"] == "approved"
     assert len(res2["signatures"]) == 2
     assert approval_service.is_quorum_reached(aid) is True
+
+
+def test_approval_ttl_expiry(data_dir):
+    """UC615: Approval request TTL expiration."""
+    from services import approval_service
+
+    proj = "proj-ttl"
+    stk = "web-stack"
+
+    # Create approval with short TTL (e.g. 60 seconds)
+    appr = approval_service.create_approval(
+        stack=stk, project_id=proj, action="apply", requested_by="alice", ttl_seconds=60
+    )
+    aid = appr["id"]
+    assert appr["status"] == "pending"
+    assert appr["expires_at"] > time.time()
+    assert approval_service.is_approval_expired(appr) is False
+
+    # Simulate expired approval by modifying expires_at in the past
+    records = approval_service._load()
+    for r in records:
+        if r.get("id") == aid:
+            r["expires_at"] = time.time() - 10
+    approval_service._save(records)
+
+    # Listing should mark status as expired
+    all_appr = approval_service.list_approvals(project_id=proj)
+    target = next((r for r in all_appr if r["id"] == aid), None)
+    assert target is not None
+    assert target["status"] == "expired"
