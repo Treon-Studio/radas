@@ -9,14 +9,18 @@ import (
 
 	"github.com/raizora/radas/v4/cmd/backend"
 	"github.com/raizora/radas/v4/cmd/config"
+	"github.com/raizora/radas/v4/cmd/cost"
 	"github.com/raizora/radas/v4/cmd/design"
 	"github.com/raizora/radas/v4/cmd/devops"
+	"github.com/raizora/radas/v4/cmd/flags"
 	"github.com/raizora/radas/v4/cmd/frontend"
 	"github.com/raizora/radas/v4/cmd/git"
 	"github.com/raizora/radas/v4/cmd/infra"
+	"github.com/raizora/radas/v4/cmd/registry"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
 	"github.com/raizora/radas/v4/cmd/scan"
 	"github.com/raizora/radas/v4/cmd/setup"
+	"github.com/raizora/radas/v4/cmd/stack"
 	"github.com/raizora/radas/v4/cmd/sync"
 	"github.com/raizora/radas/v4/cmd/workspace"
 	"github.com/raizora/radas/v4/constants"
@@ -104,6 +108,12 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 
 	// Workspace command group (Phase A: Monorepo Manager)
 	rootCmd.AddCommand(workspace.Cmd)
+
+	// Cloud, Infrastructure, BYOC & FinOps command groups (Console Parity)
+	rootCmd.AddCommand(stack.Cmd)
+	rootCmd.AddCommand(flags.Cmd)
+	rootCmd.AddCommand(registry.Cmd)
+	rootCmd.AddCommand(cost.Cmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
