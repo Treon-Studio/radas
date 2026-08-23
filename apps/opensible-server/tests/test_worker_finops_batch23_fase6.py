@@ -107,3 +107,41 @@ def test_rightsizing_recommendations():
     assert rec_up["confidence"] >= 0.80
 
 
+def test_run_cost_attribution(pg_db):
+    from services.run_cost_attribution import attribute_execution_run_cost
+
+    # 120s run @ $0.005/s = $0.60
+    res = attribute_execution_run_cost(
+        execution_id="exec-run-882",
+        duration_seconds=120.0,
+        rate_per_second=0.005,
+        project_id="p-finops",
+        stack="core-infra",
+    )
+    assert res["execution_id"] == "exec-run-882"
+    assert res["duration_seconds"] == 120.0
+    assert res["compute_cost"] == 0.60
+
+
+def test_untagged_cost_detector(pg_db):
+    import json
+    from services.untagged_cost_detector import detect_untagged_resource_costs
+    from storage import pg
+
+    # 1. Seed tagged stack and untagged stack
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-untagged-test", "tagged-service", json.dumps({"cost": 80.0, "tags": {"owner": "dev", "cost_center": "eng"}}),
+            "p-untagged-test", "orphan-service", json.dumps({"cost": 120.0, "tags": {}}),  # Missing tags!
+        ),
+    )
+
+    detected = detect_untagged_resource_costs("p-untagged-test", required_tags=["owner", "cost_center"])
+    assert detected["untagged_count"] == 1
+    assert detected["untagged_cost_total"] == 120.0
+    assert detected["untagged_stacks"][0]["stack"] == "orphan-service"
+
+
+
