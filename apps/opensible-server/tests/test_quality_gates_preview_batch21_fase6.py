@@ -89,3 +89,51 @@ def test_data_snapshot_backup_and_restore(pg_db):
     )
     assert row is not None
 
+
+def test_preview_ttl_sweeper(pg_db):
+    import json
+    import time
+    from services.preview_ttl_sweeper import sweep_expired_previews
+    from storage import pg
+
+    now = time.time()
+    # 1. Seed active preview and expired preview
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-ttl-sweep", "preview-pr-101", json.dumps({"preview": True, "expires_at": now - 3600}), # Expired 1h ago
+            "p-ttl-sweep", "preview-pr-102", json.dumps({"preview": True, "expires_at": now + 7200}), # Valid for 2h
+        ),
+    )
+
+    swept = sweep_expired_previews("p-ttl-sweep", current_time=now)
+    assert len(swept) == 1
+    assert swept[0]["stack"] == "preview-pr-101"
+    assert swept[0]["action"] == "scheduled_destroy"
+
+
+def test_preview_promotion_workflow(pg_db):
+    from services.preview_promotion import (
+        request_preview_promotion,
+        approve_preview_promotion,
+        get_preview_promotion,
+    )
+
+    # 1. Request promotion
+    req = request_preview_promotion(
+        project_id="p-promo",
+        preview_stack="preview-cart-pr50",
+        prod_stack="cart-production",
+        author="dev-emma",
+    )
+    promo_id = req["id"]
+    assert req["status"] == "pending_approval"
+
+    # 2. Approve promotion
+    approved = approve_preview_promotion(promo_id, approver="lead-frank")
+    assert approved["status"] == "approved"
+    assert approved["approved_by"] == "lead-frank"
+    assert approved["promoted_at"] is not None
+
+
