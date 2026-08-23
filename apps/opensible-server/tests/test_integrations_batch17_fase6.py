@@ -134,3 +134,32 @@ def test_welcome_onboarding_email():
     assert "https://radas.internal/login" in res["body"]
 
 
+def test_graphql_gateway_queries(pg_db):
+    from api.graphql_routes import execute_graphql_query
+    from storage import pg
+
+    # Seed stack
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s)",
+        ("proj-gql", "web-gateway", json.dumps({"provider": "hetzner", "monthly_cost": 45.0})),
+    )
+
+    # 1. Query Health
+    res_health = execute_graphql_query("{ health { status } }")
+    assert "data" in res_health
+    assert "health" in res_health["data"]
+    assert res_health["data"]["health"]["status"] in ("operational", "degraded")
+
+    # 2. Query Stacks
+    res_stacks = execute_graphql_query('{ stacks(projectId: "proj-gql") { stack provider } }')
+    assert "data" in res_stacks
+    assert "stacks" in res_stacks["data"]
+    assert len(res_stacks["data"]["stacks"]) >= 1
+    assert res_stacks["data"]["stacks"][0]["stack"] == "web-gateway"
+
+    # 3. Query Schema Version
+    res_ver = execute_graphql_query("{ schemaVersion { version status } }")
+    assert res_ver["data"]["schemaVersion"]["status"] == "stable"
+
+
+
