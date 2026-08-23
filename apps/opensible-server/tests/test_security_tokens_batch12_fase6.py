@@ -106,3 +106,85 @@ def test_prune_audit_logs_retention(pg_db, data_dir):
     assert "recent.event.10" in actions
 
 
+def test_user_invitation_lifecycle(pg_db, data_dir):
+    from services.user_invite_service import (
+        create_user_invite,
+        get_user_invite,
+        claim_user_invite,
+        list_user_invites,
+        revoke_user_invite,
+    )
+    from storage import pg
+    from services.user_service import UserService
+
+    pg.execute("INSERT INTO roles (id, name) VALUES ('developer', 'developer'), ('viewer', 'viewer') ON CONFLICT DO NOTHING")
+
+    user_service = UserService(data_dir)
+
+    # 1. Create an invite for a new user
+    invite = create_user_invite(
+        email="developer@example.com",
+        roles=["developer"],
+        invited_by="admin-user",
+        org_id="org-acme",
+        ttl_seconds=3600,
+    )
+    token = invite["token"]
+    assert token
+    assert invite["email"] == "developer@example.com"
+    assert invite["status"] == "pending"
+    assert invite["roles"] == ["developer"]
+
+    # 2. Get invite
+    fetched = get_user_invite(token)
+    assert fetched is not None
+    assert fetched["email"] == "developer@example.com"
+    assert fetched["status"] == "pending"
+
+    # 3. List invites
+    invites = list_user_invites(org_id="org-acme")
+    assert any(i["token"] == token for i in invites)
+
+    # 4. Claim invite
+    claimed_res = claim_user_invite(
+        token=token,
+        username="dev_john",
+        password="SecurePassword123!",
+        user_service=user_service,
+    )
+    assert claimed_res["success"]
+    assert claimed_res["user"]["username"] == "dev_john"
+
+    # 5. Verify invite is now claimed and cannot be claimed again
+    post_claim = get_user_invite(token)
+    assert post_claim["status"] == "claimed"
+
+    with pytest.raises(ValueError, match="already claimed|not pending"):
+        claim_user_invite(
+            token=token,
+            username="dev_duplicate",
+            password="SecurePassword123!",
+            user_service=user_service,
+        )
+
+    # 6. Test invite expiration / revocation
+    invite2 = create_user_invite(
+        email="test_expire@example.com",
+        roles=["viewer"],
+        invited_by="admin-user",
+        ttl_seconds=-10,  # already expired
+    )
+    assert get_user_invite(invite2["token"])["status"] == "expired"
+
+    # 7. Test manual revocation
+    invite3 = create_user_invite(
+        email="test_revoke@example.com",
+        roles=["viewer"],
+        invited_by="admin-user",
+        ttl_seconds=3600,
+    )
+    assert revoke_user_invite(invite3["token"])
+    assert get_user_invite(invite3["token"])["status"] == "revoked"
+
+
+
