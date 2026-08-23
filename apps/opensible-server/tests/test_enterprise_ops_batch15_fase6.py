@@ -99,3 +99,67 @@ def test_org_password_complexity_policy(pg_db):
     assert err_none is None
 
 
+def test_hashicorp_vault_read_integration(monkeypatch):
+    import io
+    import urllib.request
+    from services.vault_integration import read_vault_secret
+
+    # Mock urllib response for Vault KV v2 engine
+    class FakeVaultResponse:
+        def __init__(self, payload):
+            self.payload = payload
+        def read(self):
+            return json.dumps(self.payload).encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    def fake_urlopen(req, *args, **kwargs):
+        assert req.get_header("X-vault-token") == "s.mock-token-xyz"
+        return FakeVaultResponse({
+            "data": {
+                "data": {
+                    "DB_PASSWORD": "super-secret-vault-pwd",
+                    "API_KEY": "ak-9999",
+                }
+            }
+        })
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    secrets = read_vault_secret(
+        vault_addr="http://vault.internal:8200",
+        token="s.mock-token-xyz",
+        secret_path="secret/data/production/db",
+    )
+    assert secrets["DB_PASSWORD"] == "super-secret-vault-pwd"
+    assert secrets["API_KEY"] == "ak-9999"
+
+
+def test_kms_key_rotation(pg_db):
+    from services.kms_rotation import rotate_kms_master_key, get_active_kms_key
+
+    # 1. Initial key rotation to v1
+    res_v1 = rotate_kms_master_key(new_key_alias="kms-key-2026-v1")
+    assert res_v1["success"] is True
+    assert res_v1["version"] == 1
+    assert res_v1["active_key_alias"] == "kms-key-2026-v1"
+
+    curr_v1 = get_active_kms_key()
+    assert curr_v1["version"] == 1
+    assert curr_v1["alias"] == "kms-key-2026-v1"
+
+    # 2. Rotate to v2
+    res_v2 = rotate_kms_master_key(new_key_alias="kms-key-2026-v2")
+    assert res_v2["success"] is True
+    assert res_v2["version"] == 2
+    assert res_v2["active_key_alias"] == "kms-key-2026-v2"
+
+    curr_v2 = get_active_kms_key()
+    assert curr_v2["version"] == 2
+    assert curr_v2["alias"] == "kms-key-2026-v2"
+    assert len(curr_v2.get("previous_versions", [])) >= 1
+
+
+
