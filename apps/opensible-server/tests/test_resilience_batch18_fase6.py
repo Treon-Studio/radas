@@ -97,3 +97,37 @@ def test_session_inactivity_lock(pg_db):
     time.sleep(0.02)
     assert is_session_inactive(token, max_idle_seconds=0.01) is True
 
+
+def test_daily_failure_and_drift_digest(pg_db):
+    from services.daily_digest import compile_daily_digest
+    from services.audit_events import record_audit_event
+
+    record_audit_event("cloud.run.failed", target_type="stack", target_id="auth-service", meta={"project_id": "p-digest", "error": "Crash"})
+    record_audit_event("drift.detected", target_type="stack", target_id="billing-db", meta={"project_id": "p-digest", "drift_count": 2})
+
+    digest = compile_daily_digest(project_id="p-digest", hours=24)
+    assert digest["project_id"] == "p-digest"
+    assert digest["failed_runs_count"] >= 1
+    assert digest["drift_events_count"] >= 1
+    assert "Daily Infrastructure Digest" in digest["summary_title"]
+
+
+def test_semver_constraint_resolver():
+    from services.semver_resolver import resolve_semver_constraint
+
+    available = ["1.0.0", "1.1.0", "1.2.0", "1.2.5", "1.3.0", "2.0.0", "2.1.0"]
+
+    # 1. Exact match
+    assert resolve_semver_constraint(available, "1.2.0") == "1.2.0"
+
+    # 2. Caret constraint (^1.2.0 -> highest 1.x >= 1.2.0 -> 1.3.0)
+    assert resolve_semver_constraint(available, "^1.2.0") == "1.3.0"
+
+    # 3. Tilde constraint (~> 1.2.0 -> highest 1.2.x -> 1.2.5)
+    assert resolve_semver_constraint(available, "~> 1.2.0") == "1.2.5"
+
+    # 4. Comparison constraint
+    assert resolve_semver_constraint(available, ">= 2.0.0") == "2.1.0"
+    assert resolve_semver_constraint(available, "< 1.2.0") == "1.1.0"
+
+
