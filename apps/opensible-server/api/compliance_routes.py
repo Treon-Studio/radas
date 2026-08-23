@@ -30,3 +30,15 @@ def api_compliance_report():
     if not pid:
         return jsonify({"error": "Project required"}), 400
     return jsonify(report(pid))
+
+
+@bp.route('/api/compliance/export', methods=['GET'])
+@require_project_access
+def api_compliance_export():
+    from services.compliance_service import export_compliance_report
+    pid = request.args.get("project_id") or _get_pid_raw(lambda: None)
+    format_type = request.args.get("format", "html")
+    output = export_compliance_report(pid, format_type=format_type)
+    if format_type.lower() == "json":
+        return output, 200, {"Content-Type": "application/json"}
+    return output, 200, {"Content-Type": "text/html; charset=utf-8"}
