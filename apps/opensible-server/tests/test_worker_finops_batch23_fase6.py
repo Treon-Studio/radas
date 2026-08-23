@@ -66,3 +66,44 @@ def test_env_chargeback_free_tier():
     assert res["billable_cost"] == 400.0  # 300 + 100 (prod + staging)
     assert res["free_tier_savings"] == 75.0  # 50 + 25 (dev + preview waived)
 
+
+def test_hierarchical_budget_rollup():
+    from services.budget_rollup import rollup_org_budgets
+
+    child_projects = [
+        {"project_id": "proj-auth", "budget": 1000.0, "actual_spend": 750.0},
+        {"project_id": "proj-billing", "budget": 2000.0, "actual_spend": 2400.0},  # Over budget!
+        {"project_id": "proj-search", "budget": 500.0, "actual_spend": 300.0},
+    ]
+
+    rollup = rollup_org_budgets("org-global-corp", child_projects)
+    assert rollup["total_budget"] == 3500.0
+    assert rollup["total_spend"] == 3450.0
+    assert len(rollup["over_budget_projects"]) == 1
+    assert rollup["over_budget_projects"][0]["project_id"] == "proj-billing"
+
+
+def test_rightsizing_recommendations():
+    from services.rightsizing_advisor import generate_rightsizing_recommendation
+
+    # 1. Underutilized instance -> Downsize
+    rec_down = generate_rightsizing_recommendation(
+        resource_id="i-underutilized-01",
+        current_type="t3.2xlarge",
+        avg_cpu_percent=12.0,
+        avg_memory_percent=18.5,
+    )
+    assert rec_down["action"] == "downsize"
+    assert rec_down["confidence"] >= 0.85
+
+    # 2. Overutilized instance -> Upsize
+    rec_up = generate_rightsizing_recommendation(
+        resource_id="i-bottleneck-02",
+        current_type="t3.small",
+        avg_cpu_percent=92.0,
+        avg_memory_percent=90.0,
+    )
+    assert rec_up["action"] == "upsize"
+    assert rec_up["confidence"] >= 0.80
+
+
