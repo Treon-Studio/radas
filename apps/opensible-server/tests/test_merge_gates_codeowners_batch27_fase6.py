@@ -87,3 +87,30 @@ def test_code_owners_parser():
     owners_mod = find_code_owners(codeowners, "modules/vpc/main.tf")
     assert owners_mod == ["@module-maintainers"]
 
+
+def test_offline_init_configuration():
+    from services.offline_init import configure_offline_init_env
+
+    env = configure_offline_init_env(
+        plugin_cache_dir="/var/cache/radas/tofu_plugins",
+        mirror_dir="/opt/radas/mirrors/providers",
+    )
+    assert env["TF_PLUGIN_CACHE_DIR"] == "/var/cache/radas/tofu_plugins"
+    assert env["RADAS_PROVIDER_MIRROR_DIR"] == "/opt/radas/mirrors/providers"
+
+
+def test_project_log_retention_policy(pg_db):
+    from services.log_retention_policy import set_project_log_retention, get_project_log_retention
+
+    # 1. Default fallback is 90
+    assert get_project_log_retention("p-new-unconfigured") == 90
+
+    # 2. Set to 180 days
+    set_res = set_project_log_retention("p-audit-heavy", retention_days=180)
+    assert set_res["success"] is True
+    assert set_res["retention_days"] == 180
+
+    # 3. Query back
+    assert get_project_log_retention("p-audit-heavy") == 180
+
+
