@@ -131,3 +131,61 @@ def test_semver_constraint_resolver():
     assert resolve_semver_constraint(available, "< 1.2.0") == "1.1.0"
 
 
+def test_bill_spike_safeguards(pg_db):
+    from services.bill_spike_protection import (
+        set_project_cost_baseline,
+        check_bill_spike,
+    )
+
+    # 1. Set baseline: $100/mo
+    set_project_cost_baseline("proj-finops", 100.0)
+
+    # 2. Within threshold: $130 (30% increase < 50% threshold)
+    res_normal = check_bill_spike("proj-finops", current_projected_cost=130.0, threshold_percentage=50.0)
+    assert res_normal["spike_detected"] is False
+
+    # 3. Bill spike: $220 (120% increase > 50% threshold)
+    res_spike = check_bill_spike("proj-finops", current_projected_cost=220.0, threshold_percentage=50.0)
+    assert res_spike["spike_detected"] is True
+    assert res_spike["increase_percentage"] == 120.0
+    assert res_spike["action"] == "alert_or_auto_stop"
+
+
+def test_custom_template_versioning(pg_db):
+    from services.template_versioning import (
+        publish_template_version,
+        get_template_version,
+        list_template_versions,
+    )
+
+    # 1. Publish v1.0.0
+    publish_template_version(
+        template_name="k8s-cluster",
+        version="1.0.0",
+        files={"main.tf": 'resource "k8s" "c1" {}\n'},
+        changelog="Initial release",
+    )
+
+    # 2. Publish v1.1.0
+    publish_template_version(
+        template_name="k8s-cluster",
+        version="1.1.0",
+        files={"main.tf": 'resource "k8s" "c1" { autoscaling = true }\n'},
+        changelog="Added autoscaling",
+    )
+
+    # 3. Get specific version
+    v1 = get_template_version("k8s-cluster", "1.0.0")
+    assert v1 is not None
+    assert v1["version"] == "1.0.0"
+    assert "autoscaling" not in v1["files"]["main.tf"]
+
+    # 4. List all versions
+    versions = list_template_versions("k8s-cluster")
+    assert len(versions) >= 2
+    ver_tags = [v["version"] for v in versions]
+    assert "1.0.0" in ver_tags
+    assert "1.1.0" in ver_tags
+
+
+
