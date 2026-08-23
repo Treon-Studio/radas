@@ -670,22 +670,22 @@ fitur terpisah:
 | 502 | Promosi preview -> prod dengan approval | ✅ | P1 | 6 |
 | 503 | Git hook pre-apply (lint test) | ✅ | P2 | 6 |
 | 504 | Plan comment di GitHub PR (kompat Atlantis style) | ✅ | P1 | 6 |
-| 505 | Merge gate: required checks multiple | ⬜ | P1 | 6 |
+| 505 | Merge gate: required checks multiple | ✅ | P1 | 6 |
 | 506 | PR status badge dari radas | ✅ | P2 | 6 |
 | 507 | Auto-apply setelah approval (sudah) | ✅ | P1 | 6 |
-| 508 | Branch protection sync dengan stack policy | ⬜ | P2 | 6 |
-| 509 | Pull request template radas untuk infra | ⬜ | P2 | 6 |
-| 510 | Code owners enforcement | ⬜ | P2 | 6 |
+| 508 | Branch protection sync dengan stack policy | ✅ | P2 | 6 |
+| 509 | Pull request template radas untuk infra | ✅ | P2 | 6 |
+| 510 | Code owners enforcement | ✅ | P2 | 6 |
 | 511 | Module registry publish CLI | ⬜ | P1 | 6 |
 | 512 | Module semver + constraint resolution | ✅ | P1 | 6 |
 | 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
 | 514 | Lockfile .terraform.lock.hcl untuk ensure version | ✅ | P1 | 6 |
 | 515 | Checksum verifikasi module download | ✅ | P1 | 6 |
-| 516 | Init offline mode (mirror packages) | ⬜ | P1 | 6 |
+| 516 | Init offline mode (mirror packages) | ✅ | P1 | 6 |
 | 517 | Tenancy org (multi-org) dasar | ⬜ | P2 | 6 |
 | 518 | Project switcher cepat di header | ⬜ | P1 | 6 |
-| 519 | Project settings duration (retensi log) | ⬜ | P2 | 6 |
-| 520 | Default template per project | ⬜ | P2 | 6 |
+| 519 | Project settings duration (retensi log) | ✅ | P2 | 6 |
+| 520 | Default template per project | ✅ | P2 | 6 |
 | 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ⬜ | P1 | 6 |
 | 522 | Backend.hcl edit guard (jangan rusak state key) | ✅ | P1 | 6 |
 | 523 | Force-unlock state (tofu force-unlock wrapper) | ✅ | P1 | 6 |
@@ -709,7 +709,7 @@ fitur terpisah:
 | 541 | Schedule snapshot berkala | ✅ | P2 | 6 |
 | 542 | Retention valid for snapshots (max N) | ✅ | P2 | 6 |
 | 543 | Secret rotation schedule (sudah) -> auto-apply UI | ✅ | P1 | 6 |
-| 544 | Compliance evidence untuk secret rotation | ⬜ | P2 | 6 |
+| 544 | Compliance evidence untuk secret rotation | ✅ | P2 | 6 |
 | 545 | Policy gate plan parse (sudah) -> extend severity | ✅ | P1 | 6 |
 | 546 | Policy violations list permanent | ✅ | P1 | 6 |
 | 547 | Policy exemptions dengan approval | ✅ | P2 | 6 |
