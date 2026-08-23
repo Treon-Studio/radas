@@ -89,3 +89,54 @@ def test_version_pinning_and_changelog(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="Version '2.0.0' not found"):
         install(None, "demo2", "vpc", version="2.0.0")
 
+
+def test_dependency_resolution_and_chain_install(tmp_path, monkeypatch):
+    from services.code_registry import resolve_dependencies, install, installed
+    reg = _seed_base_registry(tmp_path)
+
+    # Add 'subnet' which depends on 'vpc', and 'monitoring' which depends on 'subnet'
+    subnet = reg / "tofu-block" / "subnet"
+    subnet.mkdir(parents=True)
+    (subnet / "radas.json").write_text(json.dumps({
+        "name": "subnet",
+        "type": "tofu-block",
+        "version": "1.0.0",
+        "dependencies": ["vpc"],
+    }), encoding="utf-8")
+    (subnet / "subnet.tf").write_text('resource "hcloud_network_subnet" "sub" {}\n', encoding="utf-8")
+
+    mon = reg / "tofu-block" / "monitoring"
+    mon.mkdir(parents=True)
+    (mon / "radas.json").write_text(json.dumps({
+        "name": "monitoring",
+        "type": "tofu-block",
+        "version": "1.0.0",
+        "dependencies": ["subnet"],
+    }), encoding="utf-8")
+    (mon / "mon.tf").write_text('resource "hcloud_server" "prometheus" {}\n', encoding="utf-8")
+
+    monkeypatch.setenv("REGISTRY_DIR", str(reg))
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    sd = _seed_test_stack(tmp_path, "mon-stack")
+
+    # 1. Test resolve_dependencies returns ["vpc", "subnet"]
+    deps = resolve_dependencies("monitoring")
+    assert deps == ["vpc", "subnet"]
+
+    # 2. Install monitoring on a fresh stack with resolve_deps=True
+    res = install(None, "mon-stack", "monitoring", resolve_deps=True)
+    assert res["name"] == "monitoring"
+    assert "vpc" in res.get("dependencies_installed", [])
+    assert "subnet" in res.get("dependencies_installed", [])
+
+    # 3. Verify all 3 items (vpc, subnet, monitoring) are in installed manifest
+    inst = installed(None, "mon-stack")
+    names = [i["name"] for i in inst]
+    assert "vpc" in names
+    assert "subnet" in names
+    assert "monitoring" in names
+    assert (sd / "vpc-main.tf").exists()
+    assert (sd / "subnet-subnet.tf").exists()
+    assert (sd / "monitoring-mon.tf").exists()
+
+

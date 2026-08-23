@@ -127,13 +127,56 @@ def get_item_changelog(name: str) -> List[Dict[str, Any]]:
     return meta.get("changelog", [])
 
 
+def resolve_dependencies(name: str) -> List[str]:
+    """
+    Resolve all transitive dependencies for a registry item in topological order (UC663).
+    Returns list of dependency names in the order they must be installed.
+    """
+    resolved: List[str] = []
+    visited: set = set()
+    visiting: set = set()
+
+    def _dfs(current: str):
+        if current in visiting:
+            raise ValueError(f"Circular dependency detected involving '{current}'")
+        if current in visited:
+            return
+        visiting.add(current)
+        item = get_item(current)
+        if not item:
+            raise ValueError(f"Dependency '{current}' not found in registry")
+        src = Path(item["path"])
+        meta = _read_meta(src)
+        deps = meta.get("dependencies") or []
+        for dep in deps:
+            _dfs(dep)
+        visiting.remove(current)
+        visited.add(current)
+        if current != name and current not in resolved:
+            resolved.append(current)
+
+    _dfs(name)
+    return resolved
+
+
 def install(
     project_id: Optional[str],
     stack: str,
     name: str,
     version: Optional[str] = None,
+    resolve_deps: bool = False,
 ) -> Dict[str, Any]:
     """Copy a registry item's code into the stack workspace. Returns manifest update."""
+    deps_installed: List[str] = []
+    if resolve_deps:
+        dependencies = resolve_dependencies(name)
+        manifest_curr = _load_manifest(project_id, stack)
+        for dep in dependencies:
+            if dep not in manifest_curr:
+                install(project_id, stack, dep, resolve_deps=False)
+                deps_installed.append(dep)
+                manifest_curr = _load_manifest(project_id, stack)
+
     item = get_item(name)
     if not item:
         raise ValueError(f"Registry item '{name}' not found")
@@ -182,8 +225,16 @@ def install(
     manifest[name] = {"type": item["type"], "version": target_version,
                       "installed_at": int(time.time()), "files_copied": copied}
     _save_manifest(project_id, stack, manifest)
-    return {"name": name, "type": item["type"], "version": target_version,
-            "stack": stack, "files_copied": copied}
+    res = {
+        "name": name,
+        "type": item["type"],
+        "version": target_version,
+        "stack": stack,
+        "files_copied": copied,
+    }
+    if deps_installed:
+        res["dependencies_installed"] = deps_installed
+    return res
 
 
 def uninstall(project_id: Optional[str], stack: str, name: str) -> Dict[str, Any]:
