@@ -118,3 +118,48 @@ def test_run_timeline_builder():
     assert timeline[3]["duration"] is None
 
 
+def test_worker_module_cache_registration(pg_db):
+    from services.worker_module_cache import register_worker_cached_module, get_worker_cached_module
+
+    # 1. Initially uncached
+    assert get_worker_cached_module("worker-gpu-01", "terraform-aws-modules/vpc/aws", "v3.14.0") is None
+
+    # 2. Register cache
+    reg_res = register_worker_cached_module(
+        worker_id="worker-gpu-01",
+        module_source="terraform-aws-modules/vpc/aws",
+        version="v3.14.0",
+        local_path="/var/cache/worker/modules/vpc-v3.14.0",
+    )
+    assert reg_res["success"] is True
+
+    # 3. Retrieve
+    cached = get_worker_cached_module("worker-gpu-01", "terraform-aws-modules/vpc/aws", "v3.14.0")
+    assert cached is not None
+    assert cached["local_path"] == "/var/cache/worker/modules/vpc-v3.14.0"
+
+
+def test_multi_stack_cost_trend_overlay():
+    from services.cost_trend_overlay import generate_multi_stack_cost_overlay
+
+    histories = {
+        "stack-prod-web": [
+            {"date": "2026-01-01", "cost": 100.0},
+            {"date": "2026-02-01", "cost": 120.0},
+            {"date": "2026-03-01", "cost": 130.0},
+        ],
+        "stack-prod-db": [
+            {"date": "2026-01-01", "cost": 250.0},
+            {"date": "2026-02-01", "cost": 260.0},
+            {"date": "2026-03-01", "cost": 280.0},
+        ],
+    }
+
+    overlay = generate_multi_stack_cost_overlay(histories)
+    assert len(overlay["stacks"]) == 2
+    assert overlay["timestamps"] == ["2026-01-01", "2026-02-01", "2026-03-01"]
+    assert overlay["series"]["stack-prod-web"] == [100.0, 120.0, 130.0]
+    assert overlay["series"]["stack-prod-db"] == [250.0, 260.0, 280.0]
+
+
+
