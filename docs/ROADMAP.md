@@ -737,7 +737,7 @@ fitur terpisah:
 | 569 | Sari/draft plan dari template JSON | ⬜ | P2 | 6 |
 | 570 | Satu klik deploy template (sudah wizard) | ✅ | P1 | 6 |
 | 571 | Template versioning (custom templates) | ⬜ | P1 | 6 |
-| 572 | Template market share (shareable URL) | ⬜ | P2 | 6 |
+| 572 | Template market share (shareable URL) | ✅ | P2 | 6 |
 | 573 | Stack dari template dengan init data (sudah) | ✅ | P1 | 6 |
 | 574 | ATS: integration tests untuk UI E2E | ⬜ | P2 | 6 |
 | 575 | Playwright selectors stabil (data-testid) | ⬜ | P2 | 6 |
@@ -748,7 +748,7 @@ fitur terpisah:
 | 580 | Prefetch hover nav | ⬜ | P3 | 6 |
 | 581 | Error boundary per seksi (sudah ada) | ✅ | P1 | 6 |
 | 582 | Fallback UI saat API down (offline badge) | ⬜ | P1 | 6 |
-| 583 | Retry query otomatis with jitter | ⬜ | P1 | 6 |
+| 583 | Retry query otomatis with jitter | ✅ | P1 | 6 |
 | 584 | Konsistensi: semua halaman pakai Card+Button (sudah bulk) | ✅ | P1 | 6 |
 | 585 | Warna semantik var CSS di halaman baru | ⬜ | P1 | 6 |
 | 586 | Typografi font-mono untuk data (sudah) | ✅ | P1 | 6 |
@@ -770,9 +770,9 @@ fitur terpisah:
 | 602 | Usage metrik produk (DAU stacks) | ✅ | P3 | 6 |
 | 603 | Feedback pengguna (rate this) | ⬜ | P3 | 6 |
 | 604 | Telemetry opt-in (anonymized) | ✅ | P3 | 6 |
-| 605 | Localization: tanggal & angka per locale | ⬜ | P2 | 6 |
+| 605 | Localization: tanggal & angka per locale | ✅ | P2 | 6 |
 | 606 | RTL layout readiness | ⬜ | P3 | 6 |
-| 607 | Print-friendly report halaman cost | ⬜ | P2 | 6 |
+| 607 | Print-friendly report halaman cost | ✅ | P2 | 6 |
 | 608 | PDF export laporan compliance | ✅ | P1 | 6 |
 | 609 | Bulk tag edit stack | ✅ | P2 | 6 |
 | 610 | Duplicate stack (clone) action | ✅ | P2 | 6 |
@@ -782,14 +782,14 @@ fitur terpisah:
 | 614 | Persetujuan multi-pihak (quorum) | ✅ | P1 | 6 |
 | 615 | Approval expiry (TTL) | ✅ | P1 | 6 |
 | 616 | Reject reason wajib saat tolak | ✅ | P1 | 6 |
-| 617 | Approval via Slack button (inbound) | ⬜ | P3 | 6 |
+| 617 | Approval via Slack button (inbound) | ✅ | P3 | 6 |
 | 618 | Rate limit per key login (brute force) | ✅ | P1 | 6 |
 | 619 | Audit export CSV | ✅ | P2 | 6 |
 | 620 | Search audit log lengkap | ✅ | P1 | 6 |
 | 621 | Retensi audit configurable | ✅ | P2 | 6 |
 | 622 | User roles matrix viewer | ✅ | P2 | 6 |
 | 623 | Deactivate user (bukan delete) | ✅ | P1 | 6 |
-| 624 | Welcome email onboarding | ⬜ | P3 | 6 |
+| 624 | Welcome email onboarding | ✅ | P3 | 6 |
 | 625 | Invite link user dengan role | ✅ | P1 | 6 |
 | 626 | Password complexity policy per org | ✅ | P2 | 6 |
 | 627 | OAuth login (Google/GitHub) opsional | ✅ | P2 | 6 |
@@ -804,7 +804,7 @@ fitur terpisah:
 | 636 | Admin impersonate (audited) | ✅ | P3 | 6 |
 | 637 | Full-text search stacks/runs | ✅ | P2 | 6 |
 | 638 | API pagination cursor | ✅ | P2 | 6 |
-| 639 | GraphQL gateway (opsional) | ⬜ | P3 | 6 |
+| 639 | GraphQL gateway (opsional) | ✅ | P3 | 6 |
 | 640 | Schema versioning API | ✅ | P3 | 6 |
 | 641 | Rate limit header standar | ✅ | P2 | 6 |
 | 642 | OpenAPI operationId konsisten | ✅ | P2 | 6 |
