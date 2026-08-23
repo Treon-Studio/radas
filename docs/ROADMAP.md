@@ -683,7 +683,7 @@ fitur terpisah:
 | 515 | Checksum verifikasi module download | ✅ | P1 | 6 |
 | 516 | Init offline mode (mirror packages) | ✅ | P1 | 6 |
 | 517 | Tenancy org (multi-org) dasar | ✅ | P2 | 6 |
-| 518 | Project switcher cepat di header | ⬜ | P1 | 6 |
+| 518 | Project switcher cepat di header | ✅ | P1 | 6 |
 | 519 | Project settings duration (retensi log) | ✅ | P2 | 6 |
 | 520 | Default template per project | ✅ | P2 | 6 |
 | 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ✅ | P1 | 6 |
@@ -729,22 +729,22 @@ fitur terpisah:
 | 561 | Trend grafik multi-stack line overlay | ✅ | P1 | 6 |
 | 562 | Stack cost breakdown per resource | ✅ | P2 | 6 |
 | 563 | Untagged resource cost detection | ✅ | P2 | 6 |
-| 564 | Performance: daftar stack > 500 lancar | ⬜ | P1 | 6 |
+| 564 | Performance: daftar stack > 500 lancar | ✅ | P1 | 6 |
 | 565 | Indexing store untuk pencarian | ✅ | P2 | 6 |
 | 566 | SSE stream reconnect dengan backoff (sudah) | ✅ | P1 | 6 |
-| 567 | Optimistik UI update untuk toggle flag | ⬜ | P2 | 6 |
+| 567 | Optimistik UI update untuk toggle flag | ✅ | P2 | 6 |
 | 568 | Batch ops UI (select banyak run -> retry) | ✅ | P2 | 6 |
 | 569 | Sari/draft plan dari template JSON | ✅ | P2 | 6 |
 | 570 | Satu klik deploy template (sudah wizard) | ✅ | P1 | 6 |
 | 571 | Template versioning (custom templates) | ✅ | P1 | 6 |
 | 572 | Template market share (shareable URL) | ✅ | P2 | 6 |
 | 573 | Stack dari template dengan init data (sudah) | ✅ | P1 | 6 |
-| 574 | ATS: integration tests untuk UI E2E | ⬜ | P2 | 6 |
-| 575 | Playwright selectors stabil (data-testid) | ⬜ | P2 | 6 |
+| 574 | ATS: integration tests untuk UI E2E | ✅ | P2 | 6 |
+| 575 | Playwright selectors stabil (data-testid) | ✅ | P2 | 6 |
 | 576 | Snapshot visual komponen | ✅ | P2 | 6 |
-| 577 | Bundle size budget (chunk split) | ⬜ | P2 | 6 |
-| 578 | Lazy load halaman berat (charts) | ⬜ | P1 | 6 |
-| 579 | SWR stale-while-revalidate untuk dashboard | ⬜ | P1 | 6 |
+| 577 | Bundle size budget (chunk split) | ✅ | P2 | 6 |
+| 578 | Lazy load halaman berat (charts) | ✅ | P1 | 6 |
+| 579 | SWR stale-while-revalidate untuk dashboard | ✅ | P1 | 6 |
 | 580 | Prefetch hover nav | ⬜ | P3 | 6 |
 | 581 | Error boundary per seksi (sudah ada) | ✅ | P1 | 6 |
 | 582 | Fallback UI saat API down (offline badge) | ⬜ | P1 | 6 |
