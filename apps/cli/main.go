@@ -30,6 +30,7 @@ import (
 	"github.com/raizora/radas/v4/cmd/stack"
 	"github.com/raizora/radas/v4/cmd/state"
 	"github.com/raizora/radas/v4/cmd/sync"
+	"github.com/raizora/radas/v4/cmd/system"
 	"github.com/raizora/radas/v4/cmd/testcmd"
 	"github.com/raizora/radas/v4/cmd/user"
 	"github.com/raizora/radas/v4/cmd/worker"
@@ -136,6 +137,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(drift.Cmd)
 	rootCmd.AddCommand(state.Cmd)
 	rootCmd.AddCommand(testcmd.Cmd)
+	rootCmd.AddCommand(system.Cmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
