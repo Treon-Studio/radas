@@ -136,3 +136,32 @@ def test_rate_limit_headers_and_retry_after():
     assert int(headers_blocked["Retry-After"]) >= 1
 
 
+def test_configurable_timeout_policy(pg_db):
+    from services.timeout_policy import (
+        get_timeout_policy,
+        set_timeout_policy,
+        list_timeout_policies,
+        delete_timeout_policy,
+    )
+
+    # 1. Default fallback when unconfigured
+    assert get_timeout_policy("opentofu:apply", default_seconds=1800) == 1800
+
+    # 2. Configure customized policy
+    set_timeout_policy("opentofu:apply", 2400)
+    set_timeout_policy("http_client:webhook", 10)
+
+    assert get_timeout_policy("opentofu:apply") == 2400
+    assert get_timeout_policy("http_client:webhook") == 10
+
+    # 3. List policies
+    policies = list_timeout_policies()
+    assert policies.get("opentofu:apply") == 2400
+    assert policies.get("http_client:webhook") == 10
+
+    # 4. Delete policy reverts to default
+    assert delete_timeout_policy("http_client:webhook") is True
+    assert get_timeout_policy("http_client:webhook", default_seconds=30) == 30
+
+
+
