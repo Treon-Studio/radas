@@ -190,3 +190,47 @@ def api_stack_from_template():
     _save_meta(pid, name, provider="bytedc", status="template", template=template, env="dev")
     return jsonify({"success": True, "stack": {"name": name, "template": template}}), 201
 
+
+@bp.route('/api/cloud/stacks/<name>/clone', methods=['POST'])
+@require_project_access
+def api_stack_clone(name):
+    """Duplicate/clone a stack workspace (UC610)."""
+    from services.stack_lifecycle import clone_stack
+    pid = _get_pid_raw(lambda: None)
+    data = request.get_json(silent=True) or {}
+    target_stack = (data.get("target_stack") or "").strip().lower()
+    if not target_stack:
+        return jsonify({"error": "target_stack is required"}), 400
+    try:
+        res = clone_stack(
+            project_id=pid,
+            source_stack=name,
+            target_stack=target_stack,
+            copy_tfvars=data.get("copy_tfvars", True),
+        )
+        return jsonify(res), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/cloud/stacks/<name>/rename', methods=['POST'])
+@require_project_access
+def api_stack_rename(name):
+    """Rename a stack workspace and migrate state keys (UC613)."""
+    from services.stack_lifecycle import rename_stack
+    pid = _get_pid_raw(lambda: None)
+    data = request.get_json(silent=True) or {}
+    new_name = (data.get("new_name") or "").strip().lower()
+    if not new_name:
+        return jsonify({"error": "new_name is required"}), 400
+    try:
+        res = rename_stack(
+            project_id=pid,
+            old_name=name,
+            new_name=new_name,
+            migrate_state=data.get("migrate_state", True),
+        )
+        return jsonify(res), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
