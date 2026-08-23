@@ -162,4 +162,50 @@ def test_kms_key_rotation(pg_db):
     assert len(curr_v2.get("previous_versions", [])) >= 1
 
 
+def test_seed_dev_data_and_demo_generator(tmp_path, pg_db):
+    from services.seed_service import seed_development_data
+    from storage import pg
+
+    res = seed_development_data(data_dir=tmp_path)
+    assert res["success"] is True
+    assert "demo-infra" in res["seeded_projects"]
+    assert len(res["seeded_stacks"]) >= 1
+
+    # Verify directory created
+    assert (tmp_path / "projects" / "demo-infra").exists()
+
+    # Verify DB metadata
+    rows = pg.query_all("SELECT * FROM stack_meta WHERE project_id = %s", ("demo-infra",))
+    assert len(rows) >= 1
+
+
+def test_system_dependency_checks(pg_db):
+    from services.dependency_check import check_system_dependencies
+
+    res = check_system_dependencies()
+    assert res["status"] in ("healthy", "degraded")
+    assert "postgres" in res["dependencies"]
+    assert res["dependencies"]["postgres"]["status"] == "ok"
+    assert "filesystem" in res["dependencies"]
+    assert res["dependencies"]["filesystem"]["status"] == "ok"
+
+
+def test_system_config_migrations(pg_db):
+    from storage.system_migrations import run_system_migrations
+    from storage import pg
+
+    # 1. Run migrations initially
+    res1 = run_system_migrations()
+    assert res1["success"] is True
+    assert res1["applied_count"] >= 1
+    assert res1["latest_version"] >= 1
+
+    # 2. Re-running should be idempotent (0 newly applied)
+    res2 = run_system_migrations()
+    assert res2["success"] is True
+    assert res2["applied_count"] == 0
+    assert res2["latest_version"] == res1["latest_version"]
+
+
+
 
