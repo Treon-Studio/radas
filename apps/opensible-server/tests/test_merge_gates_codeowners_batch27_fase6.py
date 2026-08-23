@@ -44,3 +44,46 @@ def test_branch_protection_sync(pg_db):
     assert res["branch"] == "main"
     assert res["require_approvals"] == 2
     assert res["enforce_linear_history"] is True
+
+
+def test_infra_pr_template_generator():
+    from services.pr_template_generator import generate_infra_pr_template
+
+    md = generate_infra_pr_template(
+        stack_name="prod-db-replica",
+        environment="production",
+        changes_summary="Upgraded Aurora Postgres instance class from r5.large to r6g.xlarge",
+    )
+    assert "Infrastructure Change Summary" in md
+    assert "prod-db-replica" in md
+    assert "production" in md
+    assert "Verification & Testing Checklist" in md
+
+
+def test_code_owners_parser():
+    from services.code_owners import find_code_owners
+
+    codeowners = """
+    # Global default
+    * @infra-team
+
+    # Production changes require security lead
+    envs/prod/* @security-lead @lead-infra
+
+    # Modules
+    modules/** @module-maintainers
+    """
+
+    # 1. Matches global default
+    owners_root = find_code_owners(codeowners, "README.md")
+    assert owners_root == ["@infra-team"]
+
+    # 2. Matches prod env override
+    owners_prod = find_code_owners(codeowners, "envs/prod/main.tf")
+    assert "@security-lead" in owners_prod
+    assert "@lead-infra" in owners_prod
+
+    # 3. Matches modules pattern
+    owners_mod = find_code_owners(codeowners, "modules/vpc/main.tf")
+    assert owners_mod == ["@module-maintainers"]
+
