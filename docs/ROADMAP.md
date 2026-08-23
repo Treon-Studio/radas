@@ -676,27 +676,27 @@ fitur terpisah:
 | 508 | Branch protection sync dengan stack policy | ✅ | P2 | 6 |
 | 509 | Pull request template radas untuk infra | ✅ | P2 | 6 |
 | 510 | Code owners enforcement | ✅ | P2 | 6 |
-| 511 | Module registry publish CLI | ⬜ | P1 | 6 |
+| 511 | Module registry publish CLI | ✅ | P1 | 6 |
 | 512 | Module semver + constraint resolution | ✅ | P1 | 6 |
 | 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
 | 514 | Lockfile .terraform.lock.hcl untuk ensure version | ✅ | P1 | 6 |
 | 515 | Checksum verifikasi module download | ✅ | P1 | 6 |
 | 516 | Init offline mode (mirror packages) | ✅ | P1 | 6 |
-| 517 | Tenancy org (multi-org) dasar | ⬜ | P2 | 6 |
+| 517 | Tenancy org (multi-org) dasar | ✅ | P2 | 6 |
 | 518 | Project switcher cepat di header | ⬜ | P1 | 6 |
 | 519 | Project settings duration (retensi log) | ✅ | P2 | 6 |
 | 520 | Default template per project | ✅ | P2 | 6 |
-| 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ⬜ | P1 | 6 |
+| 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ✅ | P1 | 6 |
 | 522 | Backend.hcl edit guard (jangan rusak state key) | ✅ | P1 | 6 |
 | 523 | Force-unlock state (tofu force-unlock wrapper) | ✅ | P1 | 6 |
 | 524 | Taint/unt-aint resource dari console | ✅ | P1 | 6 |
-| 525 | Import via console ke stack existing | ⬜ | P1 | 6 |
+| 525 | Import via console ke stack existing | ✅ | P1 | 6 |
 | 526 | Output values viewer (state outputs) | ✅ | P1 | 6 |
-| 527 | Resource graph canvas (interaktif) | ⬜ | P2 | 6 |
+| 527 | Resource graph canvas (interaktif) | ✅ | P2 | 6 |
 | 528 | Plan diff viewer sudah -> attach test hasil | ✅ | P1 | 6 |
-| 529 | Run timeline: semua langkah tofu (init/validate/plan/apply) | ⬜ | P1 | 6 |
+| 529 | Run timeline: semua langkah tofu (init/validate/plan/apply) | ✅ | P1 | 6 |
 | 530 | Skip init jika module belum berubah | ✅ | P2 | 6 |
-| 531 | Cache module lokal per worker | ⬜ | P1 | 6 |
+| 531 | Cache module lokal per worker | ✅ | P1 | 6 |
 | 532 | Agent tags: region/cloud (sudah worker tags) | ✅ | P1 | 6 |
 | 533 | Stack yang harus jalan di worker tertentu (pinning) | ✅ | P1 | 6 |
 | 534 | Worker resource usage monitoring | ✅ | P2 | 6 |
@@ -726,7 +726,7 @@ fitur terpisah:
 | 558 | Provider pricing table update otomatis | ✅ | P2 | 6 |
 | 559 | Currency & locale support | ✅ | P2 | 6 |
 | 560 | Cost export ke CSV bulanan | ✅ | P1 | 6 |
-| 561 | Trend grafik multi-stack line overlay | ⬜ | P1 | 6 |
+| 561 | Trend grafik multi-stack line overlay | ✅ | P1 | 6 |
 | 562 | Stack cost breakdown per resource | ✅ | P2 | 6 |
 | 563 | Untagged resource cost detection | ✅ | P2 | 6 |
 | 564 | Performance: daftar stack > 500 lancar | ⬜ | P1 | 6 |
