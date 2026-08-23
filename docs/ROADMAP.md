@@ -593,7 +593,7 @@ fitur terpisah:
 | 430 | Import/export stack config JSON | ✅ | P1 | 6 |
 | 431 | Tagging stack untuk filter & automation | ✅ | P1 | 6 |
 | 432 | Git sync dua arah (sudah pull -> add push) | ✅ | P1 | 6 |
-| 433 | Commit message convention enforcement | ⬜ | P2 | 6 |
+| 433 | Commit message convention enforcement | ✅ | P2 | 6 |
 
 ## P. Cross-cutting Reliability, UX & Integration (434–651)
 
@@ -623,15 +623,15 @@ fitur terpisah:
 | 455 | Body size limit untuk payload besar | ✅ | P1 | 6 |
 | 456 | CORS restrict ke origin console | ✅ | P1 | 6 |
 | 457 | Validate JSON schema request (semua route baru) | ✅ | P1 | 6 |
-| 458 | Idempotency untuk create flag/preview | ⬜ | P2 | 6 |
-| 459 | Conflict detection 409 untuk duplicate key | ⬜ | P1 | 6 |
+| 458 | Idempotency untuk create flag/preview | ✅ | P2 | 6 |
+| 459 | Conflict detection 409 untuk duplicate key | ✅ | P1 | 6 |
 | 460 | Not found 404 semantik | ⬜ | P1 | 6 |
 | 461 | Error envelope seragam (error/message) | ⬜ | P1 | 6 |
 | 462 | Logging terstruktur JSON untuk action baru | ⬜ | P1 | 6 |
 | 463 | Trace id lintas log (request/execution) | ✅ | P2 | 6 |
 | 464 | Metrics Prometheus untuk API (request rate, latency) | ✅ | P2 | 6 |
 | 465 | Health endpoint mencover service baru | ✅ | P1 | 6 |
-| 466 | Snapshot data flags/tests untuk backup | ⬜ | P1 | 6 |
+| 466 | Snapshot data flags/tests untuk backup | ✅ | P1 | 6 |
 | 467 | Migrasi store JSON ke SQLite opsional | ⬜ | P2 | 6 |
 | 468 | Test untuk service baru (unit test python) | ⬜ | P1 | 6 |
 | 469 | CI pipeline commit: lint + typecheck + test | ⬜ | P1 | 6 |
@@ -664,14 +664,14 @@ fitur terpisah:
 | 496 | Audit untuk change flag / import resource | ⬜ | P1 | 6 |
 | 497 | Read-only tidak bisa eval tulis | ✅ | P1 | 6 |
 | 498 | API token scope per fitur (sudah roles) | ✅ | P2 | 6 |
-| 499 | Preview env auto-expire (TTL) default | ⬜ | P1 | 6 |
+| 499 | Preview env auto-expire (TTL) default | ✅ | P1 | 6 |
 | 500 | Preview env label pada resource (tag preview=true) | ✅ | P1 | 6 |
 | 501 | Preview env quota terpisah | ⬜ | P2 | 6 |
-| 502 | Promosi preview -> prod dengan approval | ⬜ | P1 | 6 |
+| 502 | Promosi preview -> prod dengan approval | ✅ | P1 | 6 |
 | 503 | Git hook pre-apply (lint test) | ⬜ | P2 | 6 |
 | 504 | Plan comment di GitHub PR (kompat Atlantis style) | ⬜ | P1 | 6 |
 | 505 | Merge gate: required checks multiple | ⬜ | P1 | 6 |
-| 506 | PR status badge dari radas | ⬜ | P2 | 6 |
+| 506 | PR status badge dari radas | ✅ | P2 | 6 |
 | 507 | Auto-apply setelah approval (sudah) | ✅ | P1 | 6 |
 | 508 | Branch protection sync dengan stack policy | ⬜ | P2 | 6 |
 | 509 | Pull request template radas untuk infra | ⬜ | P2 | 6 |
@@ -680,7 +680,7 @@ fitur terpisah:
 | 512 | Module semver + constraint resolution | ✅ | P1 | 6 |
 | 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
 | 514 | Lockfile .terraform.lock.hcl untuk ensure version | ⬜ | P1 | 6 |
-| 515 | Checksum verifikasi module download | ⬜ | P1 | 6 |
+| 515 | Checksum verifikasi module download | ✅ | P1 | 6 |
 | 516 | Init offline mode (mirror packages) | ⬜ | P1 | 6 |
 | 517 | Tenancy org (multi-org) dasar | ⬜ | P2 | 6 |
 | 518 | Project switcher cepat di header | ⬜ | P1 | 6 |
