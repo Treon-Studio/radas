@@ -49,3 +49,40 @@ def test_backend_config_guard():
     res_invalid = validate_backend_config_change(old_backend, corrupt_new_backend, expected_state_key="p-core/network/terraform.tfstate")
     assert res_invalid["valid"] is False
     assert "State key mismatch" in res_invalid["error"]
+
+
+def test_init_skip_optimizer(pg_db):
+    from services.init_optimizer import should_skip_init, record_init_success
+
+    # 1. First run: No cache -> should not skip init
+    assert should_skip_init("p-opt", "stack-a", current_config_hash="hash-v1") is False
+
+    # 2. Record init success
+    record_init_success("p-opt", "stack-a", config_hash="hash-v1")
+
+    # 3. Same config -> should skip init
+    assert should_skip_init("p-opt", "stack-a", current_config_hash="hash-v1") is True
+
+    # 4. Config changed -> should not skip init
+    assert should_skip_init("p-opt", "stack-a", current_config_hash="hash-v2") is False
+
+
+def test_snapshot_annotations(pg_db):
+    from services.snapshot_comment import annotate_snapshot, get_snapshot_annotation
+
+    # 1. Annotate snapshot
+    annotated = annotate_snapshot(
+        snapshot_id="snap-pre-migration-42",
+        title="Pre-Kubernetes 1.30 Upgrade",
+        description="Full backup of etcd and VPC routes prior to major node rollouts.",
+        tags=["upgrade", "k8s", "production"],
+    )
+    assert annotated["snapshot_id"] == "snap-pre-migration-42"
+    assert annotated["title"] == "Pre-Kubernetes 1.30 Upgrade"
+
+    # 2. Retrieve annotation
+    retrieved = get_snapshot_annotation("snap-pre-migration-42")
+    assert retrieved is not None
+    assert "k8s" in retrieved["tags"]
+    assert "etcd" in retrieved["description"]
+
