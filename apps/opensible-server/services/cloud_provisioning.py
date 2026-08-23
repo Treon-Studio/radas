@@ -2330,6 +2330,46 @@ def api_scan_plan_secrets():
 
 
 # ---------------------------------------------------------------------------
+# UC630: Secret Leak Scanner in Stack Variables (.tfvars)
+# ---------------------------------------------------------------------------
+
+def scan_variables_for_secrets(variables: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Scan key-value variables / tfvars for plaintext secrets and credentials (UC630)."""
+    if not isinstance(variables, dict):
+        return []
+
+    findings = []
+    for k, v in variables.items():
+        val_str = str(v) if v is not None else ""
+        key_lower = str(k).lower()
+
+        # Check key name indicators
+        is_sensitive_key = any(s in key_lower for s in ["password", "secret", "api_key", "token", "private_key", "auth"])
+        if is_sensitive_key and len(val_str) > 0 and not val_str.startswith(("[REDACTED", "ENC(", "${")):
+            findings.append({
+                "key": str(k),
+                "type": "Sensitive Variable Key",
+                "severity": "high",
+                "message": f"Variable '{k}' appears to contain an unencrypted secret",
+            })
+            continue
+
+        # Check value pattern scan
+        scan_res = scan_and_mask_secrets(f"{k} = \"{val_str}\"")
+        if not scan_res["clean"]:
+            for f in scan_res["findings"]:
+                findings.append({
+                    "key": str(k),
+                    "type": f.get("type", "Secret Pattern Match"),
+                    "severity": "high",
+                    "message": f"Variable '{k}' matched pattern: {f.get('type')}",
+                })
+
+    return findings
+
+
+
+# ---------------------------------------------------------------------------
 # UC430: Import / Export Stack Config JSON (Scaffold & Migration)
 # ---------------------------------------------------------------------------
 

@@ -134,3 +134,29 @@ def test_user_deactivation_lifecycle(data_dir):
     assert svc.reactivate_user(uid) is True
     assert svc.is_user_active(uid) is True
     assert svc.authenticate("deact_user", "secretpassword123") is not None
+
+
+def test_variables_secret_scanner(data_dir):
+    """UC630: Scan tfvars / config dictionary for plaintext secrets."""
+    from services import cloud_provisioning
+
+    clean_vars = {
+        "instance_type": "t3.micro",
+        "environment": "staging",
+        "disk_size_gb": 50,
+    }
+    findings_clean = cloud_provisioning.scan_variables_for_secrets(clean_vars)
+    assert len(findings_clean) == 0
+
+    leaked_vars = {
+        "instance_type": "t3.micro",
+        "db_password": "supersecretpassword99",
+        "aws_key": "AKIAIOSFODNN7EXAMPLE",
+        "api_token": "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
+    }
+    findings_leaked = cloud_provisioning.scan_variables_for_secrets(leaked_vars)
+    assert len(findings_leaked) >= 3
+    keys_flagged = [f["key"] for f in findings_leaked]
+    assert "db_password" in keys_flagged
+    assert "aws_key" in keys_flagged
+    assert "api_token" in keys_flagged
