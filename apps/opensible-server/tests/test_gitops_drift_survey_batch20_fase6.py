@@ -96,3 +96,58 @@ def test_cost_tag_and_branch_analytics(pg_db):
     assert tag_analytics["breakdown"]["frontend"] == 150.0
     assert tag_analytics["breakdown"]["backend"] == 200.0
 
+
+def test_pr_plan_diff_formatting():
+    from services.pr_plan_diff import format_pr_plan_comment
+
+    plan_summary = {
+        "to_add": 3,
+        "to_change": 1,
+        "to_destroy": 0,
+        "resources": [
+            {"address": "aws_s3_bucket.data", "action": "create"},
+            {"address": "aws_iam_role.app", "action": "create"},
+            {"address": "aws_security_group.web", "action": "update"},
+        ],
+    }
+
+    markdown = format_pr_plan_comment(plan_summary, stack="infra-prod")
+    assert "### 🚀 RADAS Infrastructure Plan: `infra-prod`" in markdown
+    assert "**Plan:** 3 to add, 1 to change, 0 to destroy." in markdown
+    assert "aws_s3_bucket.data (create)" in markdown
+
+
+def test_pr_slash_commands_parsing(pg_db):
+    from services.pr_slash_commands import parse_and_handle_slash_command
+
+    # 1. /plan command
+    res_plan = parse_and_handle_slash_command(
+        comment_body="/plan env=staging",
+        project_id="p-gitops",
+        pr_number=101,
+        author="developer-dan",
+    )
+    assert res_plan["recognized"] is True
+    assert res_plan["command"] == "/plan"
+    assert res_plan["status"] == "dispatched"
+
+    # 2. /apply command
+    res_apply = parse_and_handle_slash_command(
+        comment_body="/apply",
+        project_id="p-gitops",
+        pr_number=101,
+        author="lead-carol",
+    )
+    assert res_apply["recognized"] is True
+    assert res_apply["command"] == "/apply"
+
+    # 3. Unrecognized regular comment
+    res_text = parse_and_handle_slash_command(
+        comment_body="LGTM, can we merge this today?",
+        project_id="p-gitops",
+        pr_number=101,
+        author="reviewer-sam",
+    )
+    assert res_text["recognized"] is False
+
+
