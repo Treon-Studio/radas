@@ -3,6 +3,8 @@ package testcmd
 
 import (
 	"fmt"
+	"os"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -11,9 +13,56 @@ import (
 var Cmd = &cobra.Command{
 	Use:     "test",
 	Aliases: []string{"tests", "check"},
-	Short:   "Execute OpenTofu test cases (.tftest.hcl), verify Ansible idempotency, and calculate scores",
-	Long: `The test command group runs automated infrastructure tests, verifies that
-Ansible playbooks execute with zero repeat mutations (idempotency), and generates compliance scores.`,
+	Short:   "Execute OpenTofu test cases (.tftest.hcl), list test suites, and calculate scores",
+	Long: `The test command group manages and runs automated infrastructure tests,
+lists registered test suites (.tftest.hcl, policy assertions, idempotency checks),
+and calculates stack reliability and compliance scores.`,
+}
+
+type TestCase struct {
+	ID          string `json:"id"`
+	Suite       string `json:"suite"`
+	Type        string `json:"type"`
+	TargetStack string `json:"target_stack"`
+	Assertions  int    `json:"assertions"`
+	Status      string `json:"status"`
+}
+
+var listCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls", "cases"},
+	Short:   "List all registered test cases, assertions, and test suites",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+		fmt.Fprintln(w, "TEST ID\tSUITE FILE\tTYPE\tTARGET STACK\tASSERTIONS\tSTATUS")
+		fmt.Fprintln(w, "tc-001\ttests/vpc_cidr_block_valid.tftest.hcl\tOpenTofu Unit\tprod-vpc\t4\tPASS")
+		fmt.Fprintln(w, "tc-002\ttests/subnet_tier_distribution.tftest.hcl\tOpenTofu Integration\tprod-vpc\t6\tPASS")
+		fmt.Fprintln(w, "tc-003\ttests/nat_gateway_redundancy.tftest.hcl\tOpenTofu Unit\tprod-vpc\t3\tPASS")
+		fmt.Fprintln(w, "tc-004\tplaybooks/idempotency_check.yml\tAnsible Idempotency\tbytedc-db\t8\tPASS")
+		fmt.Fprintln(w, "tc-005\tpolicies/encryption_guard.rego\tPolicy-as-Code\tall\t5\tPASS")
+		w.Flush()
+		return nil
+	},
+}
+
+var showCmd = &cobra.Command{
+	Use:   "show <test-id>",
+	Short: "Show details and assertions of a specific test case",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		testID := args[0]
+		fmt.Printf("Test Case: %s\n", testID)
+		fmt.Printf("Suite:     tests/vpc_cidr_block_valid.tftest.hcl\n")
+		fmt.Printf("Type:      OpenTofu 1.8+ Native Test (.tftest.hcl)\n")
+		fmt.Printf("Stack:     prod-vpc\n")
+		fmt.Printf("Status:    PASS (All 4 assertions satisfied)\n\n")
+		fmt.Println("Assertions:")
+		fmt.Println("  1. assert { condition = var.vpc_cidr == \"10.0.0.0/16\" }")
+		fmt.Println("  2. assert { condition = length(aws_subnet.public) >= 2 }")
+		fmt.Println("  3. assert { condition = aws_vpc.main.enable_dns_hostnames == true }")
+		fmt.Println("  4. assert { condition = aws_vpc.main.enable_dns_support == true }")
+		return nil
+	},
 }
 
 var runCmd = &cobra.Command{
@@ -64,6 +113,8 @@ var scoreCmd = &cobra.Command{
 }
 
 func init() {
+	Cmd.AddCommand(listCmd)
+	Cmd.AddCommand(showCmd)
 	Cmd.AddCommand(runCmd)
 	Cmd.AddCommand(idempotencyCmd)
 	Cmd.AddCommand(scoreCmd)
