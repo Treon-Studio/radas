@@ -87,3 +87,37 @@ def test_e2e_playwright_test_selector_registry():
     assert "flag-toggle-click-kill_switch" in all_tids
     assert "header-search-input" in all_tids
 
+
+def test_bundle_budget_validation_and_lazy_split():
+    from services.bundle_budget_validator import validate_bundle_budgets
+
+    chunks = {
+        "index.js": 240,
+        "vendor-react.js": 180,
+        "charts-recharts.js": 620,
+        "monaco-editor.js": 750,
+    }
+
+    # Max chunk budget 500 KB
+    res = validate_bundle_budgets(chunks, max_chunk_kb=500)
+    assert res["within_budget"] is False
+    assert len(res["oversized_chunks"]) == 2
+    assert "charts-recharts.js" in res["oversized_chunks"]
+    assert "monaco-editor.js" in res["oversized_chunks"]
+    assert "charts-recharts.js" in res["lazy_load_candidates"]
+    assert res["total_bundle_kb"] == 1790
+
+
+def test_swr_cache_headers_generation():
+    from services.swr_cache_manager import generate_swr_headers
+
+    data = {"project": "p-core", "status": "active", "stacks_count": 12}
+    headers = generate_swr_headers(data, max_age_sec=60, stale_sec=300)
+
+    assert "Cache-Control" in headers
+    assert "max-age=60" in headers["Cache-Control"]
+    assert "stale-while-revalidate=300" in headers["Cache-Control"]
+    assert "ETag" in headers
+    assert headers["ETag"].startswith('W/"')
+
+
