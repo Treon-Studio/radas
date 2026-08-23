@@ -1,14 +1,13 @@
 import { useState } from 'react'
 
 export function Hero() {
-  const [activeTab, setActiveTab] = useState('curl')
+  const [activeTab, setActiveTab] = useState('go')
 
   const installCommands = {
-    curl: 'curl -fsSL https://opencode.ai/install | bash',
-    npm: 'npm install -g opencode',
-    bun: 'bun install -g opencode',
-    brew: 'brew install opencode',
-    paru: 'paru -S opencode',
+    go: 'go install github.com/raizora/radas/apps/cli@latest',
+    pnpm: 'pnpm dlx @radas/cli create',
+    curl: 'curl -fsSL https://radas.internal/install.sh | bash',
+    docker: 'docker run -p 5001:5001 -p 8080:8080 radas/stack:latest',
   }
 
   return (
@@ -17,16 +16,16 @@ export function Hero() {
       <div className="relative w-full pt-12 sm:pt-16 pb-16">
         {/* Announcement Banner */}
         <div className="mb-12 sm:mb-16 flex items-center gap-2 text-sm px-4 sm:px-8">
-          <span className="bg-primary text-white px-2 py-0.5 text-xs font-semibold">
-            New
+          <span className="bg-primary text-white px-2 py-0.5 text-xs font-semibold font-mono">
+            v3.2.0
           </span>
           <p className="text-primary font-mono text-xs sm:text-sm">
-            Desktop app available in beta on macOS, Windows, and Linux.{' '}
+            Phase 6 complete: Feature Flags, BYOC Code Registry & Multi-Org Governance.{' '}
             <a
-              href="#download"
+              href="http://localhost:8080"
               className="underline hover:text-greptile-green transition-colors"
             >
-              Download now
+              Open Console →
             </a>
           </p>
         </div>
@@ -34,14 +33,14 @@ export function Hero() {
         {/* Main Content */}
         <div className="px-4 sm:px-8">
           {/* Title */}
-          <h1 className="text-primary mb-6">
-            The open source AI coding agent
+          <h1 className="text-primary mb-6 text-3xl sm:text-5xl font-bold tracking-tight">
+            The Enterprise Infrastructure & GitOps Platform
           </h1>
 
           {/* Subtitle */}
-          <p className="text-tertiary text-base sm:text-lg mb-12">
-            Free models included or connect any model from any provider,
-            including Claude, GPT, Gemini and more.
+          <p className="text-tertiary text-base sm:text-lg mb-12 max-w-3xl">
+            Unified OpenTofu & Ansible orchestration with private Bring-Your-Own-Code registries,
+            real-time FinOps cost guards, feature flags, and distributed high-availability workers.
           </p>
 
           {/* Installation Section */}
@@ -53,7 +52,7 @@ export function Hero() {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-6 py-3 text-sm font-mono transition-colors ${activeTab === tab
-                    ? 'bg-white text-primary border-b-2 border-primary'
+                    ? 'bg-white text-primary border-b-2 border-primary font-semibold'
                     : 'text-tertiary hover:text-primary hover:bg-surface-dark'
                     }`}
                 >
@@ -74,7 +73,7 @@ export function Hero() {
                       installCommands[activeTab as keyof typeof installCommands]
                     )
                   }}
-                  className="text-tertiary hover:text-primary transition-colors"
+                  className="text-tertiary hover:text-primary transition-colors p-1"
                   aria-label="Copy to clipboard"
                 >
                   <svg

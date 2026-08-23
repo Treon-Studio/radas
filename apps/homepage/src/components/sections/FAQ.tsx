@@ -4,32 +4,29 @@ import { TextScramble } from '@/components/ui/TextScramble'
 
 const faqs = [
   {
-    question: 'How does Greptile pricing work?',
-    answer: 'Code reviews are $30 per developer per month. Chat is a fixed monthly subscription. API pricing is per request. See our pricing page for more details.',
+    question: 'What is RADAS?',
+    answer: 'RADAS is a self-hosted enterprise infrastructure orchestrator and GitOps control plane that unifies OpenTofu, Ansible, BYOC code registries, and FinOps cost protections into a single platform.',
   },
   {
-    question: 'Can Greptile be self-hosted?',
-    answer: 'Yes! We offer a self-hosted deployment option for teams that need to keep their code on their own infrastructure. Deploy on AWS, GCP, or Azure.',
+    title: 'Can RADAS be completely self-hosted air-gapped?',
+    question: 'Can RADAS be completely self-hosted air-gapped?',
+    answer: 'Yes! RADAS is designed for air-gapped deployments using PostgreSQL for persistence and local Go worker daemons. No telemetry or credentials ever leave your environment.',
   },
   {
-    question: 'Are there free trials or discounts available for Greptile?',
-    answer: 'Yes, we offer a 14-day free trial with full access to all features. No credit card required to start. We also offer discounts for startups and open source projects.',
+    question: 'How does the BYOC Code Registry work?',
+    answer: 'Similar to shadcn/ui for frontend, the RADAS BYOC registry copies reusable OpenTofu modules and Ansible roles directly into your stack repositories rather than using fragile external references.',
   },
   {
-    question: 'What programming languages does Greptile support?',
-    answer: 'We support 30+ languages including Python, JavaScript, TypeScript, Go, Elixir, Java, C, C++, C#, Swift, PHP, Rust, Ruby, Kotlin, and more.',
+    question: 'Which cloud providers are supported for FinOps cost estimations?',
+    answer: 'RADAS FinOps supports automated pricing calculators, anomaly forecasts, and budget spike alerts for AWS, GCP, Azure, and ByteDC infrastructure.',
   },
   {
-    question: 'Is Greptile compatible with GitLab?',
-    answer: 'Yes! Greptile works with GitHub, GitLab, and Bitbucket. We support both cloud-hosted and self-hosted versions of these platforms.',
+    question: 'How do Feature Flags integrate with infrastructure stacks?',
+    answer: 'RADAS Feature Flags provide granular user whitelisting, percentage rollouts, and instant emergency kill-switches with sub-millisecond evaluation directly in your execution pipelines.',
   },
   {
-    question: "Can I use Greptile's API for my own product?",
-    answer: 'Yes, our API is available for building custom integrations. You can query your codebase programmatically and integrate with your existing tools and workflows.',
-  },
-  {
-    question: 'What is AI code review?',
-    answer: 'AI code review uses machine learning to automatically analyze pull requests. Unlike traditional linters, AI code review understands the context of your entire codebase to provide more relevant and accurate feedback.',
+    question: 'Is RADAS compatible with existing CI/CD tools?',
+    answer: 'Yes! RADAS provides Atlantis-style GitOps PR plan commenting, GitHub Actions / GitLab webhooks, and pre-apply validation hooks that plug into any existing CI/CD flow.',
   },
 ]
 

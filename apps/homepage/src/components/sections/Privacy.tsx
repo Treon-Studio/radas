@@ -31,13 +31,12 @@ export function Privacy() {
                             </svg>
                         </div>
                         <p className="text-tertiary text-base sm:text-lg">
-                            OpenCode does not store any of your code or context data, so that it can operate in privacy
-                            sensitive environments.{' '}
+                            RADAS is 100% self-hosted and never exfiltrates state, tokens, credentials, or infrastructure definitions to external cloud vendors.{' '}
                             <a
-                                href="#privacy"
-                                className="underline hover:text-primary transition-colors"
+                                href="/docs"
+                                className="underline hover:text-primary transition-colors font-mono"
                             >
-                                Learn more about privacy
+                                Read documentation
                             </a>
                             .
                         </p>
