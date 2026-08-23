@@ -679,7 +679,7 @@ fitur terpisah:
 | 511 | Module registry publish CLI | ⬜ | P1 | 6 |
 | 512 | Module semver + constraint resolution | ✅ | P1 | 6 |
 | 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
-| 514 | Lockfile .terraform.lock.hcl untuk ensure version | ⬜ | P1 | 6 |
+| 514 | Lockfile .terraform.lock.hcl untuk ensure version | ✅ | P1 | 6 |
 | 515 | Checksum verifikasi module download | ✅ | P1 | 6 |
 | 516 | Init offline mode (mirror packages) | ⬜ | P1 | 6 |
 | 517 | Tenancy org (multi-org) dasar | ⬜ | P2 | 6 |
@@ -687,7 +687,7 @@ fitur terpisah:
 | 519 | Project settings duration (retensi log) | ⬜ | P2 | 6 |
 | 520 | Default template per project | ⬜ | P2 | 6 |
 | 521 | Custom terraform.tfvars penyimpanan di stack page (edit langsung) | ⬜ | P1 | 6 |
-| 522 | Backend.hcl edit guard (jangan rusak state key) | ⬜ | P1 | 6 |
+| 522 | Backend.hcl edit guard (jangan rusak state key) | ✅ | P1 | 6 |
 | 523 | Force-unlock state (tofu force-unlock wrapper) | ✅ | P1 | 6 |
 | 524 | Taint/unt-aint resource dari console | ✅ | P1 | 6 |
 | 525 | Import via console ke stack existing | ⬜ | P1 | 6 |
@@ -695,7 +695,7 @@ fitur terpisah:
 | 527 | Resource graph canvas (interaktif) | ⬜ | P2 | 6 |
 | 528 | Plan diff viewer sudah -> attach test hasil | ✅ | P1 | 6 |
 | 529 | Run timeline: semua langkah tofu (init/validate/plan/apply) | ⬜ | P1 | 6 |
-| 530 | Skip init jika module belum berubah | ⬜ | P2 | 6 |
+| 530 | Skip init jika module belum berubah | ✅ | P2 | 6 |
 | 531 | Cache module lokal per worker | ⬜ | P1 | 6 |
 | 532 | Agent tags: region/cloud (sudah worker tags) | ✅ | P1 | 6 |
 | 533 | Stack yang harus jalan di worker tertentu (pinning) | ✅ | P1 | 6 |
@@ -705,16 +705,16 @@ fitur terpisah:
 | 537 | Lock stack manual (mode maintenance) | ✅ | P1 | 6 |
 | 538 | Lock reason & who (viewable) | ✅ | P2 | 6 |
 | 539 | DR: restore stack dari snapshot (sudah) | ✅ | P1 | 6 |
-| 540 | Snapshots: komentar/penamaan | ⬜ | P2 | 6 |
-| 541 | Schedule snapshot berkala | ⬜ | P2 | 6 |
-| 542 | Retention valid for snapshots (max N) | ⬜ | P2 | 6 |
+| 540 | Snapshots: komentar/penamaan | ✅ | P2 | 6 |
+| 541 | Schedule snapshot berkala | ✅ | P2 | 6 |
+| 542 | Retention valid for snapshots (max N) | ✅ | P2 | 6 |
 | 543 | Secret rotation schedule (sudah) -> auto-apply UI | ✅ | P1 | 6 |
 | 544 | Compliance evidence untuk secret rotation | ⬜ | P2 | 6 |
 | 545 | Policy gate plan parse (sudah) -> extend severity | ✅ | P1 | 6 |
 | 546 | Policy violations list permanent | ✅ | P1 | 6 |
 | 547 | Policy exemptions dengan approval | ✅ | P2 | 6 |
-| 548 | Quota soft warning vs hard block | ⬜ | P1 | 6 |
-| 549 | Request quota increase workflow | ⬜ | P2 | 6 |
+| 548 | Quota soft warning vs hard block | ✅ | P1 | 6 |
+| 549 | Request quota increase workflow | ✅ | P2 | 6 |
 | 550 | Cost anomaly alert threshold config | ✅ | P1 | 6 |
 | 551 | Cost forecast akurasi (MAE metric) | ⬜ | P2 | 6 |
 | 552 | Charge by env (dev free tier) | ⬜ | P2 | 6 |
