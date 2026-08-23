@@ -137,3 +137,81 @@ def dispatch_event(event: str, payload: Dict[str, Any]) -> int:
     if sent:
         logger.info(f"[webhooks] dispatched {event} to {sent} webhook(s)")
     return sent
+
+
+# ---------------------------------------------------------------------------
+# UC404: Webhook Outbound Retry with DLQ
+# ---------------------------------------------------------------------------
+DLQ_SCOPE = "webhook_dlq"
+
+
+def dispatch_webhook_with_dlq(
+    target_url: str,
+    event_type: str,
+    payload: Dict[str, Any],
+    max_retries: int = 3,
+    sender_fn: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Deliver a webhook with retries; push to DLQ on persistent failure (UC404)."""
+    import uuid as _uuid
+    from storage.kv import kv_set
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            if sender_fn:
+                sender_fn(target_url, payload)
+            else:
+                import requests
+                headers = {"Content-Type": "application/json", "X-Radas-Event": event_type}
+                r = requests.post(target_url, json=payload, headers=headers, timeout=5)
+                if not (200 <= r.status_code < 300):
+                    raise RuntimeError(f"HTTP error {r.status_code}")
+            return {"status": "delivered", "retries_attempted": attempt + 1}
+        except Exception as e:
+            last_error = str(e)
+            if attempt < max_retries - 1:
+                time.sleep(0.01)
+
+    dlq_id = str(_uuid.uuid4())
+    dlq_entry = {
+        "id": dlq_id,
+        "target_url": target_url,
+        "event_type": event_type,
+        "payload": payload,
+        "error": last_error,
+        "retries_attempted": max_retries,
+        "created_at": time.time(),
+    }
+    kv_set(DLQ_SCOPE, dlq_id, dlq_entry)
+    logger.warning(f"[webhooks DLQ] Pushed failed webhook {event_type} to DLQ ({dlq_id}): {last_error}")
+    return {
+        "status": "dlq",
+        "dlq_id": dlq_id,
+        "retries_attempted": max_retries,
+        "error": last_error,
+    }
+
+
+def list_webhook_dlq(limit: int = 100) -> List[Dict[str, Any]]:
+    """List webhook failures in dead-letter queue."""
+    from storage.kv import kv_list
+    records = kv_list(DLQ_SCOPE)
+    items = []
+    for r in records:
+        val = r.get("value")
+        if isinstance(val, dict):
+            items.append(val)
+    items.sort(key=lambda x: x.get("created_at") or 0, reverse=True)
+    return items[:limit]
+
+
+def clear_webhook_dlq(dlq_id: Optional[str] = None) -> None:
+    """Clear a specific or all entries from the webhook DLQ."""
+    from storage.kv import kv_delete, kv_list
+    if dlq_id:
+        kv_delete(DLQ_SCOPE, dlq_id)
+    else:
+        for r in kv_list(DLQ_SCOPE):
+            kv_delete(DLQ_SCOPE, r.get("key"))
+
