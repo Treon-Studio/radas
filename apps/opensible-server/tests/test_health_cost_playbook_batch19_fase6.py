@@ -119,3 +119,46 @@ def test_cost_breakdown_by_env(pg_db):
     assert "development" in envs
     assert envs["development"]["cost"] == 50.0
 
+
+def test_scheduled_plan_diff_trigger(pg_db):
+    from services.scheduled_planner import trigger_scheduled_plan
+    from storage import pg
+
+    res = trigger_scheduled_plan(project_id="p-schedule", stack="core-network")
+    assert res["success"] is True
+    assert res["action"] == "plan"
+    assert res["scheduled"] is True
+    assert res["execution_id"]
+
+
+def test_stack_multi_tag_filtering(pg_db):
+    from services.stack_tagging import (
+        assign_stack_tags,
+        get_stack_tags,
+        find_stacks_by_tags,
+    )
+    from storage import pg
+
+    # 1. Seed stacks with tags
+    assign_stack_tags("p-tagging", "app-web", {"tier": "frontend", "team": "commerce", "env": "prod"})
+    assign_stack_tags("p-tagging", "app-db", {"tier": "database", "team": "infra", "env": "prod"})
+    assign_stack_tags("p-tagging", "app-cart", {"tier": "backend", "team": "commerce", "env": "dev"})
+
+    # 2. Get tags for specific stack
+    web_tags = get_stack_tags("p-tagging", "app-web")
+    assert web_tags["tier"] == "frontend"
+    assert web_tags["team"] == "commerce"
+
+    # 3. Query stacks by tag filter: team=commerce
+    commerce_stacks = find_stacks_by_tags("p-tagging", {"team": "commerce"})
+    assert len(commerce_stacks) == 2
+    c_names = [s["stack"] for s in commerce_stacks]
+    assert "app-web" in c_names
+    assert "app-cart" in c_names
+
+    # 4. Multi-tag query: team=commerce AND env=prod
+    prod_commerce = find_stacks_by_tags("p-tagging", {"team": "commerce", "env": "prod"})
+    assert len(prod_commerce) == 1
+    assert prod_commerce[0]["stack"] == "app-web"
+
+
