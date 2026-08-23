@@ -63,3 +63,19 @@ def test_openapi_spec_generation_and_schema_version():
     assert "post" in spec["paths"]["/api/stacks/{name}/deploy"]
     assert spec["paths"]["/api/stacks/{name}/deploy"]["post"]["operationId"] == "post_api_stacks_name_deploy"
 
+
+def test_component_health_status_page(pg_db, tmp_path, monkeypatch):
+    from services.component_status import get_component_health_status
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    res = get_component_health_status()
+    assert res["status"] in ("operational", "degraded")
+    assert "components" in res
+    assert len(res["components"]) >= 3
+
+    comp_names = [c["name"] for c in res["components"]]
+    assert "postgresql" in comp_names
+    assert "data_storage" in comp_names
+    assert "execution_engine" in comp_names
+
+
