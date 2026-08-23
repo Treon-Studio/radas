@@ -7,21 +7,32 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/raizora/radas/v4/cmd/approval"
+	"github.com/raizora/radas/v4/cmd/audit"
 	"github.com/raizora/radas/v4/cmd/backend"
+	"github.com/raizora/radas/v4/cmd/cloud"
 	"github.com/raizora/radas/v4/cmd/config"
 	"github.com/raizora/radas/v4/cmd/cost"
 	"github.com/raizora/radas/v4/cmd/design"
 	"github.com/raizora/radas/v4/cmd/devops"
+	"github.com/raizora/radas/v4/cmd/drift"
 	"github.com/raizora/radas/v4/cmd/flags"
 	"github.com/raizora/radas/v4/cmd/frontend"
 	"github.com/raizora/radas/v4/cmd/git"
 	"github.com/raizora/radas/v4/cmd/infra"
+	"github.com/raizora/radas/v4/cmd/org"
+	"github.com/raizora/radas/v4/cmd/policy"
 	"github.com/raizora/radas/v4/cmd/registry"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
 	"github.com/raizora/radas/v4/cmd/scan"
+	"github.com/raizora/radas/v4/cmd/secret"
 	"github.com/raizora/radas/v4/cmd/setup"
 	"github.com/raizora/radas/v4/cmd/stack"
+	"github.com/raizora/radas/v4/cmd/state"
 	"github.com/raizora/radas/v4/cmd/sync"
+	"github.com/raizora/radas/v4/cmd/testcmd"
+	"github.com/raizora/radas/v4/cmd/user"
+	"github.com/raizora/radas/v4/cmd/worker"
 	"github.com/raizora/radas/v4/cmd/workspace"
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/ai"
@@ -114,6 +125,17 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(flags.Cmd)
 	rootCmd.AddCommand(registry.Cmd)
 	rootCmd.AddCommand(cost.Cmd)
+	rootCmd.AddCommand(approval.Cmd)
+	rootCmd.AddCommand(audit.Cmd)
+	rootCmd.AddCommand(policy.Cmd)
+	rootCmd.AddCommand(cloud.Cmd)
+	rootCmd.AddCommand(worker.Cmd)
+	rootCmd.AddCommand(org.Cmd)
+	rootCmd.AddCommand(user.Cmd)
+	rootCmd.AddCommand(secret.Cmd)
+	rootCmd.AddCommand(drift.Cmd)
+	rootCmd.AddCommand(state.Cmd)
+	rootCmd.AddCommand(testcmd.Cmd)
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
