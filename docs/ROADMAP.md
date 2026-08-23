@@ -779,23 +779,23 @@ fitur terpisah:
 | 611 | Arsipkan stack (soft delete) | ✅ | P2 | 6 |
 | 612 | Restore dari arsip | ✅ | P2 | 6 |
 | 613 | Stack rename dengan migrasi state key | ⬜ | P2 | 6 |
-| 614 | Persetujuan multi-pihak (quorum) | ⬜ | P1 | 6 |
-| 615 | Approval expiry (TTL) | ⬜ | P1 | 6 |
-| 616 | Reject reason wajib saat tolak | ⬜ | P1 | 6 |
+| 614 | Persetujuan multi-pihak (quorum) | ✅ | P1 | 6 |
+| 615 | Approval expiry (TTL) | ✅ | P1 | 6 |
+| 616 | Reject reason wajib saat tolak | ✅ | P1 | 6 |
 | 617 | Approval via Slack button (inbound) | ⬜ | P3 | 6 |
 | 618 | Rate limit per key login (brute force) | ⬜ | P1 | 6 |
-| 619 | Audit export CSV | ⬜ | P2 | 6 |
+| 619 | Audit export CSV | ✅ | P2 | 6 |
 | 620 | Search audit log lengkap | ⬜ | P1 | 6 |
 | 621 | Retensi audit configurable | ⬜ | P2 | 6 |
-| 622 | User roles matrix viewer | ✅ | ⬜ | P2 | 6 |
-| 623 | Deactivate user (bukan delete) | ⬜ | P1 | 6 |
+| 622 | User roles matrix viewer | ✅ | P2 | 6 |
+| 623 | Deactivate user (bukan delete) | ✅ | P1 | 6 |
 | 624 | Welcome email onboarding | ⬜ | P3 | 6 |
 | 625 | Invite link user dengan role | ⬜ | P1 | 6 |
 | 626 | Password complexity policy per org | ⬜ | P2 | 6 |
 | 627 | OAuth login (Google/GitHub) opsional | ⬜ | P2 | 6 |
 | 628 | SSO discovery URL setting | ⬜ | P2 | 6 |
 | 629 | JWT issuer verification di toutes (sudah) | ✅ | P1 | 6 |
-| 630 | Secret leak scanner di tfvars | ⬜ | P1 | 6 |
+| 630 | Secret leak scanner di tfvars | ✅ | P1 | 6 |
 | 631 | Vault integration (HashiCorp) read | ⬜ | P2 | 6 |
 | 632 | KMS key rotation | ⬜ | P2 | 6 |
 | 633 | Service account scoped token per feature | ⬜ | P1 | 6 |
