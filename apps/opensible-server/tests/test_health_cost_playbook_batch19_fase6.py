@@ -162,3 +162,62 @@ def test_stack_multi_tag_filtering(pg_db):
     assert prod_commerce[0]["stack"] == "app-web"
 
 
+def test_dynamic_host_inventory_generation(pg_db):
+    from services.dynamic_inventory import generate_dynamic_inventory
+    from storage import pg
+
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-inv", "web-node-01", json.dumps({"ip": "10.0.1.10", "provider": "hetzner", "env": "production"}),
+            "p-inv", "web-node-02", json.dumps({"ip": "10.0.1.11", "provider": "hetzner", "env": "production"}),
+        ),
+    )
+
+    inv = generate_dynamic_inventory("p-inv")
+    assert "all" in inv
+    assert "hosts" in inv["all"]
+    assert "web-node-01" in inv["all"]["hosts"]
+    assert "web-node-02" in inv["all"]["hosts"]
+
+    assert "hetzner" in inv
+    assert "production" in inv
+    assert "_meta" in inv
+    assert "hostvars" in inv["_meta"]
+    assert inv["_meta"]["hostvars"]["web-node-01"]["ansible_host"] == "10.0.1.10"
+
+
+def test_multi_playbook_workflow_chain(pg_db):
+    from services.playbook_chain import (
+        create_playbook_workflow_chain,
+        execute_playbook_chain,
+        get_playbook_chain,
+    )
+
+    # 1. Create a sequential playbook chain
+    chain = create_playbook_workflow_chain(
+        chain_name="provision-and-setup",
+        playbooks=["01_setup_users.yml", "02_install_docker.yml", "03_deploy_apps.yml"],
+        project_id="p-chain",
+    )
+    chain_id = chain["id"]
+    assert chain["status"] == "draft"
+
+    # 2. Execute chain with simulated runner
+    runs_called = []
+    def mock_runner(pb, proj):
+        runs_called.append(pb)
+        return {"exit_code": 0, "output": "ok"}
+
+    exec_res = execute_playbook_chain(chain_id, runner_fn=mock_runner)
+    assert exec_res["status"] == "completed"
+    assert len(exec_res["steps_completed"]) == 3
+    assert runs_called == ["01_setup_users.yml", "02_install_docker.yml", "03_deploy_apps.yml"]
+
+    # 3. Retrieve chain status
+    updated_chain = get_playbook_chain(chain_id)
+    assert updated_chain["status"] == "completed"
+
+
+
