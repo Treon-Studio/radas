@@ -118,4 +118,49 @@ def test_anonymized_telemetry_opt_in(pg_db):
     assert "instance_hash" in payload
 
 
+def test_sso_discovery_and_oauth_configuration(pg_db):
+    from services.sso_config import (
+        set_sso_discovery_config,
+        get_sso_discovery_config,
+        list_configured_sso_providers,
+        delete_sso_config,
+    )
+
+    # 1. Configure Google OAuth/SSO
+    set_sso_discovery_config(
+        provider_name="google",
+        discovery_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_id="google-client-id-123",
+        client_secret="google-secret-xyz",
+        scopes=["openid", "email", "profile"],
+    )
+
+    # 2. Configure GitHub OAuth
+    set_sso_discovery_config(
+        provider_name="github",
+        discovery_url="https://github.com/login/oauth/authorize",
+        client_id="github-client-id-456",
+        client_secret="github-secret-abc",
+    )
+
+    # 3. Retrieve Google SSO config
+    g_conf = get_sso_discovery_config("google", mask_secret=True)
+    assert g_conf is not None
+    assert g_conf["client_id"] == "google-client-id-123"
+    assert g_conf["client_secret"] == "********"
+    assert "openid" in g_conf["scopes"]
+
+    # 4. List providers
+    providers = list_configured_sso_providers()
+    assert len(providers) >= 2
+    prov_names = [p["provider_name"] for p in providers]
+    assert "google" in prov_names
+    assert "github" in prov_names
+
+    # 5. Delete provider
+    assert delete_sso_config("github") is True
+    assert get_sso_discovery_config("github") is None
+
+
+
 
