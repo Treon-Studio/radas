@@ -175,4 +175,46 @@ def test_publish_from_stack_to_registry(tmp_path, monkeypatch):
     assert "redis_vars.tf" in item["files"]
 
 
+def test_diff_and_update_installed_item(tmp_path, monkeypatch):
+    from services.code_registry import install, diff_installed_item, update_installed_item, installed
+    reg = _seed_base_registry(tmp_path)
+    monkeypatch.setenv("REGISTRY_DIR", str(reg))
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+
+    sd = _seed_test_stack(tmp_path, "diff-stack")
+
+    # 1. Install v1.0.0
+    install(None, "diff-stack", "vpc")
+    assert (sd / "vpc-main.tf").exists()
+
+    # 2. Update the registry item in-place to v1.1.0 with a changed resource
+    vpc_dir = reg / "tofu-block" / "vpc"
+    (vpc_dir / "radas.json").write_text(json.dumps({
+        "name": "vpc",
+        "type": "tofu-block",
+        "version": "1.1.0",
+        "description": "VPC block v1.1.0",
+    }), encoding="utf-8")
+    (vpc_dir / "main.tf").write_text('resource "hcloud_network" "vpc_net" {\n  ip_range = "10.0.0.0/16"\n}\n', encoding="utf-8")
+
+    # 3. Dry-run diff
+    diff_res = diff_installed_item(None, "diff-stack", "vpc")
+    assert diff_res["has_changes"] is True
+    assert diff_res["installed_version"] == "1.0.0"
+    assert diff_res["target_version"] == "1.1.0"
+    assert len(diff_res["file_diffs"]) == 1
+    assert "ip_range" in diff_res["file_diffs"][0]["diff"]
+
+    # 4. Apply update
+    upd_res = update_installed_item(None, "diff-stack", "vpc")
+    assert upd_res["previous_version"] == "1.0.0"
+    assert upd_res["new_version"] == "1.1.0"
+    assert "10.0.0.0/16" in (sd / "vpc-main.tf").read_text()
+
+    # 5. Installed manifest reflects 1.1.0
+    inst = installed(None, "diff-stack")
+    assert inst[0]["version"] == "1.1.0"
+
+
+
 

@@ -132,3 +132,28 @@ def api_registry_publish():
         return jsonify(res), 201
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/registry/stacks/<stack>/items/<name>/diff', methods=['GET'])
+@require_project_access
+def api_registry_diff(stack, name):
+    from services.code_registry import diff_installed_item
+    target_version = request.args.get("version")
+    try:
+        res = diff_installed_item(_pid(), stack, name, target_version=target_version)
+        return jsonify({"success": True, "diff": res})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/registry/stacks/<stack>/items/<name>/update', methods=['POST'])
+@require_project_access
+def api_registry_update(stack, name):
+    from services.code_registry import update_installed_item
+    data = request.get_json(silent=True) or {}
+    version = data.get("version")
+    try:
+        res = update_installed_item(_pid(), stack, name, version=version)
+        return jsonify(res)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400

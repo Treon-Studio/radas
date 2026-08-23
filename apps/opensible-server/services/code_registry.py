@@ -20,6 +20,7 @@ so uninstall removes exactly the copied files.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import shutil
@@ -391,4 +392,121 @@ def publish_from_stack(
         "version": version,
         "stack": stack,
         "files_published": published_files,
+    }
+
+
+def diff_installed_item(
+    project_id: Optional[str],
+    stack: str,
+    name: str,
+    target_version: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate dry-run diff between stack's installed files and registry item target version (UC665)."""
+    manifest = _load_manifest(project_id, stack)
+    rec = manifest.get(name)
+    if not rec:
+        raise ValueError(f"'{name}' is not installed on stack '{stack}'")
+
+    item = get_item(name)
+    if not item:
+        raise ValueError(f"Registry item '{name}' not found")
+
+    sd = _stack_dir_of(project_id, stack)
+    src = Path(item["path"])
+    target_v = target_version or item.get("version", "1.0.0")
+
+    file_diffs: List[Dict[str, Any]] = []
+    has_changes = False
+
+    if item["type"] == "tofu-block":
+        for f in item["files"]:
+            if not f.endswith(".tf"):
+                continue
+            src_file = src / f
+            dst_name = f"{name}-{Path(f).name}"
+            installed_dest = sd / dst_name
+
+            old_lines = installed_dest.read_text(encoding="utf-8").splitlines(keepends=True) if installed_dest.exists() else []
+            new_lines = src_file.read_text(encoding="utf-8").splitlines(keepends=True)
+
+            diff_lines = list(difflib.unified_diff(
+                old_lines,
+                new_lines,
+                fromfile=f"a/{dst_name} ({rec.get('version', 'installed')})",
+                tofile=f"b/{dst_name} ({target_v})",
+            ))
+
+            diff_str = "".join(diff_lines)
+            if diff_str:
+                has_changes = True
+                status = "added" if not old_lines else "modified"
+            else:
+                status = "unchanged"
+
+            file_diffs.append({
+                "file": dst_name,
+                "status": status,
+                "diff": diff_str,
+            })
+    else:  # ansible-role
+        role_dir = sd / "roles" / name
+        for f in item["files"]:
+            src_file = src / f
+            installed_dest = role_dir / f
+            old_lines = installed_dest.read_text(encoding="utf-8").splitlines(keepends=True) if installed_dest.exists() else []
+            new_lines = src_file.read_text(encoding="utf-8").splitlines(keepends=True)
+
+            diff_lines = list(difflib.unified_diff(
+                old_lines,
+                new_lines,
+                fromfile=f"a/roles/{name}/{f} ({rec.get('version', 'installed')})",
+                tofile=f"b/roles/{name}/{f} ({target_v})",
+            ))
+
+            diff_str = "".join(diff_lines)
+            if diff_str:
+                has_changes = True
+                status = "added" if not old_lines else "modified"
+            else:
+                status = "unchanged"
+
+            file_diffs.append({
+                "file": f"roles/{name}/{f}",
+                "status": status,
+                "diff": diff_str,
+            })
+
+    return {
+        "name": name,
+        "type": item["type"],
+        "installed_version": rec.get("version", "unknown"),
+        "target_version": target_v,
+        "has_changes": has_changes,
+        "file_diffs": file_diffs,
+    }
+
+
+def update_installed_item(
+    project_id: Optional[str],
+    stack: str,
+    name: str,
+    version: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update an installed registry item to the latest or pinned version (UC665)."""
+    manifest = _load_manifest(project_id, stack)
+    rec = manifest.get(name)
+    if not rec:
+        raise ValueError(f"'{name}' is not installed on stack '{stack}'")
+
+    old_version = rec.get("version", "unknown")
+    uninstall(project_id, stack, name)
+    installed_res = install(project_id, stack, name, version=version, resolve_deps=False)
+
+    return {
+        "success": True,
+        "name": name,
+        "previous_version": old_version,
+        "new_version": installed_res["version"],
+        "stack": stack,
+        "files_updated": installed_res["files_copied"],
     }
