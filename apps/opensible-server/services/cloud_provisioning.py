@@ -2721,6 +2721,65 @@ def api_set_stack_pin(name: str):
         return jsonify({"error": str(exc)}), 400
 
 
+# ---------------------------------------------------------------------------
+# UC609: Bulk Stack Tagging & Label Management
+# ---------------------------------------------------------------------------
+
+def bulk_update_stack_tags(
+    project_id: Optional[str],
+    stacks: List[str],
+    tags: Dict[str, Any],
+    overwrite: bool = False,
+) -> Dict[str, Any]:
+    """Bulk update tags across multiple stacks in a project (UC609)."""
+    if not stacks:
+        raise ValueError("stacks list cannot be empty")
+    if not isinstance(tags, dict):
+        raise ValueError("tags must be a dictionary")
+
+    updated = []
+    for s in stacks:
+        sname = str(s).strip()
+        if not sname:
+            continue
+        meta = dict(_load_meta(project_id, sname))
+        current_tags = dict(meta.get("tags") or {})
+        if overwrite:
+            current_tags = dict(tags)
+        else:
+            current_tags.update(tags)
+        meta["tags"] = current_tags
+        _save_meta(project_id, sname, **meta)
+        updated.append({"stack": sname, "tags": current_tags})
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "updated_count": len(updated),
+        "stacks": updated,
+    }
+
+
+@bp.route("/stacks/bulk-tags", methods=["POST"])
+@require_project_access
+def api_bulk_update_tags():
+    pid = _get_project_id()
+    data = request.get_json(silent=True) or {}
+    stacks = data.get("stacks") or []
+    tags = data.get("tags") or {}
+    overwrite = bool(data.get("overwrite", False))
+
+    if not stacks or not tags:
+        return jsonify({"error": "stacks and tags required"}), 400
+
+    try:
+        res = bulk_update_stack_tags(pid, stacks=stacks, tags=tags, overwrite=overwrite)
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+
 
 
 
