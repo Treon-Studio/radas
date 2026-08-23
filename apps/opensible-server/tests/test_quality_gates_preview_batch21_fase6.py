@@ -43,3 +43,49 @@ def test_idempotency_store_caching(pg_db):
     second_check = check_or_set_idempotency("flags_create", idem_key)
     assert second_check["cached"] is True
     assert second_check["response"]["flag_id"] == "flag-dark-mode"
+
+
+def test_conflict_detection_409():
+    from utils.conflict_detector import ensure_unique_key, KeyConflictError
+
+    existing = ["beta-feature", "v2-migration", "dark-mode"]
+
+    # 1. Unique key succeeds
+    ensure_unique_key("feature_flag", "new-checkout-flow", existing)
+
+    # 2. Duplicate key raises KeyConflictError (409)
+    with pytest.raises(KeyConflictError) as exc_info:
+        ensure_unique_key("feature_flag", "beta-feature", existing)
+    assert exc_info.value.status_code == 409
+    assert "Duplicate feature_flag key 'beta-feature'" in str(exc_info.value)
+
+
+def test_data_snapshot_backup_and_restore(pg_db):
+    import json
+    from services.data_snapshot import create_data_snapshot, restore_data_snapshot
+    from storage import pg
+
+    # 1. Seed some stack metadata and test cases
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s)",
+        ("p-snap-src", "auth-api", json.dumps({"provider": "aws", "cost": 45.0})),
+    )
+
+    # 2. Create snapshot
+    snapshot = create_data_snapshot(project_id="p-snap-src")
+    assert snapshot["schema_version"] == "1.0"
+    assert snapshot["project_id"] == "p-snap-src"
+    assert len(snapshot["stacks"]) >= 1
+
+    # 3. Restore to target project
+    restore_res = restore_data_snapshot(project_id="p-snap-dest", snapshot_data=snapshot)
+    assert restore_res["success"] is True
+    assert restore_res["stacks_restored"] >= 1
+
+    # 4. Verify in DB
+    row = pg.query_one(
+        "SELECT data FROM stack_meta WHERE project_id = %s AND stack = %s",
+        ("p-snap-dest", "auth-api"),
+    )
+    assert row is not None
+
