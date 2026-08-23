@@ -104,7 +104,7 @@ func checkAPIReachability() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/health", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/api/health", nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("  • RADAS Server (%s) : Offline / Standalone mode\n", apiURL)
