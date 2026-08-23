@@ -22,6 +22,9 @@ from services.login_security import (
     reset_login_rate_limit,
 )
 
+# Back-compat alias for tests that monkeypatch _login_attempts
+_login_attempts: dict = {}
+
 
 def _services():
     """Pull singletons from app.py at call-time (avoids circular import)."""

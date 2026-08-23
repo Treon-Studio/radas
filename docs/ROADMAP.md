@@ -783,14 +783,14 @@ fitur terpisah:
 | 615 | Approval expiry (TTL) | ✅ | P1 | 6 |
 | 616 | Reject reason wajib saat tolak | ✅ | P1 | 6 |
 | 617 | Approval via Slack button (inbound) | ⬜ | P3 | 6 |
-| 618 | Rate limit per key login (brute force) | ⬜ | P1 | 6 |
+| 618 | Rate limit per key login (brute force) | ✅ | P1 | 6 |
 | 619 | Audit export CSV | ✅ | P2 | 6 |
-| 620 | Search audit log lengkap | ⬜ | P1 | 6 |
-| 621 | Retensi audit configurable | ⬜ | P2 | 6 |
+| 620 | Search audit log lengkap | ✅ | P1 | 6 |
+| 621 | Retensi audit configurable | ✅ | P2 | 6 |
 | 622 | User roles matrix viewer | ✅ | P2 | 6 |
 | 623 | Deactivate user (bukan delete) | ✅ | P1 | 6 |
 | 624 | Welcome email onboarding | ⬜ | P3 | 6 |
-| 625 | Invite link user dengan role | ⬜ | P1 | 6 |
+| 625 | Invite link user dengan role | ✅ | P1 | 6 |
 | 626 | Password complexity policy per org | ⬜ | P2 | 6 |
 | 627 | OAuth login (Google/GitHub) opsional | ⬜ | P2 | 6 |
 | 628 | SSO discovery URL setting | ⬜ | P2 | 6 |
@@ -798,9 +798,9 @@ fitur terpisah:
 | 630 | Secret leak scanner di tfvars | ✅ | P1 | 6 |
 | 631 | Vault integration (HashiCorp) read | ⬜ | P2 | 6 |
 | 632 | KMS key rotation | ⬜ | P2 | 6 |
-| 633 | Service account scoped token per feature | ⬜ | P1 | 6 |
-| 634 | Token list dengan last-used | ⬜ | P1 | 6 |
-| 635 | Revoke all sessions user | ⬜ | P2 | 6 |
+| 633 | Service account scoped token per feature | ✅ | P1 | 6 |
+| 634 | Token list dengan last-used | ✅ | P1 | 6 |
+| 635 | Revoke all sessions user | ✅ | P2 | 6 |
 | 636 | Admin impersonate (audited) | ⬜ | P3 | 6 |
 | 637 | Full-text search stacks/runs | ⬜ | P2 | 6 |
 | 638 | API pagination cursor | ⬜ | P2 | 6 |
