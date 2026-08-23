@@ -158,3 +158,16 @@ def export_audit_logs(
     # Default to JSONL (standard SIEM format)
     lines = [json.dumps(entry) for entry in filtered]
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+def export_audit_events_csv(
+    project_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+    limit: int = 1000,
+) -> str:
+    """Export audit events directly as a CSV formatted string (UC619)."""
+    return export_audit_logs(
+        project_id=project_id,
+        output_format="csv",
+        limit=limit,
+    )

@@ -93,3 +93,20 @@ def test_mandatory_rejection_reason(data_dir):
     res = approval_service.reject_approval(aid, rejected_by="bob", reason="Security policy violation on port 22")
     assert res["status"] == "rejected"
     assert res["rejection_reason"] == "Security policy violation on port 22"
+
+
+def test_audit_csv_export(data_dir):
+    """UC619: Export audit events to CSV."""
+    from services import audit_events
+
+    audit_events.record_audit_event(
+        action="stack.deploy",
+        actor_user_id="user-123",
+        target_type="stack",
+        target_id="stack-prod",
+        meta={"env": "prod"},
+    )
+
+    csv_data = audit_events.export_audit_events_csv(limit=50)
+    assert "id,actor_user_id,action,target_type,target_id,created_at,meta" in csv_data
+    assert "stack.deploy" in csv_data
