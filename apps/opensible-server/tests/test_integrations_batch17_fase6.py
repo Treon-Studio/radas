@@ -47,3 +47,44 @@ def test_retry_engine_with_jitter():
     )
     assert result == "success-result"
     assert attempts == 3
+
+
+def test_locale_formatting():
+    from utils.locale_format import format_currency, format_datetime_locale
+
+    # 1. USD formatting in en_US
+    assert format_currency(1250.50, currency="USD", locale="en_US") == "$1,250.50"
+
+    # 2. IDR formatting in id_ID
+    assert "1.250.000" in format_currency(1250000, currency="IDR", locale="id_ID")
+    assert "Rp" in format_currency(1250000, currency="IDR", locale="id_ID")
+
+    # 3. Datetime formatting
+    ts = 1787400000.0  # Approx 2026
+    dt_str = format_datetime_locale(ts, locale="en_US")
+    assert "2026" in dt_str
+
+
+def test_print_friendly_cost_report(pg_db):
+    from services.cost_export import generate_cost_report
+    from storage import pg
+
+    # Seed stack with cost metadata
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s)",
+        ("proj-cost-1", "prod-cluster", json.dumps({"monthly_cost": 345.50, "currency": "USD", "provider": "hetzner"})),
+    )
+
+    # 1. Generate printable HTML cost report
+    html = generate_cost_report(project_id="proj-cost-1", format_type="html")
+    assert "<!DOCTYPE html>" in html
+    assert "Infrastructure Cost Breakdown" in html
+    assert "prod-cluster" in html
+    assert "@media print" in html
+
+    # 2. Generate JSON cost report
+    json_str = generate_cost_report(project_id="proj-cost-1", format_type="json")
+    data = json.loads(json_str)
+    assert data["project_id"] == "proj-cost-1"
+    assert "total_monthly_cost" in data
+
