@@ -125,3 +125,40 @@ def test_dedicated_preview_quotas(pg_db):
     assert eval_fail["allowed"] is False
 
 
+def test_git_preapply_hook_validation(tmp_path):
+    from services.git_preapply_hook import run_preapply_validation
+
+    # 1. Clean valid directory
+    (tmp_path / "main.tf").write_text('resource "aws_s3_bucket" "b" {}\n', encoding="utf-8")
+    res_clean = run_preapply_validation(str(tmp_path))
+    assert res_clean["passed"] is True
+    assert len(res_clean["violations"]) == 0
+
+    # 2. Add bad file with syntax violation
+    (tmp_path / "bad.tf").write_text('resource "aws_s3_bucket" "b" { unclosed\n', encoding="utf-8")
+    res_bad = run_preapply_validation(str(tmp_path))
+    assert res_bad["passed"] is False
+    assert len(res_bad["violations"]) >= 1
+
+
+def test_atlantis_style_pr_plan_comment():
+    from services.pr_plan_commenter import generate_pr_plan_comment
+
+    plan_summary = {
+        "add": 2,
+        "change": 1,
+        "destroy": 0,
+        "raw_diff": "+ aws_instance.web\n+ aws_s3_bucket.assets\n~ aws_security_group.allow_tls",
+    }
+    comment = generate_pr_plan_comment(
+        stack_name="prod-us-east-cluster",
+        plan_summary=plan_summary,
+        commit_sha="a1b2c3d4e5f6789",
+    )
+    assert "RADAS Plan Result for Stack: `prod-us-east-cluster`" in comment
+    assert "**Plan:** 2 to add, 1 to change, 0 to destroy" in comment
+    assert "Commit: `a1b2c3d`" in comment
+    assert "<details><summary>Show Output</summary>" in comment
+
+
+
