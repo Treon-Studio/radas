@@ -96,7 +96,10 @@ def create_approval(stack: str, project_id: str, action: str,
     return rec
 
 
-def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict[str, Any]]:
+def decide(approval_id: str, status: str, decided_by: str = "", reason: str = "") -> Optional[Dict[str, Any]]:
+    if status == "rejected" and not (reason and str(reason).strip()):
+        raise ValueError("rejection reason is mandatory")
+
     records = _load()
     for r in records:
         if r.get("id") == approval_id:
@@ -111,6 +114,8 @@ def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict
             r["status"] = status
             r["decided_at"] = time.time()
             r["decided_by"] = decided_by
+            if reason:
+                r["rejection_reason"] = str(reason).strip()
             _save(records)
             if status == "approved" and r.get("action") == "apply":
                 # Auto-apply after review (UC 51).
@@ -122,6 +127,12 @@ def decide(approval_id: str, status: str, decided_by: str = "") -> Optional[Dict
                     pass
             return r
     return None
+
+
+def reject_approval(approval_id: str, rejected_by: str = "", reason: str = "") -> Optional[Dict[str, Any]]:
+    """Reject an approval request with mandatory reason (UC616)."""
+    return decide(approval_id, "rejected", decided_by=rejected_by, reason=reason)
+
 
 
 def list_approvals(project_id: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -68,3 +68,28 @@ def test_approval_ttl_expiry(data_dir):
     target = next((r for r in all_appr if r["id"] == aid), None)
     assert target is not None
     assert target["status"] == "expired"
+
+
+def test_mandatory_rejection_reason(data_dir):
+    """UC616: Rejection requires non-empty reason."""
+    from services import approval_service
+
+    proj = "proj-rej"
+    stk = "worker-stack"
+
+    appr = approval_service.create_approval(
+        stack=stk, project_id=proj, action="apply", requested_by="alice"
+    )
+    aid = appr["id"]
+
+    # Reject without reason -> ValueError
+    with pytest.raises(ValueError, match=r"(?i)rejection reason is mandatory"):
+        approval_service.reject_approval(aid, rejected_by="bob", reason="")
+
+    with pytest.raises(ValueError, match=r"(?i)rejection reason is mandatory"):
+        approval_service.decide(aid, "rejected", decided_by="bob", reason="   ")
+
+    # Reject with valid reason
+    res = approval_service.reject_approval(aid, rejected_by="bob", reason="Security policy violation on port 22")
+    assert res["status"] == "rejected"
+    assert res["rejection_reason"] == "Security policy violation on port 22"
