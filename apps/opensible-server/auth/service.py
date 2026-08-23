@@ -203,7 +203,7 @@ def are_user_sessions_revoked(user_id: str, iat: Any, data_dir: Path) -> bool:
 # ---------------------------------------------------------------------------
 def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
                    token_type: str = 'access', expires_delta: Optional[timedelta] = None,
-                   org_id: Optional[str] = None) -> str:
+                   org_id: Optional[str] = None, extra_claims: Optional[Dict[str, Any]] = None) -> str:
     if expires_delta is None:
         if token_type == 'refresh':
             expires_delta = timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
@@ -221,6 +221,8 @@ def generate_token(user_id: str, username: str, roles: list, data_dir: Path,
     }
     if org_id:
         payload['org_id'] = org_id
+    if extra_claims and isinstance(extra_claims, dict):
+        payload.update(extra_claims)
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
