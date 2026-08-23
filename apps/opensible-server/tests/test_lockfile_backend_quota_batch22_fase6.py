@@ -117,3 +117,52 @@ def test_snapshot_retention_enforcement():
     assert "snap-2" in pruned_ids
 
 
+def test_quota_soft_warning_and_hard_block():
+    from services.quota_evaluator import evaluate_quota
+
+    # 1. Normal usage (50% < 80%)
+    res_normal = evaluate_quota(current_usage=5, limit=10, soft_threshold_percent=80.0)
+    assert res_normal["allowed"] is True
+    assert res_normal["warning"] is False
+    assert res_normal["hard_blocked"] is False
+
+    # 2. Soft warning (85% >= 80% and < 100%)
+    res_soft = evaluate_quota(current_usage=85, limit=100, soft_threshold_percent=80.0)
+    assert res_soft["allowed"] is True
+    assert res_soft["warning"] is True
+    assert res_soft["hard_blocked"] is False
+    assert "Soft quota warning" in res_soft["message"]
+
+    # 3. Hard block (100% >= 100%)
+    res_hard = evaluate_quota(current_usage=10, limit=10, soft_threshold_percent=80.0)
+    assert res_hard["allowed"] is False
+    assert res_hard["warning"] is True
+    assert res_hard["hard_blocked"] is True
+
+
+def test_quota_increase_request_workflow(pg_db):
+    from services.quota_request import (
+        create_quota_increase_request,
+        approve_quota_increase,
+        get_quota_request,
+    )
+
+    # 1. Create request
+    req = create_quota_increase_request(
+        project_id="p-quota-test",
+        resource_type="stacks",
+        requested_limit=50,
+        reason="Scaling production microservices for Q4 launch",
+        author="dev-lead",
+    )
+    req_id = req["id"]
+    assert req["status"] == "pending"
+
+    # 2. Approve request
+    approved = approve_quota_increase(req_id, approver="admin-alice")
+    assert approved["status"] == "approved"
+    assert approved["approved_by"] == "admin-alice"
+    assert approved["approved_at"] is not None
+
+
+
