@@ -68,3 +68,54 @@ def test_cross_project_stack_clone(pg_db, tmp_path, monkeypatch):
         ("proj-beta", "api-service-clone"),
     )
     assert meta_row is not None
+
+
+def test_cost_anomaly_detection(pg_db):
+    from services.cost_anomaly import detect_cost_anomalies
+    from storage import pg
+
+    # Seed regular stacks ($20, $25, $30) and 1 extreme outlier ($900)
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s), (%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-anomaly", "svc-1", json.dumps({"monthly_cost": 20.0}),
+            "p-anomaly", "svc-2", json.dumps({"monthly_cost": 25.0}),
+            "p-anomaly", "svc-3", json.dumps({"monthly_cost": 30.0}),
+            "p-anomaly", "svc-huge-spike", json.dumps({"monthly_cost": 900.0}),
+        ),
+    )
+
+    anomalies = detect_cost_anomalies("p-anomaly")
+    assert len(anomalies) >= 1
+    assert anomalies[0]["stack"] == "svc-huge-spike"
+    assert anomalies[0]["severity"] in ("high", "critical")
+
+
+def test_cost_breakdown_by_env(pg_db):
+    from services.cost_breakdown import get_cost_breakdown_by_env
+    from storage import pg
+
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-breakdown", "prod-cluster", json.dumps({"monthly_cost": 500.0, "env": "production"}),
+            "p-breakdown", "staging-db", json.dumps({"monthly_cost": 150.0, "env": "staging"}),
+            "p-breakdown", "dev-sandbox", json.dumps({"monthly_cost": 50.0, "env": "development"}),
+        ),
+    )
+
+    bd = get_cost_breakdown_by_env("p-breakdown")
+    assert bd["total_monthly_cost"] == 700.0
+    envs = bd["environments"]
+    assert "production" in envs
+    assert envs["production"]["cost"] == 500.0
+    assert envs["production"]["percentage"] > 70.0
+
+    assert "staging" in envs
+    assert envs["staging"]["cost"] == 150.0
+
+    assert "development" in envs
+    assert envs["development"]["cost"] == 50.0
+
