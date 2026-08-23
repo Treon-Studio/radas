@@ -832,12 +832,12 @@ fitur terpisah:
 | 658 | Uninstall: hapus persis file yang di-copy (manifest per stack) | ✅ | P1 | 6 |
 | 659 | Installed list per stack (registry manifest) | ✅ | P1 | 6 |
 | 660 | Registry storage swappable (filesystem sekarang, DB nanti — env REGISTRY_DIR) | ✅ | P2 | 6 |
-| 661 | Shareable registry URL / import item dari registry eksternal | ⬜ | P2 | 6 |
-| 662 | Version pinning: install versi tertentu, changelog per item | ⬜ | P2 | 6 |
-| 663 | Dependensi antar item (vpc → monitoring) resolusi otomatis | ⬜ | P2 | 6 |
-| 664 | Publish item dari stack ke registry (extract code jadi reusable) | ⬜ | P2 | 6 |
-| 665 | Update item ke versi baru + diff dry-run sebelum overwrite | ⬜ | P2 | 6 |
-| 666 | Adopsi repository Git eksternal sebagai registry remote (BYOC code) | ⬜ | P2 | 6 |
+| 661 | Shareable registry URL / import item dari registry eksternal | ✅ | P2 | 6 |
+| 662 | Version pinning: install versi tertentu, changelog per item | ✅ | P2 | 6 |
+| 663 | Dependensi antar item (vpc → monitoring) resolusi otomatis | ✅ | P2 | 6 |
+| 664 | Publish item dari stack ke registry (extract code jadi reusable) | ✅ | P2 | 6 |
+| 665 | Update item ke versi baru + diff dry-run sebelum overwrite | ✅ | P2 | 6 |
+| 666 | Adopsi repository Git eksternal sebagai registry remote (BYOC code) | ✅ | P2 | 6 |
 
 
 ## Ringkasan
