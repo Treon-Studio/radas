@@ -698,7 +698,7 @@ fitur terpisah:
 | 530 | Skip init jika module belum berubah | ⬜ | P2 | 6 |
 | 531 | Cache module lokal per worker | ⬜ | P1 | 6 |
 | 532 | Agent tags: region/cloud (sudah worker tags) | ✅ | P1 | 6 |
-| 533 | Stack yang harus jalan di worker tertentu (pinning) | ⬜ | P1 | 6 |
+| 533 | Stack yang harus jalan di worker tertentu (pinning) | ✅ | P1 | 6 |
 | 534 | Worker resource usage monitoring | ⬜ | P2 | 6 |
 | 535 | Worker online/offline status di dasbor | ⬜ | P1 | 6 |
 | 536 | Cooldown after failed apply (anti-spam) | ✅ | P1 | 6 |
@@ -712,10 +712,10 @@ fitur terpisah:
 | 544 | Compliance evidence untuk secret rotation | ⬜ | P2 | 6 |
 | 545 | Policy gate plan parse (sudah) -> extend severity | ✅ | P1 | 6 |
 | 546 | Policy violations list permanent | ✅ | P1 | 6 |
-| 547 | Policy exemptions dengan approval | ⬜ | P2 | 6 |
+| 547 | Policy exemptions dengan approval | ✅ | P2 | 6 |
 | 548 | Quota soft warning vs hard block | ⬜ | P1 | 6 |
 | 549 | Request quota increase workflow | ⬜ | P2 | 6 |
-| 550 | Cost anomaly alert threshold config | ⬜ | P1 | 6 |
+| 550 | Cost anomaly alert threshold config | ✅ | P1 | 6 |
 | 551 | Cost forecast akurasi (MAE metric) | ⬜ | P2 | 6 |
 | 552 | Charge by env (dev free tier) | ⬜ | P2 | 6 |
 | 553 | Budgets rollup ke heap (parent + child) | ⬜ | P2 | 6 |
@@ -725,7 +725,7 @@ fitur terpisah:
 | 557 | Usage-based cost attribution (per run) | ⬜ | P2 | 6 |
 | 558 | Provider pricing table update otomatis | ⬜ | P2 | 6 |
 | 559 | Currency & locale support | ⬜ | P2 | 6 |
-| 560 | Cost export ke CSV bulanan | ⬜ | P1 | 6 |
+| 560 | Cost export ke CSV bulanan | ✅ | P1 | 6 |
 | 561 | Trend grafik multi-stack line overlay | ⬜ | P1 | 6 |
 | 562 | Stack cost breakdown per resource | ⬜ | P2 | 6 |
 | 563 | Untagged resource cost detection | ⬜ | P2 | 6 |
@@ -774,10 +774,10 @@ fitur terpisah:
 | 606 | RTL layout readiness | ⬜ | P3 | 6 |
 | 607 | Print-friendly report halaman cost | ⬜ | P2 | 6 |
 | 608 | PDF export laporan compliance | ⬜ | P1 | 6 |
-| 609 | Bulk tag edit stack | ⬜ | P2 | 6 |
+| 609 | Bulk tag edit stack | ✅ | P2 | 6 |
 | 610 | Duplicate stack (clone) action | ⬜ | P2 | 6 |
-| 611 | Arsipkan stack (soft delete) | ⬜ | P2 | 6 |
-| 612 | Restore dari arsip | ⬜ | P2 | 6 |
+| 611 | Arsipkan stack (soft delete) | ✅ | P2 | 6 |
+| 612 | Restore dari arsip | ✅ | P2 | 6 |
 | 613 | Stack rename dengan migrasi state key | ⬜ | P2 | 6 |
 | 614 | Persetujuan multi-pihak (quorum) | ⬜ | P1 | 6 |
 | 615 | Approval expiry (TTL) | ⬜ | P1 | 6 |
