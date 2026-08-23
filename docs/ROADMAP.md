@@ -588,7 +588,7 @@ fitur terpisah:
 | 425 | Audit log user actions (sudah ada) -> enrich search | ✅ | P1 | 6 |
 | 426 | Scheduled plan (daily plan, diff report) | ✅ | P1 | 6 |
 | 427 | Stack health score (drift+test+age) | ✅ | P2 | 6 |
-| 428 | Bulk actions: apply banyak stack sekaligus | ⬜ | P2 | 6 |
+| 428 | Bulk actions: apply banyak stack sekaligus | ✅ | P2 | 6 |
 | 429 | Clone stack antar project | ✅ | P2 | 6 |
 | 430 | Import/export stack config JSON | ✅ | P1 | 6 |
 | 431 | Tagging stack untuk filter & automation | ✅ | P1 | 6 |
@@ -625,9 +625,9 @@ fitur terpisah:
 | 457 | Validate JSON schema request (semua route baru) | ✅ | P1 | 6 |
 | 458 | Idempotency untuk create flag/preview | ✅ | P2 | 6 |
 | 459 | Conflict detection 409 untuk duplicate key | ✅ | P1 | 6 |
-| 460 | Not found 404 semantik | ⬜ | P1 | 6 |
-| 461 | Error envelope seragam (error/message) | ⬜ | P1 | 6 |
-| 462 | Logging terstruktur JSON untuk action baru | ⬜ | P1 | 6 |
+| 460 | Not found 404 semantik | ✅ | P1 | 6 |
+| 461 | Error envelope seragam (error/message) | ✅ | P1 | 6 |
+| 462 | Logging terstruktur JSON untuk action baru | ✅ | P1 | 6 |
 | 463 | Trace id lintas log (request/execution) | ✅ | P2 | 6 |
 | 464 | Metrics Prometheus untuk API (request rate, latency) | ✅ | P2 | 6 |
 | 465 | Health endpoint mencover service baru | ✅ | P1 | 6 |
@@ -642,10 +642,10 @@ fitur terpisah:
 | 474 | Notifikasi push (sudah) diperluas untuk test/gh events | ⬜ | P1 | 6 |
 | 475 | Email digest harian: test fail + drift | ✅ | P2 | 6 |
 | 476 | Webhook outbound untuk test result event | ✅ | P1 | 6 |
-| 477 | Recovery: restart worker tidak kehilangan queue | ⬜ | P1 | 6 |
-| 478 | Backoff execution claim conflict | ⬜ | P1 | 6 |
-| 479 | Worker fairness (round-robin stack) | ⬜ | P2 | 6 |
-| 480 | Worker drain: selesaikan run sebelum restart | ⬜ | P2 | 6 |
+| 477 | Recovery: restart worker tidak kehilangan queue | ✅ | P1 | 6 |
+| 478 | Backoff execution claim conflict | ✅ | P1 | 6 |
+| 479 | Worker fairness (round-robin stack) | ✅ | P2 | 6 |
+| 480 | Worker drain: selesaikan run sebelum restart | ✅ | P2 | 6 |
 | 481 | Timeout eksekusi per action (default) | ✅ | P1 | 6 |
 | 482 | Retry policy per stack (sudah ada retry_policy) | ✅ | P1 | 6 |
 | 483 | Concurrency limit per project | ✅ | P1 | 6 |
