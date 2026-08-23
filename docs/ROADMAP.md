@@ -564,13 +564,13 @@ fitur terpisah:
 | 401 | REST client SDK (JS/Python) | ⬜ | P2 | 6 |
 | 402 | CLI parity full (radas <-> console) | ⬜ | P1 | 6 |
 | 403 | WebSocket realtime per stack (sudah SSE) | ✅ | P2 | 6 |
-| 404 | Webhook outbound retry dengan DLQ | ⬜ | P1 | 6 |
+| 404 | Webhook outbound retry dengan DLQ | ✅ | P1 | 6 |
 | 405 | Idempotent API keys (idempotency header) | ✅ | P2 | 6 |
 | 406 | Failover: multiple server instance | ⬜ | P2 | 6 |
 | 407 | State backup S3/GCS (remote state sync) | ⬜ | P1 | 6 |
 | 408 | Plan-only lint sebelum apply otomatis | ⬜ | P1 | 6 |
 | 409 | Circuit breaker: stop apply setelah N kegagalan | ✅ | P2 | 6 |
-| 410 | Dead-letter queue untuk execution gagal | ⬜ | P1 | 6 |
+| 410 | Dead-letter queue untuk execution gagal | ✅ | P1 | 6 |
 | 411 | Forecast bulanan per project (sudah) | ✅ | P2 | 6 |
 | 412 | Anomaly detection cost (tiba-tiba naik) | ⬜ | P2 | 6 |
 | 413 | Saran hak-as-right (rightsizing sudah) | ✅ | P1 | 6 |
@@ -582,8 +582,8 @@ fitur terpisah:
 | 419 | Failing control -> ticket otomatis | ⬜ | P2 | 6 |
 | 420 | Secret scanning di plan output | ✅ | P1 | 6 |
 | 421 | Container registry scan untuk worker image | ⬜ | P2 | 6 |
-| 422 | IP allowlist untuk UI/API | ⬜ | P1 | 6 |
-| 423 | Session timeout & inactivity lock | ⬜ | P1 | 6 |
+| 422 | IP allowlist untuk UI/API | ✅ | P1 | 6 |
+| 423 | Session timeout & inactivity lock | ✅ | P1 | 6 |
 | 424 | Password policy configurable | ⬜ | P1 | 6 |
 | 425 | Audit log user actions (sudah ada) -> enrich search | ✅ | P1 | 6 |
 | 426 | Scheduled plan (daily plan, diff report) | ⬜ | P1 | 6 |
@@ -640,7 +640,7 @@ fitur terpisah:
 | 472 | CLI command untuk tiap fitur baru (radas flags/tests/gh/byoc) | ⬜ | P2 | 6 |
 | 473 | Al to-actions: rekomendasi flag dari safety heuristic | ⬜ | P2 | 6 |
 | 474 | Notifikasi push (sudah) diperluas untuk test/gh events | ⬜ | P1 | 6 |
-| 475 | Email digest harian: test fail + drift | ⬜ | P2 | 6 |
+| 475 | Email digest harian: test fail + drift | ✅ | P2 | 6 |
 | 476 | Webhook outbound untuk test result event | ✅ | P1 | 6 |
 | 477 | Recovery: restart worker tidak kehilangan queue | ⬜ | P1 | 6 |
 | 478 | Backoff execution claim conflict | ⬜ | P1 | 6 |
@@ -677,7 +677,7 @@ fitur terpisah:
 | 509 | Pull request template radas untuk infra | ⬜ | P2 | 6 |
 | 510 | Code owners enforcement | ⬜ | P2 | 6 |
 | 511 | Module registry publish CLI | ⬜ | P1 | 6 |
-| 512 | Module semver + constraint resolution | ⬜ | P1 | 6 |
+| 512 | Module semver + constraint resolution | ✅ | P1 | 6 |
 | 513 | Provider mirror sudah -> extend per version | ✅ | P1 | 6 |
 | 514 | Lockfile .terraform.lock.hcl untuk ensure version | ⬜ | P1 | 6 |
 | 515 | Checksum verifikasi module download | ⬜ | P1 | 6 |
@@ -719,7 +719,7 @@ fitur terpisah:
 | 551 | Cost forecast akurasi (MAE metric) | ⬜ | P2 | 6 |
 | 552 | Charge by env (dev free tier) | ⬜ | P2 | 6 |
 | 553 | Budgets rollup ke heap (parent + child) | ⬜ | P2 | 6 |
-| 554 | Bill spike protection (auto-stop VM) | ⬜ | P1 | 6 |
+| 554 | Bill spike protection (auto-stop VM) | ✅ | P1 | 6 |
 | 555 | Right-sizing rekomendasi dengan confidence | ⬜ | P1 | 6 |
 | 556 | Scheduled snapshot sebelum rightsizing | ⬜ | P2 | 6 |
 | 557 | Usage-based cost attribution (per run) | ⬜ | P2 | 6 |
@@ -736,7 +736,7 @@ fitur terpisah:
 | 568 | Batch ops UI (select banyak run -> retry) | ⬜ | P2 | 6 |
 | 569 | Sari/draft plan dari template JSON | ⬜ | P2 | 6 |
 | 570 | Satu klik deploy template (sudah wizard) | ✅ | P1 | 6 |
-| 571 | Template versioning (custom templates) | ⬜ | P1 | 6 |
+| 571 | Template versioning (custom templates) | ✅ | P1 | 6 |
 | 572 | Template market share (shareable URL) | ✅ | P2 | 6 |
 | 573 | Stack dari template dengan init data (sudah) | ✅ | P1 | 6 |
 | 574 | ATS: integration tests untuk UI E2E | ⬜ | P2 | 6 |
