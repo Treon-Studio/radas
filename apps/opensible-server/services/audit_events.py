@@ -171,3 +171,59 @@ def export_audit_events_csv(
         output_format="csv",
         limit=limit,
     )
+
+
+def search_audit_events(
+    query: Optional[str] = None,
+    actor_user_id: Optional[str] = None,
+    action: Optional[str] = None,
+    target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    project_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Search audit events with multi-field filtering and pagination (UC620)."""
+    from storage import auth_db
+    from app_context import get_data_dir
+
+    try:
+        data_dir = get_data_dir()
+    except Exception:
+        data_dir = Path("/data") if Path("/data").exists() else Path.cwd() / "data"
+
+    return auth_db.search_audit(
+        data_dir,
+        query=query,
+        action=action,
+        actor_user_id=actor_user_id,
+        target_type=target_type,
+        target_id=target_id,
+        project_id=project_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def prune_audit_logs(
+    retention_days: int = 90,
+    project_id: Optional[str] = None,
+) -> int:
+    """Prune audit logs older than retention_days (UC621)."""
+    from storage import auth_db
+    from app_context import get_data_dir
+
+    try:
+        data_dir = get_data_dir()
+    except Exception:
+        data_dir = Path("/data") if Path("/data").exists() else Path.cwd() / "data"
+
+    return auth_db.prune_audit(
+        data_dir,
+        retention_days=retention_days,
+        project_id=project_id,
+    )

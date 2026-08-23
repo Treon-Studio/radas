@@ -134,6 +134,113 @@ def list_audit(
         conn.close()
 
 
+def search_audit(
+    data_dir: Path,
+    *,
+    query: Optional[str] = None,
+    action: Optional[str] = None,
+    actor_user_id: Optional[str] = None,
+    target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    conn = get_conn(data_dir)
+    try:
+        where: List[str] = []
+        args: List[Any] = []
+        if target_type:
+            where.append("target_type = ?")
+            args.append(target_type)
+        if target_id:
+            where.append("target_id = ?")
+            args.append(target_id)
+        if actor_user_id:
+            where.append("actor_user_id = ?")
+            args.append(actor_user_id)
+        if action:
+            where.append("action LIKE ?")
+            args.append(f"%{action}%")
+        if project_id:
+            where.append("meta_json::jsonb ->> 'project_id' = ?")
+            args.append(project_id)
+        if start_time:
+            where.append("created_at >= ?")
+            args.append(start_time)
+        if end_time:
+            where.append("created_at <= ?")
+            args.append(end_time)
+        if query:
+            where.append(
+                "(action ILIKE ? OR actor_user_id ILIKE ? OR target_type ILIKE ? OR target_id ILIKE ? OR meta_json ILIKE ?)"
+            )
+            q_pattern = f"%{query}%"
+            args.extend([q_pattern, q_pattern, q_pattern, q_pattern, q_pattern])
+
+        where_clause = f" WHERE {' AND '.join(where)}" if where else ""
+
+        count_sql = f"SELECT COUNT(*) AS total FROM audit_log{where_clause}"
+        total_row = conn.execute(count_sql, list(args)).fetchone()
+        total = total_row["total"] if total_row else 0
+
+        sql = f"SELECT id, actor_user_id, action, target_type, target_id, meta_json, created_at FROM audit_log{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?"
+        fetch_args = list(args) + [int(limit), int(offset)]
+        rows = conn.execute(sql, fetch_args).fetchall()
+
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            meta = None
+            if r["meta_json"]:
+                try:
+                    meta = json.loads(r["meta_json"])
+                except Exception:
+                    meta = None
+            out.append(
+                {
+                    "id": r["id"],
+                    "actor_user_id": r["actor_user_id"],
+                    "action": r["action"],
+                    "target_type": r["target_type"],
+                    "target_id": r["target_id"],
+                    "meta": meta,
+                    "created_at": r["created_at"],
+                }
+            )
+        return {
+            "events": out,
+            "total": total,
+            "limit": int(limit),
+            "offset": int(offset),
+        }
+    finally:
+        conn.close()
+
+
+def prune_audit(
+    data_dir: Path,
+    *,
+    retention_days: int = 90,
+    project_id: Optional[str] = None,
+) -> int:
+    from datetime import datetime, timedelta, timezone
+    conn = get_conn(data_dir)
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=int(retention_days))).isoformat()
+        where = ["created_at < ?"]
+        args: List[Any] = [cutoff]
+        if project_id:
+            where.append("meta_json::jsonb ->> 'project_id' = ?")
+            args.append(project_id)
+        sql = f"DELETE FROM audit_log WHERE {' AND '.join(where)}"
+        cur = conn.execute(sql, args)
+        return cur.rowcount if hasattr(cur, "rowcount") and cur.rowcount is not None else 0
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # One-shot JSON -> DB migration (legacy users.json / roles.json / permissions.json)
 # ---------------------------------------------------------------------------
