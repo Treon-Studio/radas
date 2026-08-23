@@ -545,8 +545,8 @@ fitur terpisah:
 | 382 | Job history aggregation (sudah ada) | ✅ | P1 | 6 |
 | 383 | Credentials vault per environment | ✅ | P1 | 6 |
 | 384 | Execution environments (containerized runs) | ⬜ | P2 | 6 |
-| 385 | Smart inventory: dynamic host groups | ⬜ | P1 | 6 |
-| 386 | Workflow templates multi-playbook (chain) | ⬜ | P1 | 6 |
+| 385 | Smart inventory: dynamic host groups | ✅ | P1 | 6 |
+| 386 | Workflow templates multi-playbook (chain) | ✅ | P1 | 6 |
 | 387 | Callback/webhook untuk job launch | ⬜ | P2 | 6 |
 | 388 | RBAC granular: role per resource type (stack, secret, key) | ✅ | P0 | 6 |
 | 389 | Project hierarchy: org -> project -> env | ✅ | P1 | 6 |
@@ -572,9 +572,9 @@ fitur terpisah:
 | 409 | Circuit breaker: stop apply setelah N kegagalan | ✅ | P2 | 6 |
 | 410 | Dead-letter queue untuk execution gagal | ✅ | P1 | 6 |
 | 411 | Forecast bulanan per project (sudah) | ✅ | P2 | 6 |
-| 412 | Anomaly detection cost (tiba-tiba naik) | ⬜ | P2 | 6 |
+| 412 | Anomaly detection cost (tiba-tiba naik) | ✅ | P2 | 6 |
 | 413 | Saran hak-as-right (rightsizing sudah) | ✅ | P1 | 6 |
-| 414 | Cost per stack vs per env breakdown | ⬜ | P1 | 6 |
+| 414 | Cost per stack vs per env breakdown | ✅ | P1 | 6 |
 | 415 | Chargeback export ke spreadsheet | ⬜ | P2 | 6 |
 | 416 | Compliance report PDF export | ⬜ | P1 | 6 |
 | 417 | Evidence collection otomatis (screenshot config) | ⬜ | P2 | 6 |
@@ -586,12 +586,12 @@ fitur terpisah:
 | 423 | Session timeout & inactivity lock | ✅ | P1 | 6 |
 | 424 | Password policy configurable | ⬜ | P1 | 6 |
 | 425 | Audit log user actions (sudah ada) -> enrich search | ✅ | P1 | 6 |
-| 426 | Scheduled plan (daily plan, diff report) | ⬜ | P1 | 6 |
-| 427 | Stack health score (drift+test+age) | ⬜ | P2 | 6 |
+| 426 | Scheduled plan (daily plan, diff report) | ✅ | P1 | 6 |
+| 427 | Stack health score (drift+test+age) | ✅ | P2 | 6 |
 | 428 | Bulk actions: apply banyak stack sekaligus | ⬜ | P2 | 6 |
-| 429 | Clone stack antar project | ⬜ | P2 | 6 |
+| 429 | Clone stack antar project | ✅ | P2 | 6 |
 | 430 | Import/export stack config JSON | ✅ | P1 | 6 |
-| 431 | Tagging stack untuk filter & automation | ⬜ | P1 | 6 |
+| 431 | Tagging stack untuk filter & automation | ✅ | P1 | 6 |
 | 432 | Git sync dua arah (sudah pull -> add push) | ✅ | P1 | 6 |
 | 433 | Commit message convention enforcement | ⬜ | P2 | 6 |
 
