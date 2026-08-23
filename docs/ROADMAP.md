@@ -802,20 +802,20 @@ fitur terpisah:
 | 634 | Token list dengan last-used | ✅ | P1 | 6 |
 | 635 | Revoke all sessions user | ✅ | P2 | 6 |
 | 636 | Admin impersonate (audited) | ⬜ | P3 | 6 |
-| 637 | Full-text search stacks/runs | ⬜ | P2 | 6 |
-| 638 | API pagination cursor | ⬜ | P2 | 6 |
+| 637 | Full-text search stacks/runs | ✅ | P2 | 6 |
+| 638 | API pagination cursor | ✅ | P2 | 6 |
 | 639 | GraphQL gateway (opsional) | ⬜ | P3 | 6 |
 | 640 | Schema versioning API | ⬜ | P3 | 6 |
-| 641 | Rate limit header standar | ⬜ | P2 | 6 |
+| 641 | Rate limit header standar | ✅ | P2 | 6 |
 | 642 | OpenAPI operationId konsisten | ⬜ | P2 | 6 |
-| 643 | Client timeout configurable | ⬜ | P2 | 6 |
-| 644 | Retry-After header support | ⬜ | P2 | 6 |
+| 643 | Client timeout configurable | ✅ | P2 | 6 |
+| 644 | Retry-After header support | ✅ | P2 | 6 |
 | 645 | Local dev seed data script | ⬜ | P2 | 6 |
 | 646 | Demo mode (sample data) | ⬜ | P2 | 6 |
 | 647 | Startup check dependencies (redis) | ⬜ | P2 | 6 |
-| 648 | Graceful shutdown server (drain) | ⬜ | P2 | 6 |
+| 648 | Graceful shutdown server (drain) | ✅ | P2 | 6 |
 | 649 | Sistem config migration versioned | ⬜ | P2 | 6 |
-| 650 | Backup DATA_DIR tooling | ⬜ | P1 | 6 |
+| 650 | Backup DATA_DIR tooling | ✅ | P1 | 6 |
 | 651 | Restore from backup test (sudah UC 112) | ✅ | P1 | 6 |
 
 
