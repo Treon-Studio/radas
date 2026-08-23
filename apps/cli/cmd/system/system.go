@@ -18,25 +18,34 @@ var Cmd = &cobra.Command{
 	Aliases: []string{"sys", "mole", "optimizer"},
 	Short:   "Clean developer caches, analyze disk space, optimize macOS performance, and deep uninstall apps",
 	Long: `The system command group (inspired by Mole) provides high-performance utilities
-for cleaning developer caches (Xcode, Node/pnpm, Go, Rust, Pip, Docker, Homebrew),
+for cleaning developer caches (Xcode, Node/pnpm, Go, Rust, Pip, Docker, Homebrew, AI models),
 analyzing heavy directories, diagnosing system hardware/thermals, and optimizing macOS.`,
 }
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Clean developer caches, application logs, and temporary files",
+	Short: "Clean developer caches, AI model caches, application logs, and temporary files",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		categoryFilter, _ := cmd.Flags().GetString("category")
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return err
 		}
 
-		targets := internalsys.GetCleanTargets(homeDir)
+		allTargets := internalsys.GetCleanTargets(homeDir)
+		var targets []internalsys.CleanTarget
+		for _, t := range allTargets {
+			if categoryFilter == "" || t.Category == categoryFilter {
+				targets = append(targets, t)
+			}
+		}
+
 		report := internalsys.RunCleanup(targets, dryRun)
+		_ = internalsys.RecordCleanupAppended(report)
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "TARGET CATEGORY\tCACHE TYPE\tITEMS\tRECOVERABLE")
+		fmt.Fprintln(w, "CATEGORY\tTARGET CACHE\tITEMS\tRECOVERABLE")
 		for _, t := range report.Targets {
 			if t.SizeBytes > 0 || !dryRun {
 				fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", t.Category, t.Name, t.ItemCount, internalsys.FormatBytes(t.SizeBytes))
@@ -60,7 +69,7 @@ var cleanCmd = &cobra.Command{
 
 var purgeCmd = &cobra.Command{
 	Use:   "purge",
-	Short: "Deep purge heavy build caches across Docker, Xcode, pnpm, Go, and Cargo",
+	Short: "Deep purge heavy build caches across Docker, Xcode, pnpm, Go, Cargo, and Android SDK",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		fmt.Println("Initiating deep developer cache purge...")
@@ -68,6 +77,7 @@ var purgeCmd = &cobra.Command{
 		homeDir, _ := os.UserHomeDir()
 		targets := internalsys.GetCleanTargets(homeDir)
 		report := internalsys.RunCleanup(targets, dryRun)
+		_ = internalsys.RecordCleanupAppended(report)
 
 		// Also run Docker prune
 		dockerMsg, _ := internalsys.DockerPrune(dryRun)
@@ -90,6 +100,7 @@ var analyzeCmd = &cobra.Command{
 			dir = args[0]
 		}
 		minMB, _ := cmd.Flags().GetInt64("min-size")
+		showInsights, _ := cmd.Flags().GetBool("insights")
 		minBytes := minMB * 1024 * 1024
 
 		absDir, _ := filepath.Abs(dir)
@@ -102,19 +113,29 @@ var analyzeCmd = &cobra.Command{
 
 		if len(items) == 0 {
 			fmt.Printf("No items larger than %d MB found.\n", minMB)
-			return nil
+		} else {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			fmt.Fprintln(w, "SIZE\tTYPE\tFILES\tPATH")
+			for _, it := range items {
+				typeStr := "FILE"
+				if it.IsDir {
+					typeStr = "DIR"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", it.HumanSize, typeStr, it.ItemCount, it.Path)
+			}
+			w.Flush()
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "SIZE\tTYPE\tFILES\tPATH")
-		for _, it := range items {
-			typeStr := "FILE"
-			if it.IsDir {
-				typeStr = "DIR"
+		if showInsights {
+			homeDir, _ := os.UserHomeDir()
+			insights := internalsys.GenerateStorageInsights(homeDir)
+			if len(insights) > 0 {
+				fmt.Println("\n💡 Storage Optimization Insights:")
+				for _, in := range insights {
+					fmt.Printf("  • [%s] %s (%s) — %s\n", in.Type, in.Path, in.HumanSize, in.Description)
+				}
 			}
-			fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", it.HumanSize, typeStr, it.ItemCount, it.Path)
 		}
-		w.Flush()
 		return nil
 	},
 }
@@ -195,6 +216,70 @@ var uninstallCmd = &cobra.Command{
 	},
 }
 
+var touchIDCmd = &cobra.Command{
+	Use:   "touchid",
+	Short: "Check or configure Touch ID authentication for sudo commands on macOS",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		enabled, msg := internalsys.TouchIDStatus()
+		fmt.Println("Touch ID Sudo Configuration:")
+		fmt.Printf("  Status: %s\n\n", msg)
+		if !enabled {
+			fmt.Println("To enable Touch ID for sudo commands, run:")
+			fmt.Printf("  %s\n", internalsys.GenerateTouchIDCommand())
+		}
+		return nil
+	},
+}
+
+var historyCmd = &cobra.Command{
+	Use:   "history",
+	Short: "View historical summary of cleaned disk space over time",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ledger := internalsys.LoadHistory()
+		fmt.Println("============================================================")
+		fmt.Println("                 RADAS CLEANUP HISTORY                      ")
+		fmt.Println("============================================================")
+		fmt.Printf("  All-Time Space Cleaned:  %s\n", internalsys.FormatBytes(ledger.TotalAllTimeCleanedBytes))
+		fmt.Printf("  Total Executions:        %d runs\n\n", ledger.TotalRuns)
+		if len(ledger.Records) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			fmt.Fprintln(w, "TIMESTAMP\tSPACE RECOVERED\tITEMS\tDURATION")
+			for _, r := range ledger.Records {
+				fmt.Fprintf(w, "%s\t%s\t%d\t%d ms\n", r.Timestamp, internalsys.FormatBytes(r.CleanedBytes), r.ItemCount, r.DurationMs)
+			}
+			w.Flush()
+		} else {
+			fmt.Println("No recorded cleanup runs yet.")
+		}
+		fmt.Println("============================================================")
+		return nil
+	},
+}
+
+var whitelistCmd = &cobra.Command{
+	Use:   "whitelist [path]",
+	Short: "View or add protected paths to the cleanup whitelist",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			rule := args[0]
+			_ = internalsys.AddWhitelistRule(rule)
+			fmt.Printf("✔ Added rule '%s' to whitelist.\n", rule)
+			return nil
+		}
+
+		rules := internalsys.LoadWhitelist()
+		fmt.Println("Protected Whitelist Paths:")
+		if len(rules) > 0 {
+			for _, r := range rules {
+				fmt.Printf("  • %s\n", r)
+			}
+		} else {
+			fmt.Println("  (No custom whitelist rules defined)")
+		}
+		return nil
+	},
+}
+
 var dsStoreCmd = &cobra.Command{
 	Use:   "ds-store [dir]",
 	Short: "Clean .DS_Store clutter files recursively",
@@ -215,8 +300,13 @@ var dsStoreCmd = &cobra.Command{
 
 func init() {
 	cleanCmd.Flags().BoolP("dry-run", "n", false, "Preview cleanable files without deleting")
+	cleanCmd.Flags().StringP("category", "c", "", "Filter by category (developer, ai, browser, system, logs)")
+
 	purgeCmd.Flags().BoolP("dry-run", "n", false, "Preview purgable caches without deleting")
+
 	analyzeCmd.Flags().Int64P("min-size", "m", 50, "Minimum file/directory size in MB")
+	analyzeCmd.Flags().BoolP("insights", "i", true, "Show actionable storage recommendations")
+
 	uninstallCmd.Flags().BoolP("dry-run", "n", false, "Preview leftover paths without deleting")
 	dsStoreCmd.Flags().BoolP("dry-run", "n", false, "Preview .DS_Store files without deleting")
 
@@ -226,5 +316,8 @@ func init() {
 	Cmd.AddCommand(statusCmd)
 	Cmd.AddCommand(optimizeCmd)
 	Cmd.AddCommand(uninstallCmd)
+	Cmd.AddCommand(touchIDCmd)
+	Cmd.AddCommand(historyCmd)
+	Cmd.AddCommand(whitelistCmd)
 	Cmd.AddCommand(dsStoreCmd)
 }
