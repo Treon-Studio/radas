@@ -59,3 +59,43 @@ def test_stack_clone_and_rename_lifecycle(tmp_path, monkeypatch, pg_db):
     assert renamed_meta is not None
     assert pg.query_one("SELECT * FROM stack_meta WHERE project_id = %s AND stack = %s", ("proj-1", "cloned-web")) is None
 
+
+def test_org_password_complexity_policy(pg_db):
+    from services.password_policy import (
+        get_org_password_policy,
+        set_org_password_policy,
+        validate_password_for_org,
+    )
+
+    # 1. Default policy check (len >= 8)
+    ok, err = validate_password_for_org("simplePass1", org_id="org-default")
+    assert ok is True
+    assert err is None
+
+    short_ok, short_err = validate_password_for_org("short1", org_id="org-default")
+    assert short_ok is False
+    assert "at least 8" in short_err
+
+    # 2. Strict policy per org (min 12 chars, special char required)
+    set_org_password_policy(
+        org_id="org-strict-corp",
+        min_length=12,
+        require_uppercase=True,
+        require_numbers=True,
+        require_special=True,
+    )
+
+    policy = get_org_password_policy("org-strict-corp")
+    assert policy["min_length"] == 12
+    assert policy["require_special"] is True
+
+    # 3. Test passwords against strict org
+    fail_no_special, err_spec = validate_password_for_org("VeryLongPassword123", org_id="org-strict-corp")
+    assert fail_no_special is False
+    assert "special character" in err_spec
+
+    pass_all, err_none = validate_password_for_org("VeryLongPassword123!", org_id="org-strict-corp")
+    assert pass_all is True
+    assert err_none is None
+
+
