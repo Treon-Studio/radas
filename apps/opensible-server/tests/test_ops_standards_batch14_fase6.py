@@ -201,5 +201,32 @@ def test_graceful_shutdown_and_run_draining():
     assert is_draining() is True
 
 
+def test_backup_data_dir_tooling(tmp_path):
+    from services.backup_archive import create_backup_archive, restore_backup_archive
+
+    # 1. Create a dummy data_dir
+    src_data_dir = tmp_path / "src_data"
+    (src_data_dir / "auth").mkdir(parents=True)
+    (src_data_dir / "auth" / "users.json").write_text('{"admin": {"role": "admin"}}\n', encoding="utf-8")
+    (src_data_dir / "projects" / "p1").mkdir(parents=True)
+    (src_data_dir / "projects" / "p1" / "project.json").write_text('{"name": "p1"}\n', encoding="utf-8")
+
+    # 2. Create archive
+    backup_zip = tmp_path / "backup_snapshot.zip"
+    res = create_backup_archive(src_data_dir, backup_zip)
+    assert res["success"] is True
+    assert backup_zip.exists()
+    assert res["files_count"] >= 2
+
+    # 3. Restore to target directory
+    restore_target = tmp_path / "restored_data"
+    restore_res = restore_backup_archive(backup_zip, restore_target)
+    assert restore_res["success"] is True
+    assert (restore_target / "auth" / "users.json").exists()
+    assert (restore_target / "projects" / "p1" / "project.json").exists()
+    assert "admin" in (restore_target / "auth" / "users.json").read_text()
+
+
+
 
 
