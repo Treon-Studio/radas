@@ -45,3 +45,54 @@ def test_attribute_mapping_template():
 
     rendered = expand_template_attributes(tmpl, ctx)
     assert rendered == "Server payment-api listening on 0.0.0.0:8080 with DB postgres.internal:5432"
+
+
+def test_drift_autofix_remediation(pg_db):
+    import json
+    from services.drift_autofix import evaluate_and_autofix_drift
+    from storage import pg
+
+    # 1. Seed drifted stack
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES (%s, %s, %s)",
+        ("p-drift", "web-cluster", json.dumps({"drift_status": "drifted", "drifted_resources": 2})),
+    )
+
+    # 2. Evaluate with auto_apply = False (recommendation only)
+    res_dry = evaluate_and_autofix_drift("p-drift", "web-cluster", auto_apply=False)
+    assert res_dry["drift_detected"] is True
+    assert res_dry["remediation_triggered"] is False
+    assert res_dry["action"] == "manual_apply_required"
+
+    # 3. Evaluate with auto_apply = True (triggers auto-fix)
+    res_auto = evaluate_and_autofix_drift("p-drift", "web-cluster", auto_apply=True)
+    assert res_auto["drift_detected"] is True
+    assert res_auto["remediation_triggered"] is True
+    assert res_auto["action"] == "auto_remediation_executed"
+
+
+def test_cost_tag_and_branch_analytics(pg_db):
+    import json
+    from services.cost_tag_analytics import get_cost_analytics_by_dimension
+    from storage import pg
+
+    pg.execute(
+        "INSERT INTO stack_meta (project_id, stack, data) VALUES "
+        "(%s, %s, %s), (%s, %s, %s), (%s, %s, %s)",
+        (
+            "p-cost-dim", "app-a", json.dumps({"monthly_cost": 100.0, "branch": "main", "tags": {"team": "frontend"}}),
+            "p-cost-dim", "app-b", json.dumps({"monthly_cost": 200.0, "branch": "main", "tags": {"team": "backend"}}),
+            "p-cost-dim", "app-c", json.dumps({"monthly_cost": 50.0, "branch": "feature-x", "tags": {"team": "frontend"}}),
+        ),
+    )
+
+    # By branch
+    branch_analytics = get_cost_analytics_by_dimension("p-cost-dim", dimension="branch")
+    assert branch_analytics["breakdown"]["main"] == 300.0
+    assert branch_analytics["breakdown"]["feature-x"] == 50.0
+
+    # By tag:team
+    tag_analytics = get_cost_analytics_by_dimension("p-cost-dim", dimension="tag:team")
+    assert tag_analytics["breakdown"]["frontend"] == 150.0
+    assert tag_analytics["breakdown"]["backend"] == 200.0
+
