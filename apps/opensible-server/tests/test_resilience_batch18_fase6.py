@@ -63,3 +63,37 @@ def test_execution_failure_dlq(pg_db):
     redrive_res = redrive_execution_dlq(entry["id"])
     assert redrive_res["success"] is True
     assert redrive_res["status"] == "redriven"
+
+
+def test_ip_allowlist_enforcement(pg_db):
+    from services.ip_allowlist import set_org_ip_allowlist, is_ip_allowed
+
+    # 1. Unconfigured org allows all IPs
+    assert is_ip_allowed("198.51.100.25", org_id="org-open") is True
+
+    # 2. Configure IP CIDRs for corporate VPN
+    set_org_ip_allowlist("org-corp", ["203.0.113.0/24", "10.0.0.0/8"])
+
+    # 3. Verify IP matching
+    assert is_ip_allowed("203.0.113.45", org_id="org-corp") is True
+    assert is_ip_allowed("10.50.1.2", org_id="org-corp") is True
+    assert is_ip_allowed("198.51.100.25", org_id="org-corp") is False
+
+
+def test_session_inactivity_lock(pg_db):
+    from services.session_inactivity import (
+        record_session_activity,
+        is_session_inactive,
+    )
+    import time
+
+    token = "sess-token-xyz-123"
+
+    # 1. Record fresh activity
+    record_session_activity(token, user_id="u-alice")
+    assert is_session_inactive(token, max_idle_seconds=60) is False
+
+    # 2. Check with 0s threshold to verify timeout detection
+    time.sleep(0.02)
+    assert is_session_inactive(token, max_idle_seconds=0.01) is True
+
