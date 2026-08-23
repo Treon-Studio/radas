@@ -30,3 +30,36 @@ def test_audited_admin_impersonation(pg_db, data_dir, monkeypatch):
     )
     assert len(audit_rows) >= 1
     assert audit_rows[0]["target_id"] == dev_user.id
+
+
+def test_openapi_spec_generation_and_schema_version():
+    from flask import Flask
+    from services.openapi_generator import generate_openapi_spec, get_api_schema_version
+
+    # 1. Test schema versioning
+    ver = get_api_schema_version()
+    assert "version" in ver
+    assert "supported_versions" in ver
+    assert ver["status"] == "stable"
+
+    # 2. Test OpenAPI spec generation on Flask app
+    app = Flask("test_radas_app")
+    @app.route("/api/stacks/list", methods=["GET"])
+    def list_stacks():
+        return {"stacks": []}
+
+    @app.route("/api/stacks/<name>/deploy", methods=["POST"])
+    def deploy_stack(name):
+        return {"deployed": name}
+
+    spec = generate_openapi_spec(app)
+    assert spec["openapi"] == "3.1.0"
+    assert "paths" in spec
+    assert "/api/stacks/list" in spec["paths"]
+    assert "get" in spec["paths"]["/api/stacks/list"]
+    assert spec["paths"]["/api/stacks/list"]["get"]["operationId"] == "get_api_stacks_list"
+
+    assert "/api/stacks/{name}/deploy" in spec["paths"]
+    assert "post" in spec["paths"]["/api/stacks/{name}/deploy"]
+    assert spec["paths"]["/api/stacks/{name}/deploy"]["post"]["operationId"] == "post_api_stacks_name_deploy"
+
