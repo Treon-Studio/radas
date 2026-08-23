@@ -117,3 +117,47 @@ def test_undo_action_window_and_execution(pg_db):
     assert second_attempt["success"] is False
 
 
+def test_inapp_help_documentation():
+    from services.inapp_help_docs import get_help_doc_for_route
+
+    help_flags = get_help_doc_for_route("/flags")
+    assert "Feature Flags" in help_flags["title"]
+    assert len(help_flags["articles"]) >= 1
+
+    help_unknown = get_help_doc_for_route("/unknown/route")
+    assert "RADAS Documentation" in help_unknown["title"]
+
+
+def test_product_changelog_feed():
+    from services.product_changelog import get_product_changelog
+
+    logs = get_product_changelog(limit=5)
+    assert len(logs) >= 1
+    assert "version" in logs[0]
+    assert "highlights" in logs[0]
+
+
+def test_user_feedback_submission(pg_db):
+    from services.user_feedback import submit_user_feedback
+
+    fb = submit_user_feedback(
+        user_id="user-qa-1",
+        rating=5,
+        comment="Awesome console performance!",
+        page_url="https://radas.internal/stacks",
+    )
+    assert fb["success"] is True
+    assert fb["rating"] == 5
+    assert "feedback_id" in fb
+
+
+def test_rtl_layout_resolution():
+    from services.rtl_layout_manager import resolve_layout_direction
+
+    assert resolve_layout_direction("en-US") == "ltr"
+    assert resolve_layout_direction("id-ID") == "ltr"
+    assert resolve_layout_direction("ar-SA") == "rtl"
+    assert resolve_layout_direction("he") == "rtl"
+
+
+
