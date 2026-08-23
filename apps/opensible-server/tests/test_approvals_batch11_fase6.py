@@ -110,3 +110,27 @@ def test_audit_csv_export(data_dir):
     csv_data = audit_events.export_audit_events_csv(limit=50)
     assert "id,actor_user_id,action,target_type,target_id,created_at,meta" in csv_data
     assert "stack.deploy" in csv_data
+
+
+def test_user_deactivation_lifecycle(data_dir):
+    """UC623: Deactivate user, verify login rejection, and reactivate."""
+    from services.user_service import UserService
+
+    svc = UserService(data_dir)
+    user = svc.create_user(username="deact_user", password="secretpassword123")
+    uid = user.id
+
+    assert svc.is_user_active(uid) is True
+    assert svc.authenticate("deact_user", "secretpassword123") is not None
+
+    # Deactivate
+    assert svc.deactivate_user(uid, reason="Left the company") is True
+    assert svc.is_user_active(uid) is False
+
+    # Authenticate must fail for deactivated user
+    assert svc.authenticate("deact_user", "secretpassword123") is None
+
+    # Reactivate
+    assert svc.reactivate_user(uid) is True
+    assert svc.is_user_active(uid) is True
+    assert svc.authenticate("deact_user", "secretpassword123") is not None

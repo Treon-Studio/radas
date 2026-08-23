@@ -287,3 +287,38 @@ class UserService:
             meta={"role_id": role_id},
         )
         return True
+
+    # ------------------------------------------------------------------ UC623: Deactivation
+    def deactivate_user(self, user_id: str, reason: str = "", actor: str = "") -> bool:
+        """Soft-disable a user preventing login without deleting data (UC623)."""
+        conn = self._conn()
+        row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return False
+        conn.execute("UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?", (_now(), user_id))
+        auth_db.audit(
+            self.data_dir, "user.deactivate", target_type="user", target_id=user_id,
+            actor_user_id=actor or None,
+            meta={"username": row["username"], "reason": reason},
+        )
+        return True
+
+    def reactivate_user(self, user_id: str, actor: str = "") -> bool:
+        """Re-enable a previously deactivated user (UC623)."""
+        conn = self._conn()
+        row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return False
+        conn.execute("UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?", (_now(), user_id))
+        auth_db.audit(
+            self.data_dir, "user.reactivate", target_type="user", target_id=user_id,
+            actor_user_id=actor or None,
+            meta={"username": row["username"]},
+        )
+        return True
+
+    def is_user_active(self, user_id: str) -> bool:
+        """Check if user is currently active (UC623)."""
+        user = self.get_user_by_id(user_id)
+        return bool(user and user.is_active)
+
