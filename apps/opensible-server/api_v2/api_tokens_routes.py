@@ -50,10 +50,13 @@ class TokenInfo(BaseModel):
     name: str
     scope: str
     projectId: Optional[str] = None
-    createdAt: Optional[str] = None
-    expiresAt: Optional[str] = None
-    lastUsedAt: Optional[str] = None
+    createdAt: Optional[float | str] = None
+    expiresAt: Optional[float | str] = None
+    lastUsedAt: Optional[float | str] = None
+    roles: Optional[list[str]] = None
+    scopes: Optional[list[str]] = None
     revoked: bool = False
+    status: Optional[str] = None
 
 
 class ListTokensOut(BaseModel):
@@ -69,6 +72,7 @@ class CreateTokenIn(BaseModel):
     scope: Literal["global", "project"] = "global"
     projectId: Optional[str] = None
     expiresDays: Optional[int] = Field(default=None, ge=0, le=3650)
+    scopes: Optional[list[str]] = None
 
 
 class CreateTokenOut(BaseModel):
@@ -122,6 +126,7 @@ class TokensCollection(MethodView):
             scope=payload.scope,
             project_id=project_id,
             expires_days=payload.expiresDays,
+            scopes=payload.scopes,
         )
         return CreateTokenOut(
             tokenId=token_id,

@@ -187,4 +187,51 @@ def test_user_invitation_lifecycle(pg_db, data_dir):
     assert get_user_invite(invite3["token"])["status"] == "revoked"
 
 
+def test_service_account_scoped_tokens_and_last_used(pg_db, data_dir):
+    from storage.api_tokens_store import (
+        create_token,
+        verify_api_token,
+        list_tokens,
+        is_token_scope_authorized,
+    )
+
+    # 1. Create a service account token with restricted scopes
+    token_id, plaintext = create_token(
+        user_id="sa-ci-bot",
+        username="sa-ci-bot",
+        name="GitHub Actions Deployment Token",
+        scope="project",
+        project_id="proj-web",
+        scopes=["stacks:read", "stacks:apply", "deployments:*"],
+    )
+
+    # 2. Before verification: lastUsedAt is None
+    tokens = list_tokens("sa-ci-bot")
+    assert len(tokens) == 1
+    sa_tok = tokens[0]
+    assert sa_tok["id"] == token_id
+    assert sa_tok["lastUsedAt"] is None
+    assert "stacks:read" in sa_tok["scopes"]
+
+    # 3. Test scope authorization helper
+    assert is_token_scope_authorized(sa_tok, "stacks:read")
+    assert is_token_scope_authorized(sa_tok, "stacks:apply")
+    assert is_token_scope_authorized(sa_tok, "deployments:create")
+    assert is_token_scope_authorized(sa_tok, "deployments:cancel")
+    assert not is_token_scope_authorized(sa_tok, "stacks:destroy")
+    assert not is_token_scope_authorized(sa_tok, "secrets:write")
+
+    # 4. Verify API token updates lastUsedAt
+    time.sleep(0.01)
+    matched_user, matched_entry = verify_api_token(plaintext)
+    assert matched_user == "sa-ci-bot"
+    assert matched_entry["lastUsedAt"] is not None
+    assert matched_entry["lastUsedAt"] > 0
+
+    # 5. List tokens reflects updated lastUsedAt
+    updated_tokens = list_tokens("sa-ci-bot")
+    assert updated_tokens[0]["lastUsedAt"] == matched_entry["lastUsedAt"]
+
+
+
 

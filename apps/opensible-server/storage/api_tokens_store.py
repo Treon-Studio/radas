@@ -63,9 +63,40 @@ def list_tokens(user_id: str) -> List[Dict]:
             'createdAt': t.get('createdAt'),
             'lastUsedAt': t.get('lastUsedAt'),
             'expiresAt': t.get('expiresAt'),
+            'roles': t.get('roles', []),
+            'scopes': t.get('scopes', []),
             'status': 'revoked' if t.get('revoked') else 'active',
         })
     return result
+
+
+def is_token_scope_authorized(token_entry: Dict, required_scope: str) -> bool:
+    """
+    Check if a token is authorized for a specific granular scope (UC633).
+    Supports exact match, wildcard suffixes (e.g. 'stacks:*' matches 'stacks:read'),
+    or unrestricted global scope ('*').
+    """
+    scopes = token_entry.get('scopes') or []
+    if not scopes:
+        # Default: if no explicit scopes are assigned, token inherits all scopes based on its roles
+        return True
+
+    if "*" in scopes or "admin" in scopes or required_scope in scopes:
+        return True
+
+    # Check prefix wildcards, e.g. "stacks:*" allows "stacks:read", "stacks:apply"
+    req_parts = required_scope.split(":")
+    for s in scopes:
+        if s.endswith(":*"):
+            prefix = s[:-2]
+            if req_parts[0] == prefix:
+                return True
+        elif s.endswith("*"):
+            prefix = s[:-1]
+            if required_scope.startswith(prefix):
+                return True
+
+    return False
 
 
 def create_token(
@@ -76,6 +107,7 @@ def create_token(
     project_id: Optional[str] = None,
     expires_days: Optional[int] = None,
     roles: Optional[List[str]] = None,
+    scopes: Optional[List[str]] = None,
 ) -> Tuple[str, str]:
     """
     Create API token. Returns (token_id, plaintext_token).
@@ -104,6 +136,7 @@ def create_token(
         'lastUsedAt': None,
         'expiresAt': expires_at,
         'roles': roles or [],
+        'scopes': scopes or [],
         'revoked': False,
     }
 
