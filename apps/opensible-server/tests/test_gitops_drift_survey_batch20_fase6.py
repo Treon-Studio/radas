@@ -151,3 +151,50 @@ def test_pr_slash_commands_parsing(pg_db):
     assert res_text["recognized"] is False
 
 
+def test_unmanaged_resources_scanner():
+    from services.unmanaged_resources import scan_unmanaged_resources
+
+    live_cloud_resources = [
+        {"id": "vol-12345", "name": "data-backup-disk", "type": "ebs_volume"},
+        {"id": "i-abcdef", "name": "test-vm-forgotten", "type": "ec2_instance"},
+        {"id": "sg-99999", "name": "web-secgroup", "type": "security_group"},
+    ]
+
+    managed_state_ids = ["vol-12345", "sg-99999"]
+
+    report = scan_unmanaged_resources("p-resilience", live_cloud_resources, managed_state_ids)
+    assert report["unmanaged_count"] == 1
+    assert report["unmanaged_resources"][0]["id"] == "i-abcdef"
+    assert report["managed_count"] == 2
+
+
+def test_playbook_survey_validation():
+    from services.playbook_survey import validate_playbook_survey_inputs
+
+    spec = {
+        "fields": [
+            {"name": "nodes", "type": "integer", "required": True, "min": 1, "max": 10},
+            {"name": "env_target", "type": "choice", "choices": ["dev", "staging", "prod"], "required": True},
+            {"name": "admin_email", "type": "string", "required": False},
+        ]
+    }
+
+    # 1. Valid inputs
+    valid_res = validate_playbook_survey_inputs(
+        spec,
+        {"nodes": "3", "env_target": "staging", "admin_email": "ops@example.com"},
+    )
+    assert valid_res["valid"] is True
+    assert valid_res["sanitized_inputs"]["nodes"] == 3
+    assert valid_res["sanitized_inputs"]["env_target"] == "staging"
+
+    # 2. Invalid inputs (out of bounds & invalid choice)
+    invalid_res = validate_playbook_survey_inputs(
+        spec,
+        {"nodes": "50", "env_target": "qa"},
+    )
+    assert invalid_res["valid"] is False
+    assert len(invalid_res["errors"]) >= 2
+
+
+
