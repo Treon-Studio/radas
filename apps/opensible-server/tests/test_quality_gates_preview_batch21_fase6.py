@@ -137,3 +137,35 @@ def test_preview_promotion_workflow(pg_db):
     assert approved["promoted_at"] is not None
 
 
+def test_pr_status_badge_svg_generation():
+    from services.pr_status_badge import generate_status_badge_svg
+
+    # 1. Passed badge
+    svg_pass = generate_status_badge_svg("radas", "passed")
+    assert "<svg" in svg_pass
+    assert "radas" in svg_pass
+    assert "passed" in svg_pass
+    assert "#4c1" in svg_pass or "green" in svg_pass or "#28a745" in svg_pass or "#10b981" in svg_pass
+
+    # 2. Failed badge
+    svg_fail = generate_status_badge_svg("tests", "failed")
+    assert "tests" in svg_fail
+    assert "failed" in svg_fail
+
+
+def test_artifact_checksum_verification():
+    import hashlib
+    from services.checksum_verifier import verify_artifact_checksum
+
+    payload = b'resource "aws_s3_bucket" "b" { bucket = "radas-test" }\n'
+    sha256_expected = hashlib.sha256(payload).hexdigest()
+
+    # 1. Valid SHA256 checksum
+    assert verify_artifact_checksum(payload, sha256_expected, algorithm="sha256") is True
+
+    # 2. Tampered content fails
+    tampered = b'resource "aws_s3_bucket" "b" { bucket = "tampered" }\n'
+    assert verify_artifact_checksum(tampered, sha256_expected, algorithm="sha256") is False
+
+
+
