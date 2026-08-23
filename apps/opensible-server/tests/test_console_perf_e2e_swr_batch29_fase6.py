@@ -41,3 +41,49 @@ def test_large_stack_list_pagination():
     # Matches service-10, service-100..service-109
     assert filtered["total_items"] >= 11
     assert p1["items"][0]["id"] == "stack-000"
+
+
+def test_optimistic_state_update_and_revert(pg_db):
+    from services.optimistic_state_manager import (
+        apply_optimistic_update,
+        revert_optimistic_update,
+        commit_optimistic_update,
+    )
+
+    prev_state = {"enabled": False, "value": "off"}
+    next_state = {"enabled": True, "value": "on"}
+
+    # 1. Apply optimistic update
+    opt = apply_optimistic_update("feature_flag", "flag-killswitch", prev_state, next_state)
+    assert opt["status"] == "pending"
+    assert opt["current_state"] == next_state
+    update_id = opt["update_id"]
+
+    # 2. Revert on server error
+    reverted = revert_optimistic_update(update_id)
+    assert reverted["status"] == "reverted"
+    assert reverted["current_state"] == prev_state
+
+    # 3. Apply again and commit
+    opt2 = apply_optimistic_update("feature_flag", "flag-killswitch", prev_state, next_state)
+    committed = commit_optimistic_update(opt2["update_id"])
+    assert committed["status"] == "committed"
+    assert committed["current_state"] == next_state
+
+
+def test_e2e_playwright_test_selector_registry():
+    from services.e2e_test_selector_registry import get_stable_testid, list_registered_testids
+
+    # 1. Generate testid with entity id
+    tid1 = get_stable_testid(component="flag-toggle", action="click", entity_id="kill_switch")
+    assert tid1 == "flag-toggle-click-kill_switch"
+
+    # 2. Generate generic testid
+    tid2 = get_stable_testid(component="header-search", action="input")
+    assert tid2 == "header-search-input"
+
+    # 3. Check registered list
+    all_tids = list_registered_testids()
+    assert "flag-toggle-click-kill_switch" in all_tids
+    assert "header-search-input" in all_tids
+
