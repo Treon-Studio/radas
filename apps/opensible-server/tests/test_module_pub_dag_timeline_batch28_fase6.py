@@ -80,3 +80,41 @@ def test_resource_import_command_generation():
     assert res["resource_type"] == "aws_s3_bucket"
     assert res["resource_name"] == "data_lake"
 
+
+def test_resource_dag_synthesis():
+    from services.resource_dag_synthesizer import build_resource_dag
+
+    resources = [
+        {"id": "aws_vpc.main", "type": "aws_vpc", "depends_on": []},
+        {"id": "aws_subnet.public", "type": "aws_subnet", "depends_on": ["aws_vpc.main"]},
+        {"id": "aws_instance.web", "type": "aws_instance", "depends_on": ["aws_subnet.public"]},
+    ]
+
+    dag = build_resource_dag(resources)
+    assert dag["node_count"] == 3
+    assert dag["edge_count"] == 2
+    assert {"from": "aws_vpc.main", "to": "aws_subnet.public"} in dag["edges"]
+    assert {"from": "aws_subnet.public", "to": "aws_instance.web"} in dag["edges"]
+    assert dag["has_cycles"] is False
+
+
+def test_run_timeline_builder():
+    from services.run_timeline_builder import build_run_timeline
+
+    raw_steps = [
+        {"step": "init", "status": "completed", "start_time": 100.0, "end_time": 110.0},
+        {"step": "validate", "status": "completed", "start_time": 110.0, "end_time": 112.0},
+        {"step": "plan", "status": "completed", "start_time": 112.0, "end_time": 125.0},
+        {"step": "apply", "status": "in_progress", "start_time": 125.0, "end_time": None},
+    ]
+
+    timeline = build_run_timeline(raw_steps)
+    assert len(timeline) == 4
+    assert timeline[0]["step"] == "init"
+    assert timeline[0]["duration"] == 10.0
+    assert timeline[2]["step"] == "plan"
+    assert timeline[2]["duration"] == 13.0
+    assert timeline[3]["step"] == "apply"
+    assert timeline[3]["duration"] is None
+
+
