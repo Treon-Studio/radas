@@ -505,7 +505,7 @@ fitur terpisah:
 | 342 | Drift detection scheduling dengan alert | ✅ | P0 | 6 |
 | 343 | Rollback ke state versi mana pun (sudah ada snapshot) | ✅ | P0 | 6 |
 | 344 | Multi-cloud provider pluggable (sudah ada) | ✅ | P1 | 6 |
-| 345 | Review apps: approve/reject flow dengan comment | ⬜ | P1 | 6 |
+| 345 | Review apps: approve/reject flow dengan comment | ✅ | P1 | 6 |
 | 346 | Policy as code multi-format (OPA, custom) | ⬜ | P1 | 6 |
 | 347 | Context policy: tug context (PR, stack, env) | ⬜ | P2 | 6 |
 | 348 | Stack dependencies: graph antar stack (korelasi) | ✅ | P1 | 6 |
@@ -513,12 +513,12 @@ fitur terpisah:
 | 350 | Self-hosted agent (worker) dengan label & constraint | ✅ | P1 | 6 |
 | 351 | Terragrunt support (run Terragrunt) | ⬜ | P2 | 6 |
 | 352 | Serverless/Pulumi integration überhaupt | ⬜ | P2 | 6 |
-| 353 | Attribute mapping templates (substitusi env var) | ⬜ | P2 | 6 |
+| 353 | Attribute mapping templates (substitusi env var) | ✅ | P2 | 6 |
 | 354 | Rollout envelopes (gradual rollout per env) | ⬜ | P2 | 6 |
-| 355 | Drift auto-fix (apply config saat drift) | ⬜ | P2 | 6 |
+| 355 | Drift auto-fix (apply config saat drift) | ✅ | P2 | 6 |
 | 356 | Custom IAM role switching di environment | ⬜ | P2 | 6 |
 | 357 | TTL environment (auto-destroy setelah durasi) | ✅ | P1 | 6 |
-| 358 | Cost analytics per tag/provider/branch | ⬜ | P1 | 6 |
+| 358 | Cost analytics per tag/provider/branch | ✅ | P1 | 6 |
 | 359 | Policy custom (Cryo) untuk env | ⬜ | P2 | 6 |
 | 360 | Audit log export (JSONL) ke SIEM | ✅ | P2 | 6 |
 | 361 | SSO SAML + SCIM provisioning | ⬜ | P2 | 6 |
@@ -528,19 +528,19 @@ fitur terpisah:
 | 365 | Agent per environment group | ⬜ | P2 | 6 |
 | 366 | Policy yang reusable lintas project | ⬜ | P1 | 6 |
 | 367 | Multi-branch runner parallel (preview per branch) | ⬜ | P1 | 6 |
-| 368 | PR comment plan differential | ⬜ | P1 | 6 |
+| 368 | PR comment plan differential | ✅ | P1 | 6 |
 | 369 | Drift analysis per branch (bandingkan plan) | ⬜ | P2 | 6 |
 | 370 | Job with team attribution (siapa request) | ⬜ | P1 | 6 |
-| 371 | Slash commands di PR: /plan, /apply, /lock | ⬜ | P1 | 6 |
+| 371 | Slash commands di PR: /plan, /apply, /lock | ✅ | P1 | 6 |
 | 372 | Apply requirement: approval di PR (review) | ⬜ | P1 | 6 |
 | 373 | Project locking (anti konflik apply) | ✅ | P1 | 6 |
 | 374 | Atlantis.yaml support (workflow per dir) | ⬜ | P2 | 6 |
-| 375 | Cloud resilience: deteksi resource tak terkelola | ⬜ | P1 | 6 |
+| 375 | Cloud resilience: deteksi resource tak terkelola | ✅ | P1 | 6 |
 | 376 | Sweep: resource tak terkelola -> warning/import | ⬜ | P2 | 6 |
 | 377 | Policy drift visual dashboard | ⬜ | P2 | 6 |
 | 378 | PR-based scan combine (scan + plan dalam PR) | ⬜ | P1 | 6 |
 | 379 | Policy check otomatis saat PR (gate) | ⬜ | P1 | 6 |
-| 380 | Playbook survey: form input saat run | ⬜ | P1 | 6 |
+| 380 | Playbook survey: form input saat run | ✅ | P1 | 6 |
 | 381 | Job templates dengan credentials mapping | ⬜ | P1 | 6 |
 | 382 | Job history aggregation (sudah ada) | ✅ | P1 | 6 |
 | 383 | Credentials vault per environment | ✅ | P1 | 6 |
