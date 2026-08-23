@@ -766,10 +766,10 @@ fitur terpisah:
 | 598 | Confirm dialog untuk delete (sudah) | ✅ | P1 | 6 |
 | 599 | Docs in-app: help drawer per halaman | ⬜ | P2 | 6 |
 | 600 | Changelog produk di console | ⬜ | P3 | 6 |
-| 601 | Status page kecil (komponen health) | ⬜ | P2 | 6 |
-| 602 | Usage metrik produk (DAU stacks) | ⬜ | P3 | 6 |
+| 601 | Status page kecil (komponen health) | ✅ | P2 | 6 |
+| 602 | Usage metrik produk (DAU stacks) | ✅ | P3 | 6 |
 | 603 | Feedback pengguna (rate this) | ⬜ | P3 | 6 |
-| 604 | Telemetry opt-in (anonymized) | ⬜ | P3 | 6 |
+| 604 | Telemetry opt-in (anonymized) | ✅ | P3 | 6 |
 | 605 | Localization: tanggal & angka per locale | ⬜ | P2 | 6 |
 | 606 | RTL layout readiness | ⬜ | P3 | 6 |
 | 607 | Print-friendly report halaman cost | ⬜ | P2 | 6 |
@@ -792,8 +792,8 @@ fitur terpisah:
 | 624 | Welcome email onboarding | ⬜ | P3 | 6 |
 | 625 | Invite link user dengan role | ✅ | P1 | 6 |
 | 626 | Password complexity policy per org | ✅ | P2 | 6 |
-| 627 | OAuth login (Google/GitHub) opsional | ⬜ | P2 | 6 |
-| 628 | SSO discovery URL setting | ⬜ | P2 | 6 |
+| 627 | OAuth login (Google/GitHub) opsional | ✅ | P2 | 6 |
+| 628 | SSO discovery URL setting | ✅ | P2 | 6 |
 | 629 | JWT issuer verification di toutes (sudah) | ✅ | P1 | 6 |
 | 630 | Secret leak scanner di tfvars | ✅ | P1 | 6 |
 | 631 | Vault integration (HashiCorp) read | ✅ | P2 | 6 |
@@ -801,13 +801,13 @@ fitur terpisah:
 | 633 | Service account scoped token per feature | ✅ | P1 | 6 |
 | 634 | Token list dengan last-used | ✅ | P1 | 6 |
 | 635 | Revoke all sessions user | ✅ | P2 | 6 |
-| 636 | Admin impersonate (audited) | ⬜ | P3 | 6 |
+| 636 | Admin impersonate (audited) | ✅ | P3 | 6 |
 | 637 | Full-text search stacks/runs | ✅ | P2 | 6 |
 | 638 | API pagination cursor | ✅ | P2 | 6 |
 | 639 | GraphQL gateway (opsional) | ⬜ | P3 | 6 |
-| 640 | Schema versioning API | ⬜ | P3 | 6 |
+| 640 | Schema versioning API | ✅ | P3 | 6 |
 | 641 | Rate limit header standar | ✅ | P2 | 6 |
-| 642 | OpenAPI operationId konsisten | ⬜ | P2 | 6 |
+| 642 | OpenAPI operationId konsisten | ✅ | P2 | 6 |
 | 643 | Client timeout configurable | ✅ | P2 | 6 |
 | 644 | Retry-After header support | ✅ | P2 | 6 |
 | 645 | Local dev seed data script | ✅ | P2 | 6 |
