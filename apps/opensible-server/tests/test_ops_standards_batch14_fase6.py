@@ -59,3 +59,46 @@ def test_full_text_search_stacks_and_runs_and_playbooks(pg_db, data_dir, monkeyp
     res_prod = search_all(query="production", project_id="proj-1")
     assert len(res_prod["stacks"]) == 1
     assert len(res_prod["runs"]) == 1
+
+
+def test_cursor_based_pagination():
+    from utils.cursor_pagination import encode_cursor, decode_cursor, paginate_with_cursor
+
+    # 1. Test encoding/decoding cursor
+    cursor_str = encode_cursor({"id": "item-123", "score": 98.5})
+    decoded = decode_cursor(cursor_str)
+    assert decoded["id"] == "item-123"
+    assert decoded["score"] == 98.5
+
+    # 2. Test pagination across 10 items with limit=3
+    dataset = [{"id": f"rec-{i:02d}", "val": i * 10} for i in range(1, 11)]
+
+    # Page 1
+    page1 = paginate_with_cursor(dataset, cursor=None, limit=3, sort_key="id")
+    assert len(page1["items"]) == 3
+    assert page1["items"][0]["id"] == "rec-01"
+    assert page1["items"][2]["id"] == "rec-03"
+    assert page1["has_more"] is True
+    assert page1["next_cursor"] is not None
+
+    # Page 2
+    page2 = paginate_with_cursor(dataset, cursor=page1["next_cursor"], limit=3, sort_key="id")
+    assert len(page2["items"]) == 3
+    assert page2["items"][0]["id"] == "rec-04"
+    assert page2["items"][2]["id"] == "rec-06"
+    assert page2["has_more"] is True
+
+    # Page 3
+    page3 = paginate_with_cursor(dataset, cursor=page2["next_cursor"], limit=3, sort_key="id")
+    assert len(page3["items"]) == 3
+    assert page3["items"][0]["id"] == "rec-07"
+    assert page3["items"][2]["id"] == "rec-09"
+    assert page3["has_more"] is True
+
+    # Final Page
+    page4 = paginate_with_cursor(dataset, cursor=page3["next_cursor"], limit=3, sort_key="id")
+    assert len(page4["items"]) == 1
+    assert page4["items"][0]["id"] == "rec-10"
+    assert page4["has_more"] is False
+    assert page4["next_cursor"] is None
+
