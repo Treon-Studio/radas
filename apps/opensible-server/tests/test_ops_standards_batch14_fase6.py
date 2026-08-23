@@ -102,3 +102,37 @@ def test_cursor_based_pagination():
     assert page4["has_more"] is False
     assert page4["next_cursor"] is None
 
+
+def test_rate_limit_headers_and_retry_after():
+    from services.login_security import (
+        record_login_attempt,
+        is_login_rate_limited,
+        get_rate_limit_headers,
+        reset_login_rate_limit,
+    )
+
+    user = "ratelimit_user"
+    ip = "192.168.1.100"
+    reset_login_rate_limit(user, ip)
+
+    # 1. Under limit: remaining > 0, no Retry-After
+    record_login_attempt(user, ip, success=False)
+    headers = get_rate_limit_headers(user, ip, max_failures=3, window_seconds=60)
+    assert headers["X-RateLimit-Limit"] == "3"
+    assert headers["X-RateLimit-Remaining"] == "2"
+    assert "Retry-After" not in headers
+
+    # 2. Exceed limit: remaining == 0, Retry-After header present
+    record_login_attempt(user, ip, success=False)
+    record_login_attempt(user, ip, success=False)
+    is_blocked, retry_after = is_login_rate_limited(user, ip, max_failures=3, window_seconds=60)
+    assert is_blocked is True
+    assert retry_after > 0
+
+    headers_blocked = get_rate_limit_headers(user, ip, max_failures=3, window_seconds=60)
+    assert headers_blocked["X-RateLimit-Limit"] == "3"
+    assert headers_blocked["X-RateLimit-Remaining"] == "0"
+    assert "Retry-After" in headers_blocked
+    assert int(headers_blocked["Retry-After"]) >= 1
+
+

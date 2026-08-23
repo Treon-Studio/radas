@@ -68,3 +68,31 @@ def reset_login_rate_limit(username: str, ip: str) -> None:
     key = _build_key(username, ip)
     with _lock:
         _login_failures.pop(key, None)
+
+
+def get_rate_limit_headers(
+    username: str,
+    ip: str,
+    max_failures: int = DEFAULT_MAX_FAILURES,
+    window_seconds: int = DEFAULT_WINDOW_SECONDS,
+) -> Dict[str, str]:
+    """Generate standard rate limit headers (UC641, UC644)."""
+    key = _build_key(username, ip)
+    now = time.time()
+    cutoff = now - window_seconds
+    with _lock:
+        failures = _login_failures.get(key, [])
+        valid_failures = [t for t in failures if t > cutoff]
+        remaining = max(0, max_failures - len(valid_failures))
+        oldest = valid_failures[0] if valid_failures else now
+        reset_time = int(oldest + window_seconds)
+        retry_after = max(1, reset_time - int(now)) if remaining == 0 else 0
+
+    headers = {
+        "X-RateLimit-Limit": str(max_failures),
+        "X-RateLimit-Remaining": str(remaining),
+        "X-RateLimit-Reset": str(reset_time),
+    }
+    if remaining == 0:
+        headers["Retry-After"] = str(retry_after)
+    return headers

@@ -53,8 +53,16 @@ def api_auth_login():
                      or request.remote_addr or "unknown")
         is_blocked, retry_after = is_login_rate_limited(username, client_ip)
         if is_blocked:
+            from services.login_security import get_rate_limit_headers
             current_app.logger.warning(f"Login rate limit hit for {client_ip}|{username}")
-            return jsonify({"success": False, "error": f"Too many login attempts. Please wait {retry_after}s and try again."}), 429
+            resp = jsonify({
+                "success": False,
+                "error": f"Too many login attempts. Please wait {retry_after}s and try again.",
+                "retry_after": retry_after,
+            })
+            for k, v in get_rate_limit_headers(username, client_ip).items():
+                resp.headers[k] = v
+            return resp, 429
 
         is_valid, error_msg = validate_username(username)
         if not is_valid:
