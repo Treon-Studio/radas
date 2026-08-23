@@ -124,3 +124,55 @@ def test_batch_run_operations(pg_db):
     assert res_cancel["processed_count"] == 1
 
 
+def test_draft_plan_summary_generation():
+    from services.plan_draft_summary import generate_draft_plan_summary
+
+    template = {
+        "name": "Standard Web App",
+        "resources": [
+            {"name": "web_server", "type": "aws_instance"},
+            {"name": "static_assets", "type": "aws_s3_bucket"},
+            {"name": "app_db", "type": "aws_db_instance"},
+        ],
+        "outputs": ["public_ip", "bucket_name"],
+    }
+    variables = {"instance_type": "t3.small", "environment": "production"}
+
+    summary = generate_draft_plan_summary(template, variables)
+    assert summary["planned_resources_count"] == 3
+    assert "web_server" in summary["resource_names"]
+    assert "Plan Summary for 'Standard Web App'" in summary["markdown"]
+    assert "production" in summary["markdown"]
+
+
+def test_visual_snapshot_comparison():
+    from services.visual_snapshot import compare_visual_snapshots
+
+    ref = {
+        "component": "CostChart",
+        "checksum": "abc123sha",
+        "elements": {"header": {"color": "#111", "fontSize": "16px"}, "bars": 12},
+    }
+    curr_same = {
+        "component": "CostChart",
+        "checksum": "abc123sha",
+        "elements": {"header": {"color": "#111", "fontSize": "16px"}, "bars": 12},
+    }
+    curr_diff = {
+        "component": "CostChart",
+        "checksum": "xyz999sha",
+        "elements": {"header": {"color": "#222", "fontSize": "18px"}, "bars": 12},
+    }
+
+    # 1. Same matches
+    res_same = compare_visual_snapshots(ref, curr_same)
+    assert res_same["match"] is True
+    assert res_same["diff_count"] == 0
+
+    # 2. Changed triggers diff
+    res_diff = compare_visual_snapshots(ref, curr_diff)
+    assert res_diff["match"] is False
+    assert res_diff["diff_count"] >= 1
+
+
+
