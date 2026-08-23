@@ -164,4 +164,42 @@ def test_configurable_timeout_policy(pg_db):
     assert get_timeout_policy("http_client:webhook", default_seconds=30) == 30
 
 
+def test_graceful_shutdown_and_run_draining():
+    import threading
+    import time
+    from services.shutdown_drain import (
+        register_in_flight_job,
+        unregister_in_flight_job,
+        is_draining,
+        drain_and_shutdown,
+        reset_drain_state,
+    )
+
+    reset_drain_state()
+    assert is_draining() is False
+
+    # 1. Register active jobs
+    register_in_flight_job("job-101", {"stack": "k8s-prod"})
+    register_in_flight_job("job-102", {"stack": "db-prod"})
+
+    # 2. Start a background thread to complete job-101 and job-102 after short delay
+    def _completer():
+        time.sleep(0.05)
+        unregister_in_flight_job("job-101")
+        time.sleep(0.05)
+        unregister_in_flight_job("job-102")
+
+    t = threading.Thread(target=_completer)
+    t.start()
+
+    # 3. Drain and wait for in-flight tasks
+    res = drain_and_shutdown(timeout_seconds=2.0, poll_interval=0.01)
+    t.join()
+
+    assert res["drained"] is True
+    assert res["active_jobs_remaining"] == 0
+    assert is_draining() is True
+
+
+
 
