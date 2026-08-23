@@ -89,3 +89,39 @@ def test_saml_assertion_processing():
     assert res["username"] == "alice_corp"
     assert res["issuer"] == "https://idp.enterprise.example.com"
 
+
+def test_resource_audit_logging(pg_db):
+    from services.resource_audit import audit_resource_action
+    from storage import pg
+
+    res = audit_resource_action(
+        action="resource.import",
+        resource_type="aws_s3_bucket",
+        resource_id="corp-data-lake-v1",
+        actor="dev-lead-bob",
+        details={"region": "ap-southeast-1", "encrypted": True},
+    )
+    assert res["success"] is True
+    assert res["action"] == "resource.import"
+
+    # Verify written to audit_log table
+    row = pg.query_one("SELECT * FROM audit_log WHERE target_id = %s", ("corp-data-lake-v1",))
+    assert row is not None
+    assert row["actor_user_id"] == "dev-lead-bob"
+
+
+def test_dedicated_preview_quotas(pg_db):
+    from services.preview_quota import set_preview_quota, evaluate_preview_quota
+
+    set_preview_quota("p-preview-app", max_previews=3)
+
+    # 1. 2 active + 1 requested <= 3 -> Allowed
+    eval_ok = evaluate_preview_quota("p-preview-app", current_count=2, requested_previews=1)
+    assert eval_ok["allowed"] is True
+    assert eval_ok["remaining"] == 0
+
+    # 2. 3 active + 1 requested > 3 -> Rejected
+    eval_fail = evaluate_preview_quota("p-preview-app", current_count=3, requested_previews=1)
+    assert eval_fail["allowed"] is False
+
+
