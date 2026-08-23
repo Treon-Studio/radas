@@ -140,3 +140,39 @@ def test_dependency_resolution_and_chain_install(tmp_path, monkeypatch):
     assert (sd / "monitoring-mon.tf").exists()
 
 
+def test_publish_from_stack_to_registry(tmp_path, monkeypatch):
+    from services.code_registry import publish_from_stack, get_item, catalog
+    reg = _seed_base_registry(tmp_path)
+    monkeypatch.setenv("REGISTRY_DIR", str(reg))
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+
+    # Seed a custom stack with reusable redis configuration
+    sd = _seed_test_stack(tmp_path, "prod-app")
+    (sd / "redis.tf").write_text('resource "hcloud_server" "redis" { name = "redis-cluster" }\n', encoding="utf-8")
+    (sd / "redis_vars.tf").write_text('variable "redis_port" { default = 6379 }\n', encoding="utf-8")
+
+    # 1. Publish redis block from stack to registry
+    pub_res = publish_from_stack(
+        project_id=None,
+        stack="prod-app",
+        name="redis-cache",
+        item_type="tofu-block",
+        file_patterns=["redis.tf", "redis_vars.tf"],
+        version="1.2.0",
+        description="High availability redis cluster block",
+        tags=["database", "redis"],
+    )
+    assert pub_res["success"]
+    assert pub_res["name"] == "redis-cache"
+    assert pub_res["version"] == "1.2.0"
+    assert len(pub_res["files_published"]) == 2
+
+    # 2. Verify it is now discoverable in the registry
+    item = get_item("redis-cache")
+    assert item is not None
+    assert item["version"] == "1.2.0"
+    assert "redis.tf" in item["files"]
+    assert "redis_vars.tf" in item["files"]
+
+
+

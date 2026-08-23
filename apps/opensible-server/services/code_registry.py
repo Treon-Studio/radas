@@ -335,3 +335,60 @@ def import_item_bundle(bundle_data: Dict[str, Any]) -> Dict[str, Any]:
         "version": meta["version"],
         "files_count": len(files),
     }
+
+
+def publish_from_stack(
+    project_id: Optional[str],
+    stack: str,
+    name: str,
+    item_type: str,
+    file_patterns: List[str],
+    version: str = "1.0.0",
+    description: str = "",
+    tags: Optional[List[str]] = None,
+    dependencies: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Publish reusable code from a stack workspace directly into the code registry (UC664)."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Item name is required")
+    if item_type not in ITEM_TYPES:
+        raise ValueError(f"Invalid item type '{item_type}'. Allowed: {ITEM_TYPES}")
+
+    sd = _stack_dir_of(project_id, stack)
+    target_dir = _registry_root() / item_type / name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    published_files: List[str] = []
+    for pattern in file_patterns:
+        matched = list(sd.glob(pattern)) if "*" in pattern else [sd / pattern]
+        for src_path in matched:
+            if src_path.is_file():
+                rel = src_path.relative_to(sd)
+                dest = target_dir / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(src_path.read_text(encoding="utf-8"), encoding="utf-8")
+                published_files.append(str(rel))
+
+    if not published_files:
+        raise ValueError(f"No files matched patterns {file_patterns} in stack '{stack}'")
+
+    meta = {
+        "name": name,
+        "type": item_type,
+        "version": version,
+        "description": description,
+        "tags": tags or [],
+        "dependencies": dependencies or [],
+        "changelog": [{"version": version, "date": time.strftime("%Y-%m-%d"), "changes": [f"Published from stack {stack}"]}],
+    }
+    (target_dir / "radas.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    return {
+        "success": True,
+        "name": name,
+        "type": item_type,
+        "version": version,
+        "stack": stack,
+        "files_published": published_files,
+    }

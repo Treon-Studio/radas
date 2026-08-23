@@ -104,3 +104,31 @@ def api_registry_import():
         return jsonify(res), 201
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@bp.route('/api/registry/publish', methods=['POST'])
+@require_project_access
+def api_registry_publish():
+    from services.code_registry import publish_from_stack
+    data = request.get_json(silent=True) or {}
+    stack = (data.get("stack") or "").strip()
+    name = (data.get("name") or "").strip()
+    item_type = (data.get("type") or "tofu-block").strip()
+    file_patterns = data.get("file_patterns") or []
+    if not stack or not name or not file_patterns:
+        return jsonify({"error": "stack, name, and file_patterns are required"}), 400
+    try:
+        res = publish_from_stack(
+            project_id=_pid(),
+            stack=stack,
+            name=name,
+            item_type=item_type,
+            file_patterns=file_patterns,
+            version=data.get("version", "1.0.0"),
+            description=data.get("description", ""),
+            tags=data.get("tags"),
+            dependencies=data.get("dependencies"),
+        )
+        return jsonify(res), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
