@@ -78,3 +78,49 @@ def test_resource_cost_breakdown():
     assert breakdown["categories"]["Database"]["cost"] == 80.0
     assert breakdown["categories"]["Networking"]["cost"] == 20.0
 
+
+def test_search_inverted_indexing(pg_db):
+    from services.search_indexer import index_document, search_indexed_documents
+
+    # 1. Index documents
+    index_document(
+        doc_id="stack-prod-vpc",
+        doc_type="stack",
+        text_content="Production VPC with multi-AZ subnet routing and NAT gateways",
+        metadata={"project_id": "p-core", "env": "prod"},
+    )
+    index_document(
+        doc_id="stack-stage-db",
+        doc_type="stack",
+        text_content="Staging PostgreSQL RDS instance with automated daily backup",
+        metadata={"project_id": "p-core", "env": "stage"},
+    )
+
+    # 2. Search for "PostgreSQL"
+    results_db = search_indexed_documents("postgresql")
+    assert len(results_db) >= 1
+    assert results_db[0]["doc_id"] == "stack-stage-db"
+
+    # 3. Search for "VPC routing"
+    results_vpc = search_indexed_documents("vpc routing")
+    assert len(results_vpc) >= 1
+    assert results_vpc[0]["doc_id"] == "stack-prod-vpc"
+
+
+def test_batch_run_operations(pg_db):
+    from services.batch_operations import execute_batch_run_operation
+
+    execution_ids = ["exec-batch-101", "exec-batch-102", "exec-batch-103"]
+
+    # 1. Batch retry
+    res_retry = execute_batch_run_operation(execution_ids, action="retry", actor="dev-alice")
+    assert res_retry["success"] is True
+    assert res_retry["action"] == "retry"
+    assert res_retry["processed_count"] == 3
+    assert len(res_retry["success_ids"]) == 3
+
+    # 2. Batch cancel
+    res_cancel = execute_batch_run_operation(["exec-batch-101"], action="cancel", actor="admin-bob")
+    assert res_cancel["processed_count"] == 1
+
+
