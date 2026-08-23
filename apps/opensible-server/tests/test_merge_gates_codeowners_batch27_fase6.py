@@ -114,3 +114,30 @@ def test_project_log_retention_policy(pg_db):
     assert get_project_log_retention("p-audit-heavy") == 180
 
 
+def test_project_default_template_binding(pg_db):
+    from services.project_default_template import set_project_default_template, get_project_default_template
+
+    # 1. Unbound returns None
+    assert get_project_default_template("p-fresh-app") is None
+
+    # 2. Bind default template
+    set_res = set_project_default_template("p-fresh-app", template_id="tpl-standard-k8s")
+    assert set_res["success"] is True
+    assert set_res["template_id"] == "tpl-standard-k8s"
+
+    # 3. Retrieve
+    assert get_project_default_template("p-fresh-app") == "tpl-standard-k8s"
+
+
+def test_secret_rotation_compliance_evidence(pg_db):
+    from services.secret_rotation_evidence import generate_secret_rotation_evidence
+
+    evidence = generate_secret_rotation_evidence(project_id="p-fintech-core", stack="payment-gateway")
+    assert evidence["project_id"] == "p-fintech-core"
+    assert evidence["stack"] == "payment-gateway"
+    assert evidence["status"] == "compliant"
+    assert "evidence_id" in evidence
+    assert "generated_at" in evidence
+
+
+
