@@ -63,3 +63,42 @@ def test_structured_json_logger():
     assert parsed["event_type"] == "security.auth.failed"
     assert parsed["context"]["ip"] == "192.168.1.50"
 
+
+def test_worker_queue_recovery(pg_db):
+    from services.worker_recovery import recover_interrupted_queue
+    from storage import pg
+
+    # 1. Seed an interrupted execution in running_executions
+    pg.execute(
+        "INSERT INTO running_executions (execution_id, project_id, worker_id, started_at) "
+        "VALUES (%s, %s, %s, %s)",
+        ("exec-interrupted-01", "p-recovery", "worker-node-1", 1700000000.0),
+    )
+
+    # 2. Trigger queue recovery
+    res = recover_interrupted_queue(project_id="p-recovery")
+    assert res["recovered_count"] >= 1
+    assert "exec-interrupted-01" in res["recovered_run_ids"]
+
+    # 3. Check execution is now queued in queued_executions and location is 'queued'
+    queued_row = pg.query_one("SELECT execution_id FROM queued_executions WHERE execution_id = %s", ("exec-interrupted-01",))
+    assert queued_row is not None
+
+    loc_row = pg.query_one("SELECT status FROM execution_locations WHERE execution_id = %s", ("exec-interrupted-01",))
+    assert loc_row["status"] == "queued"
+
+
+
+def test_execution_claim_backoff():
+    from services.claim_backoff import calculate_claim_backoff
+
+    # Attempt 1: 0.5s
+    assert calculate_claim_backoff(attempt=1, base_delay=0.5, max_delay=10.0) == 0.5
+    # Attempt 2: 1.0s
+    assert calculate_claim_backoff(attempt=2, base_delay=0.5, max_delay=10.0) == 1.0
+    # Attempt 3: 2.0s
+    assert calculate_claim_backoff(attempt=3, base_delay=0.5, max_delay=10.0) == 2.0
+    # Attempt 10: Capped at max_delay (10.0s)
+    assert calculate_claim_backoff(attempt=10, base_delay=0.5, max_delay=10.0) == 10.0
+
+
