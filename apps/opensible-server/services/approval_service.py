@@ -289,3 +289,99 @@ def approve_chain_step(
     return target
 
 
+# ---------------------------------------------------------------------------
+# UC614: Multi-party Approval Quorum Workflow
+# ---------------------------------------------------------------------------
+
+def create_quorum_approval(
+    stack: str,
+    project_id: str,
+    action: str = "apply",
+    min_approvals: int = 2,
+    requested_by: str = "",
+    note: str = "",
+    ttl_seconds: int = 86400,
+) -> Dict[str, Any]:
+    """Create an approval request requiring quorum of multiple signatures (UC614)."""
+    approval_id = str(uuid.uuid4())
+    now = time.time()
+    rec = {
+        "id": approval_id,
+        "stack": stack,
+        "project_id": project_id,
+        "action": action,
+        "status": "pending",
+        "is_quorum": True,
+        "min_approvals": max(1, int(min_approvals)),
+        "signatures": [],
+        "requested_by": requested_by,
+        "note": note,
+        "created_at": now,
+        "expires_at": now + ttl_seconds,
+        "decided_at": None,
+        "decided_by": None,
+    }
+    records = _load()
+    records.append(rec)
+    _save(records)
+    return rec
+
+
+def record_approval_signature(
+    approval_id: str,
+    approver: str,
+    approver_name: str = "",
+) -> Dict[str, Any]:
+    """Record an approver's signature towards the quorum (UC614)."""
+    records = _load()
+    target = next((r for r in records if r.get("id") == approval_id), None)
+    if not target:
+        raise ValueError("approval request not found")
+
+    if target.get("status") != "pending":
+        return target
+
+    now = time.time()
+    signatures = list(target.get("signatures") or [])
+    # Check if already signed by this user
+    if any(s.get("approver") == approver for s in signatures):
+        return target
+
+    signatures.append({
+        "approver": approver,
+        "approver_name": approver_name or approver,
+        "signed_at": now,
+    })
+    target["signatures"] = signatures
+
+    min_required = int(target.get("min_approvals", 1))
+    if len(signatures) >= min_required:
+        target["status"] = "approved"
+        target["decided_at"] = now
+        target["decided_by"] = approver
+        if target.get("action") == "apply":
+            try:
+                from services.cloud_provisioning import _create_execution
+                _create_execution(target.get("project_id"), target.get("stack"), "apply",
+                                  triggered_by=f"approval:{approval_id}")
+            except Exception:
+                pass
+
+    _save(records)
+    return target
+
+
+def is_quorum_reached(approval_id: str) -> bool:
+    """Check if quorum threshold of approvals has been reached (UC614)."""
+    records = _load()
+    target = next((r for r in records if r.get("id") == approval_id), None)
+    if not target:
+        return False
+    if target.get("status") == "approved":
+        return True
+    signatures = target.get("signatures") or []
+    min_required = int(target.get("min_approvals", 1))
+    return len(signatures) >= min_required
+
+
+
