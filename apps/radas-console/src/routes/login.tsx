@@ -103,17 +103,17 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#38bdf8] overflow-hidden">
-      {/* Full-Screen Matching Sky Blue & Fluffy White Cloudscape Wallpaper */}
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#CDEADC] overflow-hidden">
+      {/* Full-Screen Japanese Soft Pastel Green Sky & Clouds Wallpaper */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <img
-          src="/images/bg-clouds-sky-matching.webp"
-          alt="Sky Blue and White Cloudscape Wallpaper"
+          src="/images/bg-clouds-japanese-pastel-green.webp"
+          alt="Japanese Soft Pastel Green Sky and Clouds Wallpaper"
           className="w-full h-full object-cover object-bottom"
           style={{ imageRendering: "pixelated" }}
         />
-        {/* Soft Ambient Sky Tint */}
-        <div className="absolute inset-0 bg-[#000000]/5 pointer-events-none" />
+        {/* Soft Ambient Tint */}
+        <div className="absolute inset-0 bg-[#000000]/3 pointer-events-none" />
       </div>
 
       {/* Twinkling 8-Bit Pixel Sparkles & Stars in the Sky */}
