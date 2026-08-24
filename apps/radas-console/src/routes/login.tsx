@@ -161,8 +161,8 @@ function LoginPage() {
         <div className="flex items-center justify-center gap-3 mb-5">
           <div className="relative flex h-16 w-16 items-center justify-center shrink-0 animate-pixel-bounce">
             <img
-              src="/images/haro-nes-transparent.webp"
-              alt="8-Bit NES Gundam Haro Mascot"
+              src="/images/haro-animated.webp"
+              alt="Animated Gundam Haro Mascot"
               className="w-full h-full object-contain"
               style={{ imageRendering: "pixelated" }}
             />
