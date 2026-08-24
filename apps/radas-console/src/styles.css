@@ -248,3 +248,39 @@ button:not(:disabled):active { transform: scale(0.97); }
   inset: -6px;
 }
 .min-hit { position: relative; }
+
+/* ==========================================================================
+   PXL UI KIT Design System Classes (https://pxlkit.xyz/ui-kit)
+   ========================================================================== */
+
+.pxl-corner-sm {
+  border-radius: 0 !important;
+  image-rendering: pixelated;
+}
+
+.pxl-shadow {
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.16), inset -2px -2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.pxl-shadow-hover:hover:not(:disabled) {
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.28), inset -2px -2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.pxl-shadow-active:active:not(:disabled) {
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5), inset -2px -2px 0 rgba(255, 255, 255, 0.1);
+  transform: translate(1px, 1px) !important;
+}
+
+.pxl-input-shadow {
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.25), inset -1px -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.pxl-card-shadow {
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25), inset 1px 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.bg-grid-pattern {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
