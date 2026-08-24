@@ -9,22 +9,23 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 /**
- * PixelInput - Cloned from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
- * Features retro crisp pixel borders, inset pixel shadow, monospace font,
- * and high-contrast retro focus ring.
+ * PixelInput - Cloned exactly from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
+ * Features retro crisp pixel borders (border-retro-border-strong), 
+ * subtle surface transparency (bg-retro-surface/40), monospace font, 
+ * and retro emerald/green focus ring.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, prefixIcon, suffixIcon, isInvalid, sizeVariant = "default", disabled, ...props }, ref) => {
     const sizeClasses = {
       sm: "h-8 px-2.5 text-xs",
-      default: "h-9 px-3 text-sm",
-      lg: "h-11 px-4 text-base",
+      default: "h-10 px-3 text-sm",
+      lg: "h-12 px-4 text-base",
     };
 
     return (
       <div className="relative w-full flex items-center">
         {prefixIcon && (
-          <span className="pointer-events-none absolute left-3 flex items-center justify-center text-[var(--color-muted-foreground)]">
+          <span className="pointer-events-none absolute left-3 flex items-center justify-center text-[var(--color-retro-muted)]">
             {prefixIcon}
           </span>
         )}
@@ -32,22 +33,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           disabled={disabled}
           className={cn(
-            "w-full font-mono bg-[var(--color-card)] text-[var(--color-foreground)] transition-all duration-100",
-            "border-2 border-[var(--color-border)] pxl-corner-sm pxl-input-shadow",
-            "placeholder:text-[var(--color-smoke)] placeholder:font-mono",
-            "hover:border-[var(--color-charcoal)]",
-            "focus-visible:outline-none focus-visible:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-background)]",
-            "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--color-muted)]",
-            isInvalid && "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30 text-red-600 dark:text-red-400",
-            prefixIcon && "pl-9",
-            suffixIcon && "pr-9",
+            "w-full font-mono transition-all duration-150 outline-none pxl-corner-sm border-2",
+            "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-surface)]/50 text-[var(--color-retro-text)]",
+            "placeholder:text-[var(--color-retro-muted)]/70 placeholder:font-mono",
+            "hover:border-[var(--color-retro-green)]/60 hover:bg-[var(--color-retro-surface)]/70",
+            "focus:bg-[var(--color-retro-surface)]/90 focus-visible:border-[var(--color-retro-green)]",
+            "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-retro-bg)] focus-visible:ring-[var(--color-retro-green)]/40",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--color-retro-muted)]/20",
+            isInvalid && "border-[var(--color-retro-red)] focus-visible:border-[var(--color-retro-red)] focus-visible:ring-[var(--color-retro-red)]/40 text-[var(--color-retro-red)]",
+            prefixIcon && "pl-10",
+            suffixIcon && "pr-10",
             sizeClasses[sizeVariant],
             className
           )}
           {...props}
         />
         {suffixIcon && (
-          <span className="absolute right-3 flex items-center justify-center text-[var(--color-muted-foreground)]">
+          <span className="absolute right-3 flex items-center justify-center text-[var(--color-retro-muted)]">
             {suffixIcon}
           </span>
         )}

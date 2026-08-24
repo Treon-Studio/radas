@@ -117,7 +117,14 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-mono);
 }
 
-/* Interactive elements show pointer cursor instead of default arrow */
+/* ============================================================
+   Retro Pixel-Art Cursors (Pxlkit Specification)
+   ============================================================ */
+:root, html, body {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' shape-rendering='crispEdges'%3E%3Cpath fill='%23000000' d='M0,0 L0,15 L4,11 L7,17 L10,15 L7,9 L12,9 Z'/%3E%3Cpath fill='%23ffffff' d='M1,2 L1,12 L4,9 L7,15 L8,14 L5,8 L10,8 Z'/%3E%3C/svg%3E"), default;
+}
+
+/* Interactive clickable elements show retro pixel pointing hand */
 button:not(:disabled),
 a[href],
 [role="button"]:not([aria-disabled="true"]),
@@ -131,7 +138,14 @@ a[href],
 summary,
 label[for],
 select:not(:disabled) {
-  cursor: pointer;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' shape-rendering='crispEdges'%3E%3Cpath fill='%23000000' d='M6,0 L9,0 L9,4 L11,4 L11,6 L13,6 L13,8 L15,8 L15,14 L14,14 L14,16 L12,16 L12,17 L6,17 L6,15 L4,15 L4,10 L5,10 L5,8 L6,8 Z'/%3E%3Cpath fill='%23ffffff' d='M7,1 L8,1 L8,7 L7,7 Z M8,5 L10,5 L10,8 L8,8 Z M10,7 L12,7 L12,10 L10,10 Z M12,9 L14,9 L14,13 L12,13 Z M7,8 L13,8 L13,14 L7,14 Z M5,11 L7,11 L7,15 L5,15 Z M6,15 L12,15 L12,16 L6,16 Z'/%3E%3C/svg%3E"), pointer !important;
+}
+
+/* Text fields show retro pixel I-beam */
+input,
+textarea,
+[contenteditable="true"] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' shape-rendering='crispEdges'%3E%3Cpath fill='%23000000' d='M3,1 L11,1 L11,3 L8,3 L8,11 L11,11 L11,13 L3,13 L3,11 L6,11 L6,3 L3,3 Z'/%3E%3Cpath fill='%23ffffff' d='M4,2 L10,2 L10,3 L7,3 L7,11 L10,11 L10,12 L4,12 L4,11 L7,11 L7,3 L4,3 Z'/%3E%3C/svg%3E"), text !important;
 }
 
 /* Thin custom scrollbar */
