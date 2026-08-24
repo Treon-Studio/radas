@@ -375,6 +375,19 @@ button:not(:disabled):active { transform: scale(0.97); }
   image-rendering: pixelated;
 }
 
+.pxl-btn-shadow {
+  box-shadow: inset -4px -4px 0px 0px rgba(0, 0, 0, 0.38), inset 2px 2px 0px 0px rgba(255, 255, 255, 0.22);
+}
+
+.pxl-btn-shadow:hover:not(:disabled) {
+  box-shadow: inset -4px -4px 0px 0px rgba(0, 0, 0, 0.48), inset 2px 2px 0px 0px rgba(255, 255, 255, 0.32);
+}
+
+.pxl-btn-shadow:active:not(:disabled) {
+  box-shadow: inset 4px 4px 0px 0px rgba(0, 0, 0, 0.55), inset -1px -1px 0px 0px rgba(255, 255, 255, 0.1);
+  transform: translate(2px, 2px) !important;
+}
+
 .pxl-shadow {
   filter: drop-shadow(3px 3px #00000040);
 }

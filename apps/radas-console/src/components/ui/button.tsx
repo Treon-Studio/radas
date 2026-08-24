@@ -5,63 +5,58 @@ import { cn } from "@/lib/utils";
 
 /**
  * PixelButton - Cloned from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
- * Features retro 3D bevel box-shadows, sharp pixel corners, tactile press feedback,
- * and high-contrast retro color variants.
+ * Features retro 3D inline shadow bevels (pxl-btn-shadow), stepped pixel corners (pxl-corner-sm),
+ * tactile press feedback, and pixel typography.
  */
 const buttonVariants = cva(
   [
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap font-mono font-medium select-none",
-    "transition-all duration-100 outline-none pxl-corner-sm",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap select-none",
+    "transition-all duration-100 outline-none pxl-corner-sm pxl-btn-shadow border-2",
     "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ring)]",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
-    "active:translate-x-[1px] active:translate-y-[1px]",
   ].join(" "),
   {
     variants: {
       variant: {
         default: [
-          "border-2 border-[var(--color-foreground)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)]",
-          "pxl-shadow pxl-shadow-hover pxl-shadow-active hover:brightness-110",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-green)] text-white font-bold",
+          "hover:bg-[var(--color-retro-green)]/90",
         ].join(" "),
         secondary: [
-          "border-2 border-[var(--color-border)] bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)]",
-          "pxl-shadow pxl-shadow-hover pxl-shadow-active hover:bg-[var(--color-muted)]",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-surface)] text-[var(--color-retro-text)] font-semibold",
+          "hover:bg-[var(--color-retro-card)]",
         ].join(" "),
         outline: [
-          "border-2 border-[var(--color-border)] bg-transparent text-[var(--color-foreground)]",
-          "hover:bg-[var(--color-muted)] hover:border-[var(--color-charcoal)]",
-          "pxl-shadow pxl-shadow-hover pxl-shadow-active",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-surface)]/40 text-[var(--color-retro-text)] font-semibold",
+          "hover:bg-[var(--color-retro-surface)]/80 hover:border-[var(--color-retro-green)]/60",
         ].join(" "),
         ghost: [
-          "border-2 border-transparent bg-transparent text-[var(--color-foreground)]",
-          "hover:bg-[var(--color-muted)] hover:border-[var(--color-border)]",
+          "border-transparent bg-transparent text-[var(--color-retro-text)] shadow-none font-semibold",
+          "hover:bg-[var(--color-retro-surface)]/60 hover:border-[var(--color-retro-border)]",
         ].join(" "),
         destructive: [
-          "border-2 border-red-600 bg-red-600 text-white dark:bg-red-700",
-          "pxl-shadow pxl-shadow-hover pxl-shadow-active hover:bg-red-700",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-red)] text-white font-bold",
+          "hover:brightness-110",
         ].join(" "),
         "retro-green": [
-          "border-2 border-[#1a7f4c] bg-[#00E599] text-[#0a0a0f] font-bold",
-          "shadow-[inset_2px_2px_0_rgba(255,255,255,0.4),inset_-2px_-2px_0_rgba(0,0,0,0.35)]",
-          "hover:brightness-105 active:shadow-[inset_2px_2px_0_rgba(0,0,0,0.5)]",
+          "border-[var(--color-retro-border-strong)] bg-[#45a049] text-white font-bold",
+          "hover:brightness-105",
         ].join(" "),
         "retro-gold": [
-          "border-2 border-[#b89500] bg-[#FFD700] text-[#0a0a0f] font-bold",
-          "shadow-[inset_2px_2px_0_rgba(255,255,255,0.4),inset_-2px_-2px_0_rgba(0,0,0,0.35)]",
-          "hover:brightness-105 active:shadow-[inset_2px_2px_0_rgba(0,0,0,0.5)]",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-gold)] text-[#0a0a0f] font-bold",
+          "hover:brightness-105",
         ].join(" "),
         "retro-cyan": [
-          "border-2 border-[#20968e] bg-[#4ECDC4] text-[#0a0a0f] font-bold",
-          "shadow-[inset_2px_2px_0_rgba(255,255,255,0.4),inset_-2px_-2px_0_rgba(0,0,0,0.35)]",
-          "hover:brightness-105 active:shadow-[inset_2px_2px_0_rgba(0,0,0,0.5)]",
+          "border-[var(--color-retro-border-strong)] bg-[var(--color-retro-cyan)] text-[#0a0a0f] font-bold",
+          "hover:brightness-105",
         ].join(" "),
       },
       size: {
-        default: "h-9 px-4 text-xs tracking-wider uppercase",
-        sm: "h-8 px-3 text-[11px] tracking-wider uppercase",
-        lg: "h-11 px-6 text-sm tracking-wider uppercase",
-        icon: "h-9 w-9 p-0",
-        pill: "h-8 px-3.5 text-xs",
+        default: "h-10 px-4 text-[11px] tracking-wider uppercase font-pixel",
+        sm: "h-8 px-3 text-[9px] tracking-wider uppercase font-pixel",
+        lg: "h-12 px-6 text-xs tracking-wider uppercase font-pixel",
+        icon: "h-10 w-10 p-0 font-pixel",
+        pill: "h-8 px-3.5 text-[9px] font-pixel",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
