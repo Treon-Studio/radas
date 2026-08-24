@@ -1,7 +1,7 @@
 import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine, RiTeamLine as Team } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
-import logoSvg from "@/assets/opensible-logo.png";
+import { RadasLogo } from "@/components/common/RadasLogo";
 import { Select } from "@/components/ui/select";
 import { getActiveSection } from "@/components/app-shell/NavSections";
 import { useT } from "@/lib/i18n";
@@ -101,7 +101,7 @@ export function AppHeader() {
       <header className="h-12 flex items-center justify-between px-6 gap-4">
         <div className="flex items-center gap-3 min-w-0 h-full">
           <Link to="/dashboard" className="flex items-center shrink-0">
-            <img src={logoSvg} className="h-6 w-6" alt="OpenSible" />
+            <RadasLogo className="h-6 w-6 text-[var(--color-primary)]" />
           </Link>
           <span className="text-[var(--color-stone)] font-mono text-sm leading-none shrink-0 select-none">/</span>
           <div className="w-[180px] shrink-0">
