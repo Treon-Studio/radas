@@ -159,12 +159,17 @@ function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Retro Mascot & Speech Bubble */}
         <div className="flex items-center justify-center gap-3 mb-5">
-          <div className="relative flex h-16 w-16 items-center justify-center shrink-0 animate-pixel-bounce">
+          <div className="relative shrink-0 animate-pixel-bounce">
             <img
               src="/images/haro-animated.webp"
               alt="Animated Gundam Haro Mascot"
-              className="w-full h-full object-contain"
-              style={{ imageRendering: "pixelated" }}
+              className="w-16 h-16 block select-none pointer-events-none"
+              style={{
+                imageRendering: "pixelated",
+                outline: "none",
+                border: "none",
+                boxShadow: "none",
+              }}
             />
           </div>
           <div className="nes-balloon from-left py-2 px-3.5">
