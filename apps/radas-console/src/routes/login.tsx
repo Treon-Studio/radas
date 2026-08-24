@@ -103,37 +103,43 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[var(--color-background)]">
-      {/* Pxlkit Retro Grid Pattern */}
-      <div className="fixed inset-0 pointer-events-none opacity-40 bg-grid-pattern" data-pxlkit="grid-bg" />
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#E6E2DD]">
+      {/* Codédex Retro Radial Dot Pattern */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-30"
+        style={{
+          backgroundImage: "radial-gradient(#8c8770 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
       <div className="relative z-10 w-full max-w-md">
         {/* Brand Header */}
         <div className="flex flex-col items-center justify-center mb-6 text-center space-y-2">
-          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[var(--color-border)] bg-[var(--color-card)] pxl-shadow">
-            <RadasLogo className="h-8 w-8 text-[var(--color-primary)]" />
+          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529]">
+            <RadasLogo className="h-8 w-8 text-[#008c4b]" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-pixel text-xs tracking-wider text-[var(--color-primary)]">
+            <span className="font-pixel text-xs tracking-wider text-[#212529]">
               RADAS GITOPS
             </span>
-            <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-[var(--color-border)] bg-[var(--color-muted)] pxl-corner-sm text-[var(--color-muted-foreground)]">
+            <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-[#212529] bg-[#ffffff] pxl-corner-sm text-[#212529]">
               v3.0
             </span>
           </div>
-          <p className="font-mono text-xs text-[var(--color-muted-foreground)]">
+          <p className="font-mono text-xs text-[#646478]">
             {t("auth.login.subtitle")}
           </p>
         </div>
 
         {/* Pixel Form Card */}
-        <Card className="border-2 border-[var(--color-border)] bg-[var(--color-card)] pxl-corner-sm pxl-card-shadow">
-          <CardHeader className="border-b border-[var(--color-border)] bg-[var(--color-muted)]/40 px-6 py-4">
-            <CardTitle className="font-mono text-sm tracking-wider uppercase text-[var(--color-foreground)] flex items-center justify-between">
+        <Card className="border-4 border-[#212529] bg-[#ffffff] pxl-corner-sm shadow-[6px_6px_0_0_#212529]">
+          <CardHeader className="border-b-2 border-[#212529] bg-[#f8fafc] px-6 py-4">
+            <CardTitle className="font-pixel text-xs tracking-wider uppercase text-[#212529] flex items-center justify-between">
               <span>{t("auth.login.title")}</span>
-              <span className="h-2 w-2 bg-[var(--color-primary)] pxl-corner-sm animate-pulse" />
+              <span className="h-2 w-2 bg-[#22c55e] pxl-corner-sm animate-pulse" />
             </CardTitle>
-            <CardDescription className="font-mono text-xs text-[var(--color-muted-foreground)]">
+            <CardDescription className="font-mono text-xs text-[#646478]">
               {t("auth.login.credentialsPrompt")}
             </CardDescription>
           </CardHeader>
