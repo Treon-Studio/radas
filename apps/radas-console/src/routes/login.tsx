@@ -113,6 +113,16 @@ function LoginPage() {
         }}
       />
 
+      {/* Soft Pastel Green Japanese Pixel Cloudscape Scenery */}
+      <div className="fixed bottom-0 left-0 right-0 h-48 sm:h-72 pointer-events-none z-0 overflow-hidden">
+        <img
+          src="/images/clouds-pastel-green.png"
+          alt="Pastel Green Clouds Scenery"
+          className="w-full h-full object-cover object-bottom mix-blend-multiply opacity-85"
+          style={{ imageRendering: "pixelated" }}
+        />
+      </div>
+
       <div className="relative z-10 w-full max-w-md">
         {/* Brand Header */}
         <div className="flex flex-col items-center justify-center mb-6 text-center space-y-2">
