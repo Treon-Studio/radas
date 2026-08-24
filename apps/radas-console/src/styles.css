@@ -579,8 +579,8 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 /* ============================================================
-   Authentic Codédex 3D Raised Buttons ("Sign up for free" Style)
-   Rounded Corners (6px) + 3D Pedestal Extrusion + Top Highlight
+   True Pixelated Rounded 3D Buttons (Stepped Pixel Curves)
+   Zero Vector Anti-Aliasing • Multi-Step Pixel Corners • 3D Pedestal
    ============================================================ */
 
 .btn-pixel-3d,
@@ -589,110 +589,115 @@ button:not(:disabled):active { transform: scale(0.97); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-style: solid;
-  border-width: 2px;
-  border-radius: 6px;
+  border: none !important;
+  border-radius: 0 !important;
   font-family: var(--font-pixel);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   user-select: none;
   cursor: pointer;
   outline: none;
-  transition: transform 75ms ease, box-shadow 75ms ease, background-color 75ms ease;
-  margin-bottom: 6px;
+  transition: transform 75ms ease, filter 75ms ease, background-color 75ms ease;
+  image-rendering: pixelated;
+  margin: 4px 4px 8px 4px;
+  /* Multi-step 8-bit rounded pixelated corner clip (Zero Vector Smoothing) */
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0,
+    calc(100% - 4px) 2px, calc(100% - 2px) 2px,
+    calc(100% - 2px) 4px, 100% 4px,
+    100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px),
+    calc(100% - 4px) 100%, 4px 100%,
+    4px calc(100% - 2px), 2px calc(100% - 2px),
+    2px calc(100% - 4px), 0 calc(100% - 4px),
+    0 4px, 2px 4px,
+    2px 2px, 4px 2px
+  );
 }
 
-/* Green (Success / Default) */
+/* Green (Success / Enter Control Plane) */
 .btn-pixel-3d-success,
 .btn-pixel-3d-default,
 .btn-3d-success,
 .btn-3d-default {
   background-color: #22c55e !important;
-  border-color: #14532d !important;
   color: #ffffff !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.4),
-    0 4px 0 0 #15803d,
-    0 6px 0 0 #14532d !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 0 #15803d !important;
+  filter: drop-shadow(0 2px 0 #14532d) drop-shadow(0 -2px 0 #14532d) drop-shadow(2px 0 0 #14532d) drop-shadow(-2px 0 0 #14532d) drop-shadow(0 4px 0 #14532d);
   text-shadow: 0 1px 0 #14532d;
 }
 .btn-pixel-3d-success:hover:not(:disabled),
-.btn-pixel-3d-default:hover:not(:disabled),
-.btn-3d-success:hover:not(:disabled),
-.btn-3d-default:hover:not(:disabled) {
+.btn-3d-success:hover:not(:disabled) {
   background-color: #28d166 !important;
 }
 .btn-pixel-3d-success:active:not(:disabled),
-.btn-pixel-3d-default:active:not(:disabled),
-.btn-3d-success:active:not(:disabled),
-.btn-3d-default:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
-    0 1px 0 0 #15803d,
-    0 2px 0 0 #14532d !important;
+.btn-3d-success:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 0 #15803d !important;
+  filter: drop-shadow(0 2px 0 #14532d) drop-shadow(0 -2px 0 #14532d) drop-shadow(2px 0 0 #14532d) drop-shadow(-2px 0 0 #14532d) drop-shadow(0 1px 0 #14532d);
 }
 
-/* Blue (Primary - exact "Sign up for free" & "Start" Button) */
+/* Blue (Primary - Start / Sign up for free) */
 .btn-pixel-3d-primary,
 .btn-pixel-3d-cyan,
 .btn-3d-primary,
 .btn-3d-cyan {
   background-color: #1ea7fd !important;
-  border-color: #02518e !important;
   color: #ffffff !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.45),
-    0 4px 0 0 #0869ad,
-    0 6px 0 0 #02518e !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 0 #0869ad !important;
+  filter: drop-shadow(0 2px 0 #02518e) drop-shadow(0 -2px 0 #02518e) drop-shadow(2px 0 0 #02518e) drop-shadow(-2px 0 0 #02518e) drop-shadow(0 4px 0 #02518e);
   text-shadow: 0 1px 0 #02518e;
 }
 .btn-pixel-3d-primary:hover:not(:disabled),
-.btn-pixel-3d-cyan:hover:not(:disabled),
-.btn-3d-primary:hover:not(:disabled),
-.btn-3d-cyan:hover:not(:disabled) {
+.btn-3d-primary:hover:not(:disabled) {
   background-color: #34b0ff !important;
 }
 .btn-pixel-3d-primary:active:not(:disabled),
-.btn-pixel-3d-cyan:active:not(:disabled),
-.btn-3d-primary:active:not(:disabled),
-.btn-3d-cyan:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
-    0 1px 0 0 #0869ad,
-    0 2px 0 0 #02518e !important;
+.btn-3d-primary:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 0 #0869ad !important;
+  filter: drop-shadow(0 2px 0 #02518e) drop-shadow(0 -2px 0 #02518e) drop-shadow(2px 0 0 #02518e) drop-shadow(-2px 0 0 #02518e) drop-shadow(0 1px 0 #02518e);
 }
 
-/* Gold (Warning - exact Codédex Join Club now button) */
+/* Gold (Warning - Join Club now) */
 .btn-pixel-3d-warning,
 .btn-pixel-3d-gold,
 .btn-3d-warning,
 .btn-3d-gold {
   background-color: #ffcc00 !important;
-  border-color: #804a00 !important;
   color: #000000 !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.65),
-    0 4px 0 0 #d48800,
-    0 6px 0 0 #804a00 !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.65), inset 0 -4px 0 0 #d48800 !important;
+  filter: drop-shadow(0 2px 0 #804a00) drop-shadow(0 -2px 0 #804a00) drop-shadow(2px 0 0 #804a00) drop-shadow(-2px 0 0 #804a00) drop-shadow(0 4px 0 #804a00);
   text-shadow: 0 1px 0 rgba(212, 136, 0, 0.4);
 }
 .btn-pixel-3d-warning:hover:not(:disabled),
-.btn-pixel-3d-gold:hover:not(:disabled),
-.btn-3d-warning:hover:not(:disabled),
-.btn-3d-gold:hover:not(:disabled) {
+.btn-3d-warning:hover:not(:disabled) {
   background-color: #ffd633 !important;
 }
 .btn-pixel-3d-warning:active:not(:disabled),
-.btn-pixel-3d-gold:active:not(:disabled),
-.btn-3d-warning:active:not(:disabled),
-.btn-3d-gold:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
-    0 1px 0 0 #d48800,
-    0 2px 0 0 #804a00 !important;
+.btn-3d-warning:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 0 #d48800 !important;
+  filter: drop-shadow(0 2px 0 #804a00) drop-shadow(0 -2px 0 #804a00) drop-shadow(2px 0 0 #804a00) drop-shadow(-2px 0 0 #804a00) drop-shadow(0 1px 0 #804a00);
+}
+
+/* White (Outline / Google Button) */
+.btn-pixel-3d-outline,
+.btn-3d-outline {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.9), inset 0 -4px 0 0 #cbd5e1 !important;
+  filter: drop-shadow(0 2px 0 #475569) drop-shadow(0 -2px 0 #475569) drop-shadow(2px 0 0 #475569) drop-shadow(-2px 0 0 #475569) drop-shadow(0 4px 0 #475569);
+}
+.btn-pixel-3d-outline:hover:not(:disabled),
+.btn-3d-outline:hover:not(:disabled) {
+  background-color: #f8fafc !important;
+}
+.btn-pixel-3d-outline:active:not(:disabled),
+.btn-3d-outline:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 0 #cbd5e1 !important;
+  filter: drop-shadow(0 2px 0 #475569) drop-shadow(0 -2px 0 #475569) drop-shadow(2px 0 0 #475569) drop-shadow(-2px 0 0 #475569) drop-shadow(0 1px 0 #475569);
 }
 
 /* Red (Destructive / Error) */
@@ -701,65 +706,29 @@ button:not(:disabled):active { transform: scale(0.97); }
 .btn-3d-destructive,
 .btn-3d-error {
   background-color: #ef4444 !important;
-  border-color: #581c1c !important;
   color: #ffffff !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.45),
-    0 4px 0 0 #b91c1c,
-    0 6px 0 0 #581c1c !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 0 #b91c1c !important;
+  filter: drop-shadow(0 2px 0 #581c1c) drop-shadow(0 -2px 0 #581c1c) drop-shadow(2px 0 0 #581c1c) drop-shadow(-2px 0 0 #581c1c) drop-shadow(0 4px 0 #581c1c);
   text-shadow: 0 1px 0 #581c1c;
 }
 .btn-pixel-3d-destructive:hover:not(:disabled),
-.btn-pixel-3d-error:hover:not(:disabled),
-.btn-3d-destructive:hover:not(:disabled),
-.btn-3d-error:hover:not(:disabled) {
+.btn-3d-destructive:hover:not(:disabled) {
   background-color: #f87171 !important;
 }
 .btn-pixel-3d-destructive:active:not(:disabled),
-.btn-pixel-3d-error:active:not(:disabled),
-.btn-3d-destructive:active:not(:disabled),
-.btn-3d-error:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
-    0 1px 0 0 #b91c1c,
-    0 2px 0 0 #581c1c !important;
-}
-
-/* White (Outline / Google Button) */
-.btn-pixel-3d-outline,
-.btn-3d-outline {
-  background-color: #ffffff !important;
-  border-color: #475569 !important;
-  color: #0f172a !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.9),
-    0 4px 0 0 #cbd5e1,
-    0 6px 0 0 #475569 !important;
-}
-.btn-pixel-3d-outline:hover:not(:disabled),
-.btn-3d-outline:hover:not(:disabled) {
-  background-color: #f8fafc !important;
-}
-.btn-pixel-3d-outline:active:not(:disabled),
-.btn-3d-outline:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
-    0 1px 0 0 #cbd5e1,
-    0 2px 0 0 #475569 !important;
+.btn-3d-destructive:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 0 #b91c1c !important;
+  filter: drop-shadow(0 2px 0 #581c1c) drop-shadow(0 -2px 0 #581c1c) drop-shadow(2px 0 0 #581c1c) drop-shadow(-2px 0 0 #581c1c) drop-shadow(0 1px 0 #581c1c);
 }
 
 /* Secondary (Surface) */
 .btn-pixel-3d-secondary,
 .btn-3d-secondary {
   background-color: var(--color-retro-surface) !important;
-  border-color: var(--color-retro-border-strong) !important;
   color: var(--color-retro-text) !important;
-  box-shadow:
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.2),
-    0 4px 0 0 rgba(0, 0, 0, 0.35),
-    0 6px 0 0 var(--color-retro-border-strong) !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.2), inset 0 -4px 0 0 rgba(0, 0, 0, 0.35) !important;
+  filter: drop-shadow(0 2px 0 var(--color-retro-border-strong)) drop-shadow(0 -2px 0 var(--color-retro-border-strong)) drop-shadow(2px 0 0 var(--color-retro-border-strong)) drop-shadow(-2px 0 0 var(--color-retro-border-strong)) drop-shadow(0 4px 0 var(--color-retro-border-strong));
 }
 .btn-pixel-3d-secondary:hover:not(:disabled),
 .btn-3d-secondary:hover:not(:disabled) {
@@ -767,11 +736,9 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .btn-pixel-3d-secondary:active:not(:disabled),
 .btn-3d-secondary:active:not(:disabled) {
-  transform: translateY(4px) !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
-    0 1px 0 0 rgba(0, 0, 0, 0.35),
-    0 2px 0 0 var(--color-retro-border-strong) !important;
+  transform: translateY(3px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 0 rgba(0, 0, 0, 0.35) !important;
+  filter: drop-shadow(0 2px 0 var(--color-retro-border-strong)) drop-shadow(0 -2px 0 var(--color-retro-border-strong)) drop-shadow(2px 0 0 var(--color-retro-border-strong)) drop-shadow(-2px 0 0 var(--color-retro-border-strong)) drop-shadow(0 1px 0 var(--color-retro-border-strong));
 }
 
 .bg-grid-pattern {
