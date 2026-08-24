@@ -576,6 +576,134 @@ button:not(:disabled):active { transform: scale(0.97); }
   box-shadow: inset 3px 3px #8c2022;
 }
 
+/* ============================================================
+   Authentic Codédex & 8-Bit Raised 3D Pixel Buttons
+   ============================================================ */
+
+.btn-3d {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-style: solid;
+  border-width: 2px;
+  border-radius: 6px;
+  font-family: var(--font-pixel);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+  cursor: pointer;
+  outline: none;
+  transition: transform 75ms ease, box-shadow 75ms ease, background-color 75ms ease;
+  image-rendering: pixelated;
+  margin-bottom: 6px;
+}
+
+/* Green (Default / Success) */
+.btn-3d-success,
+.btn-3d-default {
+  background-color: #22c55e !important;
+  border-color: #14532d !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #15803d, 0 6px 0 0 #14532d !important;
+  text-shadow: 0 1px 0 #14532d;
+}
+.btn-3d-success:hover:not(:disabled),
+.btn-3d-default:hover:not(:disabled) {
+  background-color: #28d166 !important;
+}
+.btn-3d-success:active:not(:disabled),
+.btn-3d-default:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #15803d, 0 2px 0 0 #14532d !important;
+}
+
+/* Blue (Primary - exact Start Button) */
+.btn-3d-primary,
+.btn-3d-cyan {
+  background-color: #1ea7fd !important;
+  border-color: #033458 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #0d70b7, 0 6px 0 0 #033458 !important;
+  text-shadow: 0 1px 0 #033458;
+}
+.btn-3d-primary:hover:not(:disabled),
+.btn-3d-cyan:hover:not(:disabled) {
+  background-color: #34b0ff !important;
+}
+.btn-3d-primary:active:not(:disabled),
+.btn-3d-cyan:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #0d70b7, 0 2px 0 0 #033458 !important;
+}
+
+/* Gold (Warning) */
+.btn-3d-warning,
+.btn-3d-gold {
+  background-color: #facc15 !important;
+  border-color: #713f12 !important;
+  color: #0a0a0f !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.6), 0 5px 0 0 #ca8a04, 0 6px 0 0 #713f12 !important;
+}
+.btn-3d-warning:hover:not(:disabled),
+.btn-3d-gold:hover:not(:disabled) {
+  background-color: #fde047 !important;
+}
+.btn-3d-warning:active:not(:disabled),
+.btn-3d-gold:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #ca8a04, 0 2px 0 0 #713f12 !important;
+}
+
+/* Red (Destructive / Error) */
+.btn-3d-destructive,
+.btn-3d-error {
+  background-color: #ef4444 !important;
+  border-color: #581c1c !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #b91c1c, 0 6px 0 0 #581c1c !important;
+  text-shadow: 0 1px 0 #581c1c;
+}
+.btn-3d-destructive:hover:not(:disabled),
+.btn-3d-error:hover:not(:disabled) {
+  background-color: #f87171 !important;
+}
+.btn-3d-destructive:active:not(:disabled),
+.btn-3d-error:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #b91c1c, 0 2px 0 0 #581c1c !important;
+}
+
+/* White (Outline / Google Button) */
+.btn-3d-outline {
+  background-color: #ffffff !important;
+  border-color: #334155 !important;
+  color: #0f172a !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.9), 0 5px 0 0 #94a3b8, 0 6px 0 0 #334155 !important;
+}
+.btn-3d-outline:hover:not(:disabled) {
+  background-color: #f8fafc !important;
+}
+.btn-3d-outline:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4), 0 1px 0 0 #94a3b8, 0 2px 0 0 #334155 !important;
+}
+
+/* Secondary (Surface) */
+.btn-3d-secondary {
+  background-color: var(--color-retro-surface) !important;
+  border-color: var(--color-retro-border-strong) !important;
+  color: var(--color-retro-text) !important;
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.2), 0 5px 0 0 rgba(0, 0, 0, 0.35), 0 6px 0 0 var(--color-retro-border-strong) !important;
+}
+.btn-3d-secondary:hover:not(:disabled) {
+  background-color: var(--color-retro-card) !important;
+}
+.btn-3d-secondary:active:not(:disabled) {
+  transform: translateY(4px) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), 0 1px 0 0 rgba(0, 0, 0, 0.35), 0 2px 0 0 var(--color-retro-border-strong) !important;
+}
+
 .bg-grid-pattern {
   background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 16px 16px;
