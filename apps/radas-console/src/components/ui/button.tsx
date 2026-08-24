@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 /**
  * PixelButton - Built with NES.css (https://nostalgic-css.github.io/NES.css/)
  * Features authentic 8-bit retro pixel borders, 3D inline bevels (box-shadow inset),
- * tactile press animation, and Press Start 2P typography.
+ * tactile press animation, and compact pixel typography.
  */
 const buttonVariants = cva(
   [
@@ -28,11 +28,11 @@ const buttonVariants = cva(
         "retro-cyan": "is-primary",
       },
       size: {
-        default: "h-10 px-4 text-[11px] tracking-wider uppercase",
-        sm: "h-8 px-3 text-[9px] tracking-wider uppercase",
-        lg: "h-12 px-6 text-xs tracking-wider uppercase",
-        icon: "h-10 w-10 p-0 text-xs",
-        pill: "h-8 px-3.5 text-[9px]",
+        default: "h-9 px-3.5 text-[9px] tracking-wider uppercase",
+        sm: "h-7 px-2.5 text-[8px] tracking-wider uppercase",
+        lg: "h-10 px-4 text-[10px] tracking-wider uppercase",
+        icon: "h-9 w-9 p-0 text-[8px]",
+        pill: "h-7 px-3 text-[8px]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

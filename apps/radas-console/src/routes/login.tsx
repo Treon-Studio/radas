@@ -148,7 +148,7 @@ function LoginPage() {
                   size="default"
                   onClick={handleGoogleSignIn}
                   disabled={googleLoading}
-                  className="w-full flex items-center justify-center gap-2.5 font-mono text-xs"
+                  className="w-full flex items-center justify-center gap-2.5"
                 >
                   <GoogleIcon className="h-4 w-4" />
                   <span>{googleLoading ? "AUTHENTICATING..." : "CONTINUE WITH GOOGLE"}</span>
@@ -229,8 +229,8 @@ function LoginPage() {
                   <Button
                     type="submit"
                     variant="default"
-                    size="lg"
-                    className="w-full mt-2 font-mono"
+                    size="default"
+                    className="w-full mt-2"
                     disabled={!canSubmit || isSubmitting || mutation.isPending || googleLoading}
                   >
                     {mutation.isPending ? "SIGNING IN..." : "ENTER CONTROL PLANE"}
