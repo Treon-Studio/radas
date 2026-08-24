@@ -146,6 +146,13 @@ module.exports = {
       },
     },
     {
+      name: "radas-homepage",
+      cwd: "./apps/homepage",
+      script: "./node_modules/.bin/vite",
+      args: "--port 5173 --host",
+      env: {},
+    },
+    {
       name: "radas-worker",
       cwd: "./apps/opensible-worker",
       script: "./bin/worker",
