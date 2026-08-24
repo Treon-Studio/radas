@@ -171,16 +171,6 @@ function LoginPage() {
 
         {/* Pixel Form Card */}
         <Card className="border-4 border-[#212529] bg-[#ffffff] pxl-corner-sm shadow-[6px_6px_0_0_#212529]">
-          <CardHeader className="border-b-2 border-[#212529] bg-[#f8fafc] px-6 py-4">
-            <CardTitle className="font-pixel text-xs tracking-wider uppercase text-[#212529] flex items-center justify-between">
-              <span>{t("auth.login.title")}</span>
-              <span className="h-2 w-2 bg-[#22c55e] pxl-corner-sm animate-pulse" />
-            </CardTitle>
-            <CardDescription className="font-mono text-xs text-[#646478]">
-              {t("auth.login.credentialsPrompt")}
-            </CardDescription>
-          </CardHeader>
-
           <CardContent className="p-6 space-y-5">
             {/* Google SSO Button */}
             {googleConfig?.enabled !== false && (
