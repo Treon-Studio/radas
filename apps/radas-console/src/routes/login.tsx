@@ -104,17 +104,8 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#38bdf8] overflow-hidden">
-      {/* Full-Screen Daytime Sky Blue & Pastel Green Cloudscape Wallpaper */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <img
-          src="/images/bg-clouds-sky-blue.webp"
-          alt="Sky Blue Cloudscape Wallpaper"
-          className="w-full h-full object-cover object-bottom"
-          style={{ imageRendering: "pixelated" }}
-        />
-        {/* Soft Ambient Sky Tint */}
-        <div className="absolute inset-0 bg-[#000000]/5 pointer-events-none" />
-      </div>
+      {/* Clean Sky Blue Atmosphere Gradient */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-[#2563eb]/20 via-[#38bdf8] to-[#93c5fd]" />
 
       {/* Twinkling 8-Bit Pixel Sparkles & Stars in the Sky */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
