@@ -430,7 +430,8 @@ button:not(:disabled):active { transform: scale(0.97); }
   cursor: pointer;
   user-select: none;
   font-family: var(--font-pixel);
-  font-size: 11px;
+  font-size: 7.5px;
+  letter-spacing: 0.05em;
   color: #212529;
   background-color: #fff;
   border-style: solid;
