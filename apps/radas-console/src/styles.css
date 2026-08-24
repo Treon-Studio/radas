@@ -577,17 +577,18 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 /* ============================================================
-   Authentic Codédex & 8-Bit Raised 3D Pixel Buttons
+   Authentic Pure 8-Bit Pixelated 3D Raised Buttons
+   (Stepped Pixel Corners + 3D Pedestal Extrusion)
    ============================================================ */
 
+.btn-pixel-3d,
 .btn-3d {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-style: solid;
-  border-width: 2px;
-  border-radius: 6px;
+  border: none !important;
+  border-radius: 0 !important;
   font-family: var(--font-pixel);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -596,112 +597,215 @@ button:not(:disabled):active { transform: scale(0.97); }
   outline: none;
   transition: transform 75ms ease, box-shadow 75ms ease, background-color 75ms ease;
   image-rendering: pixelated;
-  margin-bottom: 6px;
+  margin: 2px 2px 8px 2px;
 }
 
-/* Green (Default / Success) */
+/* Green (Success / Default) */
+.btn-pixel-3d-success,
+.btn-pixel-3d-default,
 .btn-3d-success,
 .btn-3d-default {
   background-color: #22c55e !important;
-  border-color: #14532d !important;
   color: #ffffff !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #15803d, 0 6px 0 0 #14532d !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.45),
+    -2px 0 0 0 #14532d,
+    2px 0 0 0 #14532d,
+    0 -2px 0 0 #14532d,
+    0 4px 0 0 #15803d,
+    -2px 4px 0 0 #14532d,
+    2px 4px 0 0 #14532d,
+    0 6px 0 0 #14532d !important;
   text-shadow: 0 1px 0 #14532d;
 }
+.btn-pixel-3d-success:hover:not(:disabled),
+.btn-pixel-3d-default:hover:not(:disabled),
 .btn-3d-success:hover:not(:disabled),
 .btn-3d-default:hover:not(:disabled) {
   background-color: #28d166 !important;
 }
+.btn-pixel-3d-success:active:not(:disabled),
+.btn-pixel-3d-default:active:not(:disabled),
 .btn-3d-success:active:not(:disabled),
 .btn-3d-default:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #15803d, 0 2px 0 0 #14532d !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    -2px 0 0 0 #14532d,
+    2px 0 0 0 #14532d,
+    0 -2px 0 0 #14532d,
+    0 2px 0 0 #14532d !important;
 }
 
-/* Blue (Primary - exact Start Button) */
+/* Blue (Primary - Start Button) */
+.btn-pixel-3d-primary,
+.btn-pixel-3d-cyan,
 .btn-3d-primary,
 .btn-3d-cyan {
   background-color: #1ea7fd !important;
-  border-color: #033458 !important;
   color: #ffffff !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #0d70b7, 0 6px 0 0 #033458 !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.45),
+    -2px 0 0 0 #033458,
+    2px 0 0 0 #033458,
+    0 -2px 0 0 #033458,
+    0 4px 0 0 #0d70b7,
+    -2px 4px 0 0 #033458,
+    2px 4px 0 0 #033458,
+    0 6px 0 0 #033458 !important;
   text-shadow: 0 1px 0 #033458;
 }
+.btn-pixel-3d-primary:hover:not(:disabled),
+.btn-pixel-3d-cyan:hover:not(:disabled),
 .btn-3d-primary:hover:not(:disabled),
 .btn-3d-cyan:hover:not(:disabled) {
   background-color: #34b0ff !important;
 }
+.btn-pixel-3d-primary:active:not(:disabled),
+.btn-pixel-3d-cyan:active:not(:disabled),
 .btn-3d-primary:active:not(:disabled),
 .btn-3d-cyan:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #0d70b7, 0 2px 0 0 #033458 !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    -2px 0 0 0 #033458,
+    2px 0 0 0 #033458,
+    0 -2px 0 0 #033458,
+    0 2px 0 0 #033458 !important;
 }
 
-/* Gold (Warning) */
+/* Gold (Warning - exact Codédex Join Club now button) */
+.btn-pixel-3d-warning,
+.btn-pixel-3d-gold,
 .btn-3d-warning,
 .btn-3d-gold {
-  background-color: #facc15 !important;
-  border-color: #713f12 !important;
-  color: #0a0a0f !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.6), 0 5px 0 0 #ca8a04, 0 6px 0 0 #713f12 !important;
+  background-color: #ffcc00 !important;
+  color: #000000 !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.65),
+    -2px 0 0 0 #804a00,
+    2px 0 0 0 #804a00,
+    0 -2px 0 0 #804a00,
+    0 4px 0 0 #d48800,
+    -2px 4px 0 0 #804a00,
+    2px 4px 0 0 #804a00,
+    0 6px 0 0 #804a00 !important;
+  text-shadow: 0 1px 0 rgba(212, 136, 0, 0.4);
 }
+.btn-pixel-3d-warning:hover:not(:disabled),
+.btn-pixel-3d-gold:hover:not(:disabled),
 .btn-3d-warning:hover:not(:disabled),
 .btn-3d-gold:hover:not(:disabled) {
-  background-color: #fde047 !important;
+  background-color: #ffd633 !important;
 }
+.btn-pixel-3d-warning:active:not(:disabled),
+.btn-pixel-3d-gold:active:not(:disabled),
 .btn-3d-warning:active:not(:disabled),
 .btn-3d-gold:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #ca8a04, 0 2px 0 0 #713f12 !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+    -2px 0 0 0 #804a00,
+    2px 0 0 0 #804a00,
+    0 -2px 0 0 #804a00,
+    0 2px 0 0 #804a00 !important;
 }
 
 /* Red (Destructive / Error) */
+.btn-pixel-3d-destructive,
+.btn-pixel-3d-error,
 .btn-3d-destructive,
 .btn-3d-error {
   background-color: #ef4444 !important;
-  border-color: #581c1c !important;
   color: #ffffff !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.45), 0 5px 0 0 #b91c1c, 0 6px 0 0 #581c1c !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.45),
+    -2px 0 0 0 #581c1c,
+    2px 0 0 0 #581c1c,
+    0 -2px 0 0 #581c1c,
+    0 4px 0 0 #b91c1c,
+    -2px 4px 0 0 #581c1c,
+    2px 4px 0 0 #581c1c,
+    0 6px 0 0 #581c1c !important;
   text-shadow: 0 1px 0 #581c1c;
 }
+.btn-pixel-3d-destructive:hover:not(:disabled),
+.btn-pixel-3d-error:hover:not(:disabled),
 .btn-3d-destructive:hover:not(:disabled),
 .btn-3d-error:hover:not(:disabled) {
   background-color: #f87171 !important;
 }
+.btn-pixel-3d-destructive:active:not(:disabled),
+.btn-pixel-3d-error:active:not(:disabled),
 .btn-3d-destructive:active:not(:disabled),
 .btn-3d-error:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 0 0 #b91c1c, 0 2px 0 0 #581c1c !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    -2px 0 0 0 #581c1c,
+    2px 0 0 0 #581c1c,
+    0 -2px 0 0 #581c1c,
+    0 2px 0 0 #581c1c !important;
 }
 
 /* White (Outline / Google Button) */
+.btn-pixel-3d-outline,
 .btn-3d-outline {
   background-color: #ffffff !important;
-  border-color: #334155 !important;
   color: #0f172a !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.9), 0 5px 0 0 #94a3b8, 0 6px 0 0 #334155 !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.9),
+    -2px 0 0 0 #334155,
+    2px 0 0 0 #334155,
+    0 -2px 0 0 #334155,
+    0 4px 0 0 #94a3b8,
+    -2px 4px 0 0 #334155,
+    2px 4px 0 0 #334155,
+    0 6px 0 0 #334155 !important;
 }
+.btn-pixel-3d-outline:hover:not(:disabled),
 .btn-3d-outline:hover:not(:disabled) {
   background-color: #f8fafc !important;
 }
+.btn-pixel-3d-outline:active:not(:disabled),
 .btn-3d-outline:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4), 0 1px 0 0 #94a3b8, 0 2px 0 0 #334155 !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+    -2px 0 0 0 #334155,
+    2px 0 0 0 #334155,
+    0 -2px 0 0 #334155,
+    0 2px 0 0 #334155 !important;
 }
 
 /* Secondary (Surface) */
+.btn-pixel-3d-secondary,
 .btn-3d-secondary {
   background-color: var(--color-retro-surface) !important;
-  border-color: var(--color-retro-border-strong) !important;
   color: var(--color-retro-text) !important;
-  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.2), 0 5px 0 0 rgba(0, 0, 0, 0.35), 0 6px 0 0 var(--color-retro-border-strong) !important;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.2),
+    -2px 0 0 0 var(--color-retro-border-strong),
+    2px 0 0 0 var(--color-retro-border-strong),
+    0 -2px 0 0 var(--color-retro-border-strong),
+    0 4px 0 0 rgba(0, 0, 0, 0.35),
+    -2px 4px 0 0 var(--color-retro-border-strong),
+    2px 4px 0 0 var(--color-retro-border-strong),
+    0 6px 0 0 var(--color-retro-border-strong) !important;
 }
+.btn-pixel-3d-secondary:hover:not(:disabled),
 .btn-3d-secondary:hover:not(:disabled) {
   background-color: var(--color-retro-card) !important;
 }
+.btn-pixel-3d-secondary:active:not(:disabled),
 .btn-3d-secondary:active:not(:disabled) {
   transform: translateY(4px) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), 0 1px 0 0 rgba(0, 0, 0, 0.35), 0 2px 0 0 var(--color-retro-border-strong) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    -2px 0 0 0 var(--color-retro-border-strong),
+    2px 0 0 0 var(--color-retro-border-strong),
+    0 -2px 0 0 var(--color-retro-border-strong),
+    0 2px 0 0 var(--color-retro-border-strong) !important;
 }
 
 .bg-grid-pattern {
