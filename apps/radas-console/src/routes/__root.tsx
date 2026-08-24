@@ -8,10 +8,10 @@ import { getToken, api } from "@/lib/api";
 export const Route = createRootRoute({
   component: RootLayout,
   errorComponent: ({ error }) => (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">{error.message}</p>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-background)]">
+      <div className="max-w-md text-center p-6 border-2 border-red-500 bg-[var(--color-card)] pxl-corner-sm pxl-card-shadow">
+        <h1 className="font-mono text-base font-bold mb-2 uppercase text-red-500">System Error</h1>
+        <p className="font-mono text-xs text-[var(--color-muted-foreground)]">{error.message}</p>
       </div>
     </div>
   ),
@@ -21,6 +21,10 @@ function RootLayout() {
   const navigate = useNavigate();
   const { location } = useRouterState();
   const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
   const isPublicPath = (path: string) =>
     path.startsWith("/login") || path.startsWith("/forgot-password") || path.startsWith("/reset-password") || path.startsWith("/onboarding");
@@ -56,11 +60,14 @@ function RootLayout() {
   const activeSec = getActiveSection(location.pathname);
 
   return (
-    <div className="flex h-screen w-full flex-col">
+    <div className="flex h-screen w-full flex-col bg-[var(--color-background)] text-[var(--color-foreground)] font-mono selection:bg-[var(--color-primary)] selection:text-[var(--color-primary-foreground)]">
+      {/* Background Retro Grid Texture */}
+      <div className="fixed inset-0 pointer-events-none opacity-30 bg-grid-pattern" data-pxlkit="grid-bg" />
+
       <AppHeader />
-      <main className="flex-1 overflow-auto bg-[var(--color-background)]">
+      <main className="relative z-10 flex-1 overflow-auto bg-[var(--color-background)]">
         {activeSec !== "overview" && (
-          <div className="border-b border-[var(--color-border)]/60 bg-[var(--color-card)] px-6">
+          <div className="border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/90 px-6">
             <div className="mx-auto w-full max-w-[1280px]">
               <SubNavLinks />
             </div>
@@ -73,3 +80,4 @@ function RootLayout() {
     </div>
   );
 }
+export default RootLayout;

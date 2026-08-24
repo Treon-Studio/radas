@@ -6,6 +6,7 @@ import { RiEyeLine as Eye, RiEyeOffLine as EyeOff } from "@remixicon/react";
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { login } from "@/lib/auth";
 import { api, setToken, saveUser } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/login")({
   }),
 });
 
-function GoogleIcon({ className = "h-5 w-5" }: { className?: string }) {
+function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -102,138 +103,161 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
-      {/* Left — Login Form */}
-      <div className="flex flex-col items-center justify-center p-6 bg-[var(--color-background)]">
-        <div className="w-full max-w-sm space-y-6 flex-1 flex flex-col justify-center">
-          {/* Mobile brand */}
-          <div className="flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)]">
-              <RadasLogo className="h-7 w-7 text-[var(--color-primary)]" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[var(--color-background)]">
+      {/* Pxlkit Retro Grid Pattern */}
+      <div className="fixed inset-0 pointer-events-none opacity-40 bg-grid-pattern" data-pxlkit="grid-bg" />
+
+      <div className="relative z-10 w-full max-w-md">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center justify-center mb-6 text-center space-y-2">
+          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[var(--color-border)] bg-[var(--color-card)] pxl-shadow">
+            <RadasLogo className="h-8 w-8 text-[var(--color-primary)]" />
           </div>
-
-          <div className="space-y-2 text-center">
-            <h2 className="text-2xl font-semibold tracking-tight">{t("auth.login.title")}</h2>
-            <p className="text-sm text-[var(--color-muted-foreground)]">
-              {t("auth.login.credentialsPrompt")}
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="font-pixel text-xs tracking-wider text-[var(--color-primary)]">
+              RADAS GITOPS
+            </span>
+            <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-[var(--color-border)] bg-[var(--color-muted)] pxl-corner-sm text-[var(--color-muted-foreground)]">
+              v3.0
+            </span>
           </div>
-
-          {/* Google SSO Button */}
-          {googleConfig?.enabled !== false && (
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--color-muted)] transition-colors shadow-sm disabled:opacity-50"
-              >
-                <GoogleIcon className="h-5 w-5" />
-                <span>{googleLoading ? "Connecting with Google..." : "Continue with Google"}</span>
-              </button>
-
-              <div className="relative flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-[var(--color-border)]" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-[var(--color-background)] px-2 text-[var(--color-muted-foreground)]">
-                    Or continue with password
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); form.handleSubmit(); }}
-            className="space-y-4"
-          >
-            <form.Field name="username" validators={{ onChange: ({ value }) => !value ? t("common.required") : undefined }}>
-              {(field) => (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{t("auth.login.username")}</label>
-                  <Input value={field.state.value} onChange={e => field.handleChange(e.target.value)} required autoFocus />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="password" validators={{ onChange: ({ value }) => !value ? t("common.required") : undefined }}>
-              {(field) => (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">{t("auth.login.password")}</label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      value={field.state.value}
-                      onChange={e => field.handleChange(e.target.value)}
-                      required
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </form.Field>
-            <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
-              {([canSubmit, isSubmitting]) => (
-                <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting || mutation.isPending || googleLoading}>
-                  {mutation.isPending ? t("common.loading") : t("auth.login.submit")}
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
-
-          <div className="text-center">
-            <a
-              href="/forgot-password"
-              className="text-sm text-[var(--color-primary)] hover:underline"
-            >
-              {t("auth.forgot.title")}
-            </a>
-          </div>
-
-          {sso?.configured && (
-            <a
-              href="/api/auth/sso"
-              className="flex items-center justify-center gap-2 rounded-md border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-muted)] transition-colors"
-            >
-              Continue with Enterprise SSO
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Right — Branding */}
-      <div className="relative hidden lg:flex flex-col justify-between bg-[var(--color-card)] text-[var(--color-foreground)] border-l border-[var(--color-border)] p-12">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)]">
-            <RadasLogo className="h-7 w-7 text-[var(--color-primary)]" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
-        </div>
-
-        <div className="space-y-6">
-          <h1 className="text-3xl font-medium tracking-tight leading-tight">
-            {t("auth.login.tagline")}
-          </h1>
-          <p className="text-lg text-[var(--color-charcoal)]">
+          <p className="font-mono text-xs text-[var(--color-muted-foreground)]">
             {t("auth.login.subtitle")}
           </p>
         </div>
 
-        <div className="text-xs font-mono text-[var(--color-stone)]">
-          <span>© {new Date().getFullYear()} {t("app.name")}. {t("auth.login.rightsReserved")}</span>
+        {/* Pixel Form Card */}
+        <Card className="border-2 border-[var(--color-border)] bg-[var(--color-card)] pxl-corner-sm pxl-card-shadow">
+          <CardHeader className="border-b border-[var(--color-border)] bg-[var(--color-muted)]/40 px-6 py-4">
+            <CardTitle className="font-mono text-sm tracking-wider uppercase text-[var(--color-foreground)] flex items-center justify-between">
+              <span>{t("auth.login.title")}</span>
+              <span className="h-2 w-2 bg-[var(--color-primary)] pxl-corner-sm animate-pulse" />
+            </CardTitle>
+            <CardDescription className="font-mono text-xs text-[var(--color-muted-foreground)]">
+              {t("auth.login.credentialsPrompt")}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-5">
+            {/* Google SSO Button */}
+            {googleConfig?.enabled !== false && (
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  className="w-full flex items-center justify-center gap-2.5 font-mono text-xs"
+                >
+                  <GoogleIcon className="h-4 w-4" />
+                  <span>{googleLoading ? "AUTHENTICATING..." : "CONTINUE WITH GOOGLE"}</span>
+                </Button>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-[var(--color-border)]" />
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-mono">
+                    <span className="bg-[var(--color-card)] px-2 text-[var(--color-muted-foreground)]">
+                      OR ACCESS WITH CREDENTIALS
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); form.handleSubmit(); }}
+              className="space-y-4"
+            >
+              <form.Field name="username" validators={{ onChange: ({ value }) => !value ? t("common.required") : undefined }}>
+                {(field) => (
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-xs font-medium text-[var(--color-foreground)] uppercase">
+                      {t("auth.login.username")}
+                    </label>
+                    <Input
+                      value={field.state.value}
+                      onChange={e => field.handleChange(e.target.value)}
+                      placeholder="Username / Email"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </form.Field>
+
+              <form.Field name="password" validators={{ onChange: ({ value }) => !value ? t("common.required") : undefined }}>
+                {(field) => (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-mono text-xs font-medium text-[var(--color-foreground)] uppercase">
+                        {t("auth.login.password")}
+                      </label>
+                      <a
+                        href="/forgot-password"
+                        className="font-mono text-[11px] text-[var(--color-primary)] hover:underline"
+                      >
+                        {t("auth.forgot.title")}
+                      </a>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={field.state.value}
+                        onChange={e => field.handleChange(e.target.value)}
+                        placeholder="••••••••••••"
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((s) => !s)}
+                        aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </form.Field>
+
+              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
+                {([canSubmit, isSubmitting]) => (
+                  <Button
+                    type="submit"
+                    variant="default"
+                    size="lg"
+                    className="w-full mt-2 font-mono"
+                    disabled={!canSubmit || isSubmitting || mutation.isPending || googleLoading}
+                  >
+                    {mutation.isPending ? "SIGNING IN..." : "ENTER CONTROL PLANE"}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </form>
+
+            {sso?.configured && (
+              <div className="pt-2 border-t border-[var(--color-border)] text-center">
+                <a
+                  href="/api/auth/sso"
+                  className="font-mono text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                >
+                  ⚡ Continue with Enterprise SAML / OIDC
+                </a>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <div className="mt-6 text-center font-mono text-[11px] text-[var(--color-muted-foreground)]">
+          <span>© {new Date().getFullYear()} Treon Studio / RADAS. MIT Licensed.</span>
         </div>
       </div>
     </div>
   );
 }
+export default LoginPage;
