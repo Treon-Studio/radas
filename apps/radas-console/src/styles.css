@@ -413,6 +413,63 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 /* ==========================================================================
+   NES.css Speech Balloons & Twinkling Pixel Stars
+   ========================================================================== */
+
+.nes-balloon {
+  position: relative;
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border-style: solid;
+  border-width: 2px;
+  border-color: #212529;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 0 rgba(33, 37, 41, 0.4);
+}
+
+.nes-balloon.from-left::before {
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  transform: translateY(-50%);
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 8px 6px 0;
+  border-color: transparent #212529 transparent transparent;
+}
+
+.nes-balloon.from-left::after {
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  transform: translateY(-50%);
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 6px 5px 0;
+  border-color: transparent #ffffff transparent transparent;
+}
+
+@keyframes pixel-twinkle {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animate-pixel-twinkle {
+  animation: pixel-twinkle 2.5s ease-in-out infinite;
+}
+
+/* ==========================================================================
    NES.css Authentic 8-Bit Button Framework (https://nostalgic-css.github.io/NES.css/)
    ========================================================================== */
 

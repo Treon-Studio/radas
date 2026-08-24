@@ -103,36 +103,63 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#d8e2d4] overflow-hidden">
-      {/* Full-Screen Japanese Pastel Green Pixel Sky & Cloudscape Wallpaper */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <img
-          src="/images/bg-clouds-japanese-sky.webp"
-          alt="Japanese Sky and Cloudscape Wallpaper"
-          className="w-full h-full object-cover object-center"
-          style={{ imageRendering: "pixelated" }}
-        />
-        {/* Soft Ambient Overlay */}
-        <div className="absolute inset-0 bg-[#000000]/5 pointer-events-none" />
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#070e24] overflow-hidden">
+      {/* Soothing Deep Dark Retro Night Sky Gradient */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-[#060b1c] via-[#0b1433] to-[#0f1d45]" />
+
+      {/* Twinkling 8-Bit Pixel Stars in the Sky */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {[
+          { top: "8%", left: "10%", size: "lg", delay: "0s", color: "text-[#ffffff]" },
+          { top: "14%", left: "22%", size: "sm", delay: "1.2s", color: "text-[#a5b4fc]" },
+          { top: "6%", left: "48%", size: "md", delay: "0.7s", color: "text-[#ffffff]" },
+          { top: "12%", left: "76%", size: "lg", delay: "1.8s", color: "text-[#a5b4fc]" },
+          { top: "18%", left: "90%", size: "sm", delay: "0.4s", color: "text-[#ffffff]" },
+          { top: "24%", left: "15%", size: "md", delay: "2.1s", color: "text-[#93c5fd]" },
+          { top: "22%", left: "84%", size: "lg", delay: "1.0s", color: "text-[#ffffff]" },
+          { top: "5%", left: "62%", size: "sm", delay: "1.5s", color: "text-[#a5b4fc]" },
+          { top: "32%", left: "28%", size: "sm", delay: "0.9s", color: "text-[#ffffff]" },
+          { top: "35%", left: "72%", size: "md", delay: "1.7s", color: "text-[#93c5fd]" },
+          { top: "15%", left: "38%", size: "sm", delay: "2.4s", color: "text-[#ffffff]" },
+          { top: "28%", left: "55%", size: "sm", delay: "1.1s", color: "text-[#a5b4fc]" },
+        ].map((star, idx) => (
+          <div
+            key={idx}
+            className={`absolute animate-pixel-twinkle ${star.color}`}
+            style={{
+              top: star.top,
+              left: star.left,
+              animationDelay: star.delay,
+            }}
+          >
+            {star.size === "lg" ? (
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.9))" }}>
+                <path d="M7 0h1v15h-1z M0 7h15v1h-15z M6 5h3v5h-3z M5 6h5v3h-5z" shapeRendering="crispEdges" />
+              </svg>
+            ) : star.size === "md" ? (
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor" style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.8))" }}>
+                <path d="M4 0h1v9h-1z M0 4h9v1h-9z M3 3h3v3h-3z" shapeRendering="crispEdges" />
+              </svg>
+            ) : (
+              <svg width="5" height="5" viewBox="0 0 5 5" fill="currentColor">
+                <path d="M2 0h1v5h-1z M0 2h5v1h-5z" shapeRendering="crispEdges" />
+              </svg>
+            )}
+          </div>
+        ))}
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Brand Header */}
-        <div className="flex flex-col items-center justify-center mb-6 text-center space-y-2">
-          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529]">
+        {/* Retro Mascot & Speech Bubble */}
+        <div className="flex items-center justify-center gap-3 mb-5">
+          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529] shrink-0">
             <RadasLogo className="h-8 w-8 text-[#008c4b]" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-pixel text-xs tracking-wider text-[#212529]">
-              RADAS GITOPS
-            </span>
-            <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-[#212529] bg-[#ffffff] pxl-corner-sm text-[#212529]">
-              v3.0
-            </span>
+          <div className="nes-balloon from-left py-2 px-3.5">
+            <p className="font-pixel text-[8px] text-[#212529] leading-relaxed">
+              ENTER CREDENTIALS TO ACCESS RADAS CONTROL PLANE :)
+            </p>
           </div>
-          <p className="font-mono text-xs text-[#646478]">
-            {t("auth.login.subtitle")}
-          </p>
         </div>
 
         {/* Pixel Form Card */}
