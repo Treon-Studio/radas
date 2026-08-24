@@ -469,6 +469,19 @@ button:not(:disabled):active { transform: scale(0.97); }
   animation: pixel-twinkle 2.5s ease-in-out infinite;
 }
 
+@keyframes pixel-bounce {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-pixel-bounce {
+  animation: pixel-bounce 1.5s ease-in-out infinite;
+}
+
 /* ==========================================================================
    NES.css Authentic 8-Bit Button Framework (https://nostalgic-css.github.io/NES.css/)
    ========================================================================== */
