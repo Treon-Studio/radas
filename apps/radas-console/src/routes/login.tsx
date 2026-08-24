@@ -103,29 +103,36 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#070e24] overflow-hidden">
-      {/* Soothing Deep Dark Retro Night Sky Gradient */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-[#060b1c] via-[#0b1433] to-[#0f1d45]" />
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#38bdf8] overflow-hidden">
+      {/* Full-Screen Daytime Sky Blue & Pastel Green Cloudscape Wallpaper */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <img
+          src="/images/bg-clouds-sky-blue.webp"
+          alt="Sky Blue Cloudscape Wallpaper"
+          className="w-full h-full object-cover object-bottom"
+          style={{ imageRendering: "pixelated" }}
+        />
+        {/* Soft Ambient Sky Tint */}
+        <div className="absolute inset-0 bg-[#000000]/5 pointer-events-none" />
+      </div>
 
-      {/* Twinkling 8-Bit Pixel Stars in the Sky */}
+      {/* Twinkling 8-Bit Pixel Sparkles & Stars in the Sky */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {[
-          { top: "8%", left: "10%", size: "lg", delay: "0s", color: "text-[#ffffff]" },
-          { top: "14%", left: "22%", size: "sm", delay: "1.2s", color: "text-[#a5b4fc]" },
-          { top: "6%", left: "48%", size: "md", delay: "0.7s", color: "text-[#ffffff]" },
-          { top: "12%", left: "76%", size: "lg", delay: "1.8s", color: "text-[#a5b4fc]" },
-          { top: "18%", left: "90%", size: "sm", delay: "0.4s", color: "text-[#ffffff]" },
-          { top: "24%", left: "15%", size: "md", delay: "2.1s", color: "text-[#93c5fd]" },
-          { top: "22%", left: "84%", size: "lg", delay: "1.0s", color: "text-[#ffffff]" },
-          { top: "5%", left: "62%", size: "sm", delay: "1.5s", color: "text-[#a5b4fc]" },
-          { top: "32%", left: "28%", size: "sm", delay: "0.9s", color: "text-[#ffffff]" },
-          { top: "35%", left: "72%", size: "md", delay: "1.7s", color: "text-[#93c5fd]" },
-          { top: "15%", left: "38%", size: "sm", delay: "2.4s", color: "text-[#ffffff]" },
-          { top: "28%", left: "55%", size: "sm", delay: "1.1s", color: "text-[#a5b4fc]" },
+          { top: "6%", left: "12%", size: "lg", delay: "0s" },
+          { top: "14%", left: "25%", size: "sm", delay: "1.2s" },
+          { top: "5%", left: "50%", size: "md", delay: "0.7s" },
+          { top: "10%", left: "75%", size: "lg", delay: "1.8s" },
+          { top: "18%", left: "88%", size: "sm", delay: "0.4s" },
+          { top: "24%", left: "15%", size: "md", delay: "2.1s" },
+          { top: "20%", left: "82%", size: "lg", delay: "1.0s" },
+          { top: "4%", left: "65%", size: "sm", delay: "1.5s" },
+          { top: "30%", left: "32%", size: "sm", delay: "0.9s" },
+          { top: "32%", left: "68%", size: "md", delay: "1.7s" },
         ].map((star, idx) => (
           <div
             key={idx}
-            className={`absolute animate-pixel-twinkle ${star.color}`}
+            className="absolute animate-pixel-twinkle text-[#ffffff]"
             style={{
               top: star.top,
               left: star.left,
@@ -133,11 +140,11 @@ function LoginPage() {
             }}
           >
             {star.size === "lg" ? (
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.9))" }}>
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.95))" }}>
                 <path d="M7 0h1v15h-1z M0 7h15v1h-15z M6 5h3v5h-3z M5 6h5v3h-5z" shapeRendering="crispEdges" />
               </svg>
             ) : star.size === "md" ? (
-              <svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor" style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.8))" }}>
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor" style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.85))" }}>
                 <path d="M4 0h1v9h-1z M0 4h9v1h-9z M3 3h3v3h-3z" shapeRendering="crispEdges" />
               </svg>
             ) : (
