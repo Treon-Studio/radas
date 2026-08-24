@@ -4,36 +4,34 @@ import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 /**
- * PixelButton - Raised 3D Retro Pixel Button (Codédex & 8-Bit Arcade Style)
- * Implements 5px bottom extrusion pedestal, 2px contour border, top highlight bevel,
- * tactile physical push-down animation (translateY 4px), and pixel typography.
+ * PixelButton - Official NES.css & Codédex 8-Bit Pixel Button
+ * Directly uses NES.css border-image 9-slice SVG and 3D inset shadow ::after.
  */
 const buttonVariants = cva(
   [
-    "btn-3d inline-flex items-center justify-center gap-2 whitespace-nowrap select-none",
-    "font-pixel tracking-wider uppercase outline-none",
-    "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-retro-bg)]",
+    "nes-btn inline-flex items-center justify-center gap-2 whitespace-nowrap select-none",
+    "font-pixel uppercase tracking-wider outline-none",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
   ].join(" "),
   {
     variants: {
       variant: {
-        default: "btn-3d-success",
-        primary: "btn-3d-primary",
-        secondary: "btn-3d-secondary",
-        outline: "btn-3d-outline",
-        ghost: "!border-transparent !bg-transparent !shadow-none !mb-0 hover:!bg-[var(--color-retro-surface)]/60 text-[var(--color-retro-text)]",
-        destructive: "btn-3d-destructive",
-        "retro-green": "btn-3d-success",
-        "retro-gold": "btn-3d-gold",
-        "retro-cyan": "btn-3d-cyan",
+        default: "is-success",
+        primary: "is-primary",
+        secondary: "",
+        outline: "",
+        ghost: "!border-none !bg-transparent !shadow-none hover:!bg-[var(--color-retro-surface)]/60 text-[var(--color-retro-text)]",
+        destructive: "is-error",
+        "retro-green": "is-success",
+        "retro-gold": "is-warning",
+        "retro-cyan": "is-primary",
       },
       size: {
-        default: "h-10 px-4 text-[8px] tracking-wider uppercase",
-        sm: "h-8 px-3 text-[8px] tracking-wider uppercase",
-        lg: "h-12 px-6 text-[10px] tracking-wider uppercase",
-        icon: "h-10 w-10 p-0 text-[8px]",
-        pill: "h-8 px-3.5 text-[8px]",
+        default: "h-11 px-4 text-[8px] tracking-wider uppercase",
+        sm: "h-9 px-3 text-[8px] tracking-wider uppercase",
+        lg: "h-13 px-6 text-[10px] tracking-wider uppercase",
+        icon: "h-11 w-11 p-0 text-[8px]",
+        pill: "h-9 px-3.5 text-[8px]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
