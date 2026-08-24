@@ -103,24 +103,17 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#E6E2DD]">
-      {/* Codédex Retro Radial Dot Pattern */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-30"
-        style={{
-          backgroundImage: "radial-gradient(#8c8770 1.5px, transparent 1.5px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-
-      {/* Soft Pastel Green Japanese Pixel Cloudscape Scenery */}
-      <div className="fixed bottom-0 left-0 right-0 h-48 sm:h-72 pointer-events-none z-0 overflow-hidden">
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#d8e2d4] overflow-hidden">
+      {/* Full-Screen Japanese Pastel Green Pixel Sky & Cloudscape Wallpaper */}
+      <div className="fixed inset-0 pointer-events-none z-0">
         <img
-          src="/images/clouds-pastel-green.png"
-          alt="Pastel Green Clouds Scenery"
-          className="w-full h-full object-cover object-bottom mix-blend-multiply opacity-85"
+          src="/images/bg-clouds-japanese-sky.webp"
+          alt="Japanese Sky and Cloudscape Wallpaper"
+          className="w-full h-full object-cover object-center"
           style={{ imageRendering: "pixelated" }}
         />
+        {/* Soft Ambient Overlay */}
+        <div className="absolute inset-0 bg-[#000000]/5 pointer-events-none" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
