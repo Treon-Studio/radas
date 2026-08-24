@@ -159,10 +159,10 @@ function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Retro Mascot & Speech Bubble */}
         <div className="flex items-center justify-center gap-3 mb-5">
-          <div className="relative flex h-14 w-14 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529] shrink-0 p-1 animate-pixel-bounce">
+          <div className="relative flex h-14 w-14 items-center justify-center shrink-0">
             <img
-              src="/images/haro-bot-pixel.png"
-              alt="Haro Retro Bot Mascot"
+              src="/images/bouncingbot.webp"
+              alt="Bouncing Bot Mascot"
               className="w-full h-full object-contain"
               style={{ imageRendering: "pixelated" }}
             />
