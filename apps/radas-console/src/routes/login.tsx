@@ -159,8 +159,13 @@ function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Retro Mascot & Speech Bubble */}
         <div className="flex items-center justify-center gap-3 mb-5">
-          <div className="flex h-12 w-12 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529] shrink-0">
-            <RadasLogo className="h-8 w-8 text-[#008c4b]" />
+          <div className="relative flex h-14 w-14 items-center justify-center pxl-corner-sm border-2 border-[#212529] bg-[#ffffff] shadow-[3px_3px_0_0_#212529] shrink-0 p-1">
+            <img
+              src="/images/haro-pixel.png"
+              alt="Gundam Haro Mascot"
+              className="w-full h-full object-contain"
+              style={{ imageRendering: "pixelated" }}
+            />
           </div>
           <div className="nes-balloon from-left py-2 px-3.5">
             <p className="font-pixel text-[8px] text-[#212529] leading-relaxed">
