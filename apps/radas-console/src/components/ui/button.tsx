@@ -4,27 +4,28 @@ import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 /**
- * PixelButton - Official NES.css & Codédex 8-Bit Pixel Button
- * Directly uses NES.css border-image 9-slice SVG and 3D inset shadow ::after.
+ * PixelButton - Rounded 3D Raised Pixel Button (Codédex Style)
+ * Implements border-radius: 6px, 2px contour border, 3D bottom extrusion ledge,
+ * top highlight bevel, and tactile pushdown animation.
  */
 const buttonVariants = cva(
   [
-    "nes-btn inline-flex items-center justify-center gap-2 whitespace-nowrap select-none",
+    "btn-3d inline-flex items-center justify-center gap-2 whitespace-nowrap select-none",
     "font-pixel uppercase tracking-wider outline-none",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
   ].join(" "),
   {
     variants: {
       variant: {
-        default: "is-success",
-        primary: "is-primary",
-        secondary: "",
-        outline: "",
+        default: "btn-3d-success",
+        primary: "btn-3d-primary",
+        secondary: "btn-3d-secondary",
+        outline: "btn-3d-outline",
         ghost: "!border-none !bg-transparent !shadow-none hover:!bg-[var(--color-retro-surface)]/60 text-[var(--color-retro-text)]",
-        destructive: "is-error",
-        "retro-green": "is-success",
-        "retro-gold": "is-warning",
-        "retro-cyan": "is-primary",
+        destructive: "btn-3d-destructive",
+        "retro-green": "btn-3d-success",
+        "retro-gold": "btn-3d-gold",
+        "retro-cyan": "btn-3d-primary",
       },
       size: {
         default: "h-11 px-4 text-[8px] tracking-wider uppercase",
