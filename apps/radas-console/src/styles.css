@@ -297,29 +297,103 @@ button:not(:disabled):active { transform: scale(0.97); }
    ========================================================================== */
 
 .pxl-corner-sm {
-  border-radius: 0 !important;
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+  image-rendering: pixelated;
+}
+
+.pxl-corner-md {
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    calc(100% - 4px) 2px,
+    calc(100% - 2px) 2px,
+    calc(100% - 2px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 4px) calc(100% - 2px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 2px),
+    2px calc(100% - 2px),
+    2px calc(100% - 4px),
+    0 calc(100% - 4px),
+    0 4px,
+    2px 4px,
+    2px 2px,
+    4px 2px
+  );
+  image-rendering: pixelated;
+}
+
+.pxl-corner-lg {
+  clip-path: polygon(
+    6px 0,
+    calc(100% - 6px) 0,
+    calc(100% - 6px) 2px,
+    calc(100% - 4px) 2px,
+    calc(100% - 4px) 4px,
+    calc(100% - 2px) 4px,
+    calc(100% - 2px) 6px,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 2px) calc(100% - 6px),
+    calc(100% - 2px) calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 2px),
+    calc(100% - 6px) calc(100% - 2px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    6px calc(100% - 2px),
+    4px calc(100% - 2px),
+    4px calc(100% - 4px),
+    2px calc(100% - 4px),
+    2px calc(100% - 6px),
+    0 calc(100% - 6px),
+    0 6px,
+    2px 6px,
+    2px 4px,
+    4px 4px,
+    4px 2px,
+    6px 2px
+  );
   image-rendering: pixelated;
 }
 
 .pxl-shadow {
-  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.16), inset -2px -2px 0 rgba(0, 0, 0, 0.35);
+  filter: drop-shadow(3px 3px #00000040);
 }
 
 .pxl-shadow-hover:hover:not(:disabled) {
-  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.28), inset -2px -2px 0 rgba(0, 0, 0, 0.45);
-}
-
-.pxl-shadow-active:active:not(:disabled) {
-  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5), inset -2px -2px 0 rgba(255, 255, 255, 0.1);
+  filter: drop-shadow(2px 2px #00000040);
   transform: translate(1px, 1px) !important;
 }
 
+.pxl-shadow-active:active:not(:disabled) {
+  filter: drop-shadow(1px 1px #00000040);
+  transform: translate(2px, 2px) !important;
+}
+
 .pxl-input-shadow {
-  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.25), inset -1px -1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.2);
 }
 
 .pxl-card-shadow {
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25), inset 1px 1px 0 rgba(255, 255, 255, 0.1);
+  filter: drop-shadow(3px 3px #00000040);
 }
 
 .bg-grid-pattern {

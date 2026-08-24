@@ -10,9 +10,9 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 /**
  * PixelInput - Cloned exactly from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
- * Features retro crisp pixel borders (border-retro-border-strong), 
- * subtle surface transparency (bg-retro-surface/40), monospace font, 
- * and retro emerald/green focus ring.
+ * Features retro crisp pixel corners with polygon clip-path (pxl-corner-sm),
+ * 2px solid retro border (border-retro-border-strong),
+ * monospace font, and emerald/cyan focus outline.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, prefixIcon, suffixIcon, isInvalid, sizeVariant = "default", disabled, ...props }, ref) => {
@@ -25,7 +25,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="relative w-full flex items-center">
         {prefixIcon && (
-          <span className="pointer-events-none absolute left-3 flex items-center justify-center text-[var(--color-retro-muted)]">
+          <span className="pointer-events-none absolute left-3 flex items-center justify-center text-[var(--color-retro-muted)] z-10">
             {prefixIcon}
           </span>
         )}
@@ -41,15 +41,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-retro-bg)] focus-visible:ring-[var(--color-retro-green)]/40",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--color-retro-muted)]/20",
             isInvalid && "border-[var(--color-retro-red)] focus-visible:border-[var(--color-retro-red)] focus-visible:ring-[var(--color-retro-red)]/40 text-[var(--color-retro-red)]",
-            prefixIcon && "pl-10",
-            suffixIcon && "pr-10",
+            prefixIcon ? "pl-10" : "pl-3",
+            suffixIcon ? "pr-10" : "pr-3",
             sizeClasses[sizeVariant],
             className
           )}
           {...props}
         />
         {suffixIcon && (
-          <span className="absolute right-3 flex items-center justify-center text-[var(--color-retro-muted)]">
+          <span className="absolute right-3 flex items-center justify-center text-[var(--color-retro-muted)] z-10">
             {suffixIcon}
           </span>
         )}
