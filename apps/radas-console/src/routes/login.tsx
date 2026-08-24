@@ -181,7 +181,6 @@ function LoginPage() {
                       value={field.state.value}
                       onChange={e => field.handleChange(e.target.value)}
                       placeholder="Username / Email"
-                      prefixIcon={<PixelIcon name="user" size="sm" />}
                       required
                       autoFocus
                     />
@@ -209,7 +208,6 @@ function LoginPage() {
                         value={field.state.value}
                         onChange={e => field.handleChange(e.target.value)}
                         placeholder="••••••••••••"
-                        prefixIcon={<PixelIcon name="lock" size="sm" />}
                         required
                         className="pr-10"
                       />
@@ -217,7 +215,7 @@ function LoginPage() {
                         type="button"
                         onClick={() => setShowPassword((s) => !s)}
                         aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-retro-muted)] hover:text-[var(--color-foreground)] transition-colors z-10"
                       >
                         <PixelIcon name={showPassword ? "eye-slash" : "eye"} size="sm" />
                       </button>
