@@ -271,6 +271,7 @@ func RunSystemMonitor() error {
 	cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", metrics.CPUUsagePct)
 	cpuChart.Data = make([][]float64, 1)
 	cpuChart.Data[0] = cpuData
+	cpuChart.MaxVal = 100
 	cpuChart.LineColors[0] = ui.ColorGreen
 	cpuChart.AxesColor = ui.ColorWhite
 	cpuChart.BorderStyle.Fg = ui.ColorCyan
@@ -351,9 +352,9 @@ func RunSystemMonitor() error {
 
 	ui.Render(grid)
 
-	// Event Loop
+	// Event Loop (500ms ticker for smooth live chart scrolling)
 	uiEvents := ui.PollEvents()
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
