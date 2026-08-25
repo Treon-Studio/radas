@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({ component: WebLandingPage });
 const faqs = [
   {
     question: "What is RADAS?",
-    answer: "RADAS is a self-hosted enterprise infrastructure orchestrator and GitOps control plane that unifies OpenTofu, Ansible, BYOC code registries, and FinOps cost protections into a single platform.",
+    answer: "RADAS is a self-hosted infrastructure orchestrator and GitOps control plane that unifies OpenTofu, Ansible, BYOC code registries, and FinOps cost protections into a single platform.",
   },
   {
     question: "Can RADAS be completely self-hosted air-gapped?",
@@ -153,7 +153,7 @@ function WebLandingPage() {
               <div className="max-w-3xl mx-auto space-y-6">
                 {/* 3D Pixel Gamer Title (Scaled down by 40%) */}
                 <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
-                  <span className="pixel-gamer-title block">ENTERPRISE CLOUD</span>
+                  <span className="pixel-gamer-title block">MODERN GITOPS</span>
                   <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
                 </h1>
 
@@ -298,7 +298,7 @@ function WebLandingPage() {
           <footer className="mt-auto px-6 sm:px-12 lg:px-16 py-12 sm:py-16 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-[#6B7280] font-mono">
             <div className="flex items-center gap-2">
               <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
-              <span>&copy; 2026 Enterprise Release.</span>
+              <span>&copy; 2026 GitOps Release.</span>
             </div>
             <div className="flex items-center gap-8">
               <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="hover:text-[#2A2A2A]">GitHub</a>
