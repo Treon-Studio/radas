@@ -149,8 +149,8 @@ function WebLandingPage() {
           {/* MAIN CONTENT AREA */}
           <main className="flex-1">
             {/* 2. MINIMALIST HERO SECTION */}
-            <section className="relative w-full py-16 sm:py-24 text-center px-4 sm:px-8">
-              <div className="max-w-3xl mx-auto space-y-6">
+            <section className="relative w-full py-24 sm:py-36 lg:py-40 text-center px-6 sm:px-12">
+              <div className="max-w-3xl mx-auto space-y-8">
                 {/* Title */}
                 <h1 className="text-[#2A2A2A] text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight uppercase font-pixel-grid leading-tight">
                   The Enterprise <br />
@@ -163,22 +163,22 @@ function WebLandingPage() {
                 </p>
 
                 {/* Minimal CTA Actions */}
-                <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+                <div className="flex flex-wrap items-center justify-center gap-5 pt-4">
                   <Link to="/login">
-                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-6 py-3">
+                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-7 py-3.5">
                       Open Console <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </Link>
                   <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
-                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-5 py-3">
+                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3.5">
                       <Github className="h-4 w-4 mr-2" /> View Source
                     </Button>
                   </a>
                 </div>
 
                 {/* Minimal Command Bar */}
-                <div className="pt-6 max-w-xl mx-auto">
-                  <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3 flex items-center justify-between gap-3 text-xs font-mono text-[#2A2A2A] shadow-sm">
+                <div className="pt-10 sm:pt-14 max-w-xl mx-auto">
+                  <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
                     <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
                       <span className="text-[#107A4D] font-bold">$</span>
                       <code className="text-[#2A2A2A] truncate">go install github.com/raizora/radas/apps/cli@latest</code>
@@ -204,56 +204,56 @@ function WebLandingPage() {
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
             {/* 3. CAPABILITIES GRID */}
-            <section id="capabilities" className="relative w-full py-14 sm:py-16">
-              <div className="px-4 sm:px-8">
-                <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
+            <section id="capabilities" className="relative w-full py-20 sm:py-28 lg:py-36">
+              <div className="px-6 sm:px-12 lg:px-16">
+                <div className="text-sm uppercase tracking-widest font-mono mb-3 text-[#107A4D]">
                   <TextScramble text="[ CORE CAPABILITIES ]" className="font-mono" />
                 </div>
-                <h2 className="text-[#2A2A2A] mb-8 text-2xl sm:text-4xl font-bold uppercase font-pixel-grid">
+                <h2 className="text-[#2A2A2A] mb-12 sm:mb-16 text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
                   Everything you need for infrastructure delivery.
                 </h2>
 
                 {/* Clean 4-Card Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-5 border border-[#107A4D]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlCloudIcon className="h-5 w-5" />
                     </div>
-                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ ORCHESTRATION ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Declarative OpenTofu &amp; Ansible</h3>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ ORCHESTRATION ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Declarative OpenTofu &amp; Ansible</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Execute multi-cloud infrastructure plans, applies, and playbook runs with real-time streaming execution logs.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2A2A2A]/50">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-4 border border-[#2A2A2A]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2A2A2A]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-5 border border-[#2A2A2A]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlCpuIcon className="h-5 w-5" />
                     </div>
-                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ REUSABILITY ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">BYOC Private Code Registry</h3>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ REUSABILITY ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">BYOC Private Code Registry</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Shadcn-style adoption for reusable OpenTofu modules and Ansible roles directly into your stacks with single-line imports.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#CC9100]/50">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-4 border border-[#CC9100]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#CC9100]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-5 border border-[#CC9100]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlSparklesIcon className="h-5 w-5" />
                     </div>
-                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ GOVERNANCE ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Feature Flags &amp; Multi-Org RBAC</h3>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ GOVERNANCE ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Feature Flags &amp; Multi-Org RBAC</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Targeted user rollouts, environment toggles, percentage splits, instant kill-switches, and organization isolation bounds.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2563EB]/50">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-4 border border-[#2563EB]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2563EB]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-5 border border-[#2563EB]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlShieldIcon className="h-5 w-5" />
                     </div>
-                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ FINOPS &amp; WORKERS ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Cloud Cost Guards &amp; HA Workers</h3>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ FINOPS &amp; WORKERS ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Cloud Cost Guards &amp; HA Workers</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Prevent surprise cloud bills with speculative PR cost diffs, budget limits, and distributed Go worker daemon pools.
                     </p>
@@ -266,17 +266,17 @@ function WebLandingPage() {
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
             {/* 4. FAQ SECTION */}
-            <section id="faq" className="relative w-full py-16 sm:py-20">
-              <div className="px-4 sm:px-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+            <section id="faq" className="relative w-full py-20 sm:py-28 lg:py-36">
+              <div className="px-6 sm:px-12 lg:px-16">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-16 items-start">
                   <div>
-                    <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
+                    <div className="text-sm uppercase tracking-widest font-mono mb-3 text-[#107A4D]">
                       <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
                     </div>
                     <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
                       Frequently Asked Questions
                     </h2>
-                    <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed">
+                    <p className="text-[#6B7280] text-xs sm:text-sm mt-4 leading-relaxed">
                       Questions regarding multi-cloud deployment, air-gapped security, feature flags, or custom OpenTofu modules.
                     </p>
                   </div>
@@ -295,12 +295,12 @@ function WebLandingPage() {
           <hr className="border-dashed border-[#D1D1D1] w-full" />
 
           {/* 5. FOOTER */}
-          <footer className="mt-auto px-4 sm:px-8 py-8 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6B7280] font-mono">
+          <footer className="mt-auto px-6 sm:px-12 lg:px-16 py-12 sm:py-16 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-[#6B7280] font-mono">
             <div className="flex items-center gap-2">
               <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
               <span>&copy; 2026 Enterprise Release.</span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-8">
               <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="hover:text-[#2A2A2A]">GitHub</a>
               <Link to="/login" className="hover:text-[#2A2A2A] font-semibold text-[#2A2A2A] font-pixel-grid">Sign In to Console →</Link>
             </div>
