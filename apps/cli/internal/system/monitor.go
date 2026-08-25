@@ -249,8 +249,8 @@ func RunSystemMonitor() error {
 	prevTxBytes := metrics.NetTxBytes
 	prevTime := metrics.Timestamp
 
-	// History data arrays (60 samples)
-	historyLen := 60
+	// History data arrays (300 samples to fill entire plot box horizontally on ultra-wide terminals)
+	historyLen := 300
 	cpuData := make([]float64, historyLen)
 	netRxData := make([]float64, historyLen)
 	netTxData := make([]float64, historyLen)
