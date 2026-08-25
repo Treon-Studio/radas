@@ -265,13 +265,13 @@ function WebLandingPage() {
             {/* Dashed Separator Line */}
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-            {/* 4. NES RETRO FAQ SECTION */}
+            {/* 4. FAQ SECTION */}
             <section id="faq" className="relative w-full py-16 sm:py-20">
               <div className="px-4 sm:px-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
                   <div>
                     <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
-                      <TextScramble text="[ NES FAQ DATABASE ]" className="font-mono" />
+                      <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
                     </div>
                     <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
                       Frequently Asked Questions
@@ -279,15 +279,9 @@ function WebLandingPage() {
                     <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed">
                       Questions regarding multi-cloud deployment, air-gapped security, feature flags, or custom OpenTofu modules.
                     </p>
-
-                    <div className="pt-6">
-                      <div className="inline-flex items-center gap-2 pxl-corner-sm bg-[#2A2A2A] text-white px-3 py-1.5 text-xs font-pixel-grid font-bold shadow-sm">
-                        <span>8-BIT HELP DESK</span>
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-2">
+                  <div className="lg:col-span-2">
                     {faqs.map((faq, index) => (
                       <FAQItem key={index} faq={faq} />
                     ))}
