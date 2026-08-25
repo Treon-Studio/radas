@@ -12,7 +12,7 @@ import {
 } from "@remixicon/react";
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getToken } from "@/lib/api";
 import { TextScramble } from "@/components/landing/TextScramble";
@@ -94,71 +94,62 @@ function WebLandingPage() {
 
           {/* MAIN CONTENT AREA */}
           <main className="flex-1">
-            {/* 2. HERO SECTION */}
-            <section className="relative w-full pt-12 sm:pt-16 pb-16">
-              {/* Announcement Banner */}
-              <div className="mb-8 flex items-center gap-2 text-sm px-4 sm:px-8">
-                <Badge className="pxl-corner-sm bg-[#2A2A2A] text-white text-xs font-mono font-bold">
-                  v3.2.0
-                </Badge>
-                <p className="text-[#2A2A2A] font-mono text-xs sm:text-sm">
-                  Feature Flags, BYOC Code Registry &amp; Multi-Org Governance.
-                </p>
-              </div>
-
-              {/* Main Hero Content */}
-              <div className="px-4 sm:px-8">
+            {/* 2. MINIMALIST HERO SECTION */}
+            <section className="relative w-full py-16 sm:py-24 text-center px-4 sm:px-8">
+              <div className="max-w-3xl mx-auto space-y-6">
                 {/* Title */}
-                <h1 className="text-[#2A2A2A] mb-6 text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none uppercase font-pixel-grid">
-                  The Enterprise Infrastructure <br />
-                  <span className="text-[#107A4D]">&amp; GitOps Platform</span>
+                <h1 className="text-[#2A2A2A] text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight uppercase font-pixel-grid leading-tight">
+                  The Enterprise <br />
+                  <span className="text-[#107A4D]">Cloud Platform</span>
                 </h1>
 
                 {/* Subtitle */}
-                <p className="text-[#6B7280] text-base sm:text-lg mb-10 max-w-3xl leading-relaxed">
-                  Unified OpenTofu &amp; Ansible orchestration with private Bring-Your-Own-Code registries, real-time FinOps cost guards, feature flags, and distributed high-availability workers.
+                <p className="text-[#6B7280] text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+                  Unified OpenTofu &amp; Ansible orchestration with cost guards, feature flags, and desktop companions.
                 </p>
 
-                {/* Installation Command Switcher Box */}
-                <Card className="pxl-corner-md pxl-card-shadow border-2 border-[#D1D1D1] bg-[#FAFAFA] overflow-hidden w-full max-w-4xl pt-0">
-                  {/* Tabs */}
-                  <div className="flex border-b-2 border-[#D1D1D1] bg-[#EBE8E2]">
-                    {(["go", "pnpm", "curl", "docker"] as const).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-6 py-3 text-xs sm:text-sm font-mono uppercase transition-colors ${
-                          activeTab === tab
-                            ? "bg-white text-[#2A2A2A] border-b-2 border-[#2A2A2A] font-bold"
-                            : "text-[#6B7280] hover:text-[#2A2A2A] hover:bg-[#F1EFEB]"
-                        }`}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
+                {/* Minimal CTA Actions */}
+                <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+                  <Link to="/login">
+                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-6 py-3">
+                      Open Console <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                  <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
+                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-5 py-3">
+                      <Github className="h-4 w-4 mr-2" /> View Source
+                    </Button>
+                  </a>
+                </div>
 
-                  {/* Command Line */}
-                  <CardContent className="p-6 bg-white flex items-center justify-between gap-4 font-mono text-xs sm:text-sm text-[#2A2A2A]">
-                    <code className="flex-1 break-all">${installCommands[activeTab]}</code>
+                {/* Minimal Command Bar */}
+                <div className="pt-6 max-w-xl mx-auto">
+                  <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3 flex items-center justify-between gap-3 text-xs font-mono text-[#2A2A2A] shadow-sm">
+                    <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                      <span className="text-[#107A4D] font-bold">$</span>
+                      <code className="text-[#2A2A2A] truncate">go install github.com/raizora/radas/apps/cli@latest</code>
+                    </div>
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={handleCopy}
-                      className="pxl-corner-sm border-[#D1D1D1] text-[#6B7280] hover:text-[#2A2A2A] p-2"
-                      aria-label="Copy to clipboard"
+                      variant="ghost"
+                      onClick={() => {
+                        navigator.clipboard.writeText("go install github.com/raizora/radas/apps/cli@latest");
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="pxl-corner-sm text-[#6B7280] hover:text-[#2A2A2A] p-1.5 h-auto"
                     >
                       {copied ? <Check className="h-4 w-4 text-[#107A4D]" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
             </section>
 
             {/* Dashed Separator Line */}
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-            {/* 3. STREAMLINED CAPABILITIES GRID (Zero Redundancy) */}
+            {/* 3. CAPABILITIES GRID */}
             <section id="capabilities" className="relative w-full py-14 sm:py-16">
               <div className="px-4 sm:px-8">
                 <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
@@ -221,7 +212,7 @@ function WebLandingPage() {
           {/* Dashed Separator Line */}
           <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-          {/* 4. CLEAN FOOTER */}
+          {/* 4. FOOTER */}
           <footer className="mt-auto px-4 sm:px-8 py-8 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6B7280] font-mono">
             <div className="flex items-center gap-2">
               <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
