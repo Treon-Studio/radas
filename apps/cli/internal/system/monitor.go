@@ -2,6 +2,7 @@ package system
 
 import (
 	"fmt"
+	"math"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -187,18 +188,27 @@ func FetchLiveMetrics() LiveMetrics {
 			}
 		}
 
-		// 5. Network Rx / Tx Bytes via netstat
-		netCmd := exec.Command("netstat", "-n", "-b", "-i")
+		// 5. Network Rx / Tx Bytes via netstat (Deduplicated Interfaces)
+		netCmd := exec.Command("netstat", "-ibn")
 		if out, err := netCmd.Output(); err == nil {
 			lines := strings.Split(string(out), "\n")
 			var totalRx, totalTx uint64
+			seenIfaces := make(map[string]bool)
 			for _, l := range lines {
 				fields := strings.Fields(l)
-				if len(fields) >= 10 && !strings.HasPrefix(fields[0], "lo") && fields[0] != "Name" {
-					if rx, err := strconv.ParseUint(fields[6], 10, 64); err == nil {
-						totalRx += rx
+				if len(fields) >= 10 {
+					iface := fields[0]
+					if strings.HasPrefix(iface, "lo") || strings.HasSuffix(iface, "*") || iface == "Name" {
+						continue
 					}
-					if tx, err := strconv.ParseUint(fields[9], 10, 64); err == nil {
+					if seenIfaces[iface] {
+						continue
+					}
+					rx, errRx := strconv.ParseUint(fields[6], 10, 64)
+					tx, errTx := strconv.ParseUint(fields[9], 10, 64)
+					if errRx == nil && errTx == nil {
+						seenIfaces[iface] = true
+						totalRx += rx
 						totalTx += tx
 					}
 				}
@@ -274,14 +284,20 @@ func RunSystemMonitor() error {
 	prevTxBytes := metrics.NetTxBytes
 	prevTime := metrics.Timestamp
 
-	// History data arrays (200 samples)
+	// History data arrays (200 samples, pre-filled with safe non-zero bounds)
 	historyLen := 200
 	cpuData := make([]float64, historyLen)
 	netRxData := make([]float64, historyLen)
 	netTxData := make([]float64, historyLen)
 
+	initialCPU := metrics.CPUUsagePct
+	if initialCPU < 0.1 {
+		initialCPU = 0.1
+	}
 	for i := range cpuData {
-		cpuData[i] = metrics.CPUUsagePct
+		cpuData[i] = initialCPU
+		netRxData[i] = 0.01
+		netTxData[i] = 0.01
 	}
 
 	// 1. Header Banner Paragraph
@@ -293,7 +309,7 @@ func RunSystemMonitor() error {
 
 	// 2. Realtime CPU LineChart (Plot)
 	cpuChart := widgets.NewPlot()
-	cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", metrics.CPUUsagePct)
+	cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Instant Active: %.1f%%) ", metrics.CPUUsagePct)
 	cpuChart.Data = make([][]float64, 1)
 	cpuChart.Data[0] = cpuData
 	cpuChart.MaxVal = 100.0
@@ -327,11 +343,11 @@ func RunSystemMonitor() error {
 	netChart.Data = make([][]float64, 2)
 	netChart.Data[0] = netRxData // Download Rx (Cyan)
 	netChart.Data[1] = netTxData // Upload Tx (Magenta)
+	netChart.MaxVal = 10.0 // Hard minimum ceiling > 0 to prevent index out of range panic
 	netChart.LineColors[0] = ui.ColorCyan
 	netChart.LineColors[1] = ui.ColorMagenta
 	netChart.AxesColor = ui.ColorWhite
 	netChart.BorderStyle.Fg = ui.ColorCyan
-	netChart.MaxVal = 10.0 // Initial dynamic ceiling
 
 	netInfo := widgets.NewParagraph()
 	netInfo.Title = " 🌐 Network Speed & Traffic "
@@ -378,7 +394,7 @@ func RunSystemMonitor() error {
 
 	ui.Render(grid)
 
-	// Event Loop (500ms ticker for instant CPU & Network live graph updates)
+	// Event Loop (500ms ticker for smooth live chart scrolling)
 	uiEvents := ui.PollEvents()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -414,10 +430,24 @@ func RunSystemMonitor() error {
 			prevTxBytes = newMetrics.NetTxBytes
 			prevTime = newMetrics.Timestamp
 
-			// Append to history
-			cpuData = append(cpuData[1:], newMetrics.CPUUsagePct)
+			// Sanitize values
+			cpuVal := newMetrics.CPUUsagePct
+			if cpuVal < 0.1 {
+				cpuVal = 0.1
+			}
+
 			rxKB := rxBps / 1024.0
+			if math.IsNaN(rxKB) || math.IsInf(rxKB, 0) || rxKB < 0.01 {
+				rxKB = 0.01
+			}
+
 			txKB := txBps / 1024.0
+			if math.IsNaN(txKB) || math.IsInf(txKB, 0) || txKB < 0.01 {
+				txKB = 0.01
+			}
+
+			// Append to history
+			cpuData = append(cpuData[1:], cpuVal)
 			netRxData = append(netRxData[1:], rxKB)
 			netTxData = append(netTxData[1:], txKB)
 
@@ -433,7 +463,7 @@ func RunSystemMonitor() error {
 					}
 				}
 			}
-			netChart.MaxVal = maxSpeed * 1.25
+			netChart.MaxVal = math.Max(maxSpeed*1.20, 10.0)
 
 			// Update Widgets
 			cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Instant Active: %.1f%%) ", newMetrics.CPUUsagePct)
