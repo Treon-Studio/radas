@@ -284,7 +284,7 @@ func RunSystemMonitor() error {
 	prevTxBytes := metrics.NetTxBytes
 	prevTime := metrics.Timestamp
 
-	// History data arrays (200 samples, pre-filled with safe non-zero bounds)
+	// History data arrays (200 samples)
 	historyLen := 200
 	cpuData := make([]float64, historyLen)
 	netRxData := make([]float64, historyLen)
@@ -343,7 +343,7 @@ func RunSystemMonitor() error {
 	netChart.Data = make([][]float64, 2)
 	netChart.Data[0] = netRxData // Download Rx (Cyan)
 	netChart.Data[1] = netTxData // Upload Tx (Magenta)
-	netChart.MaxVal = 10.0 // Hard minimum ceiling > 0 to prevent index out of range panic
+	netChart.MaxVal = 10.0
 	netChart.LineColors[0] = ui.ColorCyan
 	netChart.LineColors[1] = ui.ColorMagenta
 	netChart.AxesColor = ui.ColorWhite
@@ -435,6 +435,9 @@ func RunSystemMonitor() error {
 			if cpuVal < 0.1 {
 				cpuVal = 0.1
 			}
+			if cpuVal > 99.9 {
+				cpuVal = 99.9
+			}
 
 			rxKB := rxBps / 1024.0
 			if math.IsNaN(rxKB) || math.IsInf(rxKB, 0) || rxKB < 0.01 {
@@ -451,23 +454,58 @@ func RunSystemMonitor() error {
 			netRxData = append(netRxData[1:], rxKB)
 			netTxData = append(netTxData[1:], txKB)
 
-			// Dynamic Y-axis auto-scaling for Network Plot based on recent 40 samples
-			var maxSpeed float64 = 10.0 // minimum 10 KB/s ceiling
-			for i := len(netRxData) - 40; i < len(netRxData); i++ {
-				if i >= 0 {
-					if netRxData[i] > maxSpeed {
-						maxSpeed = netRxData[i]
-					}
-					if netTxData[i] > maxSpeed {
-						maxSpeed = netTxData[i]
-					}
+			// 1. Calculate safe MaxVal first
+			var maxSpeed float64 = 10.0 // Minimum 10.0 KB/s ceiling
+			for _, v := range netRxData {
+				if v > maxSpeed {
+					maxSpeed = v
 				}
 			}
-			netChart.MaxVal = math.Max(maxSpeed*1.20, 10.0)
+			for _, v := range netTxData {
+				if v > maxSpeed {
+					maxSpeed = v
+				}
+			}
+			targetMaxVal := math.Max(maxSpeed*1.30, 10.0)
+			netChart.MaxVal = targetMaxVal
+
+			// 2. Strictly clamp all plot values so no point EVER exceeds MaxVal or falls below 0.0
+			clampedRx := make([]float64, len(netRxData))
+			clampedTx := make([]float64, len(netTxData))
+			for i := range netRxData {
+				vRx := netRxData[i]
+				if vRx < 0.001 {
+					vRx = 0.001
+				}
+				if vRx >= targetMaxVal {
+					vRx = targetMaxVal - 0.001
+				}
+				clampedRx[i] = vRx
+
+				vTx := netTxData[i]
+				if vTx < 0.001 {
+					vTx = 0.001
+				}
+				if vTx >= targetMaxVal {
+					vTx = targetMaxVal - 0.001
+				}
+				clampedTx[i] = vTx
+			}
+
+			clampedCPU := make([]float64, len(cpuData))
+			for i, v := range cpuData {
+				if v < 0.01 {
+					v = 0.01
+				}
+				if v >= 99.9 {
+					v = 99.9
+				}
+				clampedCPU[i] = v
+			}
 
 			// Update Widgets
 			cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Instant Active: %.1f%%) ", newMetrics.CPUUsagePct)
-			cpuChart.Data[0] = cpuData
+			cpuChart.Data[0] = clampedCPU
 
 			ramGauge.Percent = int(newMetrics.RAMUsagePct)
 			diskGauge.Percent = int(newMetrics.DiskUsagePct)
@@ -476,8 +514,8 @@ func RunSystemMonitor() error {
 				FormatBytes(newMetrics.UsedRAMBytes), FormatBytes(newMetrics.TotalRAMBytes),
 				FormatBytes(newMetrics.WiredRAMBytes), FormatBytes(newMetrics.ActiveRAMBytes), FormatBytes(newMetrics.FreeRAMBytes))
 
-			netChart.Data[0] = netRxData
-			netChart.Data[1] = netTxData
+			netChart.Data[0] = clampedRx
+			netChart.Data[1] = clampedTx
 			netInfo.Text = fmt.Sprintf("📥 Rx (Down): %s  │  Total Rx: %s\n📤 Tx (Up)  : %s  │  Total Tx: %s",
 				FormatSpeedStr(rxBps), FormatBytes(int64(newMetrics.NetRxBytes)),
 				FormatSpeedStr(txBps), FormatBytes(int64(newMetrics.NetTxBytes)))
