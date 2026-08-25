@@ -51,7 +51,16 @@ else
     echo -e "${YELLOW}Using platform-specific binary: $SOURCE_BIN${NC}"
 fi
 
-# Remove existing binary to avoid text file busy or AMFI code-signature conflicts
+# Update GOPATH/bin/radas if present (user space, no sudo needed)
+GOPATH_BIN="$(go env GOPATH 2>/dev/null)/bin"
+if [ -d "$GOPATH_BIN" ]; then
+    cp "$SOURCE_BIN" "$GOPATH_BIN/$BINARY_NAME" 2>/dev/null || true
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        codesign -s - -f "$GOPATH_BIN/$BINARY_NAME" 2>/dev/null || true
+    fi
+fi
+
+# Remove existing system binary to avoid text file busy or AMFI code-signature conflicts
 sudo rm -f "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
 
 # Check if we have permission to write to target directory
@@ -76,15 +85,12 @@ else
     fi
 fi
 
-# Set ownership to current user so codesign succeeds without internal error
-sudo chown $(whoami) "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
-
 # Make sure it's executable
-chmod +x "$TARGET_DIR/$BINARY_NAME"
+sudo chmod +x "$TARGET_DIR/$BINARY_NAME"
 
-# Ad-hoc codesign binary on macOS to prevent SIGKILL (killed process) on ARM64
+# Ad-hoc codesign binary with sudo on macOS for system-wide directory
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    codesign -s - -f "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
+    sudo codesign -s - -f "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
 fi
 
 echo -e "${GREEN}Installation complete!${NC}"
