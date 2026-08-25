@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getToken } from "@/lib/api";
 import { TextScramble } from "@/components/landing/TextScramble";
+import { PxlCloudIcon, PxlCpuIcon, PxlSparklesIcon, PxlShieldIcon } from "@/components/ui/pxl-icons";
 
 export const Route = createFileRoute("/")({ component: WebLandingPage });
 
@@ -158,8 +159,8 @@ function WebLandingPage() {
                 {/* Clean 4-Card Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-10 w-10 pxl-corner-sm bg-[#107A4D]/15 text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30">
-                      <Cloud className="h-5 w-5" />
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30">
+                      <PxlCloudIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ ORCHESTRATION ]</div>
                     <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Declarative OpenTofu &amp; Ansible</h3>
@@ -169,8 +170,8 @@ function WebLandingPage() {
                   </Card>
 
                   <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-10 w-10 pxl-corner-sm bg-[#2A2A2A]/15 text-[#2A2A2A] flex items-center justify-center mb-4 border border-[#2A2A2A]/30">
-                      <Cpu className="h-5 w-5" />
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-4 border border-[#2A2A2A]/30">
+                      <PxlCpuIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ REUSABILITY ]</div>
                     <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">BYOC Private Code Registry</h3>
@@ -180,8 +181,8 @@ function WebLandingPage() {
                   </Card>
 
                   <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-10 w-10 pxl-corner-sm bg-amber-500/15 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/30">
-                      <Zap className="h-5 w-5" />
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-4 border border-[#CC9100]/30">
+                      <PxlSparklesIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ GOVERNANCE ]</div>
                     <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Feature Flags &amp; Multi-Org RBAC</h3>
@@ -191,8 +192,8 @@ function WebLandingPage() {
                   </Card>
 
                   <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-10 w-10 pxl-corner-sm bg-blue-500/15 text-blue-600 flex items-center justify-center mb-4 border border-blue-500/30">
-                      <Shield className="h-5 w-5" />
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-4 border border-[#2563EB]/30">
+                      <PxlShieldIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ FINOPS &amp; WORKERS ]</div>
                     <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Cloud Cost Guards &amp; HA Workers</h3>
