@@ -154,6 +154,11 @@ var statusCmd = &cobra.Command{
 	Aliases: []string{"info", "health"},
 	Short:   "Display macOS hardware status, CPU, RAM pressure, thermals, and battery",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		live, _ := cmd.Flags().GetBool("live")
+		if live {
+			return internalsys.RunSystemMonitor()
+		}
+
 		spin := utils.NewSpinner("📊 Querying macOS hardware sensors & thermal state...")
 		spin.Start()
 		health := internalsys.GetSystemHealth()
@@ -172,6 +177,15 @@ var statusCmd = &cobra.Command{
 		}
 		fmt.Println("============================================================")
 		return nil
+	},
+}
+
+var monitorCmd = &cobra.Command{
+	Use:     "monitor",
+	Aliases: []string{"top", "live", "htop", "dashboard"},
+	Short:   "Launch interactive realtime system dashboard with live CPU/RAM charts and process tree",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return internalsys.RunSystemMonitor()
 	},
 }
 
@@ -331,11 +345,13 @@ func init() {
 
 	uninstallCmd.Flags().BoolP("dry-run", "n", false, "Preview leftover paths without deleting")
 	dsStoreCmd.Flags().BoolP("dry-run", "n", false, "Preview .DS_Store files without deleting")
+	statusCmd.Flags().BoolP("live", "l", false, "Launch realtime htop-style live dashboard")
 
 	Cmd.AddCommand(cleanCmd)
 	Cmd.AddCommand(purgeCmd)
 	Cmd.AddCommand(analyzeCmd)
 	Cmd.AddCommand(statusCmd)
+	Cmd.AddCommand(monitorCmd)
 	Cmd.AddCommand(optimizeCmd)
 	Cmd.AddCommand(uninstallCmd)
 	Cmd.AddCommand(touchIDCmd)
