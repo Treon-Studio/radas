@@ -72,20 +72,45 @@ func FetchLiveMetrics() LiveMetrics {
 		}
 	}
 
-	// 2. CPU load average on macOS
+	// 2. Instant CPU usage on macOS via top -l 1
 	if runtime.GOOS == "darwin" {
-		cmd := exec.Command("sysctl", "-n", "vm.loadavg")
-		if out, err := cmd.Output(); err == nil {
-			str := strings.TrimSpace(string(out))
-			str = strings.Trim(str, "{ }")
-			fields := strings.Fields(str)
-			if len(fields) > 0 {
-				if load1, err := strconv.ParseFloat(fields[0], 64); err == nil {
-					pct := (load1 / float64(m.CPUCores)) * 100.0
-					if pct > 100.0 {
-						pct = 100.0
+		topCmd := exec.Command("top", "-l", "1", "-n", "0", "-s", "0")
+		if out, err := topCmd.Output(); err == nil {
+			lines := strings.Split(string(out), "\n")
+			for _, l := range lines {
+				if strings.Contains(l, "CPU usage:") {
+					parts := strings.Split(l, ",")
+					var userPct, sysPct float64
+					for _, p := range parts {
+						fields := strings.Fields(p)
+						if len(fields) >= 2 {
+							valStr := strings.TrimSuffix(fields[len(fields)-2], "%")
+							val, _ := strconv.ParseFloat(valStr, 64)
+							if strings.Contains(p, "user") {
+								userPct = val
+							} else if strings.Contains(p, "sys") {
+								sysPct = val
+							}
+						}
 					}
-					m.CPUUsagePct = pct
+					instantActive := userPct + sysPct
+					if instantActive > 0 {
+						m.CPUUsagePct = instantActive
+					}
+					break
+				}
+			}
+		}
+		if m.CPUUsagePct == 0 {
+			cmd := exec.Command("sysctl", "-n", "vm.loadavg")
+			if out, err := cmd.Output(); err == nil {
+				str := strings.TrimSpace(string(out))
+				str = strings.Trim(str, "{ }")
+				fields := strings.Fields(str)
+				if len(fields) > 0 {
+					if load1, err := strconv.ParseFloat(fields[0], 64); err == nil {
+						m.CPUUsagePct = (load1 / float64(m.CPUCores)) * 100.0
+					}
 				}
 			}
 		}
@@ -249,8 +274,8 @@ func RunSystemMonitor() error {
 	prevTxBytes := metrics.NetTxBytes
 	prevTime := metrics.Timestamp
 
-	// History data arrays (300 samples to fill entire plot box horizontally on ultra-wide terminals)
-	historyLen := 300
+	// History data arrays (200 samples)
+	historyLen := 200
 	cpuData := make([]float64, historyLen)
 	netRxData := make([]float64, historyLen)
 	netTxData := make([]float64, historyLen)
@@ -271,7 +296,7 @@ func RunSystemMonitor() error {
 	cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", metrics.CPUUsagePct)
 	cpuChart.Data = make([][]float64, 1)
 	cpuChart.Data[0] = cpuData
-	cpuChart.MaxVal = 100
+	cpuChart.MaxVal = 100.0
 	cpuChart.LineColors[0] = ui.ColorGreen
 	cpuChart.AxesColor = ui.ColorWhite
 	cpuChart.BorderStyle.Fg = ui.ColorCyan
@@ -306,6 +331,7 @@ func RunSystemMonitor() error {
 	netChart.LineColors[1] = ui.ColorMagenta
 	netChart.AxesColor = ui.ColorWhite
 	netChart.BorderStyle.Fg = ui.ColorCyan
+	netChart.MaxVal = 10.0 // Initial dynamic ceiling
 
 	netInfo := widgets.NewParagraph()
 	netInfo.Title = " 🌐 Network Speed & Traffic "
@@ -352,7 +378,7 @@ func RunSystemMonitor() error {
 
 	ui.Render(grid)
 
-	// Event Loop (500ms ticker for smooth live chart scrolling)
+	// Event Loop (500ms ticker for instant CPU & Network live graph updates)
 	uiEvents := ui.PollEvents()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -390,11 +416,27 @@ func RunSystemMonitor() error {
 
 			// Append to history
 			cpuData = append(cpuData[1:], newMetrics.CPUUsagePct)
-			netRxData = append(netRxData[1:], rxBps/1024.0) // in KB/s
-			netTxData = append(netTxData[1:], txBps/1024.0) // in KB/s
+			rxKB := rxBps / 1024.0
+			txKB := txBps / 1024.0
+			netRxData = append(netRxData[1:], rxKB)
+			netTxData = append(netTxData[1:], txKB)
+
+			// Dynamic Y-axis auto-scaling for Network Plot based on recent 40 samples
+			var maxSpeed float64 = 10.0 // minimum 10 KB/s ceiling
+			for i := len(netRxData) - 40; i < len(netRxData); i++ {
+				if i >= 0 {
+					if netRxData[i] > maxSpeed {
+						maxSpeed = netRxData[i]
+					}
+					if netTxData[i] > maxSpeed {
+						maxSpeed = netTxData[i]
+					}
+				}
+			}
+			netChart.MaxVal = maxSpeed * 1.25
 
 			// Update Widgets
-			cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", newMetrics.CPUUsagePct)
+			cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Instant Active: %.1f%%) ", newMetrics.CPUUsagePct)
 			cpuChart.Data[0] = cpuData
 
 			ramGauge.Percent = int(newMetrics.RAMUsagePct)
