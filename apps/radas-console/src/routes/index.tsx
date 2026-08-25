@@ -156,47 +156,47 @@ function WebLandingPage() {
                   Everything you need for infrastructure delivery.
                 </h2>
 
-                {/* Clean 4-Card Grid */}
+                {/* Clean 4-Card Grid with PXL Animated Icons */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50">
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlCloudIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ ORCHESTRATION ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Declarative OpenTofu &amp; Ansible</h3>
+                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Declarative OpenTofu &amp; Ansible</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Execute multi-cloud infrastructure plans, applies, and playbook runs with real-time streaming execution logs.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-4 border border-[#2A2A2A]/30">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2A2A2A]/50">
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-4 border border-[#2A2A2A]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlCpuIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ REUSABILITY ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">BYOC Private Code Registry</h3>
+                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">BYOC Private Code Registry</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Shadcn-style adoption for reusable OpenTofu modules and Ansible roles directly into your stacks with single-line imports.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-4 border border-[#CC9100]/30">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#CC9100]/50">
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-4 border border-[#CC9100]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlSparklesIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ GOVERNANCE ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Feature Flags &amp; Multi-Org RBAC</h3>
+                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Feature Flags &amp; Multi-Org RBAC</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Targeted user rollouts, environment toggles, percentage splits, instant kill-switches, and organization isolation bounds.
                     </p>
                   </Card>
 
-                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6">
-                    <div className="h-9 w-9 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-4 border border-[#2563EB]/30">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2563EB]/50">
+                    <div className="h-9 w-9 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-4 border border-[#2563EB]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
                       <PxlShieldIcon className="h-5 w-5" />
                     </div>
                     <div className="text-[#107A4D] font-mono text-xs uppercase mb-1 font-bold">[ FINOPS &amp; WORKERS ]</div>
-                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid">Cloud Cost Guards &amp; HA Workers</h3>
+                    <h3 className="text-lg font-bold text-[#2A2A2A] mb-2 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Cloud Cost Guards &amp; HA Workers</h3>
                     <p className="text-sm text-[#6B7280] leading-relaxed">
                       Prevent surprise cloud bills with speculative PR cost diffs, budget limits, and distributed Go worker daemon pools.
                     </p>
