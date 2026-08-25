@@ -2,8 +2,11 @@ package statusbar
 
 import (
 	"fmt"
-	"strings"
+	"net/http"
+	"os/exec"
 	"runtime/debug"
+	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,6 +14,9 @@ import (
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/tui/theme"
 )
+
+type BranchCheckMsg string
+type ConnectionCheckMsg bool
 
 type Model struct {
 	width       int
@@ -21,19 +27,53 @@ type Model struct {
 	branch      string
 }
 
+func CheckBranch() tea.Cmd {
+	return func() tea.Msg {
+		out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+		if err != nil {
+			return BranchCheckMsg("")
+		}
+		return BranchCheckMsg(strings.TrimSpace(string(out)))
+	}
+}
+
+func CheckConnection() tea.Cmd {
+	return func() tea.Msg {
+		client := &http.Client{Timeout: 1 * time.Second}
+		resp, err := client.Get("http://localhost:5001/api/orgs")
+		if err == nil {
+			resp.Body.Close()
+			return ConnectionCheckMsg(true)
+		}
+		resp2, err2 := client.Get("http://localhost:5000/api/orgs")
+		if err2 == nil {
+			resp2.Body.Close()
+			return ConnectionCheckMsg(true)
+		}
+		return ConnectionCheckMsg(false)
+	}
+}
+
 func New() Model {
 	return Model{
 		mode:        "CHAT",
-		connected:   false,
-		connectedWC: false,
+		connected:   true,
+		connectedWC: true,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return tea.Batch(CheckBranch(), CheckConnection())
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case BranchCheckMsg:
+		m.branch = string(msg)
+	case ConnectionCheckMsg:
+		m.connected = bool(msg)
+		m.connectedWC = bool(msg)
+	}
 	return m, nil
 }
 
@@ -44,6 +84,7 @@ func (m Model) SetMode(mode string) Model {
 
 func (m Model) SetConnected(v bool) Model {
 	m.connected = v
+	m.connectedWC = v
 	return m
 }
 
@@ -82,7 +123,7 @@ func (m Model) View() string {
 			Background(t.BGTertiary).
 			Foreground(t.TextSecondary).
 			Padding(0, 1)
-		middle = infoStyle.Render(" " + m.branch + " ")
+		middle = infoStyle.Render("  " + m.branch + " ")
 	}
 
 	rightBg := t.BGTertiary

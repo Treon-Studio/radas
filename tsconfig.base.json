@@ -28,8 +28,6 @@
       "@radas/types/*": ["./packages/types/src/*"],
       "@radas/config": ["./packages/config/src"],
       "@radas/config/*": ["./packages/config/src/*"],
-      "@radas/api-client": ["./packages/api-client/src"],
-      "@radas/api-client/*": ["./packages/api-client/src/*"],
       "@radas/validation": ["./packages/validation/src"],
       "@radas/validation/*": ["./packages/validation/src/*"],
       "@radas/module-attendance": ["./modules/attendance/client"],
@@ -51,13 +49,7 @@
       "@radas/module-okr": ["./modules/okr/client"],
       "@radas/module-okr/*": ["./modules/okr/client/*"],
       "@radas/module-profile": ["./modules/profile/client"],
-      "@radas/module-profile/*": ["./modules/profile/client/*"],
-      "@radas/module-projects": ["./modules/projects/client"],
-      "@radas/module-projects/*": ["./modules/projects/client/*"],
-      "@radas/module-users": ["./modules/users/client"],
-      "@radas/module-users/*": ["./modules/users/client/*"],
-      "@radas/module-wiki": ["./modules/wiki/client"],
-      "@radas/module-wiki/*": ["./modules/wiki/client/*"]
+      "@radas/module-profile/*": ["./modules/profile/client/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next", ".wxt"]

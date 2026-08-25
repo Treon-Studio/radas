@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RiLayoutGridLine as LayoutTemplate, RiRefreshLine as RefreshCw, RiCloseLine as X, RiFileCodeLine as FileCode, RiSaveLine as Save, RiFileCopyLine as Copy, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiGitMergeLine as Workflow, RiFullscreenLine as Maximize2, RiFullscreenExitLine as Minimize2 } from "@remixicon/react";
@@ -251,10 +252,11 @@ export function TemplateDialog({
 
   const updateNodes = (name: string, rows: NodeRow[]) => setValues({ ...values, [name]: rows });
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
       <div
-        className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col"
+        className="bg-[var(--color-card)] border-2 border-[var(--color-border)] pxl-card-shadow pxl-corner-md shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] gap-3 flex-wrap">
@@ -580,7 +582,8 @@ export function TemplateDialog({
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 

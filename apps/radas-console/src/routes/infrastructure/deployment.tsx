@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { RiPlayLine as Play, RiRefreshLine as RefreshCw, RiFolderLine as Folder, RiServerLine as Server, RiLockLine as Lock, RiClipboardLine as ClipboardList, RiLayoutGridLine as LayoutTemplate, RiCloseLine as X, RiTerminalBoxLine as Terminal } from "@remixicon/react";
 import { toast } from "sonner";

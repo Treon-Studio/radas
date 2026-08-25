@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { RiCloseLine as X, RiSaveLine as Save, RiPlayLine as Play, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { CheckboxInput } from "@/components/ui/checkbox";
@@ -89,7 +90,7 @@ export function BlueprintFormDialog({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col"
+        className="bg-[var(--color-background)] border-2 border-[var(--color-border)] pxl-corner-md pxl-card-shadow shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

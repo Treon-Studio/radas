@@ -10,6 +10,7 @@ import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { api, getStoredUser, setToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { minimizeWindow, maximizeWindow, closeWindow } from "@/lib/desktopBridge";
 
 type StoredUser = { username?: string; email?: string; roles?: string[]; role_details?: { name: string }[] };
 type Org = { id: string; name: string; role: string };
@@ -35,8 +36,12 @@ export function AppHeader() {
         setOrgs(d.orgs ?? []);
         const stored = window.localStorage.getItem("active_org_id");
         const match = d.orgs?.find((o) => o.id === stored);
-        if (match) setActiveOrg(match.id);
-        else if (d.orgs?.[0]) setActiveOrg(d.orgs[0].id);
+        if (match) {
+          setActiveOrg(match.id);
+        } else if (d.orgs?.[0]) {
+          setActiveOrg(d.orgs[0].id);
+          window.localStorage.setItem("active_org_id", d.orgs[0].id);
+        }
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -96,7 +101,7 @@ export function AppHeader() {
   ];
 
   return (
-    <div className="flex flex-col shrink-0 border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/85 backdrop-blur-md">
+    <div className="relative z-20 flex flex-col shrink-0 border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/85 backdrop-blur-md">
       {/* Single Layer Header (Height 48px, h-12) */}
       <header className="h-12 flex items-center justify-between px-6 gap-4">
         <div className="flex items-center gap-3 min-w-0 h-full">
@@ -123,32 +128,33 @@ export function AppHeader() {
                   onClick: () => setNewProjectOpen(true),
                 }}
                 triggerClassName="h-7 text-xs border-none hover:bg-[var(--color-muted)] bg-transparent shadow-none"
+                panelClassName="min-w-[220px]"
                 align="start"
               />
             )}
           </div>
-
-          {/* Primary horizontal tabs */}
-          <nav className="hidden md:flex items-center gap-1.5 h-full ml-4">
-            {primaryTabs.map((tab) => {
-              const active = activeSection === tab.key;
-              return (
-                <Link
-                  key={tab.key}
-                  to={tab.to}
-                  className={cn(
-                    "px-3 h-7 flex items-center text-[11px] font-mono uppercase tracking-wider pxl-corner-sm transition-all duration-100",
-                    active
-                      ? "text-[var(--color-primary)] font-bold bg-[var(--color-primary)]/10 border-b-2 border-[var(--color-primary)]"
-                      : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
+
+        {/* Layer 1 Primary Top Nav Tabs */}
+        <nav className="hidden md:flex items-center gap-1.5 h-full font-mono text-xs">
+          {primaryTabs.map((tab) => {
+            const active = activeSection === tab.key;
+            return (
+              <Link
+                key={tab.key}
+                to={tab.to}
+                className={cn(
+                  "flex items-center h-8 px-3.5 text-xs uppercase tracking-wider pxl-corner-sm transition-all duration-150 select-none",
+                  active
+                    ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold pxl-shadow"
+                    : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
 
         {/* Right controls */}
         <div className="flex items-center gap-2 h-full">
@@ -212,6 +218,31 @@ export function AppHeader() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Retro PXL Window Control Buttons (Minimize / Maximize / Close) */}
+          <div className="flex items-center gap-1.5 border-l-2 border-[var(--color-border)] pl-2.5">
+            <button
+              onClick={minimizeWindow}
+              className="h-6 w-6 pxl-corner-sm bg-amber-500/20 text-amber-500 border border-amber-500/50 hover:bg-amber-500 hover:text-black flex items-center justify-center font-bold text-xs transition-colors"
+              title="Minimize Window"
+            >
+              _
+            </button>
+            <button
+              onClick={maximizeWindow}
+              className="h-6 w-6 pxl-corner-sm bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 hover:bg-emerald-500 hover:text-black flex items-center justify-center font-bold text-xs transition-colors"
+              title="Maximize Window"
+            >
+              □
+            </button>
+            <button
+              onClick={closeWindow}
+              className="h-6 w-6 pxl-corner-sm bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white flex items-center justify-center font-bold text-xs transition-colors"
+              title="Close to Pet Widget"
+            >
+              ✕
+            </button>
           </div>
         </div>
       </header>

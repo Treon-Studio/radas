@@ -14,6 +14,7 @@ type LoginResponse = {
   access_token?: string;
   refresh_token?: string;
   token?: string;
+  active_org_id?: string;
   user?: CurrentUser;
   message?: string;
 };
@@ -23,10 +24,14 @@ type LoginResponse = {
  * POST /api/auth/login { username, password } → { access_token, refresh_token, user }
  */
 export async function login(username: string, password: string): Promise<CurrentUser> {
+  clearSession();
   const res = await api<LoginResponse>("POST", "/api/auth/login", { username, password });
   const token = res.access_token ?? res.token;
   if (!token) throw new Error(res.message || "Invalid response from server");
   setToken(token, res.refresh_token ?? null);
+  if (res.active_org_id && typeof window !== "undefined") {
+    window.localStorage.setItem("active_org_id", res.active_org_id);
+  }
 
   let user = res.user ?? null;
   if (!user) {

@@ -33,6 +33,8 @@ export function clearSession() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
+  window.localStorage.removeItem("current_project_id");
+  window.localStorage.removeItem("active_org_id");
   notifyAuthChanged();
 }
 
