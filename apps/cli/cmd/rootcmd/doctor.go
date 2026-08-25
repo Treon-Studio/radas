@@ -23,6 +23,10 @@ var DoctorCmd = &cobra.Command{
 checking configuration directories, toolchain installations (Go, Node, OpenTofu, Ansible, Docker),
 RADAS API server reachability, and system resource headroom.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		spin := utils.NewSpinner("🩺 Running comprehensive RADAS diagnostic health checks...")
+		spin.Start()
+		defer spin.Stop()
+
 		fmt.Println("============================================================")
 		fmt.Println("                 RADAS DOCTOR DIAGNOSTICS                   ")
 		fmt.Println("============================================================")

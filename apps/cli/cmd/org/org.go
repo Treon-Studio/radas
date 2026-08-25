@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the organization group.
@@ -47,6 +48,9 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "List organizations accessible to the current user",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("🏢 Fetching accessible organizations from RADAS API...")
+		spin.Start()
+
 		c := getClient()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -57,6 +61,7 @@ var listCmd = &cobra.Command{
 		}
 
 		_ = c.Get(ctx, "/api/orgs", &resp)
+		spin.Stop()
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "ORG ID\tSLUG\tNAME\tYOUR ROLE\tACTIVE")

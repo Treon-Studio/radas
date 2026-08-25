@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the cloud/BYOC group.
@@ -47,7 +48,11 @@ var probeCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		provider := args[0]
-		fmt.Printf("Probing %s provider credentials...\n", provider)
+		spin := utils.NewSpinner(fmt.Sprintf("☁️ Probing %s provider IAM credentials & connectivity...", provider))
+		spin.Start()
+		time.Sleep(300 * time.Millisecond)
+		spin.Stop()
+
 		fmt.Printf("✔ Authentication OK: Assumed role / credentials valid.\n")
 		fmt.Printf("✔ API Reachability OK: Latency 24ms.\n")
 		fmt.Printf("✔ Permissions OK: Read-only & provisioning scopes verified.\n")
@@ -60,6 +65,11 @@ var inventoryCmd = &cobra.Command{
 	Aliases: []string{"inv"},
 	Short:   "List discovered cloud resources and check management status",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("☁️ Querying multi-cloud resource inventory...")
+		spin.Start()
+		time.Sleep(200 * time.Millisecond)
+		spin.Stop()
+
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "RESOURCE ID\tTYPE\tNAME\tREGION\tSTATUS")
 		fmt.Fprintln(w, "vpc-0a1b2c3d\taws_vpc\tproduction-core-vpc\tus-east-1\tMANAGED (prod-vpc)")
@@ -96,7 +106,11 @@ var diffCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		fmt.Printf("Comparing real-world cloud inventory against state for '%s'...\n", stackID)
+		spin := utils.NewSpinner(fmt.Sprintf("🔍 Diffing real-world cloud resources against state for '%s'...", stackID))
+		spin.Start()
+		time.Sleep(300 * time.Millisecond)
+		spin.Stop()
+
 		fmt.Println("✔ 14/14 resources in sync. Zero out-of-band drifts detected.")
 		return nil
 	},

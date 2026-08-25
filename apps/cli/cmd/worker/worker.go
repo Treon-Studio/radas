@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the worker daemon group.
@@ -48,6 +49,9 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "List active worker daemons in the execution pool",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("⚙️ Querying worker daemons & execution pool...")
+		spin.Start()
+
 		c := getClient()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -58,6 +62,7 @@ var listCmd = &cobra.Command{
 		}
 
 		_ = c.Get(ctx, "/api/workers", &resp)
+		spin.Stop()
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "WORKER ID\tHOSTNAME\tSTATUS\tCAPACITY\tLAST HEARTBEAT")

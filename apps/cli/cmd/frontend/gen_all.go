@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/frontend/generator"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // genConfigPath holds the path to the radas.yml configuration file
@@ -24,6 +25,10 @@ var genAllCmd = &cobra.Command{
 This command reads a radas.yml file and generates all necessary code based on the configuration.
 It will process both design tokens and API specifications as defined in the contract section.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("⚙️ Generating API clients & design tokens from radas.yml...")
+		spin.Start()
+		defer spin.Stop()
+
 		// If no config path provided, try to find radas.yml in current directory
 		if genConfigPath == "" {
 			var err error

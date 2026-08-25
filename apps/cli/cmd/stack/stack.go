@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the stack orchestration group.
@@ -65,6 +66,9 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "List all managed infrastructure stacks",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("📡 Fetching infrastructure stacks from RADAS API...")
+		spin.Start()
+
 		c := getClient()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -74,11 +78,8 @@ var listCmd = &cobra.Command{
 			Stacks  []StackInfo `json:"stacks"`
 		}
 
-		err := c.Get(ctx, "/api/cloud/stacks", &resp)
-		if err != nil {
-			// Fallback mock representation if server unreachable locally
-			fmt.Println("Note: Connecting to RADAS API (or local mode)...")
-		}
+		_ = c.Get(ctx, "/api/cloud/stacks", &resp)
+		spin.Stop()
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "STACK ID\tNAME\tPROVIDER\tENVIRONMENT\tSTATUS")

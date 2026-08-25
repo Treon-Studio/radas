@@ -12,14 +12,20 @@ import (
 	"github.com/raizora/radas/v4/internal/graph"
 	"github.com/raizora/radas/v4/internal/graph/render"
 	"github.com/raizora/radas/v4/internal/graph/render/web"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 func runGraph(cmd *cobra.Command) error {
+	spin := utils.NewSpinner("🕸️ Building workspace dependency graph...")
+	spin.Start()
+
 	projects, _, _, err := loadProjects()
 	if err != nil {
+		spin.Stop()
 		return err
 	}
 	g, err := graph.Build(projects)
+	spin.Stop()
 	if err != nil {
 		return err
 	}

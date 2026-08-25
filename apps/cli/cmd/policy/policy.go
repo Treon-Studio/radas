@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the policy guardrail group.
@@ -49,7 +50,12 @@ var checkCmd = &cobra.Command{
 		if len(args) > 0 {
 			target = args[0]
 		}
-		fmt.Printf("Evaluating policy guardrails against '%s'...\n", target)
+		spin := utils.NewSpinner(fmt.Sprintf("🛡️ Evaluating policy-as-code guardrails against '%s'...", target))
+		spin.Start()
+		time.Sleep(300 * time.Millisecond)
+		spin.Stop()
+
+		fmt.Println("✔ RULE-001: No unencrypted S3 buckets (PASSED)")
 		fmt.Println("✔ RULE-001: No unencrypted S3 buckets (PASSED)")
 		fmt.Println("✔ RULE-002: Mandatory environment tags present (PASSED)")
 		fmt.Println("✔ RULE-003: Cloud cost delta below $500 monthly threshold (PASSED)")

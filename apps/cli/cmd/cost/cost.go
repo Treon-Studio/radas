@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the FinOps cost management group.
@@ -48,12 +49,16 @@ var estimateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
+		spin := utils.NewSpinner(fmt.Sprintf("💰 Estimating FinOps monthly cloud spend for '%s'...", stackID))
+		spin.Start()
+
 		c := getClient()
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
 		var est CostEstimate
 		err := c.Get(ctx, fmt.Sprintf("/api/finops/estimate/%s", stackID), &est)
+		spin.Stop()
 		if err != nil {
 			fmt.Printf("FinOps Cost Estimation for '%s':\n", stackID)
 			fmt.Printf("Monthly Delta:    +$48.50 USD\n")
