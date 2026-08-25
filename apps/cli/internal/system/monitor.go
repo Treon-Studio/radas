@@ -2,7 +2,6 @@ package system
 
 import (
 	"fmt"
-	"math/rand"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -10,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
 )
 
 // ProcessInfo represents a single running process metric
@@ -29,7 +28,6 @@ type LiveMetrics struct {
 	Arch           string
 	CPUCores       int
 	CPUUsagePct    float64
-	PerCoreCPU     []float64
 	TotalRAMBytes  int64
 	UsedRAMBytes   int64
 	ActiveRAMBytes int64
@@ -42,6 +40,10 @@ type LiveMetrics struct {
 	ThermalState   string
 	BatteryPct     int
 	BatteryHealth  string
+	NetRxBytes     uint64
+	NetTxBytes     uint64
+	NetRxSpeed     float64 // B/s
+	NetTxSpeed     float64 // B/s
 	TopProcesses   []ProcessInfo
 }
 
@@ -54,7 +56,6 @@ func FetchLiveMetrics() LiveMetrics {
 		Arch:         runtime.GOARCH,
 		CPUCores:     numCores,
 		ThermalState: "Normal (Nominal)",
-		PerCoreCPU:   make([]float64, numCores),
 	}
 
 	// 1. Disk usage via Statfs
@@ -87,20 +88,6 @@ func FetchLiveMetrics() LiveMetrics {
 					m.CPUUsagePct = pct
 				}
 			}
-		}
-
-		// Calculate per-core variation
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		for c := 0; c < numCores; c++ {
-			variation := (r.Float64() - 0.5) * 15.0
-			coreVal := m.CPUUsagePct + variation
-			if coreVal < 0 {
-				coreVal = 2.0
-			}
-			if coreVal > 100 {
-				coreVal = 100.0
-			}
-			m.PerCoreCPU[c] = coreVal
 		}
 
 		// 3. RAM info via sysctl and vm_stat
@@ -175,7 +162,27 @@ func FetchLiveMetrics() LiveMetrics {
 			}
 		}
 
-		// 5. Top processes via ps
+		// 5. Network Rx / Tx Bytes via netstat
+		netCmd := exec.Command("netstat", "-n", "-b", "-i")
+		if out, err := netCmd.Output(); err == nil {
+			lines := strings.Split(string(out), "\n")
+			var totalRx, totalTx uint64
+			for _, l := range lines {
+				fields := strings.Fields(l)
+				if len(fields) >= 10 && !strings.HasPrefix(fields[0], "lo") && fields[0] != "Name" {
+					if rx, err := strconv.ParseUint(fields[6], 10, 64); err == nil {
+						totalRx += rx
+					}
+					if tx, err := strconv.ParseUint(fields[9], 10, 64); err == nil {
+						totalTx += tx
+					}
+				}
+			}
+			m.NetRxBytes = totalRx
+			m.NetTxBytes = totalTx
+		}
+
+		// 6. Top processes via ps
 		psCmd := exec.Command("ps", "-arcx", "-o", "%cpu,%mem,pid,comm")
 		if out, err := psCmd.Output(); err == nil {
 			lines := strings.Split(string(out), "\n")
@@ -200,7 +207,7 @@ func FetchLiveMetrics() LiveMetrics {
 						Mem:  mem,
 					})
 					count++
-					if count >= 8 {
+					if count >= 6 {
 						break
 					}
 				}
@@ -212,415 +219,207 @@ func FetchLiveMetrics() LiveMetrics {
 		m.RAMUsagePct = 45.0
 		m.TotalRAMBytes = 16 * 1024 * 1024 * 1024
 		m.UsedRAMBytes = 7 * 1024 * 1024 * 1024
-		for c := 0; c < numCores; c++ {
-			m.PerCoreCPU[c] = 12.0 + float64(c*3)
-		}
+		m.NetRxBytes = 1024 * 1024 * 500
+		m.NetTxBytes = 1024 * 1024 * 120
 	}
 
 	return m
 }
 
-type tickMsg time.Time
-
-type monitorModel struct {
-	metrics    LiveMetrics
-	cpuHistory []float64
-	paused     bool
-	width      int
-	height     int
-}
-
-// NewMonitorModel initializes the live TUI dashboard model
-func NewMonitorModel() monitorModel {
-	m := monitorModel{
-		metrics:    FetchLiveMetrics(),
-		cpuHistory: make([]float64, 60),
-		width:      100,
-		height:     30,
-	}
-	for i := range m.cpuHistory {
-		m.cpuHistory[i] = m.metrics.CPUUsagePct
-	}
-	return m
-}
-
-func (m monitorModel) Init() tea.Cmd {
-	return tea.Batch(
-		tea.EnterAltScreen,
-		tickCmd(),
-	)
-}
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-func (m monitorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		case "r":
-			m.metrics = FetchLiveMetrics()
-			m.appendCPUHistory(m.metrics.CPUUsagePct)
-		case " ":
-			m.paused = !m.paused
-		}
-	case tea.WindowSizeMsg:
-		if msg.Width > 0 {
-			m.width = msg.Width
-		}
-		if msg.Height > 0 {
-			m.height = msg.Height
-		}
-	case tickMsg:
-		if !m.paused {
-			m.metrics = FetchLiveMetrics()
-			m.appendCPUHistory(m.metrics.CPUUsagePct)
-		}
-		return m, tickCmd()
-	}
-	return m, nil
-}
-
-func (m *monitorModel) appendCPUHistory(val float64) {
-	if len(m.cpuHistory) >= 60 {
-		m.cpuHistory = append(m.cpuHistory[1:], val)
+func FormatSpeedStr(bps float64) string {
+	if bps < 1024 {
+		return fmt.Sprintf("%.0f B/s", bps)
+	} else if bps < 1024*1024 {
+		return fmt.Sprintf("%.1f KB/s", bps/1024)
 	} else {
-		m.cpuHistory = append(m.cpuHistory, val)
+		return fmt.Sprintf("%.1f MB/s", bps/(1024*1024))
 	}
 }
 
-// RenderBrailleGraph plots continuous multi-row Braille curves like btop / termui
-func RenderBrailleGraph(history []float64, widthCols int, heightRows int) []string {
-	totalDotWidth := widthCols * 2
-	totalDotHeight := heightRows * 4
-
-	grid := make([][]rune, heightRows)
-	for r := 0; r < heightRows; r++ {
-		grid[r] = make([]rune, widthCols)
-		for c := 0; c < widthCols; c++ {
-			grid[r][c] = 0x2800 // Base empty Braille char
-		}
-	}
-
-	data := make([]float64, totalDotWidth)
-	hLen := len(history)
-	for dx := 0; dx < totalDotWidth; dx++ {
-		if hLen == 0 {
-			data[dx] = 0
-		} else {
-			srcIdx := int(float64(dx) / float64(totalDotWidth) * float64(hLen))
-			if srcIdx >= hLen {
-				srcIdx = hLen - 1
-			}
-			data[dx] = history[srcIdx]
-		}
-	}
-
-	// Sub-pixel dot mapping matrix [subY][subX]
-	dotMap := [4][2]rune{
-		{0x01, 0x08},
-		{0x02, 0x10},
-		{0x04, 0x20},
-		{0x40, 0x80},
-	}
-
-	for dx := 0; dx < totalDotWidth; dx++ {
-		val := data[dx]
-		if val < 0 {
-			val = 0
-		}
-		if val > 100 {
-			val = 100
-		}
-
-		dotY := int((val / 100.0) * float64(totalDotHeight-1))
-		prevY := dotY
-		if dx > 0 {
-			pVal := data[dx-1]
-			if pVal < 0 {
-				pVal = 0
-			}
-			if pVal > 100 {
-				pVal = 100
-			}
-			prevY = int((pVal / 100.0) * float64(totalDotHeight-1))
-		}
-
-		minY, maxY := dotY, prevY
-		if minY > maxY {
-			minY, maxY = maxY, minY
-		}
-
-		for y := minY; y <= maxY; y++ {
-			invertedY := (totalDotHeight - 1) - y
-			cellRow := invertedY / 4
-			subY := invertedY % 4
-			cellCol := dx / 2
-			subX := dx % 2
-
-			if cellRow >= 0 && cellRow < heightRows && cellCol >= 0 && cellCol < widthCols {
-				grid[cellRow][cellCol] |= dotMap[subY][subX]
-			}
-		}
-	}
-
-	// Color gradient per row
-	rowColors := []lipgloss.Color{
-		lipgloss.Color("#FF5F56"), // Top (High load - Red)
-		lipgloss.Color("#FFBD2E"), // Mid-High (Yellow)
-		lipgloss.Color("#00ADD8"), // Mid (Cyan)
-		lipgloss.Color("#04B575"), // Low (Green)
-		lipgloss.Color("#04B575"), // Bottom (Green)
-	}
-
-	lines := make([]string, heightRows)
-	for r := 0; r < heightRows; r++ {
-		var sb strings.Builder
-		colorIdx := r
-		if colorIdx >= len(rowColors) {
-			colorIdx = len(rowColors) - 1
-		}
-		style := lipgloss.NewStyle().Foreground(rowColors[colorIdx])
-
-		for c := 0; c < widthCols; c++ {
-			sb.WriteRune(grid[r][c])
-		}
-		lines[r] = style.Render(sb.String())
-	}
-	return lines
-}
-
-func renderGaugeBar(pct float64, width int, filledColor lipgloss.Color) string {
-	if width < 5 {
-		width = 15
-	}
-	filledLen := int((pct / 100.0) * float64(width))
-	if filledLen > width {
-		filledLen = width
-	}
-	if filledLen < 0 {
-		filledLen = 0
-	}
-	emptyLen := width - filledLen
-
-	filledStyle := lipgloss.NewStyle().Foreground(filledColor)
-	emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
-
-	return filledStyle.Render(strings.Repeat("█", filledLen)) + emptyStyle.Render(strings.Repeat("░", emptyLen))
-}
-
-// DrawBox constructs a pixel-perfect terminal box around content lines with ZERO word-wrapping
-func DrawBox(title string, contentLines []string, width int, borderColor lipgloss.Color, titleColor lipgloss.Color) []string {
-	if width < 20 {
-		width = 20
-	}
-	innerW := width - 2 // width excluding left & right borders '│'
-
-	bStyle := lipgloss.NewStyle().Foreground(borderColor)
-	tStyle := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
-
-	// Top Border: ┌─ TITLE ───────────────────┐
-	headerTitle := ""
-	titleLen := 0
-	if title != "" {
-		headerTitle = " " + tStyle.Render(title) + " "
-		titleLen = len(title) + 2
-	}
-
-	fillLen := innerW - 1 - titleLen
-	if fillLen < 0 {
-		fillLen = 0
-	}
-
-	topBorder := bStyle.Render("┌─") + headerTitle + bStyle.Render(strings.Repeat("─", fillLen)+"┐")
-
-	var result []string
-	result = append(result, topBorder)
-
-	// Content Rows
-	for _, line := range contentLines {
-		visLen := lipgloss.Width(line)
-		if visLen > innerW {
-			line = lipgloss.NewStyle().MaxWidth(innerW).Render(line)
-			visLen = lipgloss.Width(line)
-		}
-		pad := innerW - visLen
-		if pad < 0 {
-			pad = 0
-		}
-
-		rowStr := bStyle.Render("│") + line + strings.Repeat(" ", pad) + bStyle.Render("│")
-		result = append(result, rowStr)
-	}
-
-	// Bottom Border: └────────────────────────────┘
-	botBorder := bStyle.Render("└" + strings.Repeat("─", innerW) + "┘")
-	result = append(result, botBorder)
-
-	return result
-}
-
-// JoinBoxLines combines two box slices side-by-side line by line
-func JoinBoxLines(leftBox []string, rightBox []string) string {
-	maxRows := len(leftBox)
-	if len(rightBox) > maxRows {
-		maxRows = len(rightBox)
-	}
-
-	var sb strings.Builder
-	for r := 0; r < maxRows; r++ {
-		lLine := ""
-		if r < len(leftBox) {
-			lLine = leftBox[r]
-		}
-		rLine := ""
-		if r < len(rightBox) {
-			rLine = rightBox[r]
-		}
-		sb.WriteString(lLine + " " + rLine + "\n")
-	}
-	return sb.String()
-}
-
-func (m monitorModel) View() string {
-	termWidth := m.width
-	if termWidth < 80 {
-		termWidth = 80
-	}
-
-	// Colors
-	headerBg := lipgloss.Color("#6C5CE7")
-	borderColor := lipgloss.Color("#00CEC9")
-	accentColor := lipgloss.Color("#74B9FF")
-	subTextColor := lipgloss.Color("#888888")
-
-	// Top Banner
-	nowStr := m.metrics.Timestamp.Format("15:04:05 MST")
-	statusStr := "LIVE"
-	if m.paused {
-		statusStr = "PAUSED"
-	}
-	bannerText := fmt.Sprintf(" ⚡ RADAS SYSTEM MONITOR  │  %s  │  OS: %s (%s)  │  Status: %s ", nowStr, m.metrics.OSVersion, m.metrics.Arch, statusStr)
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(headerBg).Render(bannerText) + "  " +
-		lipgloss.NewStyle().Foreground(subTextColor).Render("[q] Exit  [space] Pause  [r] Refresh")
-
-	// 1. Top CPU Box
-	cpuBoxWidth := termWidth - 2
-	if cpuBoxWidth < 70 {
-		cpuBoxWidth = 70
-	}
-
-	// Inner graph width: box width - 2 borders - 2 padding - 8 Y-axis label chars = cpuBoxWidth - 12
-	chartGraphWidth := cpuBoxWidth - 12
-	if chartGraphWidth < 30 {
-		chartGraphWidth = 30
-	}
-
-	graphLines := RenderBrailleGraph(m.cpuHistory, chartGraphWidth, 5)
-
-	var cpuContent []string
-	cpuContent = append(cpuContent, lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render(
-		fmt.Sprintf("CPU Load: %5.1f%%   [Cores: %d | Thermals: %s | Batt: %d%% (%s)]",
-			m.metrics.CPUUsagePct, m.metrics.CPUCores, m.metrics.ThermalState, m.metrics.BatteryPct, m.metrics.BatteryHealth)))
-
-	yAxisLabels := []string{" 100% ┤", "  75% ┤", "  50% ┤", "  25% ┤", "   0% ┴"}
-	for i := 0; i < 5; i++ {
-		cpuContent = append(cpuContent, lipgloss.NewStyle().Foreground(subTextColor).Render(yAxisLabels[i])+graphLines[i])
-	}
-
-	// Per-Core CPU Gauges Line
-	var coreItems []string
-	for i, cVal := range m.metrics.PerCoreCPU {
-		cColor := lipgloss.Color("#04B575")
-		if cVal > 75 {
-			cColor = lipgloss.Color("#FF5F56")
-		} else if cVal > 50 {
-			cColor = lipgloss.Color("#FFBD2E")
-		}
-		cStyle := lipgloss.NewStyle().Foreground(cColor)
-		coreItems = append(coreItems, fmt.Sprintf("C%d:%s", i, cStyle.Render(fmt.Sprintf("%3.0f%%", cVal))))
-	}
-	cpuContent = append(cpuContent, lipgloss.NewStyle().Foreground(subTextColor).Render("Cores: ")+strings.Join(coreItems, "  "))
-
-	topCpuBox := DrawBox("📈 REALTIME CPU LOAD HISTORY (0-100%)", cpuContent, cpuBoxWidth, borderColor, accentColor)
-
-	// 2. Bottom Row Split: Left (Memory & Storage) and Right (Process Table)
-	halfWidth := (termWidth - 3) / 2
-	if halfWidth < 40 {
-		halfWidth = 40
-	}
-
-	// Memory Panel Content
-	ramColor := lipgloss.Color("#0984E3")
-	if m.metrics.RAMUsagePct > 80 {
-		ramColor = lipgloss.Color("#D63031")
-	} else if m.metrics.RAMUsagePct > 60 {
-		ramColor = lipgloss.Color("#FDCB6E")
-	}
-
-	// innerW = halfWidth - 2
-	gaugeLen := halfWidth - 22
-	if gaugeLen < 10 {
-		gaugeLen = 10
-	}
-
-	ramBar := renderGaugeBar(m.metrics.RAMUsagePct, gaugeLen, ramColor)
-	diskBar := renderGaugeBar(m.metrics.DiskUsagePct, gaugeLen, lipgloss.Color("#00CEC9"))
-
-	var memContent []string
-	memContent = append(memContent, fmt.Sprintf("RAM  [%s] %5.1f%%", ramBar, m.metrics.RAMUsagePct))
-	memContent = append(memContent, lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Used: %s / Total: %s", FormatBytes(m.metrics.UsedRAMBytes), FormatBytes(m.metrics.TotalRAMBytes))))
-	memContent = append(memContent, lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Wired: %s │ Active: %s │ Free: %s", FormatBytes(m.metrics.WiredRAMBytes), FormatBytes(m.metrics.ActiveRAMBytes), FormatBytes(m.metrics.FreeRAMBytes))))
-	memContent = append(memContent, "")
-	memContent = append(memContent, fmt.Sprintf("DISK [%s] %5.1f%%", diskBar, m.metrics.DiskUsagePct))
-	memContent = append(memContent, lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Free: %.1f GB │ Total: %.1f GB", m.metrics.DiskFreeGB, m.metrics.DiskTotalGB)))
-
-	leftMemBox := DrawBox("🧠 MEMORY & STORAGE", memContent, halfWidth, borderColor, lipgloss.Color("#FDCB6E"))
-
-	// Process Table Panel Content
-	var procContent []string
-	procContent = append(procContent, lipgloss.NewStyle().Bold(true).Foreground(subTextColor).Render(
-		fmt.Sprintf("%-6s  %-16s %6s %6s", "PID", "COMMAND", "%CPU", "%MEM")))
-	procContent = append(procContent, lipgloss.NewStyle().Foreground(subTextColor).Render(strings.Repeat("─", halfWidth-4)))
-
-	for i, p := range m.metrics.TopProcesses {
-		if i >= 5 {
-			break
-		}
-		pColor := lipgloss.Color("#FFFFFF")
-		if p.CPU > 20.0 {
-			pColor = lipgloss.Color("#FF5F56")
-		} else if p.CPU > 5.0 {
-			pColor = lipgloss.Color("#FFBD2E")
-		}
-		pStyle := lipgloss.NewStyle().Foreground(pColor)
-		procContent = append(procContent, pStyle.Render(fmt.Sprintf("%-6s  %-16s %6.1f %6.1f", p.PID, truncateStr(p.Name, 16), p.CPU, p.Mem)))
-	}
-
-	rightProcBox := DrawBox("🔥 TOP PROCESSES (BY %CPU)", procContent, halfWidth, borderColor, lipgloss.Color("#E17055"))
-
-	// Join Panels Line-by-Line
-	cpuBoxStr := strings.Join(topCpuBox, "\n")
-	bottomRowStr := JoinBoxLines(leftMemBox, rightProcBox)
-
-	return fmt.Sprintf("%s\n\n%s\n%s", header, cpuBoxStr, bottomRowStr)
-}
-
-func truncateStr(s string, max int) string {
-	if len(s) > max {
-		return s[:max-3] + "..."
-	}
-	return s
-}
-
-// RunSystemMonitor launches the Bubble Tea interactive system monitor
+// RunSystemMonitor launches termui dashboard with real-time grid widgets
 func RunSystemMonitor() error {
-	p := tea.NewProgram(NewMonitorModel(), tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	if err := ui.Init(); err != nil {
+		return fmt.Errorf("failed to initialize termui: %w", err)
+	}
+	defer ui.Close()
+
+	// Initial metrics & trackers
+	metrics := FetchLiveMetrics()
+	prevRxBytes := metrics.NetRxBytes
+	prevTxBytes := metrics.NetTxBytes
+	prevTime := metrics.Timestamp
+
+	// History data arrays (60 samples)
+	historyLen := 60
+	cpuData := make([]float64, historyLen)
+	netRxData := make([]float64, historyLen)
+	netTxData := make([]float64, historyLen)
+
+	for i := range cpuData {
+		cpuData[i] = metrics.CPUUsagePct
+	}
+
+	// 1. Header Banner Paragraph
+	header := widgets.NewParagraph()
+	header.Title = " ⚡ RADAS SYSTEM MONITOR (btop engine) "
+	header.Text = fmt.Sprintf("OS: %s (%s) │ Cores: %d │ Thermals: %s │ Batt: %d%% (%s) │ Press 'q' to quit",
+		metrics.OSVersion, metrics.Arch, metrics.CPUCores, metrics.ThermalState, metrics.BatteryPct, metrics.BatteryHealth)
+	header.BorderStyle.Fg = ui.ColorCyan
+
+	// 2. Realtime CPU LineChart (Plot)
+	cpuChart := widgets.NewPlot()
+	cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", metrics.CPUUsagePct)
+	cpuChart.Data = make([][]float64, 1)
+	cpuChart.Data[0] = cpuData
+	cpuChart.LineColors[0] = ui.ColorGreen
+	cpuChart.AxesColor = ui.ColorWhite
+	cpuChart.BorderStyle.Fg = ui.ColorCyan
+
+	// 3. RAM & Disk Gauges
+	ramGauge := widgets.NewGauge()
+	ramGauge.Title = " 🧠 RAM Usage "
+	ramGauge.Percent = int(metrics.RAMUsagePct)
+	ramGauge.BarColor = ui.ColorBlue
+	ramGauge.BorderStyle.Fg = ui.ColorYellow
+
+	diskGauge := widgets.NewGauge()
+	diskGauge.Title = " 💾 Root Disk Storage "
+	diskGauge.Percent = int(metrics.DiskUsagePct)
+	diskGauge.BarColor = ui.ColorCyan
+	diskGauge.BorderStyle.Fg = ui.ColorYellow
+
+	memDetails := widgets.NewParagraph()
+	memDetails.Title = " 📊 Memory Breakdown "
+	memDetails.Text = fmt.Sprintf("Used: %s / Total: %s\nWired: %s │ Active: %s │ Free: %s",
+		FormatBytes(metrics.UsedRAMBytes), FormatBytes(metrics.TotalRAMBytes),
+		FormatBytes(metrics.WiredRAMBytes), FormatBytes(metrics.ActiveRAMBytes), FormatBytes(metrics.FreeRAMBytes))
+	memDetails.BorderStyle.Fg = ui.ColorYellow
+
+	// 4. Realtime Network LineChart (Plot) & Info
+	netChart := widgets.NewPlot()
+	netChart.Title = " 🌐 Live Network Traffic (KB/s) "
+	netChart.Data = make([][]float64, 2)
+	netChart.Data[0] = netRxData // Download Rx (Cyan)
+	netChart.Data[1] = netTxData // Upload Tx (Magenta)
+	netChart.LineColors[0] = ui.ColorCyan
+	netChart.LineColors[1] = ui.ColorMagenta
+	netChart.AxesColor = ui.ColorWhite
+	netChart.BorderStyle.Fg = ui.ColorCyan
+
+	netInfo := widgets.NewParagraph()
+	netInfo.Title = " 🌐 Network Speed & Traffic "
+	netInfo.Text = fmt.Sprintf("📥 Rx (Down): 0 B/s  │  Total Rx: %s\n📤 Tx (Up)  : 0 B/s  │  Total Tx: %s",
+		FormatBytes(int64(metrics.NetRxBytes)), FormatBytes(int64(metrics.NetTxBytes)))
+	netInfo.BorderStyle.Fg = ui.ColorCyan
+
+	// 5. Top Processes Table
+	procTable := widgets.NewTable()
+	procTable.Title = " 🔥 Top Active Processes (by %CPU) "
+	procTable.Rows = [][]string{
+		{"PID", "COMMAND", "%CPU", "%MEM"},
+	}
+	for _, p := range metrics.TopProcesses {
+		procTable.Rows = append(procTable.Rows, []string{
+			p.PID, p.Name, fmt.Sprintf("%.1f", p.CPU), fmt.Sprintf("%.1f", p.Mem),
+		})
+	}
+	procTable.TextStyle = ui.NewStyle(ui.ColorWhite)
+	procTable.RowSeparator = false
+	procTable.BorderStyle.Fg = ui.ColorRed
+
+	// Build termui Grid Layout
+	grid := ui.NewGrid()
+	termWidth, termHeight := ui.TerminalDimensions()
+	grid.SetRect(0, 0, termWidth, termHeight)
+
+	grid.Set(
+		ui.NewRow(0.08, header),
+		ui.NewRow(0.37, cpuChart),
+		ui.NewRow(0.30,
+			ui.NewCol(0.5,
+				ui.NewRow(0.33, ramGauge),
+				ui.NewRow(0.33, diskGauge),
+				ui.NewRow(0.34, memDetails),
+			),
+			ui.NewCol(0.5,
+				ui.NewRow(0.70, netChart),
+				ui.NewRow(0.30, netInfo),
+			),
+		),
+		ui.NewRow(0.25, procTable),
+	)
+
+	ui.Render(grid)
+
+	// Event Loop
+	uiEvents := ui.PollEvents()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case e := <-uiEvents:
+			switch e.ID {
+			case "q", "<C-c>", "<Escape>":
+				return nil
+			case "<Resize>":
+				payload := e.Payload.(ui.Resize)
+				grid.SetRect(0, 0, payload.Width, payload.Height)
+				ui.Clear()
+				ui.Render(grid)
+			}
+		case <-ticker.C:
+			newMetrics := FetchLiveMetrics()
+			deltaTime := newMetrics.Timestamp.Sub(prevTime).Seconds()
+
+			var rxBps, txBps float64
+			if deltaTime > 0 && prevRxBytes > 0 {
+				rxDiff := float64(newMetrics.NetRxBytes - prevRxBytes)
+				txDiff := float64(newMetrics.NetTxBytes - prevTxBytes)
+				if rxDiff >= 0 {
+					rxBps = rxDiff / deltaTime
+				}
+				if txDiff >= 0 {
+					txBps = txDiff / deltaTime
+				}
+			}
+			prevRxBytes = newMetrics.NetRxBytes
+			prevTxBytes = newMetrics.NetTxBytes
+			prevTime = newMetrics.Timestamp
+
+			// Append to history
+			cpuData = append(cpuData[1:], newMetrics.CPUUsagePct)
+			netRxData = append(netRxData[1:], rxBps/1024.0) // in KB/s
+			netTxData = append(netTxData[1:], txBps/1024.0) // in KB/s
+
+			// Update Widgets
+			cpuChart.Title = fmt.Sprintf(" 📈 CPU Load History (Current: %.1f%%) ", newMetrics.CPUUsagePct)
+			cpuChart.Data[0] = cpuData
+
+			ramGauge.Percent = int(newMetrics.RAMUsagePct)
+			diskGauge.Percent = int(newMetrics.DiskUsagePct)
+
+			memDetails.Text = fmt.Sprintf("Used: %s / Total: %s\nWired: %s │ Active: %s │ Free: %s",
+				FormatBytes(newMetrics.UsedRAMBytes), FormatBytes(newMetrics.TotalRAMBytes),
+				FormatBytes(newMetrics.WiredRAMBytes), FormatBytes(newMetrics.ActiveRAMBytes), FormatBytes(newMetrics.FreeRAMBytes))
+
+			netChart.Data[0] = netRxData
+			netChart.Data[1] = netTxData
+			netInfo.Text = fmt.Sprintf("📥 Rx (Down): %s  │  Total Rx: %s\n📤 Tx (Up)  : %s  │  Total Tx: %s",
+				FormatSpeedStr(rxBps), FormatBytes(int64(newMetrics.NetRxBytes)),
+				FormatSpeedStr(txBps), FormatBytes(int64(newMetrics.NetTxBytes)))
+
+			// Update Table
+			procRows := [][]string{{"PID", "COMMAND", "%CPU", "%MEM"}}
+			for _, p := range newMetrics.TopProcesses {
+				procRows = append(procRows, []string{
+					p.PID, p.Name, fmt.Sprintf("%.1f", p.CPU), fmt.Sprintf("%.1f", p.Mem),
+				})
+			}
+			procTable.Rows = procRows
+
+			// Re-render Grid
+			ui.Render(grid)
+		}
+	}
 }
