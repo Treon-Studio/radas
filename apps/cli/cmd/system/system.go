@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	internalsys "github.com/raizora/radas/v4/internal/system"
+	"github.com/raizora/radas/v4/internal/utils"
 )
 
 // Cmd is the parent command for the system cleaner and optimizer group.
@@ -41,7 +42,11 @@ var cleanCmd = &cobra.Command{
 			}
 		}
 
+		spin := utils.NewSpinner("🧹 Scanning developer caches, logs, and temporary files...")
+		spin.Start()
 		report := internalsys.RunCleanup(targets, dryRun)
+		spin.Stop()
+
 		_ = internalsys.RecordCleanupAppended(report)
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
@@ -72,7 +77,8 @@ var purgeCmd = &cobra.Command{
 	Short: "Deep purge heavy build caches across Docker, Xcode, pnpm, Go, Cargo, and Android SDK",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		fmt.Println("Initiating deep developer cache purge...")
+		spin := utils.NewSpinner("🔥 Deep purging developer toolchain & Docker caches...")
+		spin.Start()
 
 		homeDir, _ := os.UserHomeDir()
 		targets := internalsys.GetCleanTargets(homeDir)
@@ -81,6 +87,7 @@ var purgeCmd = &cobra.Command{
 
 		// Also run Docker prune
 		dockerMsg, _ := internalsys.DockerPrune(dryRun)
+		spin.Stop()
 
 		fmt.Printf("✔ Cleaned %s from developer toolchain caches.\n", internalsys.FormatBytes(report.TotalCleanedBytes))
 		if dockerMsg != "" {
@@ -104,9 +111,11 @@ var analyzeCmd = &cobra.Command{
 		minBytes := minMB * 1024 * 1024
 
 		absDir, _ := filepath.Abs(dir)
-		fmt.Printf("Scanning disk usage in '%s' (threshold: > %d MB)...\n\n", absDir, minMB)
+		spin := utils.NewSpinner(fmt.Sprintf("🔍 Scanning disk usage in '%s' (threshold: > %d MB)...", absDir, minMB))
+		spin.Start()
 
 		items, err := internalsys.AnalyzeDisk(absDir, minBytes, 2)
+		spin.Stop()
 		if err != nil {
 			return err
 		}
@@ -145,7 +154,10 @@ var statusCmd = &cobra.Command{
 	Aliases: []string{"info", "health"},
 	Short:   "Display macOS hardware status, CPU, RAM pressure, thermals, and battery",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		spin := utils.NewSpinner("📊 Querying macOS hardware sensors & thermal state...")
+		spin.Start()
 		health := internalsys.GetSystemHealth()
+		spin.Stop()
 
 		fmt.Println("============================================================")
 		fmt.Println("              RADAS SYSTEM & HARDWARE STATUS               ")
@@ -168,8 +180,11 @@ var optimizeCmd = &cobra.Command{
 	Aliases: []string{"tune", "boost"},
 	Short:   "Run macOS performance optimizations (DNS flush, QuickLook reset, memory purge)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Running system performance optimizations...")
+		spin := utils.NewSpinner("⚡ Running macOS system performance optimizations (DNS, RAM, QuickLook)...")
+		spin.Start()
 		res := internalsys.RunOptimization()
+		spin.Stop()
+
 		for _, msg := range res.Messages {
 			fmt.Println(" ", msg)
 		}
@@ -187,7 +202,12 @@ var uninstallCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		homeDir, _ := os.UserHomeDir()
 
+		spin := utils.NewSpinner(fmt.Sprintf("🗑️ Scanning application leftovers for '%s'...", appName))
+		spin.Start()
 		leftovers := internalsys.FindAppLeftovers(appName, homeDir)
+		sz, cnt, err := internalsys.DeepUninstall(leftovers, dryRun)
+		spin.Stop()
+
 		if leftovers.AppPath == "" && len(leftovers.Leftovers) == 0 {
 			fmt.Printf("No app or leftovers found matching '%s'.\n", appName)
 			return nil
@@ -201,7 +221,6 @@ var uninstallCmd = &cobra.Command{
 			fmt.Printf("  [Leftover]    %s\n", l)
 		}
 
-		sz, cnt, err := internalsys.DeepUninstall(leftovers, dryRun)
 		if err != nil {
 			return err
 		}
@@ -289,7 +308,10 @@ var dsStoreCmd = &cobra.Command{
 			dir = args[0]
 		}
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		spin := utils.NewSpinner(fmt.Sprintf("🧹 Scanning & cleaning .DS_Store clutter files in '%s'...", dir))
+		spin.Start()
 		sz, cnt, err := internalsys.CleanDSStore(dir, dryRun)
+		spin.Stop()
 		if err != nil {
 			return err
 		}
