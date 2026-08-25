@@ -29,27 +29,7 @@
       "@radas/config": ["./packages/config/src"],
       "@radas/config/*": ["./packages/config/src/*"],
       "@radas/validation": ["./packages/validation/src"],
-      "@radas/validation/*": ["./packages/validation/src/*"],
-      "@radas/module-attendance": ["./modules/attendance/client"],
-      "@radas/module-attendance/*": ["./modules/attendance/client/*"],
-      "@radas/module-auth": ["./modules/auth/client"],
-      "@radas/module-auth/*": ["./modules/auth/client/*"],
-      "@radas/module-chat": ["./modules/chat/client"],
-      "@radas/module-chat/*": ["./modules/chat/client/*"],
-      "@radas/module-company-info": ["./modules/company-info/client"],
-      "@radas/module-company-info/*": ["./modules/company-info/client/*"],
-      "@radas/module-drive": ["./modules/drive/client"],
-      "@radas/module-drive/*": ["./modules/drive/client/*"],
-      "@radas/module-hiring": ["./modules/hiring/client"],
-      "@radas/module-hiring/*": ["./modules/hiring/client/*"],
-      "@radas/module-links": ["./modules/links/client"],
-      "@radas/module-links/*": ["./modules/links/client/*"],
-      "@radas/module-notifications": ["./modules/notifications/client"],
-      "@radas/module-notifications/*": ["./modules/notifications/client/*"],
-      "@radas/module-okr": ["./modules/okr/client"],
-      "@radas/module-okr/*": ["./modules/okr/client/*"],
-      "@radas/module-profile": ["./modules/profile/client"],
-      "@radas/module-profile/*": ["./modules/profile/client/*"]
+      "@radas/validation/*": ["./packages/validation/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next", ".wxt"]
