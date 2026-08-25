@@ -5,10 +5,7 @@ import {
   RiFileCopyLine as Copy,
   RiArrowRightLine as ArrowRight,
   RiGithubFill as Github,
-  RiCpuLine as Cpu,
-  RiCloudLine as Cloud,
-  RiSparklingLine as Zap,
-  RiShieldCheckLine as Shield,
+  RiArrowDownSLine as ChevronDown,
 } from "@remixicon/react";
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
@@ -18,6 +15,58 @@ import { TextScramble } from "@/components/landing/TextScramble";
 import { PxlCloudIcon, PxlCpuIcon, PxlSparklesIcon, PxlShieldIcon } from "@/components/ui/pxl-icons";
 
 export const Route = createFileRoute("/")({ component: WebLandingPage });
+
+const faqs = [
+  {
+    question: "What is RADAS?",
+    answer: "RADAS is a self-hosted enterprise infrastructure orchestrator and GitOps control plane that unifies OpenTofu, Ansible, BYOC code registries, and FinOps cost protections into a single platform.",
+  },
+  {
+    question: "Can RADAS be completely self-hosted air-gapped?",
+    answer: "Yes! RADAS is designed for air-gapped deployments using PostgreSQL for persistence and local Go worker daemons. No telemetry or credentials ever leave your environment.",
+  },
+  {
+    question: "How does the BYOC Code Registry work?",
+    answer: "Similar to shadcn/ui for frontend, the RADAS BYOC registry copies reusable OpenTofu modules and Ansible roles directly into your stack repositories rather than using fragile external references.",
+  },
+  {
+    question: "Which cloud providers are supported for FinOps cost estimations?",
+    answer: "RADAS FinOps supports automated pricing calculators, anomaly forecasts, and budget spike alerts for AWS, GCP, Azure, and ByteDC infrastructure.",
+  },
+  {
+    question: "How do Feature Flags integrate with infrastructure stacks?",
+    answer: "RADAS Feature Flags provide granular user whitelisting, percentage rollouts, and instant emergency kill-switches with sub-millisecond evaluation directly in your execution pipelines.",
+  },
+  {
+    question: "Is RADAS compatible with existing CI/CD tools?",
+    answer: "Yes! RADAS provides Atlantis-style GitOps PR plan commenting, GitHub Actions / GitLab webhooks, and pre-apply validation hooks that plug into any existing CI/CD flow.",
+  },
+];
+
+function FAQItem({ faq }: { faq: typeof faqs[0] }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border-b border-[#D1D1D1] py-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left flex items-center justify-between font-mono text-sm font-bold text-[#2A2A2A] hover:text-[#107A4D] transition-colors group"
+      >
+        <span className="flex-1 font-pixel-grid">{faq.question}</span>
+        <ChevronDown
+          className={`h-5 w-5 text-[#6B7280] transition-transform duration-200 ml-4 flex-shrink-0 ${
+            isOpen ? "rotate-180 text-[#107A4D]" : ""
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="pt-3 text-xs sm:text-sm text-[#6B7280] font-sans leading-relaxed">
+          {faq.answer}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function WebLandingPage() {
   const navigate = useNavigate();
@@ -72,6 +121,7 @@ function WebLandingPage() {
                 <Github className="h-4 w-4" /> GitHub
               </a>
               <a href="#capabilities" className="hover:text-[#107A4D] transition-colors hidden sm:inline">Capabilities</a>
+              <a href="#faq" className="hover:text-[#107A4D] transition-colors hidden sm:inline">FAQ</a>
               {isAuth ? (
                 <Button
                   onClick={() => navigate({ to: "/dashboard" })}
@@ -156,7 +206,7 @@ function WebLandingPage() {
                   Everything you need for infrastructure delivery.
                 </h2>
 
-                {/* Clean 4-Card Grid with PXL Animated Icons */}
+                {/* Clean 4-Card Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-6 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50">
                     <div className="h-9 w-9 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-4 border border-[#107A4D]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
@@ -204,12 +254,40 @@ function WebLandingPage() {
                 </div>
               </div>
             </section>
+
+            {/* Dashed Separator Line */}
+            <hr className="border-dashed border-[#D1D1D1] w-full" />
+
+            {/* 4. FAQ SECTION */}
+            <section id="faq" className="relative w-full py-14 sm:py-16">
+              <div className="px-4 sm:px-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                  <div>
+                    <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
+                      <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
+                    </div>
+                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid">
+                      Frequently Asked Questions
+                    </h2>
+                    <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed">
+                      Have questions about deployment, security, or cloud provider support?
+                    </p>
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    {faqs.map((faq, index) => (
+                      <FAQItem key={index} faq={faq} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
           </main>
 
           {/* Dashed Separator Line */}
           <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-          {/* 4. FOOTER */}
+          {/* 5. FOOTER */}
           <footer className="mt-auto px-4 sm:px-8 py-8 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6B7280] font-mono">
             <div className="flex items-center gap-2">
               <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
