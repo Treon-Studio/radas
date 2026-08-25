@@ -47,24 +47,31 @@ function FAQItem({ faq }: { faq: typeof faqs[0] }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border-b border-[#D1D1D1] py-4">
+    <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-5 mb-5 transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50 group">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left flex items-center justify-between font-mono text-sm font-bold text-[#2A2A2A] hover:text-[#107A4D] transition-colors group"
+        className="w-full text-left flex items-center justify-between font-mono text-sm font-bold text-[#2A2A2A] transition-colors cursor-pointer"
       >
-        <span className="flex-1 font-pixel-grid">{faq.question}</span>
+        <div className="flex items-center gap-3 flex-1 pr-2">
+          <span className="pxl-corner-sm bg-[#107A4D] text-white px-2 py-0.5 text-xs font-pixel-grid font-bold shrink-0 shadow-sm">
+            ?
+          </span>
+          <span className="font-pixel-grid text-sm sm:text-base text-[#2A2A2A] group-hover:text-[#107A4D] transition-colors leading-snug">
+            {faq.question}
+          </span>
+        </div>
         <ChevronDown
-          className={`h-5 w-5 text-[#6B7280] transition-transform duration-200 ml-4 flex-shrink-0 ${
+          className={`h-5 w-5 text-[#6B7280] transition-transform duration-200 shrink-0 ${
             isOpen ? "rotate-180 text-[#107A4D]" : ""
           }`}
         />
       </button>
       {isOpen && (
-        <div className="pt-3 text-xs sm:text-sm text-[#6B7280] font-sans leading-relaxed">
+        <div className="pt-4 mt-3 border-t border-dashed border-[#D1D1D1] text-xs sm:text-sm text-[#6B7280] font-sans leading-relaxed">
           {faq.answer}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -258,23 +265,29 @@ function WebLandingPage() {
             {/* Dashed Separator Line */}
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-            {/* 4. FAQ SECTION */}
-            <section id="faq" className="relative w-full py-14 sm:py-16">
+            {/* 4. NES RETRO FAQ SECTION */}
+            <section id="faq" className="relative w-full py-16 sm:py-20">
               <div className="px-4 sm:px-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
                   <div>
                     <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
-                      <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
+                      <TextScramble text="[ NES FAQ DATABASE ]" className="font-mono" />
                     </div>
-                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid">
+                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
                       Frequently Asked Questions
                     </h2>
                     <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed">
-                      Have questions about deployment, security, or cloud provider support?
+                      Questions regarding multi-cloud deployment, air-gapped security, feature flags, or custom OpenTofu modules.
                     </p>
+
+                    <div className="pt-6">
+                      <div className="inline-flex items-center gap-2 pxl-corner-sm bg-[#2A2A2A] text-white px-3 py-1.5 text-xs font-pixel-grid font-bold shadow-sm">
+                        <span>8-BIT HELP DESK</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="lg:col-span-2">
+                  <div className="lg:col-span-2 space-y-2">
                     {faqs.map((faq, index) => (
                       <FAQItem key={index} faq={faq} />
                     ))}
