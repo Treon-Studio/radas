@@ -13,7 +13,6 @@ import {
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { getToken } from "@/lib/api";
 import { TextScramble } from "@/components/landing/TextScramble";
 
@@ -64,10 +63,7 @@ function WebLandingPage() {
               <div className="p-1.5 pxl-corner-sm bg-[#2A2A2A] text-white">
                 <RadasLogo size={20} />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight font-pixel-grid text-[#2A2A2A]">RADAS</span>
-                <Badge variant="success" className="pxl-corner-sm text-[10px] font-pixel-grid bg-[#107A4D] text-white">v3.2.0</Badge>
-              </div>
+              <span className="font-extrabold text-lg tracking-tight font-pixel-grid text-[#2A2A2A]">RADAS</span>
             </div>
 
             <div className="flex items-center gap-6 text-xs sm:text-sm font-mono text-[#6B7280]">
