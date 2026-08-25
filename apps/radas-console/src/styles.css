@@ -88,18 +88,18 @@
   font-family: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace !important;
   color: #2a2a2a;
   text-shadow: 
-    2px 2px 0px #ffffff,
-    4px 4px 0px #107a4d,
-    5px 5px 0px #2a2a2a;
+    1.5px 1.5px 0px #ffffff,
+    2.5px 2.5px 0px #107a4d,
+    3.5px 3.5px 0px #2a2a2a;
 }
 
 .pixel-gamer-green {
   font-family: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace !important;
   color: #107a4d;
   text-shadow: 
-    2px 2px 0px #ffffff,
-    4px 4px 0px #2a2a2a,
-    5px 5px 0px #107a4d;
+    1.5px 1.5px 0px #ffffff,
+    2.5px 2.5px 0px #2a2a2a,
+    3.5px 3.5px 0px #107a4d;
 }
 
 /* Codédex Yellow 8-Bit Pixel Button */

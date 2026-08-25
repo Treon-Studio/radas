@@ -151,10 +151,10 @@ function WebLandingPage() {
             {/* 2. MINIMALIST HERO SECTION */}
             <section className="relative w-full py-20 sm:py-28 text-center px-6 sm:px-12">
               <div className="max-w-3xl mx-auto space-y-6">
-                {/* 3D Pixel Gamer Title */}
-                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-wider uppercase leading-tight">
+                {/* 3D Pixel Gamer Title (Scaled down by 40%) */}
+                <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
                   <span className="pixel-gamer-title block">ENTERPRISE CLOUD</span>
-                  <span className="pixel-gamer-green block mt-2">PLATFORM</span>
+                  <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
                 </h1>
 
                 {/* Subtitle */}
