@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Console static bundle
-        working-directory: apps/radas-console
+        working-directory: apps/console
         run: pnpm build
 
   go-tests:
@@ -60,7 +60,7 @@ jobs:
         run: go build -o bin/radas .
 
       - name: Test Go Worker
-        working-directory: apps/opensible-worker
+        working-directory: apps/worker
         run: go test ./...
 
   python-tests:
@@ -77,14 +77,14 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        working-directory: apps/opensible-server
+        working-directory: apps/server
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
       - name: Run Python API tests
-        working-directory: apps/opensible-server
+        working-directory: apps/server
         env:
           TEST_DATABASE_URL: sqlite:///:memory:
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef

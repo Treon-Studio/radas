@@ -57,7 +57,7 @@ jobs:
             required_env VAULT_SERVER_SECRET
             required_env PREVIEW_WEBHOOK_SECRET
 
-            cd apps/opensible-server
+            cd apps/server
             .venv/bin/pip install -q -r requirements.txt
             # Validate presence and strength without sourcing or printing the
             # values. The file remains the sole source for PM2/container env.
@@ -119,7 +119,7 @@ jobs:
             cd /opt/radas
             pm2 delete radas-server || true
             pm2 start ecosystem.config.cjs --only radas-server --update-env
-            cd /opt/radas/apps/opensible-worker
+            cd /opt/radas/apps/worker
             go mod tidy && go build -o /opt/radas/bin/radas-worker ./cmd/worker
             # Recreate the worker from ecosystem.config.cjs so every secret is
             # loaded from /opt/radas/.env rather than an inherited PM2 env.

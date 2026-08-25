@@ -32,7 +32,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Console (API -> prod domain)
-        working-directory: apps/radas-console
+        working-directory: apps/console
         env:
           VITE_API_BASE: https://api-radas.treonstudio.com
         run: pnpm build
@@ -46,5 +46,5 @@ jobs:
             echo "CLOUDFLARE_API_TOKEN is not set — skipping Cloudflare Pages deployment."
             exit 0
           fi
-          cd apps/radas-console
+          cd apps/console
           npx wrangler pages deploy dist --project-name radas-console
