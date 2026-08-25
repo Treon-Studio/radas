@@ -2,7 +2,7 @@ name: RADAS CI
 
 on:
   push:
-    branches: [ main, develop, 'feat/*' ]
+    branches: [ develop, 'feat/*' ]
   pull_request:
     branches: [ main, develop ]
 
