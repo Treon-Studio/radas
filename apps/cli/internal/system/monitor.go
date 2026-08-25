@@ -397,7 +397,7 @@ func RenderBrailleGraph(history []float64, widthCols int, heightRows int) []stri
 
 func renderGaugeBar(pct float64, width int, filledColor lipgloss.Color) string {
 	if width < 5 {
-		width = 15
+		width = 20
 	}
 	filledLen := int((pct / 100.0) * float64(width))
 	if filledLen > width {
@@ -415,7 +415,6 @@ func renderGaugeBar(pct float64, width int, filledColor lipgloss.Color) string {
 }
 
 func (m monitorModel) View() string {
-	// Screen width calculations
 	termWidth := m.width
 	if termWidth < 80 {
 		termWidth = 80
@@ -427,7 +426,7 @@ func (m monitorModel) View() string {
 	accentColor := lipgloss.Color("#74B9FF")
 	subTextColor := lipgloss.Color("#888888")
 
-	boxStyle := lipgloss.NewStyle().
+	boxBorder := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1)
@@ -443,11 +442,8 @@ func (m monitorModel) View() string {
 		lipgloss.NewStyle().Foreground(subTextColor).Render("[q] Exit  [space] Pause  [r] Refresh")
 
 	// 1. Full-Width Top CPU Panel
-	cpuBoxWidth := termWidth - 4
-	if cpuBoxWidth < 70 {
-		cpuBoxWidth = 70
-	}
-	chartGraphWidth := cpuBoxWidth - 16
+	// Reserve 4 chars for box border/padding, and 8 chars for Y-axis label (" 100% ┤ ")
+	chartGraphWidth := termWidth - 14
 	if chartGraphWidth < 30 {
 		chartGraphWidth = 30
 	}
@@ -458,7 +454,7 @@ func (m monitorModel) View() string {
 	cpuPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render(fmt.Sprintf("📈 CPU LOAD HISTORY: %5.1f%%   [Cores: %d | Thermals: %s | Batt: %d%% (%s)]\n",
 		m.metrics.CPUUsagePct, m.metrics.CPUCores, m.metrics.ThermalState, m.metrics.BatteryPct, m.metrics.BatteryHealth)))
 
-	yAxisLabels := []string{"100% ┤ ", " 75% ┤ ", " 50% ┤ ", " 25% ┤ ", "  0% ┴ "}
+	yAxisLabels := []string{" 100% ┤ ", "  75% ┤ ", "  50% ┤ ", "  25% ┤ ", "   0% ┴ "}
 	for i := 0; i < 5; i++ {
 		cpuPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(yAxisLabels[i]) + graphLines[i] + "\n")
 	}
@@ -473,16 +469,17 @@ func (m monitorModel) View() string {
 			cColor = lipgloss.Color("#FFBD2E")
 		}
 		cStyle := lipgloss.NewStyle().Foreground(cColor)
-		coreItems = append(coreItems, fmt.Sprintf("C%d:%s", i, cStyle.Render(fmt.Sprintf("%3.0f%%", cVal))))
+		coreItems = append(coreItems, fmt.Sprintf("C%d: %s", i, cStyle.Render(fmt.Sprintf("%3.0f%%", cVal))))
 	}
 	cpuPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render("Cores: ") + strings.Join(coreItems, "  "))
 
-	// 2. Bottom Left Memory & Storage Box
-	bottomBoxWidth := (termWidth - 6) / 2
-	if bottomBoxWidth < 40 {
-		bottomBoxWidth = 40
+	// 2. Bottom Row Split: Left (Memory & Storage) and Right (Process Table)
+	halfWidth := (termWidth - 6) / 2
+	if halfWidth < 40 {
+		halfWidth = 40
 	}
 
+	// Memory Gauge Bar
 	ramColor := lipgloss.Color("#0984E3")
 	if m.metrics.RAMUsagePct > 80 {
 		ramColor = lipgloss.Color("#D63031")
@@ -490,28 +487,28 @@ func (m monitorModel) View() string {
 		ramColor = lipgloss.Color("#FDCB6E")
 	}
 
-	gaugeLen := bottomBoxWidth - 24
-	if gaugeLen < 10 {
-		gaugeLen = 10
+	gaugeLen := halfWidth - 18
+	if gaugeLen < 12 {
+		gaugeLen = 12
 	}
 
 	ramBar := renderGaugeBar(m.metrics.RAMUsagePct, gaugeLen, ramColor)
 	diskBar := renderGaugeBar(m.metrics.DiskUsagePct, gaugeLen, lipgloss.Color("#00CEC9"))
 
 	var memPanel strings.Builder
-	memPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FDCB6E")).Render("🧠 MEMORY & STORAGE\n"))
-	memPanel.WriteString(fmt.Sprintf("RAM  [%s] %5.1f%%\n", ramBar, m.metrics.RAMUsagePct))
-	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Used: %s / Total: %s\n", FormatBytes(m.metrics.UsedRAMBytes), FormatBytes(m.metrics.TotalRAMBytes))))
-	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Wired: %s │ Active: %s │ Free: %s\n\n", FormatBytes(m.metrics.WiredRAMBytes), FormatBytes(m.metrics.ActiveRAMBytes), FormatBytes(m.metrics.FreeRAMBytes))))
+	memPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FDCB6E")).Render("🧠 MEMORY & STORAGE\n\n"))
+	memPanel.WriteString(fmt.Sprintf("RAM   [%s] %5.1f%%\n", ramBar, m.metrics.RAMUsagePct))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("      Used: %s / Total: %s\n", FormatBytes(m.metrics.UsedRAMBytes), FormatBytes(m.metrics.TotalRAMBytes))))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("      Wired: %s │ Active: %s │ Free: %s\n\n", FormatBytes(m.metrics.WiredRAMBytes), FormatBytes(m.metrics.ActiveRAMBytes), FormatBytes(m.metrics.FreeRAMBytes))))
 
-	memPanel.WriteString(fmt.Sprintf("DISK [%s] %5.1f%%\n", diskBar, m.metrics.DiskUsagePct))
-	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Free: %.1f GB │ Total: %.1f GB", m.metrics.DiskFreeGB, m.metrics.DiskTotalGB)))
+	memPanel.WriteString(fmt.Sprintf("DISK  [%s] %5.1f%%\n", diskBar, m.metrics.DiskUsagePct))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("      Free: %.1f GB │ Total: %.1f GB", m.metrics.DiskFreeGB, m.metrics.DiskTotalGB)))
 
-	// 3. Bottom Right Process Table Box
+	// Process Table Panel
 	var procPanel strings.Builder
-	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E17055")).Render("🔥 TOP PROCESSES (BY %CPU)\n"))
-	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(subTextColor).Render(fmt.Sprintf("%6s  %-18s %6s %6s\n", "PID", "COMMAND", "%CPU", "%MEM")))
-	procPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(strings.Repeat("─", bottomBoxWidth-4) + "\n"))
+	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E17055")).Render("🔥 TOP PROCESSES (BY %CPU)\n\n"))
+	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(subTextColor).Render(fmt.Sprintf("%-6s  %-18s %6s %6s\n", "PID", "COMMAND", "%CPU", "%MEM")))
+	procPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(strings.Repeat("─", 42) + "\n"))
 
 	for i, p := range m.metrics.TopProcesses {
 		if i >= 6 {
@@ -524,13 +521,13 @@ func (m monitorModel) View() string {
 			pColor = lipgloss.Color("#FFBD2E")
 		}
 		pStyle := lipgloss.NewStyle().Foreground(pColor)
-		procPanel.WriteString(pStyle.Render(fmt.Sprintf("%6s  %-18s %6.1f %6.1f\n", p.PID, truncateStr(p.Name, 18), p.CPU, p.Mem)))
+		procPanel.WriteString(pStyle.Render(fmt.Sprintf("%-6s  %-18s %6.1f %6.1f\n", p.PID, truncateStr(p.Name, 18), p.CPU, p.Mem)))
 	}
 
-	// Layout Rendering
-	cpuBox := boxStyle.Width(cpuBoxWidth).Render(cpuPanel.String())
-	memBox := boxStyle.Width(bottomBoxWidth).Render(memPanel.String())
-	procBox := boxStyle.Width(bottomBoxWidth).Render(procPanel.String())
+	// Build Boxes
+	cpuBox := boxBorder.Render(cpuPanel.String())
+	memBox := boxBorder.Render(memPanel.String())
+	procBox := boxBorder.Render(procPanel.String())
 
 	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, memBox, " ", procBox)
 
