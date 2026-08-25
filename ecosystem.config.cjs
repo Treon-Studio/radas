@@ -114,7 +114,7 @@ module.exports = {
   apps: [
     {
       name: "radas-server",
-      cwd: "./apps/opensible-server",
+      cwd: "./apps/server",
       script: ".venv/bin/python",
       args: "app.py",
       interpreter: "none",
@@ -138,7 +138,7 @@ module.exports = {
     },
     {
       name: "radas-console",
-      cwd: "./apps/radas-console",
+      cwd: "./apps/console",
       script: "./node_modules/vite/bin/vite.js",
       args: "dev --port 8080 --host 0.0.0.0",
       env: {
@@ -147,7 +147,7 @@ module.exports = {
     },
     {
       name: "radas-worker",
-      cwd: "./apps/opensible-worker",
+      cwd: "./apps/worker",
       script: "./bin/worker",
       args: "",
       env: {
