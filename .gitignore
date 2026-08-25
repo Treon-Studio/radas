@@ -144,8 +144,10 @@ ssh-keys/
 apps/opensible-worker/bin/
 apps/cli/bin/
 bin/
-graphify-out/cache/
+graphify-out/
+.zcode/
 .opencode/
 .gemini/
 .vite/
+
 
