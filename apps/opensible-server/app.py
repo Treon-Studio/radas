@@ -103,12 +103,12 @@ try:
         app,
         resources={r"/api/*": {"origins": _cors_allowed_origins}},
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Project-Id", "X-Request-Id", "X-Trace-Id", "Idempotency-Key"],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         vary_header=True,
     )
 except ImportError:
-    # flask-cors , 
+    # flask-cors
     import warnings
     warnings.warn("flask-cors not installed. CORS support disabled. Install with: pip install flask-cors")
 
@@ -125,7 +125,7 @@ def handle_api_options_preflight():
             response.headers['Vary'] = 'Origin'
         response.headers['Access-Control-Allow-Headers'] = request.headers.get(
             'Access-Control-Request-Headers',
-            'Content-Type, Authorization, X-Requested-With, Accept',
+            'Content-Type, Authorization, X-Requested-With, Accept, X-Project-Id, X-Request-Id, X-Trace-Id, Idempotency-Key',
         )
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
         return response
@@ -144,7 +144,7 @@ def add_api_cors_headers(response):
         response.headers['Vary'] = 'Origin'
 
     requested_headers = request.headers.get('Access-Control-Request-Headers')
-    response.headers['Access-Control-Allow-Headers'] = requested_headers or 'Content-Type, Authorization, X-Requested-With, Accept'
+    response.headers['Access-Control-Allow-Headers'] = requested_headers or 'Content-Type, Authorization, X-Requested-With, Accept, X-Project-Id, X-Request-Id, X-Trace-Id, Idempotency-Key'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
     return response
 

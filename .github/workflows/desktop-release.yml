@@ -1,0 +1,79 @@
+name: RADAS Desktop Release
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Tag Version (e.g. desktop-v1.0.0)'
+        required: true
+        default: 'desktop-v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+          - os: windows-latest
+            target: win
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build RADAS Console static bundle
+        run: pnpm --filter @radas/console build
+
+      - name: Build Desktop App Vite bundle
+        run: |
+          cd apps/desktop-app
+          pnpm build
+
+      - name: Package Desktop Binaries (${{ matrix.target }})
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd apps/desktop-app
+          npx electron-builder --${{ matrix.target }}
+
+      - name: Upload Release Binaries to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/desktop-v') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.ref_name || inputs.version }}
+          name: RADAS Desktop Release ${{ github.ref_name || inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            apps/desktop-app/release/*.dmg
+            apps/desktop-app/release/*.zip
+            apps/desktop-app/release/*.AppImage
+            apps/desktop-app/release/*.deb
+            apps/desktop-app/release/*.exe
+          generate_release_notes: true

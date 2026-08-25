@@ -20,17 +20,17 @@ type Props = {
   panelClassName?: string;
   label?: string;
   align?: "start" | "end";
-  /** Open the panel above the trigger instead of below. */
   side?: "top" | "bottom";
-  /** Render a custom prefix inside the trigger (e.g. an icon). */
   prefix?: React.ReactNode;
-  /** Render an action at the bottom of the options panel. */
   action?: { label: string; icon?: React.ReactNode; onClick: () => void };
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 };
 
-/** A keyboard-accessible, single-select combobox that preserves the existing Select API. */
+/**
+ * PixelSelect - Cloned from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
+ * Accessible retro combobox with pixelated drop shadow, monospace font, and sharp borders.
+ */
 export function Select({
   value,
   onChange,
@@ -146,16 +146,6 @@ export function Select({
           moveActive(-1);
         }
         return;
-      case "Home":
-        event.preventDefault();
-        if (!open) openSelect();
-        setActiveIndex(enabledIndexes[0] ?? -1);
-        return;
-      case "End":
-        event.preventDefault();
-        if (!open) openSelect();
-        setActiveIndex(enabledIndexes[enabledIndexes.length - 1] ?? -1);
-        return;
       default:
         break;
     }
@@ -176,8 +166,8 @@ export function Select({
   const activeOptionId = open && activeIndex >= 0 ? optionId(activeIndex) : undefined;
 
   return (
-    <div ref={rootRef} className={cn("relative inline-block", className)}>
-      {label && <label htmlFor={triggerId} className="mb-1 block text-xs font-medium text-[var(--color-muted-foreground)]">{label}</label>}
+    <div ref={rootRef} className={cn("relative inline-block w-full", className)}>
+      {label && <label htmlFor={triggerId} className="mb-1 block font-mono text-xs font-medium text-[var(--color-muted-foreground)]">{label}</label>}
       <button
         ref={triggerRef}
         id={triggerId}
@@ -194,11 +184,11 @@ export function Select({
         aria-describedby={ariaDescribedby}
         aria-invalid={ariaInvalid || undefined}
         className={cn(
-          "w-full inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md",
-          "bg-[var(--color-card)] border border-[var(--color-border)] text-sm text-[var(--color-foreground)]",
-          "transition-colors hover:bg-[var(--color-muted)]/40",
-          "focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/30 focus:border-[var(--color-ring)]",
-          disabled && "opacity-60 cursor-not-allowed",
+          "w-full inline-flex items-center justify-between gap-2 h-9 px-3 pxl-corner-sm font-mono text-sm",
+          "bg-[var(--color-card)] border-2 border-[var(--color-border)] text-[var(--color-foreground)] pxl-shadow transition-all duration-100",
+          "hover:border-[var(--color-charcoal)] hover:bg-[var(--color-muted)]/50",
+          "focus:outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-ring)]/40 focus:ring-offset-1 focus:ring-offset-[var(--color-background)]",
+          disabled && "opacity-50 cursor-not-allowed",
           triggerClassName,
         )}
       >
@@ -208,22 +198,22 @@ export function Select({
             {current?.label ?? placeholder}
           </span>
         </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[var(--color-muted-foreground)] transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[var(--color-muted-foreground)] transition-transform duration-100", open && "rotate-180")} />
       </button>
 
       {open && (
         <div
           className={cn(
-            "absolute z-50 min-w-full max-h-72 overflow-auto rounded-md",
-            "bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)] p-1.5",
-            side === "top" ? "bottom-full mb-2" : "top-full mt-2",
+            "absolute z-50 min-w-full max-h-72 overflow-auto pxl-corner-sm",
+            "bg-[var(--color-card)] border-2 border-[var(--color-border)] pxl-card-shadow p-1.5",
+            side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
             align === "end" ? "right-0" : "left-0",
             panelClassName,
           )}
         >
           <div id={listboxId} role="listbox" aria-labelledby={triggerId}>
             {options.length === 0 && (
-              <div className="px-3 py-2 text-sm text-[var(--color-muted-foreground)]">No options</div>
+              <div className="px-3 py-2 font-mono text-xs text-[var(--color-muted-foreground)]">No options</div>
             )}
             {options.map((option, index) => {
               const selected = option.value === value;
@@ -241,10 +231,10 @@ export function Select({
                     close(true);
                   }}
                   className={cn(
-                    "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-left",
-                    "transition-colors",
+                    "w-full flex items-center justify-between gap-3 px-3 py-2 pxl-corner-sm font-mono text-xs text-left cursor-pointer",
+                    "transition-all duration-100",
                     selected
-                      ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
+                      ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold pxl-shadow"
                       : "hover:bg-[var(--color-muted)] text-[var(--color-foreground)]",
                     active && !selected && "bg-[var(--color-muted)]",
                     option.disabled && "opacity-50 cursor-not-allowed",
@@ -253,7 +243,7 @@ export function Select({
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate">{option.label}</span>
                     {option.description && (
-                      <span className="truncate text-[11px] text-[var(--color-muted-foreground)]">{option.description}</span>
+                      <span className="truncate text-[10px] opacity-75">{option.description}</span>
                     )}
                   </span>
                   {selected && <Check className="h-4 w-4 shrink-0" />}
@@ -267,7 +257,7 @@ export function Select({
               <button
                 type="button"
                 onClick={() => { close(); action.onClick(); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-[var(--color-primary)] hover:bg-[var(--color-muted)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 pxl-corner-sm font-mono text-xs text-left text-[var(--color-primary)] hover:bg-[var(--color-muted)] transition-colors"
               >
                 {action.icon}
                 <span className="truncate">{action.label}</span>
@@ -279,3 +269,5 @@ export function Select({
     </div>
   );
 }
+
+export default Select;

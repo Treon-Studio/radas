@@ -1,14 +1,20 @@
 import { forwardRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-/** Accessible checkbox matching the design tokens (accent uses --color-primary). */
+/**
+ * PixelCheckbox - Cloned from Pxlkit UI Kit (https://pxlkit.xyz/ui-kit)
+ * Retro pixel checkbox with sharp corners and custom pixel checkmark styling.
+ */
 export const CheckboxInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
     <input
       ref={ref}
       type="checkbox"
       className={cn(
-        "h-4 w-4 rounded border border-[var(--color-input)] accent-[var(--color-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "h-4 w-4 pxl-corner-sm border-2 border-[var(--color-border)] bg-[var(--color-card)]",
+        "accent-[var(--color-primary)] pxl-input-shadow cursor-pointer",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}
@@ -16,3 +22,4 @@ export const CheckboxInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HT
   )
 );
 CheckboxInput.displayName = "CheckboxInput";
+export default CheckboxInput;

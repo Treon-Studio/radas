@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import logoSvg from "@/assets/opensible-logo.png";
+import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -45,8 +45,8 @@ function ForgotPasswordPage() {
         <div className="w-full max-w-sm space-y-6 flex-1 flex flex-col justify-center">
           {/* Mobile brand */}
           <div className="flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg">
-              <img src={logoSvg} className="h-10 w-10" alt="OpenSible" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)]">
+              <RadasLogo className="h-7 w-7 text-[var(--color-primary)]" />
             </div>
             <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
           </div>
@@ -124,8 +124,8 @@ function ForgotPasswordPage() {
       {/* Right — Branding */}
       <div className="relative hidden lg:flex flex-col justify-between bg-[var(--color-card)] text-[var(--color-foreground)] border-l border-[var(--color-border)] p-12">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg">
-            <img src={logoSvg} className="h-10 w-10" alt="OpenSible" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)]">
+            <RadasLogo className="h-7 w-7 text-[var(--color-primary)]" />
           </div>
           <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
         </div>

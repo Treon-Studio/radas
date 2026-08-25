@@ -139,17 +139,24 @@ module.exports = {
     {
       name: "radas-console",
       cwd: "./apps/radas-console",
-      script: "pnpm",
-      args: "dev",
+      script: "./node_modules/.bin/vite",
+      args: "dev --port 8080 --host",
       env: {
         VITE_API_TARGET: `http://localhost:${SERVER_PORT}`,
       },
     },
     {
+      name: "radas-homepage",
+      cwd: "./apps/homepage",
+      script: "./node_modules/.bin/vite",
+      args: "--port 5173 --host",
+      env: {},
+    },
+    {
       name: "radas-worker",
       cwd: "./apps/opensible-worker",
-      script: "go",
-      args: "run ./cmd/worker",
+      script: "./bin/worker",
+      args: "",
       env: {
         FLASK_ENV: childFlaskEnv,
         WORKER_NAME: "worker-go",

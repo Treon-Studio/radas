@@ -116,7 +116,9 @@ export function createAttemptKey(scope: string, attempt: string): string {
 export async function api<T = unknown>(method: string, path: string, body?: unknown, init?: RequestInit): Promise<T> {
   const token = getToken();
   const projectId = typeof window !== "undefined" ? window.localStorage.getItem("current_project_id") : null;
-  const apiBase = typeof window !== "undefined" ? (import.meta.env.VITE_API_BASE ?? "") : "";
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const configuredBase = typeof window !== "undefined" ? (import.meta.env.VITE_API_BASE ?? "") : "";
+  const apiBase = isLocalhost ? "" : configuredBase;
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(body !== undefined ? { "Content-Type": "application/json" } : {}),

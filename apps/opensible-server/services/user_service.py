@@ -130,6 +130,14 @@ class UserService:
         ).fetchone()
         return self._row_to_user(row) if row else None
 
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        if not email:
+            return None
+        row = self._conn().execute(
+            "SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),)
+        ).fetchone()
+        return self._row_to_user(row) if row else None
+
     def get_all_users(self) -> List[User]:
         rows = self._conn().execute("SELECT * FROM users ORDER BY username").fetchall()
         return [self._row_to_user(r) for r in rows]

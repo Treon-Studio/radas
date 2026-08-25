@@ -1,7 +1,7 @@
 import { RiLogoutBoxRLine as LogOut, RiAddLine as Plus, RiUserSettingsLine as UserCog, RiArrowDownSLine as ChevronDown, RiStackLine as StackLine, RiTeamLine as Team } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
-import logoSvg from "@/assets/opensible-logo.png";
+import { RadasLogo } from "@/components/common/RadasLogo";
 import { Select } from "@/components/ui/select";
 import { getActiveSection } from "@/components/app-shell/NavSections";
 import { useT } from "@/lib/i18n";
@@ -96,12 +96,12 @@ export function AppHeader() {
   ];
 
   return (
-    <div className="flex flex-col shrink-0 border-b border-[var(--color-border)]/60 bg-[var(--color-background)]">
+    <div className="flex flex-col shrink-0 border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/85 backdrop-blur-md">
       {/* Single Layer Header (Height 48px, h-12) */}
       <header className="h-12 flex items-center justify-between px-6 gap-4">
         <div className="flex items-center gap-3 min-w-0 h-full">
           <Link to="/dashboard" className="flex items-center shrink-0">
-            <img src={logoSvg} className="h-6 w-6" alt="OpenSible" />
+            <RadasLogo className="h-6 w-6 text-[var(--color-primary)]" />
           </Link>
           <span className="text-[var(--color-stone)] font-mono text-sm leading-none shrink-0 select-none">/</span>
           <div className="w-[180px] shrink-0">
@@ -129,7 +129,7 @@ export function AppHeader() {
           </div>
 
           {/* Primary horizontal tabs */}
-          <nav className="hidden md:flex items-center gap-1 h-full ml-4">
+          <nav className="hidden md:flex items-center gap-1.5 h-full ml-4">
             {primaryTabs.map((tab) => {
               const active = activeSection === tab.key;
               return (
@@ -137,10 +137,10 @@ export function AppHeader() {
                   key={tab.key}
                   to={tab.to}
                   className={cn(
-                    "px-3 h-8 flex items-center text-xs font-mono uppercase tracking-[0.071em] rounded-md transition-colors",
+                    "px-3 h-7 flex items-center text-[11px] font-mono uppercase tracking-wider pxl-corner-sm transition-all duration-100",
                     active
-                      ? "text-[var(--color-foreground)] font-semibold bg-[var(--color-muted)]/60"
-                      : "text-[var(--color-stone)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]/30"
+                      ? "text-[var(--color-primary)] font-bold bg-[var(--color-primary)]/10 border-b-2 border-[var(--color-primary)]"
+                      : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
                   )}
                 >
                   {tab.label}
