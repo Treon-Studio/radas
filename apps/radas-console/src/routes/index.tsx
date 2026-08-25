@@ -149,35 +149,34 @@ function WebLandingPage() {
           {/* MAIN CONTENT AREA */}
           <main className="flex-1">
             {/* 2. MINIMALIST HERO SECTION */}
-            <section className="relative w-full py-24 sm:py-36 lg:py-40 text-center px-6 sm:px-12">
-              <div className="max-w-3xl mx-auto space-y-8">
+            <section className="relative w-full py-20 sm:py-28 text-center px-6 sm:px-12">
+              <div className="max-w-3xl mx-auto space-y-6">
                 {/* Title */}
-                <h1 className="text-[#2A2A2A] text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight uppercase font-pixel-grid leading-tight">
-                  The Enterprise <br />
-                  <span className="text-[#107A4D]">Cloud Platform</span>
+                <h1 className="text-[#2A2A2A] text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight font-sans">
+                  Enterprise Cloud <span className="text-[#107A4D]">Platform</span>
                 </h1>
 
                 {/* Subtitle */}
-                <p className="text-[#6B7280] text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-                  Unified OpenTofu &amp; Ansible orchestration with cost guards, feature flags, and desktop companions.
+                <p className="text-[#6B7280] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans">
+                  Unified OpenTofu &amp; Ansible infrastructure control plane.
                 </p>
 
                 {/* Minimal CTA Actions */}
-                <div className="flex flex-wrap items-center justify-center gap-5 pt-4">
+                <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
                   <Link to="/login">
-                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-7 py-3.5">
+                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-7 py-3">
                       Open Console <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </Link>
                   <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
-                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3.5">
+                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3">
                       <Github className="h-4 w-4 mr-2" /> View Source
                     </Button>
                   </a>
                 </div>
 
                 {/* Minimal Command Bar */}
-                <div className="pt-10 sm:pt-14 max-w-xl mx-auto">
+                <div className="pt-8 max-w-xl mx-auto">
                   <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
                     <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
                       <span className="text-[#107A4D] font-bold">$</span>
@@ -204,12 +203,12 @@ function WebLandingPage() {
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
             {/* 3. CAPABILITIES GRID */}
-            <section id="capabilities" className="relative w-full py-20 sm:py-28 lg:py-36">
+            <section id="capabilities" className="relative w-full py-16 sm:py-24">
               <div className="px-6 sm:px-12 lg:px-16">
-                <div className="text-sm uppercase tracking-widest font-mono mb-3 text-[#107A4D]">
+                <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
                   <TextScramble text="[ CORE CAPABILITIES ]" className="font-mono" />
                 </div>
-                <h2 className="text-[#2A2A2A] mb-12 sm:mb-16 text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
+                <h2 className="text-[#2A2A2A] mb-10 text-2xl sm:text-4xl font-bold font-sans tracking-tight">
                   Everything you need for infrastructure delivery.
                 </h2>
 
@@ -266,17 +265,17 @@ function WebLandingPage() {
             <hr className="border-dashed border-[#D1D1D1] w-full" />
 
             {/* 4. FAQ SECTION */}
-            <section id="faq" className="relative w-full py-20 sm:py-28 lg:py-36">
+            <section id="faq" className="relative w-full py-16 sm:py-24">
               <div className="px-6 sm:px-12 lg:px-16">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-16 items-start">
                   <div>
-                    <div className="text-sm uppercase tracking-widest font-mono mb-3 text-[#107A4D]">
+                    <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
                       <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
                     </div>
-                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold uppercase font-pixel-grid leading-tight">
+                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold font-sans tracking-tight leading-tight">
                       Frequently Asked Questions
                     </h2>
-                    <p className="text-[#6B7280] text-xs sm:text-sm mt-4 leading-relaxed">
+                    <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed font-sans">
                       Questions regarding multi-cloud deployment, air-gapped security, feature flags, or custom OpenTofu modules.
                     </p>
                   </div>
