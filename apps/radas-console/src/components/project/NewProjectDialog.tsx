@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { RiCloseLine as X, RiFolderAddLine as FolderPlus, RiLoader4Line as Loader2 } from "@remixicon/react";
@@ -38,13 +39,16 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
   const submitting = mutation.isPending;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !submitting && onOpenChange(false)}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+      onClick={() => !submitting && onOpenChange(false)}
+    >
       <div
-        className="w-full max-w-md rounded-md bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)]"
+        className="w-full max-w-md pxl-corner-md bg-[var(--color-card)] border-2 border-[var(--color-border)] pxl-card-shadow overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
@@ -57,7 +61,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
               <div className="text-xs text-[var(--color-muted-foreground)]">A workspace for stacks, playbooks &amp; secrets.</div>
             </div>
           </div>
-          <button className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)]" onClick={() => onOpenChange(false)} aria-label="Close">
+          <button className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[var(--color-muted)] transition-colors" onClick={() => onOpenChange(false)} aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -114,6 +118,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { RiArchiveStackLine as Boxes, RiDownload2Line as Download, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
@@ -116,10 +117,10 @@ export function ImportFromCloudDialog({
     if (fails.length === 0) onClose();
   };
 
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4">
-      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] rounded-lg shadow-xl w-full max-w-5xl border border-[var(--color-border)] mt-12">
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in" onClick={onClose}>
+      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-md shadow-xl w-full max-w-5xl border-2 border-[var(--color-border)] pxl-card-shadow flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2">
             <Boxes className="h-5 w-5" />
@@ -128,7 +129,7 @@ export function ImportFromCloudDialog({
           <button onClick={onClose} aria-label="Close" className="text-xl leading-none text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">×</button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Cloud stack</label>
@@ -228,6 +229,7 @@ export function ImportFromCloudDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

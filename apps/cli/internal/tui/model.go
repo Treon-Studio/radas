@@ -101,7 +101,7 @@ func (m Model) Init() tea.Cmd {
 	if m.chatView != nil {
 		cmds = append(cmds, m.chatView.Init())
 	}
-	cmds = append(cmds, infopanel.CheckRadas(), infopanel.CheckNetwork(), infopanel.CheckMCP())
+	cmds = append(cmds, m.infoPanel.Init(), m.statusBar.Init())
 	return tea.Batch(cmds...)
 }
 
@@ -390,20 +390,20 @@ func (m Model) forwardToChildren(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	}
 
-	switch msg := msg.(type) {
-	case infopanel.NetworkCheckMsg:
-		sub, cmd := m.infoPanel.Update(msg)
-		m.infoPanel = sub
-		m.statusBar = m.statusBar.SetConnected(msg.Connected)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	case infopanel.RadasCheckMsg, infopanel.MCPCheckMsg, infopanel.RefreshMsg:
-		sub, cmd := m.infoPanel.Update(msg)
-		m.infoPanel = sub
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+	subInfo, cmdInfo := m.infoPanel.Update(msg)
+	m.infoPanel = subInfo
+	if cmdInfo != nil {
+		cmds = append(cmds, cmdInfo)
+	}
+
+	subStatus, cmdStatus := m.statusBar.Update(msg)
+	m.statusBar = subStatus
+	if cmdStatus != nil {
+		cmds = append(cmds, cmdStatus)
+	}
+
+	if netMsg, ok := msg.(infopanel.NetworkCheckMsg); ok {
+		m.statusBar = m.statusBar.SetConnected(netMsg.Connected)
 	}
 
 	return m, tea.Batch(cmds...)

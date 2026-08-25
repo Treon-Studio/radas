@@ -142,3 +142,12 @@ ssh-keys/
 **/.encryption_key
 .tanstack/
 apps/opensible-worker/bin/
+apps/cli/bin/
+bin/
+graphify-out/
+.zcode/
+.opencode/
+.gemini/
+.vite/
+
+

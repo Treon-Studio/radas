@@ -1,368 +1,362 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  RiCpuLine as Cpu,
-  RiCloudLine as Cloud,
-  RiSparklingLine as Zap,
-  RiDownload2Line as Download,
-  RiArrowRightLine as ArrowRight,
-  RiShieldCheckLine as ShieldCheck,
-  RiMacbookLine as Apple,
-  RiWindowsLine as Windows,
-  RiCommandLine as Linux,
-  RiExchangeDollarLine as Dollar,
-  RiPulseLine as Pulse,
-  RiTerminalBoxLine as Terminal,
   RiCheckLine as Check,
-  RiRocketLine as Rocket,
+  RiFileCopyLine as Copy,
+  RiArrowRightLine as ArrowRight,
   RiGithubFill as Github,
+  RiArrowDownSLine as ChevronDown,
 } from "@remixicon/react";
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { getToken } from "@/lib/api";
+import { TextScramble } from "@/components/landing/TextScramble";
+import { PxlCloudIcon, PxlCpuIcon, PxlSparklesIcon, PxlShieldIcon } from "@/components/ui/pxl-icons";
 
-export const Route = createFileRoute("/")({ component: LandingPage });
+export const Route = createFileRoute("/")({ component: WebLandingPage });
 
-function LandingPage() {
+const faqs = [
+  {
+    question: "What is RADAS?",
+    answer: "RADAS is a self-hosted infrastructure orchestrator and GitOps control plane that unifies OpenTofu, Ansible, BYOC code registries, and FinOps cost protections into a single platform.",
+  },
+  {
+    question: "Can RADAS be completely self-hosted air-gapped?",
+    answer: "Yes! RADAS is designed for air-gapped deployments using PostgreSQL for persistence and local Go worker daemons. No telemetry or credentials ever leave your environment.",
+  },
+  {
+    question: "How does the BYOC Code Registry work?",
+    answer: "Similar to shadcn/ui for frontend, the RADAS BYOC registry copies reusable OpenTofu modules and Ansible roles directly into your stack repositories rather than using fragile external references.",
+  },
+  {
+    question: "Which cloud providers are supported for FinOps cost estimations?",
+    answer: "RADAS FinOps supports automated pricing calculators, anomaly forecasts, and budget spike alerts for AWS, GCP, Azure, and ByteDC infrastructure.",
+  },
+  {
+    question: "How do Feature Flags integrate with infrastructure stacks?",
+    answer: "RADAS Feature Flags provide granular user whitelisting, percentage rollouts, and instant emergency kill-switches with sub-millisecond evaluation directly in your execution pipelines.",
+  },
+  {
+    question: "Is RADAS compatible with existing CI/CD tools?",
+    answer: "Yes! RADAS provides Atlantis-style GitOps PR plan commenting, GitHub Actions / GitLab webhooks, and pre-apply validation hooks that plug into any existing CI/CD flow.",
+  },
+];
+
+function FAQItem({ faq }: { faq: typeof faqs[0] }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-5 mb-5 transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50 group">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left flex items-center justify-between font-mono text-sm font-bold text-[#2A2A2A] transition-colors cursor-pointer"
+      >
+        <div className="flex items-center gap-3 flex-1 pr-2">
+          <span className="pxl-corner-sm bg-[#107A4D] text-white px-2 py-0.5 text-xs font-pixel-grid font-bold shrink-0 shadow-sm">
+            ?
+          </span>
+          <span className="font-pixel-grid text-sm sm:text-base text-[#2A2A2A] group-hover:text-[#107A4D] transition-colors leading-snug">
+            {faq.question}
+          </span>
+        </div>
+        <ChevronDown
+          className={`h-5 w-5 text-[#6B7280] transition-transform duration-200 shrink-0 ${
+            isOpen ? "rotate-180 text-[#107A4D]" : ""
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="pt-4 mt-3 border-t border-dashed border-[#D1D1D1] text-xs sm:text-sm text-[#6B7280] font-sans leading-relaxed">
+          {faq.answer}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function WebLandingPage() {
   const navigate = useNavigate();
   const [isAuth, setIsAuth] = useState(false);
-  const [activeTab, setActiveTab] = useState<"ai" | "cloud" | "desktop">("ai");
+  const [activeTab, setActiveTab] = useState<"go" | "pnpm" | "curl" | "docker">("go");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setIsAuth(!!getToken());
   }, []);
 
+  const installCommands = {
+    go: "go install github.com/raizora/radas/apps/cli@latest",
+    pnpm: "pnpm dlx @radas/cli create",
+    curl: "curl -fsSL https://radas.internal/install.sh | bash",
+    docker: "docker run -p 5001:5001 -p 8080:8080 radas/stack:latest",
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(installCommands[activeTab]);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)] font-mono selection:bg-[var(--color-primary)] selection:text-[var(--color-primary-foreground)] flex flex-col">
-      {/* Dynamic Grid Background */}
-      <div className="fixed inset-0 pointer-events-none opacity-25 bg-grid-pattern z-0" />
+    <div className="min-h-screen bg-[#F1EFEB] text-[#2A2A2A] font-mono relative selection:bg-[#107A4D] selection:text-white flex flex-col justify-between">
+      {/* Background Radial Grid Dot Pattern */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-30 z-0 bg-grid-pattern"
+        style={{
+          backgroundImage: "radial-gradient(circle, rgba(0, 0, 0, 0.12) 1px, transparent 1px)",
+          backgroundSize: "8px 8px",
+        }}
+      />
 
-      {/* 1. HEADER */}
-      <header className="relative z-20 border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/90 backdrop-blur-md px-6 py-4">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 pxl-corner-sm bg-[var(--color-primary)]/15 border border-[var(--color-primary)]/40 text-[var(--color-primary)]">
-              <RadasLogo size={24} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-wider font-pixel-grid">RADAS</span>
-                <Badge variant="success" className="pxl-corner-sm text-[10px] font-pixel-grid">ULTRA</Badge>
+      {/* Main Outer Container with Outer Bounds */}
+      <div className="relative z-10 mx-auto w-full max-w-[1550px] flex-1 flex flex-col">
+        {/* Main Frame with Side Borders border-x border-[#D1D1D1] */}
+        <div className="border-x border-[#D1D1D1] mx-4 sm:mx-12 md:mx-12 lg:mx-32 xl:mx-40 min-h-screen flex flex-col justify-between bg-[#F1EFEB]">
+          
+          {/* 1. NAVBAR */}
+          <nav className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-[#D1D1D1] bg-[#F1EFEB]">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 pxl-corner-sm bg-[#2A2A2A] text-white">
+                <RadasLogo size={20} />
               </div>
-              <span className="text-[10px] text-[var(--color-muted-foreground)]">Cloud &amp; AI Control Hub</span>
+              <span className="font-extrabold text-lg tracking-tight font-pixel-grid text-[#2A2A2A]">RADAS</span>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            {isAuth ? (
-              <Button
-                onClick={() => navigate({ to: "/dashboard" })}
-                className="pxl-corner-sm pxl-btn-shadow bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold font-pixel-grid"
-              >
-                Ke Dashboard <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            ) : (
-              <>
+            <div className="flex items-center gap-6 text-xs sm:text-sm font-mono text-[#6B7280]">
+              <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-[#107A4D] transition-colors">
+                <Github className="h-4 w-4" /> GitHub
+              </a>
+              <a href="#capabilities" className="hover:text-[#107A4D] transition-colors hidden sm:inline">Capabilities</a>
+              <a href="#faq" className="hover:text-[#107A4D] transition-colors hidden sm:inline">FAQ</a>
+              {isAuth ? (
+                <Button
+                  onClick={() => navigate({ to: "/dashboard" })}
+                  className="pxl-corner-sm pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-xs px-4 py-2"
+                >
+                  Open Console <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
                 <Link to="/login">
-                  <Button variant="outline" className="pxl-corner-sm font-pixel-grid">
-                    Masuk
+                  <Button className="pxl-corner-sm pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1f1f1f] font-bold font-pixel-grid text-xs px-4 py-2">
+                    Sign In <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
                 </Link>
-                <Link to="/login">
-                  <Button className="pxl-corner-sm pxl-btn-shadow bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold font-pixel-grid">
-                    Coba Gratis <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+              )}
+            </div>
+          </nav>
 
-      {/* 2. HERO SECTION (Codédex 16-Bit Pixel Landscape) */}
-      <section className="relative z-10 min-h-[580px] flex flex-col justify-between overflow-hidden border-b-2 border-[#120e00] shadow-2xl bg-[#29a9e0]">
-        {/* Background Pixel Landscape Image */}
-        <img
-          src="/hero_pixel_landscape.png"
-          alt="Pixel Art Landscape Background"
-          className="absolute inset-0 w-full h-full object-cover object-bottom z-0 select-none"
-        />
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1">
+            {/* 2. MINIMALIST HERO SECTION */}
+            <section className="relative w-full py-20 sm:py-28 text-center px-6 sm:px-12">
+              <div className="max-w-3xl mx-auto space-y-6">
+                {/* 3D Pixel Gamer Title (Scaled down by 40%) */}
+                <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
+                  <span className="pixel-gamer-title block">MODERN GITOPS</span>
+                  <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
+                </h1>
 
-        {/* Floating Title & Subtitle Overlay */}
-        <div className="relative z-10 pt-14 pb-4 px-6 text-center mx-auto max-w-4xl space-y-4">
-          {/* Small Top Text */}
-          <div className="text-xs sm:text-sm font-bold uppercase tracking-widest text-[#0c2438] font-pixel-grid drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)]">
-            START YOUR
-          </div>
+                {/* Subtitle */}
+                <p className="text-[#6B7280] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans">
+                  Unified OpenTofu &amp; Ansible infrastructure control plane.
+                </p>
 
-          {/* 3D Pixel Title Text */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black uppercase tracking-wider leading-tight codedex-pixel-title py-1">
-            RADAS<br />
-            Cloud Adventure
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-xs sm:text-sm md:text-base text-[#0d2235] font-sans font-semibold max-w-xl mx-auto drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
-            Deploy server cepat di cloud mana pun &amp; hemat biaya AI sampai 40%. ✨
-          </p>
-
-          {/* Yellow 8-Bit CTA Button */}
-          <div className="pt-2">
-            <Link to="/login">
-              <button className="codedex-btn-yellow text-sm sm:text-base px-8 py-3.5 rounded-none cursor-pointer inline-flex items-center gap-2">
-                Get started <ArrowRight className="h-5 w-5" />
-              </button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Bottom Layer: Mascot Computer on Left + Tech Logos Right */}
-        <div className="relative z-10 px-6 pb-6 mx-auto max-w-6xl w-full flex flex-col md:flex-row items-end justify-between gap-6">
-          {/* Retro Computer Mascot (Bottom Left) */}
-          <div className="flex items-end gap-3 group">
-            <img
-              src="/retro_pet.svg"
-              alt="Retro Pet Mascot"
-              className="w-28 sm:w-36 h-auto drop-shadow-xl transition-transform duration-300 group-hover:scale-105"
-            />
-          </div>
-
-          {/* Footer Supported By Logos Row (Bottom Right) */}
-          <div className="flex flex-wrap items-center justify-center md:justify-end gap-5 text-xs text-[#0e2417] font-bold font-pixel-grid bg-white/40 backdrop-blur-md px-5 py-2.5 rounded-lg border border-white/50 shadow-md">
-            <span className="text-[10px] text-slate-900 uppercase tracking-widest">SUPPORTED BY</span>
-            <div className="flex items-center gap-1.5 text-slate-950"><Github className="h-4 w-4" /> GitHub</div>
-            <div className="flex items-center gap-1.5 text-emerald-950"><Cloud className="h-4 w-4 text-emerald-800" /> OpenTofu</div>
-            <div className="flex items-center gap-1.5 text-red-950"><Cpu className="h-4 w-4 text-red-800" /> Ansible</div>
-            <div className="flex items-center gap-1.5 text-amber-950">AWS</div>
-            <div className="flex items-center gap-1.5 text-cyan-950">Hetzner</div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. INTERACTIVE FEATURE TAB SHOWCASE */}
-      <section className="relative z-10 py-16 px-6 border-b-2 border-[var(--color-border)]">
-        <div className="mx-auto max-w-5xl space-y-8">
-          <div className="text-center space-y-2">
-            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wider font-pixel-grid">Fitur Unggulan Buat Kerja Lebih Cepat</h2>
-            <p className="text-xs text-[var(--color-muted-foreground)] font-sans">Dirancang khusus untuk developer, DevOps, dan AI builder modern.</p>
-          </div>
-
-          {/* Interactive Feature Tabs */}
-          <div className="flex justify-center border-b-2 border-[var(--color-border)] gap-2">
-            <button
-              onClick={() => setActiveTab("ai")}
-              className={`px-5 py-3 text-xs uppercase font-bold pxl-corner-sm transition-all flex items-center gap-2 font-pixel-grid ${
-                activeTab === "ai"
-                  ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] pxl-shadow"
-                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-              }`}
-            >
-              <Cpu className="h-4 w-4" /> 💸 Smart AI Cost Saver
-            </button>
-            <button
-              onClick={() => setActiveTab("cloud")}
-              className={`px-5 py-3 text-xs uppercase font-bold pxl-corner-sm transition-all flex items-center gap-2 font-pixel-grid ${
-                activeTab === "cloud"
-                  ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] pxl-shadow"
-                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-              }`}
-            >
-              <Cloud className="h-4 w-4" /> ⚡ Multi-Cloud Manager
-            </button>
-            <button
-              onClick={() => setActiveTab("desktop")}
-              className={`px-5 py-3 text-xs uppercase font-bold pxl-corner-sm transition-all flex items-center gap-2 font-pixel-grid ${
-                activeTab === "desktop"
-                  ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] pxl-shadow"
-                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-              }`}
-            >
-              <Zap className="h-4 w-4" /> 🤖 Desktop Pet Assistant
-            </button>
-          </div>
-
-          {/* Feature Tab Contents */}
-          {activeTab === "ai" && (
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)] bg-[var(--color-card)] p-6 space-y-4">
-              <div className="flex flex-col md:flex-row gap-6 items-center">
-                <div className="space-y-3 flex-1 font-sans">
-                  <Badge variant="success" className="pxl-corner-sm font-mono text-[10px] font-pixel-grid">9ROUTER AI ENGINE</Badge>
-                  <h3 className="text-lg font-bold uppercase text-[var(--color-primary)] font-pixel-grid">Gak Ada Lagi Tagihan AI Membengkak</h3>
-                  <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed">
-                    Hubungkan semua API key AI kamu di satu tempat. Engine pintar RADAS otomatis memotong token yang gak perlu pada prompt panjang, hemat biaya hingga 40%, dan otomatis pindah ke model backup kalau provider utama lagi rate-limit.
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-[var(--color-foreground)] pt-2 font-mono">
-                    <li className="flex items-center gap-2 text-emerald-400"><Check className="h-4 w-4" /> Hemat token otomatis pada log &amp; diff kode.</li>
-                    <li className="flex items-center gap-2 text-emerald-400"><Check className="h-4 w-4" /> Bebas gonta-ganti OpenAI, Claude, DeepSeek, Gemini.</li>
-                    <li className="flex items-center gap-2 text-emerald-400"><Check className="h-4 w-4" /> Perlindungan rate-limit 429 tanpa koneksi terputus.</li>
-                  </ul>
+                {/* Minimal CTA Actions */}
+                <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+                  <Link to="/login">
+                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-7 py-3">
+                      Open Console <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                  <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
+                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3">
+                      <Github className="h-4 w-4 mr-2" /> View Source
+                    </Button>
+                  </a>
                 </div>
-                <div className="w-full md:w-80 p-4 pxl-corner-sm bg-[#090d16] border border-emerald-500/40 font-mono text-xs space-y-2">
-                  <div className="text-[10px] text-emerald-400 font-bold uppercase flex items-center justify-between">
-                    <span>RTK Saver Live Status</span>
-                    <span>● Active</span>
+
+                {/* Animated 8-Bit NES Pixel Landscape Banner with Google Banana */}
+                <div className="pt-6 pb-2 max-w-2xl mx-auto">
+                  <div className="relative w-full h-44 sm:h-52 pxl-corner-md border-2 border-[#2A2A2A] shadow-md overflow-hidden bg-[#5C94FC] select-none group">
+                    {/* Sky & Pixel Clouds Layer */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#4C84EC] to-[#70A4FC]">
+                      {/* Floating Pixel Clouds */}
+                      <div className="absolute top-3 left-4 opacity-90 animate-pixel-bounce" style={{ animationDuration: '4s' }}>
+                        <svg width="64" height="24" viewBox="0 0 16 6" fill="white" shapeRendering="crispEdges">
+                          <path d="M4 1h8v1h4v3h-16v-3h4zM6 0h4v1h-4z" />
+                        </svg>
+                      </div>
+                      <div className="absolute top-6 right-10 opacity-80 animate-pixel-bounce" style={{ animationDuration: '6s', animationDelay: '1s' }}>
+                        <svg width="80" height="28" viewBox="0 0 20 7" fill="white" shapeRendering="crispEdges">
+                          <path d="M5 1h10v1h5v4h-20v-4h5zM7 0h6v1h-6z" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Rolling Green Grass Hills Layer */}
+                    <div className="absolute bottom-0 left-0 right-0 h-16 sm:h-20 bg-[#60B000] border-t-2 border-[#387000]">
+                      <div className="w-full h-3 bg-[#88D000] border-b border-[#387000]" />
+                      <div className="w-full h-full bg-[#488800] mt-2" />
+                    </div>
+
+                    {/* Animated Google Banana Character */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-pointer transition-transform duration-300 group-hover:scale-110">
+                      {/* Speech Bubble */}
+                      <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2 py-1 pxl-corner-sm shadow-sm border border-[#2A2A2A]">
+                        RADAS &amp; GOOGLE BANANA! 🍌
+                      </div>
+                      {/* Pixel Art Banana Sprite */}
+                      <svg width="40" height="44" viewBox="0 0 16 18" fill="none" shapeRendering="crispEdges" className="animate-pixel-bounce" style={{ animationDuration: '1.2s' }}>
+                        {/* Banana Peel / Body (Yellow) */}
+                        <path d="M6 2h4v2H6zM4 4h8v2H4zM3 6h10v6H3zM4 12h8v2H4zM6 14h4v2H6z" fill="#FFD700" />
+                        {/* Highlights (Light Yellow) */}
+                        <path d="M7 3h2v1H7zM5 5h2v6H5z" fill="#FFF44F" />
+                        {/* Shadows & Outline (Dark Gold/Brown) */}
+                        <path d="M10 6h2v6h-2zM8 13h3v1H8z" fill="#B8860B" />
+                        {/* Stem (Green) */}
+                        <path d="M7 0h2v2H7z" fill="#387000" />
+                        {/* Cute Pixel Eyes */}
+                        <path d="M6 7h1v2H6zM9 7h1v2H9z" fill="#1A1A2E" />
+                        {/* Happy Smile */}
+                        <path d="M7 10h2v1H7z" fill="#1A1A2E" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-300">Total Savings: <span className="text-emerald-400 font-bold">+64,200 Tokens</span></div>
-                  <div className="text-[11px] text-slate-300">Efficiency Ratio: <span className="text-emerald-400 font-bold">34.8% Saved</span></div>
-                  <div className="w-full bg-slate-800 h-2 rounded overflow-hidden">
-                    <div className="bg-emerald-500 h-full w-[35%]" />
+                </div>
+
+                {/* Minimal Command Bar */}
+                <div className="pt-8 max-w-xl mx-auto">
+                  <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
+                    <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                      <span className="text-[#107A4D] font-bold">$</span>
+                      <code className="text-[#2A2A2A] truncate">go install github.com/raizora/radas/apps/cli@latest</code>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        navigator.clipboard.writeText("go install github.com/raizora/radas/apps/cli@latest");
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="pxl-corner-sm text-[#6B7280] hover:text-[#2A2A2A] p-1.5 h-auto"
+                    >
+                      {copied ? <Check className="h-4 w-4 text-[#107A4D]" /> : <Copy className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
               </div>
-            </Card>
-          )}
+            </section>
 
-          {activeTab === "cloud" && (
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)] bg-[var(--color-card)] p-6 space-y-4">
-              <div className="flex flex-col md:flex-row gap-6 items-center">
-                <div className="space-y-3 flex-1 font-sans">
-                  <Badge variant="warning" className="pxl-corner-sm font-mono text-[10px] font-pixel-grid">HYBRID CLOUD ONSITE</Badge>
-                  <h3 className="text-lg font-bold uppercase text-amber-400 font-pixel-grid">Deploy Server Cloud Sekali Klik</h3>
-                  <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed">
-                    Atur infrastruktur di AWS, GCP, Hetzner, atau ByteDC tanpa perlu pusing nulis script dari nol. Pantau statistik CPU, RAM, disk space, dan otomatisasi deployment dengan sekali klik.
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-[var(--color-foreground)] pt-2 font-mono">
-                    <li className="flex items-center gap-2 text-amber-400"><Check className="h-4 w-4" /> Monitoring kesehatan server &amp; status live.</li>
-                    <li className="flex items-center gap-2 text-amber-400"><Check className="h-4 w-4" /> Otomatisasi OpenTofu &amp; Ansible playbooks.</li>
-                    <li className="flex items-center gap-2 text-amber-400"><Check className="h-4 w-4" /> Manajemen inventory VPS terpadu.</li>
-                  </ul>
+            {/* Dashed Separator Line */}
+            <hr className="border-dashed border-[#D1D1D1] w-full" />
+
+            {/* 3. CAPABILITIES GRID */}
+            <section id="capabilities" className="relative w-full py-16 sm:py-24">
+              <div className="px-6 sm:px-12 lg:px-16">
+                <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
+                  <TextScramble text="[ CORE CAPABILITIES ]" className="font-mono" />
                 </div>
-                <div className="w-full md:w-80 p-4 pxl-corner-sm bg-[#090d16] border border-amber-500/40 font-mono text-xs space-y-2">
-                  <div className="text-[10px] text-amber-400 font-bold uppercase flex items-center justify-between font-pixel-grid">
-                    <span>Cloud VPS Health</span>
-                    <span>4/4 Online</span>
-                  </div>
-                  <div className="text-[11px] text-slate-300">AWS Singapore: <span className="text-emerald-400 font-bold">100% Healthy</span></div>
-                  <div className="text-[11px] text-slate-300">Hetzner Germany: <span className="text-emerald-400 font-bold">100% Healthy</span></div>
-                  <div className="text-[11px] text-slate-300">ByteDC Jakarta: <span className="text-emerald-400 font-bold">100% Healthy</span></div>
+                <h2 className="text-[#2A2A2A] mb-10 text-2xl sm:text-4xl font-bold font-sans tracking-tight">
+                  Everything you need for infrastructure delivery.
+                </h2>
+
+                {/* Clean 4-Card Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#D8F3E5] text-[#107A4D] flex items-center justify-center mb-5 border border-[#107A4D]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                      <PxlCloudIcon className="h-5 w-5" />
+                    </div>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ ORCHESTRATION ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Declarative OpenTofu &amp; Ansible</h3>
+                    <p className="text-sm text-[#6B7280] leading-relaxed">
+                      Execute multi-cloud infrastructure plans, applies, and playbook runs with real-time streaming execution logs.
+                    </p>
+                  </Card>
+
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2A2A2A]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#E2E4E8] text-[#2A2A2A] flex items-center justify-center mb-5 border border-[#2A2A2A]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                      <PxlCpuIcon className="h-5 w-5" />
+                    </div>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ REUSABILITY ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">BYOC Private Code Registry</h3>
+                    <p className="text-sm text-[#6B7280] leading-relaxed">
+                      Shadcn-style adoption for reusable OpenTofu modules and Ansible roles directly into your stacks with single-line imports.
+                    </p>
+                  </Card>
+
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#CC9100]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#FFF3D6] text-[#CC9100] flex items-center justify-center mb-5 border border-[#CC9100]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                      <PxlSparklesIcon className="h-5 w-5" />
+                    </div>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ GOVERNANCE ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Feature Flags &amp; Multi-Org RBAC</h3>
+                    <p className="text-sm text-[#6B7280] leading-relaxed">
+                      Targeted user rollouts, environment toggles, percentage splits, instant kill-switches, and organization isolation bounds.
+                    </p>
+                  </Card>
+
+                  <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-8 sm:p-10 group cursor-pointer transition-all duration-300 hover:bg-white hover:border-[#2563EB]/50">
+                    <div className="h-10 w-10 pxl-corner-sm bg-[#DEE9FF] text-[#2563EB] flex items-center justify-center mb-5 border border-[#2563EB]/30 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                      <PxlShieldIcon className="h-5 w-5" />
+                    </div>
+                    <div className="text-[#107A4D] font-mono text-xs uppercase mb-2 font-bold">[ FINOPS &amp; WORKERS ]</div>
+                    <h3 className="text-xl font-bold text-[#2A2A2A] mb-3 font-pixel-grid group-hover:text-[#107A4D] transition-colors">Cloud Cost Guards &amp; HA Workers</h3>
+                    <p className="text-sm text-[#6B7280] leading-relaxed">
+                      Prevent surprise cloud bills with speculative PR cost diffs, budget limits, and distributed Go worker daemon pools.
+                    </p>
+                  </Card>
                 </div>
               </div>
-            </Card>
-          )}
+            </section>
 
-          {activeTab === "desktop" && (
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)] bg-[var(--color-card)] p-6 space-y-4">
-              <div className="flex flex-col md:flex-row gap-6 items-center">
-                <div className="space-y-3 flex-1 font-sans">
-                  <Badge variant="cyan" className="pxl-corner-sm font-mono text-[10px] font-pixel-grid">RADAS DESKTOP PET</Badge>
-                  <h3 className="text-lg font-bold uppercase text-cyan-400 font-pixel-grid">Teman Setia Di Desktop Kamu</h3>
-                  <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed">
-                    Pet avatar pixel 8-bit imut yang melayang di desktop kamu. Memberikan balon ucapan status server real-time dan notifikasi penting, plus klik 1-kali untuk langsung membuka console.
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-[var(--color-foreground)] pt-2 font-mono">
-                    <li className="flex items-center gap-2 text-cyan-400"><Check className="h-4 w-4" /> Melayang transparan &amp; bebas digeser (drag &amp; drop).</li>
-                    <li className="flex items-center gap-2 text-cyan-400"><Check className="h-4 w-4" /> Speech bubble status server real-time.</li>
-                    <li className="flex items-center gap-2 text-cyan-400"><Check className="h-4 w-4" /> 1-klik untuk buka/tutup RADAS Console.</li>
-                  </ul>
-                </div>
-                <div className="w-full md:w-80 p-4 pxl-corner-sm bg-[#090d16] border border-cyan-500/40 font-mono text-xs space-y-2 text-center">
-                  <div className="p-2 border border-cyan-500/30 rounded bg-cyan-500/10 text-cyan-300 font-bold font-pixel-grid">
-                    &quot;Beep boop! All 4 stacks healthy 🚀&quot;
+            {/* Dashed Separator Line */}
+            <hr className="border-dashed border-[#D1D1D1] w-full" />
+
+            {/* 4. FAQ SECTION */}
+            <section id="faq" className="relative w-full py-16 sm:py-24">
+              <div className="px-6 sm:px-12 lg:px-16">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-16 items-start">
+                  <div>
+                    <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
+                      <TextScramble text="[ FREQUENTLY ASKED QUESTIONS ]" className="font-mono" />
+                    </div>
+                    <h2 className="text-[#2A2A2A] text-2xl sm:text-4xl font-bold font-sans tracking-tight leading-tight">
+                      Frequently Asked Questions
+                    </h2>
+                    <p className="text-[#6B7280] text-xs sm:text-sm mt-3 leading-relaxed font-sans">
+                      Questions regarding multi-cloud deployment, air-gapped security, feature flags, or custom OpenTofu modules.
+                    </p>
                   </div>
-                  <div className="text-[10px] text-slate-400 pt-1">macOS Apple Silicon, Intel, Linux, Windows Supported</div>
+
+                  <div className="lg:col-span-2">
+                    {faqs.map((faq, index) => (
+                      <FAQItem key={index} faq={faq} />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </Card>
-          )}
+            </section>
+          </main>
+
+          {/* Dashed Separator Line */}
+          <hr className="border-dashed border-[#D1D1D1] w-full" />
+
+          {/* 5. FOOTER */}
+          <footer className="mt-auto px-6 sm:px-12 lg:px-16 py-12 sm:py-16 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-[#6B7280] font-mono">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
+              <span>&copy; 2026 GitOps Release.</span>
+            </div>
+            <div className="flex items-center gap-8">
+              <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="hover:text-[#2A2A2A]">GitHub</a>
+              <Link to="/login" className="hover:text-[#2A2A2A] font-semibold text-[#2A2A2A] font-pixel-grid">Sign In to Console →</Link>
+            </div>
+          </footer>
+
         </div>
-      </section>
-
-      {/* 4. DOWNLOAD CENTER */}
-      <section id="downloads" className="relative z-10 py-16 px-6 border-b-2 border-[var(--color-border)] bg-[var(--color-card)]/40">
-        <div className="mx-auto max-w-5xl space-y-8 text-center">
-          <div className="space-y-2">
-            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 font-pixel-grid">
-              <Download className="h-6 w-6 text-[var(--color-primary)]" />
-              Unduh RADAS Desktop App
-            </h2>
-            <p className="text-xs text-[var(--color-muted-foreground)] font-sans">Tersedia untuk macOS (Apple Silicon M1-M4 &amp; Intel), Linux, dan Windows.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-            {/* macOS */}
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)]">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Apple className="h-5 w-5 text-[var(--color-foreground)]" />
-                  <CardTitle className="text-base font-bold font-pixel-grid">macOS</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Apple Silicon (M1–M4) &amp; Intel Macs</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>Apple Silicon (.dmg)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>Intel Mac (.dmg)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Linux */}
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)]">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Linux className="h-5 w-5 text-emerald-400" />
-                  <CardTitle className="text-base font-bold">Linux</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Ubuntu, Debian, Fedora, Arch</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>AppImage (.AppImage)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>Debian (.deb)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Windows */}
-            <Card className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)]">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Windows className="h-5 w-5 text-cyan-400" />
-                  <CardTitle className="text-base font-bold">Windows</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Windows 10 / 11 (64-bit)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>Installer (.exe)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-                <Button size="sm" variant="outline" className="w-full justify-between pxl-corner-sm text-xs font-mono">
-                  <span>Portable (.zip)</span>
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. FOOTER */}
-      <footer className="relative z-10 mt-auto border-t-2 border-[var(--color-border)] bg-[var(--color-card)] px-6 py-6 text-xs text-[var(--color-muted-foreground)]">
-        <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
-          <div className="flex items-center gap-2">
-            <RadasLogo size={16} />
-            <span>RADAS Platform &copy; 2026. Hak Cipta Dilindungi.</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Sistem Berjalan Normal
-            </span>
-            <Link to="/login" className="hover:text-[var(--color-foreground)]">Masuk Console</Link>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

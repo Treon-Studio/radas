@@ -93,17 +93,21 @@ func Setup() {
 		currentLvl = lvl
 		levelVar.Set(lvl)
 
-		config.Init() // ensure LOG_FILE dir exists
-		fh, err := newRotatingFile(config.LogFile, sizeMB*1024*1024, 5)
-		if err != nil {
-			// Fall back to stderr only.
-			fh = nil
-		}
-		fileHandler = fh
-
+		// Factor XI: Logs (Treat logs as event streams)
+		// In production, we log exclusively to stdout/stderr.
+		// For development/testing/local support, we keep the file-based rotating logger.
+		mode := strings.ToLower(strings.TrimSpace(os.Getenv("FLASK_ENV")))
 		var w io.Writer = os.Stdout
-		if fh != nil {
-			w = io.MultiWriter(os.Stdout, fh)
+		
+		if mode == "production" {
+			fileHandler = nil
+		} else {
+			config.Init() // ensure LOG_FILE dir exists
+			fh, err := newRotatingFile(config.LogFile, sizeMB*1024*1024, 5)
+			if err == nil {
+				fileHandler = fh
+				w = io.MultiWriter(os.Stdout, fh)
+			}
 		}
 
 		handler := slog.NewTextHandler(w, &slog.HandlerOptions{

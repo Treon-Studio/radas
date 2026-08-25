@@ -139,8 +139,8 @@ module.exports = {
     {
       name: "radas-console",
       cwd: "./apps/radas-console",
-      script: "./node_modules/.bin/vite",
-      args: "dev --port 8080 --host",
+      script: "./node_modules/vite/bin/vite.js",
+      args: "dev --port 8080 --host 0.0.0.0",
       env: {
         VITE_API_TARGET: `http://localhost:${SERVER_PORT}`,
       },
@@ -148,8 +148,8 @@ module.exports = {
     {
       name: "radas-homepage",
       cwd: "./apps/homepage",
-      script: "./node_modules/.bin/vite",
-      args: "--port 5173 --host",
+      script: "./node_modules/vite/bin/vite.js",
+      args: "dev --port 5173 --host 0.0.0.0",
       env: {},
     },
     {

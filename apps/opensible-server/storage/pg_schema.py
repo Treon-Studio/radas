@@ -31,8 +31,13 @@ _V1_DDL: List[str] = [
         created_at TEXT,
         updated_at TEXT,
         last_login TEXT,
-        mfa_secret TEXT,
         disabled_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS onboarding_status (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        completed_at DOUBLE PRECISION,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS roles (
         id TEXT PRIMARY KEY,
@@ -682,6 +687,46 @@ _V24_DDL: List[str] = [
     """CREATE INDEX IF NOT EXISTS idx_remote_state_locks_expires ON remote_state_locks(expires_at)""",
 ]
 
+# Version 25 — 9Router multi-tenant per-organization AI Gateway & fallback rules.
+_V25_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_providers (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        provider_name TEXT NOT NULL,
+        api_key_encrypted TEXT NOT NULL,
+        base_url TEXT NOT NULL DEFAULT '',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        rate_limit_per_min INTEGER NOT NULL DEFAULT 60,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_org_ai_providers_org_name UNIQUE (org_id, provider_name)
+    )""",
+    """CREATE TABLE IF NOT EXISTS org_ai_routes (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        alias_name TEXT NOT NULL,
+        primary_model TEXT NOT NULL,
+        fallback_models JSONB NOT NULL DEFAULT '[]'::jsonb,
+        rtk_compression_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        caveman_mode BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_org_ai_routes_org_alias UNIQUE (org_id, alias_name)
+    )""",
+    """CREATE TABLE IF NOT EXISTS org_ai_usage (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        user_id TEXT,
+        provider_used TEXT NOT NULL,
+        model_used TEXT NOT NULL,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        tokens_saved_rtk INTEGER NOT NULL DEFAULT 0,
+        fallback_triggered BOOLEAN NOT NULL DEFAULT FALSE,
+        timestamp DOUBLE PRECISION NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_usage_org_timestamp ON org_ai_usage(org_id, timestamp DESC)""",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
@@ -690,7 +735,7 @@ MIGRATIONS = (
     (11, _V11_DDL), (12, _V12_DDL), (13, _V13_DDL), (14, _V14_DDL),
     (15, _V15_DDL), (16, _V16_DDL), (17, _V17_DDL), (18, _V18_DDL),
     (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL), (22, _V22_DDL),
-    (23, _V23_DDL), (24, _V24_DDL),
+    (23, _V23_DDL), (24, _V24_DDL), (25, _V25_DDL),
 )
 
 

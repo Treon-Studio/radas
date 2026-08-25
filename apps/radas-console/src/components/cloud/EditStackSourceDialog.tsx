@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiCloseLine as X, RiCloudLine as Cloud, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { toast } from "sonner";
@@ -197,13 +198,13 @@ export function EditStackSourceDialog({ open, onOpenChange, projectId }: Props) 
     onError: (e: any) => toast.error(e?.message || "Connection failed"),
   });
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
   const busy = save.isPending;
   const secrets = secretsQ.data?.options || [];
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
       onClick={() => !busy && onOpenChange(false)}
     >
       <div
@@ -329,6 +330,7 @@ export function EditStackSourceDialog({ open, onOpenChange, projectId }: Props) 
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

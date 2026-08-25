@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { RiCloseLine as X, RiStarLine as Star, RiExternalLinkLine as ExternalLink, RiSaveLine as Save, RiPlayLine as Play, RiFileCodeLine as FileCode, RiInformationLine as Info } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,47 +24,45 @@ export function BlueprintDialog({
   const initialLogo = blueprint.logo || group.logo || opensibleLogo.url;
   const [logoSrc, setLogoSrc] = useState(initialLogo);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
       <div
-        className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col"
+        className="bg-[var(--color-card)] border-2 border-[var(--color-border)] pxl-corner-md pxl-card-shadow w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] gap-3">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-md bg-[var(--color-accent)] flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="h-9 w-9 rounded-md bg-[var(--color-muted)] flex items-center justify-center shrink-0 overflow-hidden">
               <img src={logoSrc} alt="" className="h-5 w-5 object-contain" onError={() => { if (logoSrc !== opensibleLogo.url) setLogoSrc(opensibleLogo.url); }} />
             </div>
             <div className="min-w-0">
-              <div className="font-medium text-sm truncate">{blueprint.name}</div>
-              <div className="text-[11px] text-[var(--color-muted-foreground)] truncate">
+              <div className="font-semibold text-sm truncate">{blueprint.name}</div>
+              <div className="text-xs text-[var(--color-muted-foreground)] truncate">
                 {group.name}
                 {blueprint.author ? ` · by ${blueprint.author}` : ""}
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-[var(--color-accent)] rounded">
+          <button onClick={onClose} className="p-1 hover:bg-[var(--color-muted)] rounded">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-4 overflow-auto flex-1 space-y-4">
+        <div className="p-5 overflow-auto flex-1 space-y-4 text-xs">
           <p className="text-sm text-[var(--color-foreground)]">{blueprint.description}</p>
 
           <div className="flex flex-wrap items-center gap-1.5">
             {blueprint.available ? (
-              <Badge variant="success" className="text-[10px]">Available</Badge>
+              <Badge variant="default" className="text-[10px]">Available</Badge>
             ) : (
               <Badge variant="default" className="text-[10px] opacity-70">Coming soon</Badge>
             )}
             {typeof blueprint.stars === "number" && (
               <span className="inline-flex items-center gap-0.5 text-[11px] text-[var(--color-muted-foreground)]">
-                <Star className="h-3 w-3" /> {blueprint.stars}
+                <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> {blueprint.stars}
               </span>
             )}
-            {(blueprint.tags || []).map((t) => (
-              <Badge key={t} variant="default" className="text-[10px]">{t}</Badge>
-            ))}
           </div>
 
           {blueprint.path && (
@@ -131,6 +130,7 @@ export function BlueprintDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

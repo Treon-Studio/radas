@@ -2,6 +2,7 @@
  * Compact, always-visible state summary for a Cloud stack.
  */
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiDatabase2Line as Database, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiArrowGoBackLine as RotateCcw, RiErrorWarningLine as AlertTriangle, RiSettingsLine as Settings } from "@remixicon/react";
 import { toast } from "sonner";
@@ -76,30 +77,30 @@ export function RestoreStateDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  return (
-    <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
       <div
-        className="bg-[var(--color-background)] border rounded-lg shadow-xl w-full max-w-lg p-4 space-y-3 text-xs"
-        style={{ borderColor: "var(--color-destructive)" }}
+        className="bg-[var(--color-card)] border-2 border-[var(--color-border)] rounded-lg pxl-card-shadow w-full max-w-lg p-5 space-y-4 text-xs"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="font-medium text-sm flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4" /> Roll back to serial {version.serial ?? "—"}?
+          <AlertTriangle className="h-4 w-4 text-[var(--color-destructive)]" /> Roll back to serial {version.serial ?? "—"}?
         </div>
         <div className="text-[var(--color-muted-foreground)]">
           Captured {new Date(version.created_at).toLocaleString()} by {version.actor} · {version.resource_count} resource(s) · {version.reason}
         </div>
-        <div className="text-[var(--color-muted-foreground)]">
+        <div className="text-[var(--color-muted-foreground)] leading-relaxed">
           This replaces the current state file only — <b>no cloud resources are changed</b>. Anything created after
           this version becomes untracked until you run a plan and reconcile. The current state is snapshotted first,
           so this is reversible.
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 pt-2">
           <Input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={`Type "${stackId}" to confirm`}
-            className="h-8 text-xs"
+            className="h-8 text-xs max-w-[200px]"
           />
           <Button
             size="sm"
@@ -112,7 +113,8 @@ export function RestoreStateDialog({
           <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { RiRefreshLine as RefreshCw, RiArchiveStackLine as Boxes, RiCloseLine as X, RiNodeTree as Network, RiDownload2Line as Download, RiErrorWarningLine as AlertTriangle } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,9 +37,11 @@ export function VmInventoryDialog({ stackId, onClose }: { stackId: string; onClo
 
   const vms = data?.vms || [];
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] rounded-lg shadow-xl w-full max-w-6xl border border-[var(--color-border)]">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in" onClick={onClose}>
+      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-md shadow-xl w-full max-w-6xl border-2 border-[var(--color-border)] pxl-card-shadow overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-3">
             <Boxes className="h-5 w-5" />
@@ -52,97 +55,79 @@ export function VmInventoryDialog({ stackId, onClose }: { stackId: string; onClo
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={downloadJson} disabled={!data}>
-              <Download className="h-4 w-4" /> JSON
+            <Button size="sm" variant="outline" onClick={downloadJson} disabled={!data}>
+              <Download className="h-4 w-4" /> Export JSON
             </Button>
-            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-
-        <div className="px-6 py-5 space-y-4 max-h-[75vh] overflow-y-auto">
-          {error && (() => {
-            const msg = (error as any)?.message || "Failed to load inventory.";
-            const isMissing = /not found|404/i.test(msg);
-            return (
-              <div className="rounded border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-4 text-sm">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 text-[var(--color-warning)]" />
-                  <div className="space-y-1">
-                    <div className="font-medium text-[var(--color-foreground)]">
-                      {isMissing ? "Inventory endpoint not available on backend" : "Failed to load inventory"}
-                    </div>
-                    <div className="text-xs text-[var(--color-muted-foreground)]">
-                      {isMissing ? (
-                        <>The backend container at this server doesn't expose <code className="font-mono">/api/cloud/stacks/&lt;name&gt;/inventory</code> yet. Rebuild &amp; redeploy the backend image (it includes the new VM Inventory route) and try again.</>
-                      ) : msg}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {isLoading && <div className="text-sm text-[var(--color-muted-foreground)]">Loading inventory…</div>}
-
-          {!isLoading && !error && vms.length === 0 && (
-            <div className="rounded border border-dashed border-[var(--color-border)] p-8 text-center">
-              <Network className="h-8 w-8 mx-auto mb-2 text-[var(--color-muted-foreground)]" />
-              <p className="text-sm font-medium">No VMs provisioned yet</p>
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+          {isLoading ? (
+            <div className="py-12 text-center text-sm text-[var(--color-muted-foreground)]">Loading inventory…</div>
+          ) : error ? (
+            <div className="py-12 text-center text-sm text-[var(--color-destructive)] flex flex-col items-center gap-2">
+              <AlertTriangle className="h-6 w-6" />
+              <span>{(error as Error).message}</span>
+            </div>
+          ) : vms.length === 0 ? (
+            <div className="py-12 text-center text-sm text-[var(--color-muted-foreground)] flex flex-col items-center gap-2">
+              <Network className="h-8 w-8 text-[var(--color-muted-foreground)] opacity-50" />
+              <p className="font-medium">No VMs provisioned yet</p>
+              <p className="text-xs text-[var(--color-muted-foreground)] max-w-sm">
                 {data?.message || "Run Apply on this stack to provision infrastructure, then return here to see the VM inventory."}
               </p>
-              {data && data.state_present === false && (
-                <p className="text-xs text-[var(--color-warning)] mt-2">No terraform.tfstate found.</p>
-              )}
             </div>
-          )}
-
-          {vms.length > 0 && (
+          ) : (
             <>
-              <div className="text-xs text-[var(--color-muted-foreground)]">
-                Showing <span className="font-semibold text-[var(--color-foreground)]">{vms.length}</span> virtual machine{vms.length === 1 ? "" : "s"}.
+              <div className="text-xs text-[var(--color-muted-foreground)] flex items-center justify-between">
+                <span>{vms.length} instance(s) discovered</span>
+                {data?.state_present === false && <Badge variant="warning">State uninitialized</Badge>}
               </div>
-              <div className="overflow-x-auto rounded border border-[var(--color-border)]">
-                <table className="w-full text-xs">
-                  <thead className="bg-[var(--color-muted)] text-[var(--color-muted-foreground)] uppercase tracking-wide">
+              <div className="overflow-x-auto rounded-md border border-[var(--color-border)]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[var(--color-muted)] text-[var(--color-muted-foreground)] font-mono uppercase tracking-wider text-[10px]">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium">Hostname</th>
-                      <th className="text-left px-3 py-2 font-medium">Status</th>
-                      <th className="text-left px-3 py-2 font-medium">Private IP</th>
-                      <th className="text-left px-3 py-2 font-medium">Public IP</th>
-                      <th className="text-left px-3 py-2 font-medium">Subnet</th>
-                      <th className="text-left px-3 py-2 font-medium">VPC</th>
-                      <th className="text-left px-3 py-2 font-medium">AZ</th>
-                      <th className="text-left px-3 py-2 font-medium">Flavor</th>
-                      <th className="text-left px-3 py-2 font-medium">Disk</th>
+                      <th className="px-3 py-2 font-medium">Hostname / ID</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium">IP Addr</th>
+                      <th className="px-3 py-2 font-medium">Subnet / VPC</th>
+                      <th className="px-3 py-2 font-medium">AZ</th>
+                      <th className="px-3 py-2 font-medium">Flavor</th>
+                      <th className="px-3 py-2 font-medium">Disk</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {vms.map((vm) => (
-                      <tr key={vm.instance_id || vm.hostname} className="border-t border-[var(--color-border)] hover:bg-[var(--color-muted)]/40">
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {vms.map((vm, i) => (
+                      <tr key={vm.instance_id || i} className="hover:bg-[var(--color-muted)]/50">
+                        <td className="px-3 py-2">
+                          <div className="font-medium">{vm.hostname || "—"}</div>
+                          <div className="text-[10px] font-mono text-[var(--color-muted-foreground)]">{vm.instance_id}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge variant={vm.status?.toLowerCase() === "active" ? "success" : "default"}>
+                            {vm.status || "unknown"}
+                          </Badge>
+                        </td>
                         <td className="px-3 py-2 font-mono">
-                          <div className="font-semibold text-[var(--color-foreground)]">{vm.hostname || "—"}</div>
-                          {vm.instance_id && <div className="text-[10px] text-[var(--color-muted-foreground)]">{vm.instance_id}</div>}
-                        </td>
-                        <td className="px-3 py-2"><Badge variant={vm.status === "ACTIVE" ? "success" : "default"}>{vm.status || "—"}</Badge></td>
-                        <td className="px-3 py-2 font-mono">{vm.private_ip || "—"}</td>
-                        <td className="px-3 py-2 font-mono">{vm.public_ip || <span className="text-[var(--color-muted-foreground)]">—</span>}</td>
-                        <td className="px-3 py-2">
-                          <div>{vm.subnet_name || "—"}</div>
-                          <div className="text-[10px] text-[var(--color-muted-foreground)] font-mono">{vm.subnet_cidr}</div>
+                          <div>Priv: {vm.private_ip || "—"}</div>
+                          {vm.public_ip && <div className="text-[var(--color-muted-foreground)]">Pub: {vm.public_ip}</div>}
                         </td>
                         <td className="px-3 py-2">
-                          <div>{vm.vpc_name || "—"}</div>
-                          <div className="text-[10px] text-[var(--color-muted-foreground)] font-mono">{vm.vpc_cidr}</div>
+                          <div className="flex items-center gap-1">
+                            <Network className="h-3 w-3 shrink-0" />
+                            <span>{vm.subnet_name || vm.vpc_name || "—"}</span>
+                          </div>
+                          {vm.subnet_cidr && <div className="text-[10px] font-mono text-[var(--color-muted-foreground)]">{vm.subnet_cidr}</div>}
                         </td>
                         <td className="px-3 py-2 font-mono">{vm.az || "—"}</td>
                         <td className="px-3 py-2 font-mono">{vm.flavor_id || "—"}</td>
                         <td className="px-3 py-2 font-mono">
                           {vm.system_disk_size ? `${vm.system_disk_size} GB` : "—"}
-                          {vm.system_disk_type && <span className="text-[var(--color-muted-foreground)]"> · {vm.system_disk_type}</span>}
                         </td>
                       </tr>
                     ))}
@@ -153,6 +138,7 @@ export function VmInventoryDialog({ stackId, onClose }: { stackId: string; onClo
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

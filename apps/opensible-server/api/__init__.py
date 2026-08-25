@@ -58,6 +58,7 @@ def register_blueprints(app: "Flask") -> None:
         "api.secret_rotation_routes",
         "api.cost_aggregator_routes",
         "api.ai_routes",
+        "api.ai_router_routes",
         "api.metrics_routes",
         "api.inbound_webhook_routes",
         "api.automation_routes",

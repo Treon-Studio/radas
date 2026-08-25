@@ -13,6 +13,9 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
+  optimizeDeps: {
+    include: ["@pxlkit/core", "@pxlkit/gamification"],
+  },
   server: {
     port: 8080,
     host: true,

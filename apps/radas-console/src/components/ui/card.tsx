@@ -10,7 +10,7 @@ export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>((
   <div
     ref={ref}
     className={cn(
-      "border-2 border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-sm pxl-card-shadow transition-colors duration-100",
+      "border-2 border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-md pxl-card-shadow transition-colors duration-100",
       className
     )}
     {...p}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { RiRefreshLine as RefreshCw, RiCloseLine as X, RiDownload2Line as Download, RiStopCircleLine as StopCircle, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
@@ -148,9 +149,10 @@ export function RunLogDialog({
   const exec = execQ.data?.execution;
   const effStatus = status || exec?.status || "UNKNOWN";
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4 sm:p-8" onClick={onClose}>
-      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] rounded-lg shadow-2xl w-full max-w-5xl border border-[var(--color-border)] flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in" onClick={onClose}>
+      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-md shadow-2xl w-full max-w-5xl border-2 border-[var(--color-border)] pxl-card-shadow flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-3 min-w-0">
             {!isComplete && polling && <Loader2 className="h-4 w-4 animate-spin text-[var(--color-primary)]" />}
@@ -187,6 +189,7 @@ export function RunLogDialog({
           <LogViewer text={text || "(waiting for output…)"} className="max-h-[70vh]" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

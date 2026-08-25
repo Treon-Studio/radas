@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiCloseLine as X, RiGitBranchLine as GitBranch, RiLoader4Line as Loader2, RiAddLine as Plus, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp } from "@remixicon/react";
 import { toast } from "sonner";
@@ -171,12 +172,12 @@ export function EditRepoSourceDialog({ open, onOpenChange, projectId }: Props) {
     onError: (e: any) => toast.error(e?.message || "Connection failed"),
   });
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
   const busy = save.isPending;
   const secrets = secretsQ.data?.options || [];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !busy && onOpenChange(false)}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => !busy && onOpenChange(false)}>
       <div className="w-full max-w-xl rounded-md bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--shadow-popover)] max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2">
@@ -296,6 +297,7 @@ export function EditRepoSourceDialog({ open, onOpenChange, projectId }: Props) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

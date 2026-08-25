@@ -36,6 +36,7 @@ import { Route as InfrastructureTemplatesRouteImport } from './routes/infrastruc
 import { Route as InfrastructureVaultsRouteImport } from './routes/infrastructure/vaults'
 import { Route as InfrastructureVaultsSecretsRouteImport } from './routes/infrastructure/vaults-secrets'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
+import { Route as SystemAiRouteImport } from './routes/system/ai'
 import { Route as SystemApiRouteImport } from './routes/system/api'
 import { Route as SystemGithubActionsRouteImport } from './routes/system/github-actions'
 import { Route as SystemSecretsRouteImport } from './routes/system/secrets'
@@ -198,6 +199,11 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemAiRoute = SystemAiRouteImport.update({
+  id: '/system/ai',
+  path: '/system/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SystemApiRoute = SystemApiRouteImport.update({
   id: '/system/api',
   path: '/system/api',
@@ -348,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/system/ai': typeof SystemAiRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/system/ai': typeof SystemAiRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -453,6 +461,7 @@ export interface FileRoutesById {
   '/infrastructure/vaults': typeof InfrastructureVaultsRoute
   '/infrastructure/vaults-secrets': typeof InfrastructureVaultsSecretsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/system/ai': typeof SystemAiRoute
   '/system/api': typeof SystemApiRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/secrets': typeof SystemSecretsRoute
@@ -507,6 +516,7 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
+    | '/system/ai'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -559,6 +569,7 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
+    | '/system/ai'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -611,6 +622,7 @@ export interface FileRouteTypes {
     | '/infrastructure/vaults'
     | '/infrastructure/vaults-secrets'
     | '/projects/$projectId'
+    | '/system/ai'
     | '/system/api'
     | '/system/github-actions'
     | '/system/secrets'
@@ -664,6 +676,7 @@ export interface RootRouteChildren {
   InfrastructureVaultsRoute: typeof InfrastructureVaultsRoute
   InfrastructureVaultsSecretsRoute: typeof InfrastructureVaultsSecretsRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
+  SystemAiRoute: typeof SystemAiRoute
   SystemApiRoute: typeof SystemApiRoute
   SystemGithubActionsRoute: typeof SystemGithubActionsRoute
   SystemSecretsRoute: typeof SystemSecretsRoute
@@ -864,6 +877,13 @@ declare module '@tanstack/react-router' {
       path: '/projects/$projectId'
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system/ai': {
+      id: '/system/ai'
+      path: '/system/ai'
+      fullPath: '/system/ai'
+      preLoaderRoute: typeof SystemAiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system/api': {
@@ -1106,6 +1126,7 @@ const rootRouteChildren: RootRouteChildren = {
   InfrastructureVaultsRoute: InfrastructureVaultsRoute,
   InfrastructureVaultsSecretsRoute: InfrastructureVaultsSecretsRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
+  SystemAiRoute: SystemAiRoute,
   SystemApiRoute: SystemApiRoute,
   SystemGithubActionsRoute: SystemGithubActionsRoute,
   SystemSecretsRoute: SystemSecretsRoute,

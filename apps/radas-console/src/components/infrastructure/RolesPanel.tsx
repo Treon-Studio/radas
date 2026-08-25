@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { RiShieldLine as Shield, RiRefreshLine as RefreshCw, RiArrowRightSLine as ChevronRight, RiArrowDownSLine as ChevronDown, RiFileCodeLine as FileCode, RiFolderLine as Folder, RiSaveLine as Save, RiCloseLine as X, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiFolderAddLine as FolderPlus, RiFileAddLine as FilePlus } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +14,10 @@ import { useT } from "@/lib/i18n";
 function Modal({ open, onClose, title, children, footer }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode;
 }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-[var(--color-card)] rounded-lg shadow-2xl w-full max-w-md border border-[var(--color-border)] flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+      <div className="bg-[var(--color-card)] rounded-lg shadow-2xl w-full max-w-md border-2 border-[var(--color-border)] pxl-card-shadow flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
           <h2 className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} aria-label="Close" className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] text-xl leading-none">×</button>
@@ -24,7 +25,8 @@ function Modal({ open, onClose, title, children, footer }: {
         <div className="p-5 overflow-y-auto flex-1 space-y-3">{children}</div>
         {footer && <div className="px-5 py-3 border-t border-[var(--color-border)] flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

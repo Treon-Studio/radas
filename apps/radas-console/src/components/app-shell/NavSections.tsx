@@ -40,6 +40,7 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
   ] as Item[],
   system: [
     { to: "/system/settings", label: t("nav.settings"), icon: Settings2 },
+    { to: "/system/ai", label: "AI Gateway (9Router)", icon: Cpu },
     { to: "/system/users", label: t("nav.usersManagement"), icon: Users },
     { to: "/system/workers", label: t("nav.workers"), icon: Cpu },
     { to: "/system/secrets", label: t("nav.secretsManagement"), icon: ShieldCheck },
@@ -65,30 +66,59 @@ function isActive(pathname: string, to: string): boolean {
 
 
 export function SubNavLinks() {
+  return <SidebarNav />;
+}
+
+export function SidebarNav() {
   const t = useT();
   const { pathname } = useLocation();
-  const activeSec = getActiveSection(pathname);
-  const items = SECTIONS(t)[activeSec] || [];
+  const activeSection = getActiveSection(pathname);
+
+  const sections = SECTIONS(t);
+
+  const sectionMap = {
+    overview: { title: "MAIN", items: sections.overview },
+    cloud: { title: t("nav.cloud").toUpperCase(), items: sections.cloud },
+    infrastructure: { title: t("nav.infrastructure").toUpperCase(), items: sections.infrastructure },
+    system: { title: t("nav.system").toUpperCase(), items: sections.system },
+    services: { title: "SERVICES", items: sections.services },
+  };
+
+  const activeGroup = sectionMap[activeSection] || sectionMap.overview;
 
   return (
-    <div className="flex items-center gap-6 h-full min-w-0">
-      {items.map((it) => {
-        const active = isActive(pathname, it.to);
-        return (
-          <Link
-            key={it.to}
-            to={it.to}
-            className={cn(
-              "h-10 flex items-center text-xs font-mono uppercase tracking-[0.071em] border-b-2 transition-colors shrink-0 -mb-px",
-              active
-                ? "border-[var(--color-foreground)]/50 text-[var(--color-foreground)] font-semibold"
-                : "border-transparent text-[var(--color-stone)] hover:text-[var(--color-foreground)]"
-            )}
-          >
-            {it.label}
-          </Link>
-        );
-      })}
+    <div className="flex flex-col py-4 px-3 space-y-4 font-mono">
+      <div className="px-3 pb-2 text-[10px] uppercase tracking-[0.15em] text-[var(--color-muted-foreground)] font-bold border-b border-[var(--color-border)]/60">
+        {activeGroup.title}
+      </div>
+      <nav className="space-y-1">
+        {activeGroup.items.map((it) => {
+          const Icon = it.icon;
+          const active = isActive(pathname, it.to);
+          return (
+            <Link
+              key={it.to}
+              to={it.to}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 text-xs font-mono pxl-corner-sm transition-all duration-150 group",
+                active
+                  ? "bg-[var(--color-primary)]/20 text-[var(--color-primary)] font-bold pxl-shadow border-l-2 border-[var(--color-primary)]"
+                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]/60"
+              )}
+            >
+              <Icon
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-colors",
+                  active
+                    ? "text-[var(--color-primary)]"
+                    : "text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]"
+                )}
+              />
+              <span className="truncate">{it.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

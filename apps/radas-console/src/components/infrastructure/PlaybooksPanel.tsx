@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { RiBookOpenLine as BookOpen, RiRefreshLine as RefreshCw, RiAddLine as Plus, RiPlayLine as Play, RiSearchLine as Search, RiUpload2Line as Upload, RiDownload2Line as Download, RiFileCopyLine as Copy, RiPenNibLine as Edit3, RiDeleteBinLine as Trash2, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertCircle, RiFileCodeLine as FileCode, RiEyeLine as Eye } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { CheckboxInput } from "@/components/ui/checkbox";
@@ -41,11 +42,11 @@ function Modal({ open, onClose, title, children, footer, wide }: {
   open: boolean; onClose: () => void; title: string;
   children: React.ReactNode; footer?: React.ReactNode; wide?: boolean;
 }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
       <div
-        className={`bg-[var(--color-card)] rounded-lg shadow-2xl w-full ${wide ? "max-w-4xl" : "max-w-lg"} border border-[var(--color-border)] flex flex-col max-h-[90vh]`}
+        className={`bg-[var(--color-card)] rounded-lg shadow-2xl w-full ${wide ? "max-w-4xl" : "max-w-lg"} border-2 border-[var(--color-border)] pxl-card-shadow flex flex-col max-h-[90vh] overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
@@ -55,7 +56,8 @@ function Modal({ open, onClose, title, children, footer, wide }: {
         <div className="p-5 overflow-y-auto flex-1">{children}</div>
         {footer && <div className="px-5 py-3 border-t border-[var(--color-border)] flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

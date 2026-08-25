@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { RiDownload2Line as Download, RiFileUploadLine as FileUp, RiCloseLine as X } from "@remixicon/react";
 import { toast } from "sonner";
@@ -60,9 +61,10 @@ export function ImportStackButton() {
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4 sm:p-8" onClick={() => setOpen(false)}>
-      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] rounded-lg shadow-2xl w-full max-w-lg border border-[var(--color-border)] flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setOpen(false)}>
+      <div className="bg-[var(--color-card)] text-[var(--color-card-foreground)] pxl-corner-md shadow-2xl w-full max-w-lg border-2 border-[var(--color-border)] pxl-card-shadow flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
           <h2 className="text-base font-semibold">Import existing stack</h2>
           <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Close"><X className="h-4 w-4" /></Button>
@@ -83,9 +85,9 @@ export function ImportStackButton() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium">terraform.tfvars</label>
+            <label className="text-sm font-medium">tfvars content (optional)</label>
             <Textarea
-              className="h-28 font-mono text-xs"
+              className="h-24 font-mono text-xs"
               value={tfvars}
               onChange={(e) => setTfvars(e.target.value)}
               placeholder={'env = "dev"\nproject_name = "demo"'}
@@ -106,6 +108,7 @@ export function ImportStackButton() {
           <Button size="sm" onClick={doImport}>Import</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

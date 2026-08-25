@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { RiCloseLine as X, RiHistoryLine as History, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,16 +34,17 @@ export function TemplateInstanceHistoryDialog({
   };
 
   const commits = q.data?.commits || [];
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+      <div className="bg-[var(--color-card)] border-2 border-[var(--color-border)] pxl-card-shadow pxl-corner-md shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            <div className="font-medium text-sm">Version history</div>
+            <div className="font-semibold text-sm">Version history</div>
             <Badge variant="default" className="text-[10px] font-mono">{path}</Badge>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-[var(--color-accent)] rounded"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="p-1 hover:bg-[var(--color-muted)] rounded"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-auto">
           {q.isLoading && <div className="p-4 text-xs text-[var(--color-muted-foreground)]">Loading git history…</div>}
@@ -68,6 +70,7 @@ export function TemplateInstanceHistoryDialog({
           </ul>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

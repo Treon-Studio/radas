@@ -102,7 +102,7 @@ export function ConfirmDialog({
         aria-modal="true"
             aria-labelledby={titleId}
         tabIndex={-1}
-        className="bg-[var(--color-card)] rounded-md shadow-[var(--shadow-popover)] w-full max-w-md border border-[var(--color-border)]"
+        className="bg-[var(--color-card)] pxl-corner-md pxl-card-shadow w-full max-w-md border-2 border-[var(--color-border)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="p-5 flex gap-3">
