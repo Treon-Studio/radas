@@ -1,3 +1,6 @@
+import { PxlKitIcon } from "@pxlkit/core";
+import { Shield } from "@pxlkit/gamification";
+
 export function PxlCloudIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={`${className} transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-110`} shapeRendering="crispEdges">
@@ -24,8 +27,8 @@ export function PxlSparklesIcon({ className = "h-5 w-5" }: { className?: string 
 
 export function PxlShieldIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={`${className} transition-transform duration-300 group-hover:scale-110 group-hover:translate-y-0.5`} shapeRendering="crispEdges">
-      <path d="M5 4h14v6c0 5-3 8-7 10-4-2-7-5-7-10V4zm2 2v4c0 3.5 2 6 5 7.5 3-1.5 5-4 5-7.5V6H7zm3 5l2 2 4-4 1.5 1.5L12 15l-3.5-3.5L10 11z" />
-    </svg>
+    <div className={`inline-flex items-center justify-center ${className} transition-transform duration-300 group-hover:scale-110 group-hover:translate-y-0.5`}>
+      <PxlKitIcon icon={Shield} size={20} appearance="palette" />
+    </div>
   );
 }
