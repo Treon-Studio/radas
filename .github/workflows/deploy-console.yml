@@ -14,39 +14,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: 'pnpm'
 
-      - name: Install deps
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build console (API → prod domain)
+      - name: Build Console (API -> prod domain)
         working-directory: apps/radas-console
         env:
           VITE_API_BASE: https://api-radas.treonstudio.com
         run: pnpm build
 
-      # Deploy via wrangler jika CLOUDFLARE_API_TOKEN tersedia (cek via env,
-      # bukan `if: secrets` — GitHub tidak mengizinkan secrets di condition).
-      - name: Deploy → Cloudflare Pages (wrangler)
+      - name: Deploy -> Cloudflare Pages (wrangler)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "CLOUDFLARE_API_TOKEN belum diset — lewati deploy Pages otomatis."
-            echo "Set secret di repo untuk mengaktifkan (atau deploy manual via dashboard)."
+            echo "CLOUDFLARE_API_TOKEN is not set — skipping Cloudflare Pages deployment."
             exit 0
           fi
           cd apps/radas-console
