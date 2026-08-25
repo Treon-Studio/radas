@@ -4,10 +4,19 @@
 @import "@fontsource/geist-pixel";
 @import "@fontsource/geist-mono";
 
+@font-face {
+  font-family: 'PixelGridM';
+  src: local('PixelGridM'), local('PixelGrid-Medium'), local('Press Start 2P'), url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-sans: "JetBrains Mono", "Geist Mono", ui-monospace, monospace;
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, monospace;
-  --font-pixel: "Press Start 2P", "Geist Pixel", monospace;
+  --font-pixel: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace;
+  --font-heading: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace;
 
   /* Pxlkit Retro Light Theme */
   --color-background: #f2f0eb;
@@ -56,6 +65,44 @@
   --radius: 0px;
   --shadow-card: 2px 2px 0 rgba(0, 0, 0, 0.15);
   --shadow-popover: 3px 3px 0 rgba(0, 0, 0, 0.2);
+}
+
+.font-pixel-grid {
+  font-family: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace !important;
+}
+
+/* Codédex 3D Retro Pixel Title Text */
+.codedex-pixel-title {
+  font-family: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace !important;
+  color: #ffc82c;
+  text-shadow: 
+    3px 3px 0px #261600,
+    -2px -2px 0px #ffe680,
+    3px -2px 0px #261600,
+    -2px 3px 0px #261600,
+    0px 4px 0px #1f1105;
+}
+
+/* Codédex Yellow 8-Bit Pixel Button */
+.codedex-btn-yellow {
+  background: linear-gradient(180deg, #ffdc33 0%, #ffb700 100%);
+  color: #120e00 !important;
+  border: 3px solid #120e00;
+  box-shadow: 4px 4px 0px #120e00;
+  font-family: "PixelGridM", "Press Start 2P", "Geist Pixel", monospace !important;
+  font-weight: 700;
+  transition: all 0.1s ease;
+}
+
+.codedex-btn-yellow:hover {
+  background: linear-gradient(180deg, #ffe566 0%, #ffc426 100%);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #120e00;
+}
+
+.codedex-btn-yellow:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #120e00;
 }
 
 [data-theme="dark"] {
@@ -391,16 +438,16 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 .pxl-shadow {
-  filter: drop-shadow(3px 3px #00000040);
+  box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 0.2);
 }
 
 .pxl-shadow-hover:hover:not(:disabled) {
-  filter: drop-shadow(2px 2px #00000040);
+  box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);
   transform: translate(1px, 1px) !important;
 }
 
 .pxl-shadow-active:active:not(:disabled) {
-  filter: drop-shadow(1px 1px #00000040);
+  box-shadow: 1px 1px 0 0 rgba(0, 0, 0, 0.2);
   transform: translate(2px, 2px) !important;
 }
 
@@ -409,7 +456,23 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 .pxl-card-shadow {
-  filter: drop-shadow(3px 3px #00000040);
+  box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 0.2);
+}
+
+.pxl-meter-bar {
+  image-rendering: pixelated;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 6px,
+    rgba(0, 0, 0, 0.4) 6px,
+    rgba(0, 0, 0, 0.4) 8px
+  );
+}
+
+.pxl-chart-step {
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
 }
 
 /* ==========================================================================

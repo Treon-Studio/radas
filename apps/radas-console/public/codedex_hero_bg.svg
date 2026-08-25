@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 600" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Sky Gradient -->
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b75bc"/>
+      <stop offset="40%" stop-color="#29a9e0"/>
+      <stop offset="85%" stop-color="#6fc5ee"/>
+      <stop offset="100%" stop-color="#9fe0f8"/>
+    </linearGradient>
+
+    <!-- Mountain Gradients -->
+    <linearGradient id="mountGradBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2d5e78"/>
+      <stop offset="100%" stop-color="#1f4459"/>
+    </linearGradient>
+    <linearGradient id="mountGradFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#366e51"/>
+      <stop offset="100%" stop-color="#1f4633"/>
+    </linearGradient>
+
+    <!-- Meadow Gradient -->
+    <linearGradient id="meadowGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4f9668"/>
+      <stop offset="30%" stop-color="#43865b"/>
+      <stop offset="100%" stop-color="#2a573a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="1440" height="600" fill="url(#skyGrad)"/>
+
+  <!-- Pixel Clouds Layer 1 -->
+  <g fill="#ffffff" opacity="0.85">
+    <!-- Cloud Left -->
+    <path d="M 60 80 h 120 v 16 h -120 z M 40 96 h 160 v 16 h -160 z M 80 64 h 80 v 16 h -80 z M 100 48 h 40 v 16 h -40 z"/>
+    <!-- Cloud Center Right -->
+    <path d="M 900 60 h 140 v 16 h -140 z M 880 76 h 180 v 16 h -180 z M 920 44 h 100 v 16 h -100 z M 940 28 h 50 v 16 h -50 z"/>
+    <!-- Cloud Far Right -->
+    <path d="M 1240 100 h 120 v 16 h -120 z M 1220 116 h 160 v 16 h -160 z M 1260 84 h 80 v 16 h -80 z"/>
+  </g>
+
+  <!-- Distant Blue Mountains (Layer 1) -->
+  <polygon points="0,320 160,180 320,320" fill="url(#mountGradBack)"/>
+  <polygon points="120,320 280,160 440,320" fill="url(#mountGradBack)"/>
+  <polygon points="1000,320 1180,150 1360,320" fill="url(#mountGradBack)"/>
+  <polygon points="1160,320 1300,190 1440,320" fill="url(#mountGradBack)"/>
+
+  <!-- Mountain Snow Caps -->
+  <polygon points="160,180 130,210 190,210" fill="#cce8f5" opacity="0.8"/>
+  <polygon points="280,160 250,190 310,190" fill="#cce8f5" opacity="0.8"/>
+  <polygon points="1180,150 1150,180 1210,180" fill="#cce8f5" opacity="0.8"/>
+
+  <!-- Midground Green Mountains (Layer 2) -->
+  <polygon points="200,350 400,200 600,350" fill="url(#mountGradFront)"/>
+  <polygon points="840,350 1040,190 1240,350" fill="url(#mountGradFront)"/>
+
+  <!-- Pine Tree Forest Layer -->
+  <g fill="#1b402b">
+    <!-- Tree Cluster Left -->
+    <polygon points="80,360 100,310 120,360"/><polygon points="85,340 100,295 115,340"/>
+    <polygon points="120,360 140,300 160,360"/><polygon points="125,335 140,285 155,335"/>
+    <polygon points="160,360 180,315 200,360"/>
+    <polygon points="260,360 280,305 300,360"/>
+    <polygon points="300,360 320,290 340,360"/>
+
+    <!-- Tree Cluster Right -->
+    <polygon points="1100,360 1120,300 1140,360"/>
+    <polygon points="1140,360 1160,290 1180,360"/>
+    <polygon points="1180,360 1200,310 1220,360"/>
+    <polygon points="1320,360 1340,300 1360,360"/>
+    <polygon points="1360,360 1380,285 1400,360"/>
+  </g>
+
+  <!-- Meadow Field (Bottom Half) -->
+  <rect y="330" width="1440" height="270" fill="url(#meadowGrad)"/>
+
+  <!-- Meadow Texture & Pixel Flowers -->
+  <g fill="#e274a7">
+    <!-- Scattered Pink/Purple Pixel Flowers -->
+    <rect x="180" y="380" width="8" height="8"/><rect x="188" y="372" width="8" height="8"/><rect x="172" y="372" width="8" height="8"/><rect x="180" y="364" width="8" height="8"/>
+    <rect x="260" y="440" width="8" height="8"/><rect x="268" y="432" width="8" height="8"/><rect x="252" y="432" width="8" height="8"/><rect x="260" y="424" width="8" height="8"/>
+    <rect x="420" y="490" width="8" height="8"/><rect x="428" y="482" width="8" height="8"/><rect x="412" y="482" width="8" height="8"/><rect x="420" y="474" width="8" height="8"/>
+    <rect x="740" y="450" width="8" height="8"/><rect x="748" y="442" width="8" height="8"/><rect x="732" y="442" width="8" height="8"/><rect x="740" y="434" width="8" height="8"/>
+    <rect x="1080" y="420" width="8" height="8"/><rect x="1088" y="412" width="8" height="8"/><rect x="1072" y="412" width="8" height="8"/><rect x="1080" y="404" width="8" height="8"/>
+    <rect x="1280" y="460" width="8" height="8"/><rect x="1288" y="452" width="8" height="8"/><rect x="1272" y="452" width="8" height="8"/><rect x="1280" y="444" width="8" height="8"/>
+  </g>
+
+  <g fill="#ffd166">
+    <!-- Yellow Flower Centers -->
+    <rect x="180" y="372" width="8" height="8"/>
+    <rect x="260" y="432" width="8" height="8"/>
+    <rect x="420" y="482" width="8" height="8"/>
+    <rect x="740" y="442" width="8" height="8"/>
+    <rect x="1080" y="412" width="8" height="8"/>
+    <rect x="1280" y="452" width="8" height="8"/>
+  </g>
+
+  <!-- Dark Bottom Grass Silhouette Border -->
+  <path d="M 0 560 L 40 540 L 80 560 L 120 535 L 160 560 L 200 540 L 240 560 L 280 535 L 320 560 L 360 540 L 400 560 L 440 535 L 480 560 L 520 540 L 560 560 L 600 535 L 640 560 L 680 540 L 720 560 L 760 535 L 800 560 L 840 540 L 880 560 L 920 535 L 960 560 L 1000 540 L 1040 560 L 1080 535 L 1120 560 L 1160 540 L 1200 560 L 1240 535 L 1280 560 L 1320 540 L 1360 560 L 1400 535 L 1440 560 L 1440 600 L 0 600 Z" fill="#142c1d"/>
+</svg>
