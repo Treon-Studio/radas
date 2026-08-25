@@ -16,10 +16,10 @@ import (
 
 // ProcessInfo represents a single running process metric
 type ProcessInfo struct {
-	PID     string
-	Name    string
-	CPU     float64
-	Mem     float64
+	PID  string
+	Name string
+	CPU  float64
+	Mem  float64
 }
 
 // LiveMetrics holds a snapshot of live system resource metrics
@@ -234,7 +234,7 @@ type monitorModel struct {
 func NewMonitorModel() monitorModel {
 	m := monitorModel{
 		metrics:    FetchLiveMetrics(),
-		cpuHistory: make([]float64, 50),
+		cpuHistory: make([]float64, 60),
 		width:      100,
 		height:     30,
 	}
@@ -270,8 +270,12 @@ func (m monitorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.paused = !m.paused
 		}
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+		if msg.Height > 0 {
+			m.height = msg.Height
+		}
 	case tickMsg:
 		if !m.paused {
 			m.metrics = FetchLiveMetrics()
@@ -283,7 +287,7 @@ func (m monitorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *monitorModel) appendCPUHistory(val float64) {
-	if len(m.cpuHistory) >= 50 {
+	if len(m.cpuHistory) >= 60 {
 		m.cpuHistory = append(m.cpuHistory[1:], val)
 	} else {
 		m.cpuHistory = append(m.cpuHistory, val)
@@ -365,7 +369,7 @@ func RenderBrailleGraph(history []float64, widthCols int, heightRows int) []stri
 		}
 	}
 
-	// Color gradient styles per row
+	// Color gradient per row
 	rowColors := []lipgloss.Color{
 		lipgloss.Color("#FF5F56"), // Top (High load - Red)
 		lipgloss.Color("#FFBD2E"), // Mid-High (Yellow)
@@ -392,8 +396,8 @@ func RenderBrailleGraph(history []float64, widthCols int, heightRows int) []stri
 }
 
 func renderGaugeBar(pct float64, width int, filledColor lipgloss.Color) string {
-	if width < 10 {
-		width = 25
+	if width < 5 {
+		width = 15
 	}
 	filledLen := int((pct / 100.0) * float64(width))
 	if filledLen > width {
@@ -407,20 +411,21 @@ func renderGaugeBar(pct float64, width int, filledColor lipgloss.Color) string {
 	filledStyle := lipgloss.NewStyle().Foreground(filledColor)
 	emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
 
-	return filledStyle.Render(strings.Repeat("■", filledLen)) + emptyStyle.Render(strings.Repeat("░", emptyLen))
+	return filledStyle.Render(strings.Repeat("█", filledLen)) + emptyStyle.Render(strings.Repeat("░", emptyLen))
 }
 
 func (m monitorModel) View() string {
-	// btop / htop Palette
+	// Screen width calculations
+	termWidth := m.width
+	if termWidth < 80 {
+		termWidth = 80
+	}
+
+	// Colors
 	headerBg := lipgloss.Color("#6C5CE7")
 	borderColor := lipgloss.Color("#00CEC9")
-	subTextColor := lipgloss.Color("#A0A0A0")
-
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(headerBg).
-		Padding(0, 1)
+	accentColor := lipgloss.Color("#74B9FF")
+	subTextColor := lipgloss.Color("#888888")
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -433,31 +438,33 @@ func (m monitorModel) View() string {
 	if m.paused {
 		statusStr = "PAUSED"
 	}
-	header := titleStyle.Render("⚡ RADAS SYSTEM MONITOR (BTOP / HTOP ENGINE)") + "  " +
-		lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("%s | Status: %s | Press 'q' to quit | 'space' to pause", nowStr, statusStr))
+	bannerText := fmt.Sprintf(" ⚡ RADAS SYSTEM MONITOR  │  %s  │  OS: %s (%s)  │  Status: %s ", nowStr, m.metrics.OSVersion, m.metrics.Arch, statusStr)
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(headerBg).Render(bannerText) + "  " +
+		lipgloss.NewStyle().Foreground(subTextColor).Render("[q] Exit  [space] Pause  [r] Refresh")
 
-	// 1. Multi-Line Braille CPU Chart Panel
-	chartWidth := 48
-	if m.width > 90 {
-		chartWidth = m.width - 45
+	// 1. Full-Width Top CPU Panel
+	cpuBoxWidth := termWidth - 4
+	if cpuBoxWidth < 70 {
+		cpuBoxWidth = 70
 	}
-	if chartWidth < 30 {
-		chartWidth = 30
+	chartGraphWidth := cpuBoxWidth - 16
+	if chartGraphWidth < 30 {
+		chartGraphWidth = 30
 	}
-	graphLines := RenderBrailleGraph(m.cpuHistory, chartWidth, 5)
 
-	var chartPanel strings.Builder
-	chartPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#74B9FF")).Render("📈 REALTIME CPU LOAD HISTORY CHART (0-100%)\n"))
-	chartPanel.WriteString(fmt.Sprintf(" 100%% │ %s\n", graphLines[0]))
-	chartPanel.WriteString(fmt.Sprintf("  75%% │ %s\n", graphLines[1]))
-	chartPanel.WriteString(fmt.Sprintf("  50%% │ %s\n", graphLines[2]))
-	chartPanel.WriteString(fmt.Sprintf("  25%% │ %s\n", graphLines[3]))
-	chartPanel.WriteString(fmt.Sprintf("   0%% └──%s\n", graphLines[4]))
-	chartPanel.WriteString(fmt.Sprintf("        Average Load: %5.1f%%  |  Cores: %d  |  Thermals: %s", m.metrics.CPUUsagePct, m.metrics.CPUCores, m.metrics.ThermalState))
+	graphLines := RenderBrailleGraph(m.cpuHistory, chartGraphWidth, 5)
 
-	// 2. Per-Core CPU Gauges Panel
-	var corePanel strings.Builder
-	corePanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#55E6C1")).Render("💻 PER-CORE CPU USAGE:\n"))
+	var cpuPanel strings.Builder
+	cpuPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render(fmt.Sprintf("📈 CPU LOAD HISTORY: %5.1f%%   [Cores: %d | Thermals: %s | Batt: %d%% (%s)]\n",
+		m.metrics.CPUUsagePct, m.metrics.CPUCores, m.metrics.ThermalState, m.metrics.BatteryPct, m.metrics.BatteryHealth)))
+
+	yAxisLabels := []string{"100% ┤ ", " 75% ┤ ", " 50% ┤ ", " 25% ┤ ", "  0% ┴ "}
+	for i := 0; i < 5; i++ {
+		cpuPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(yAxisLabels[i]) + graphLines[i] + "\n")
+	}
+
+	// Per-Core CPU Gauges Line
+	var coreItems []string
 	for i, cVal := range m.metrics.PerCoreCPU {
 		cColor := lipgloss.Color("#04B575")
 		if cVal > 75 {
@@ -465,11 +472,17 @@ func (m monitorModel) View() string {
 		} else if cVal > 50 {
 			cColor = lipgloss.Color("#FFBD2E")
 		}
-		cBar := renderGaugeBar(cVal, 16, cColor)
-		corePanel.WriteString(fmt.Sprintf("Core %-2d [%s] %5.1f%%\n", i, cBar, cVal))
+		cStyle := lipgloss.NewStyle().Foreground(cColor)
+		coreItems = append(coreItems, fmt.Sprintf("C%d:%s", i, cStyle.Render(fmt.Sprintf("%3.0f%%", cVal))))
+	}
+	cpuPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render("Cores: ") + strings.Join(coreItems, "  "))
+
+	// 2. Bottom Left Memory & Storage Box
+	bottomBoxWidth := (termWidth - 6) / 2
+	if bottomBoxWidth < 40 {
+		bottomBoxWidth = 40
 	}
 
-	// 3. Memory & Disk Distribution Panel
 	ramColor := lipgloss.Color("#0984E3")
 	if m.metrics.RAMUsagePct > 80 {
 		ramColor = lipgloss.Color("#D63031")
@@ -477,22 +490,33 @@ func (m monitorModel) View() string {
 		ramColor = lipgloss.Color("#FDCB6E")
 	}
 
-	ramBar := renderGaugeBar(m.metrics.RAMUsagePct, 28, ramColor)
-	diskBar := renderGaugeBar(m.metrics.DiskUsagePct, 28, lipgloss.Color("#00CEC9"))
+	gaugeLen := bottomBoxWidth - 24
+	if gaugeLen < 10 {
+		gaugeLen = 10
+	}
+
+	ramBar := renderGaugeBar(m.metrics.RAMUsagePct, gaugeLen, ramColor)
+	diskBar := renderGaugeBar(m.metrics.DiskUsagePct, gaugeLen, lipgloss.Color("#00CEC9"))
 
 	var memPanel strings.Builder
-	memPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FDCB6E")).Render("🧠 MEMORY & STORAGE BREAKDOWN:\n"))
-	memPanel.WriteString(fmt.Sprintf("RAM Active:  [%s] %5.1f%%\n", ramBar, m.metrics.RAMUsagePct))
-	memPanel.WriteString(fmt.Sprintf("             Wired: %s | Active: %s | Free: %s\n", FormatBytes(m.metrics.WiredRAMBytes), FormatBytes(m.metrics.ActiveRAMBytes), FormatBytes(m.metrics.FreeRAMBytes)))
-	memPanel.WriteString(fmt.Sprintf("Root Disk:   [%s] %5.1f%%\n", diskBar, m.metrics.DiskUsagePct))
-	memPanel.WriteString(fmt.Sprintf("             Free: %.1f GB | Total: %.1f GB | Batt: %d%% (%s)\n", m.metrics.DiskFreeGB, m.metrics.DiskTotalGB, m.metrics.BatteryPct, m.metrics.BatteryHealth))
+	memPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FDCB6E")).Render("🧠 MEMORY & STORAGE\n"))
+	memPanel.WriteString(fmt.Sprintf("RAM  [%s] %5.1f%%\n", ramBar, m.metrics.RAMUsagePct))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Used: %s / Total: %s\n", FormatBytes(m.metrics.UsedRAMBytes), FormatBytes(m.metrics.TotalRAMBytes))))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Wired: %s │ Active: %s │ Free: %s\n\n", FormatBytes(m.metrics.WiredRAMBytes), FormatBytes(m.metrics.ActiveRAMBytes), FormatBytes(m.metrics.FreeRAMBytes))))
 
-	// 4. Top Heavy Processes Table Panel
+	memPanel.WriteString(fmt.Sprintf("DISK [%s] %5.1f%%\n", diskBar, m.metrics.DiskUsagePct))
+	memPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(fmt.Sprintf("     Free: %.1f GB │ Total: %.1f GB", m.metrics.DiskFreeGB, m.metrics.DiskTotalGB)))
+
+	// 3. Bottom Right Process Table Box
 	var procPanel strings.Builder
-	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E17055")).Render("🔥 TOP ACTIVE PROCESSES (BY CPU & MEMORY):\n"))
-	procPanel.WriteString(fmt.Sprintf("%-7s %-22s %-8s %-8s\n", "PID", "PROCESS NAME", "%CPU", "%MEM"))
-	procPanel.WriteString(strings.Repeat("─", 48) + "\n")
-	for _, p := range m.metrics.TopProcesses {
+	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E17055")).Render("🔥 TOP PROCESSES (BY %CPU)\n"))
+	procPanel.WriteString(lipgloss.NewStyle().Bold(true).Foreground(subTextColor).Render(fmt.Sprintf("%6s  %-18s %6s %6s\n", "PID", "COMMAND", "%CPU", "%MEM")))
+	procPanel.WriteString(lipgloss.NewStyle().Foreground(subTextColor).Render(strings.Repeat("─", bottomBoxWidth-4) + "\n"))
+
+	for i, p := range m.metrics.TopProcesses {
+		if i >= 6 {
+			break
+		}
 		pColor := lipgloss.Color("#FFFFFF")
 		if p.CPU > 20.0 {
 			pColor = lipgloss.Color("#FF5F56")
@@ -500,14 +524,17 @@ func (m monitorModel) View() string {
 			pColor = lipgloss.Color("#FFBD2E")
 		}
 		pStyle := lipgloss.NewStyle().Foreground(pColor)
-		procPanel.WriteString(pStyle.Render(fmt.Sprintf("%-7s %-22s %-8.1f %-8.1f\n", p.PID, truncateStr(p.Name, 21), p.CPU, p.Mem)))
+		procPanel.WriteString(pStyle.Render(fmt.Sprintf("%6s  %-18s %6.1f %6.1f\n", p.PID, truncateStr(p.Name, 18), p.CPU, p.Mem)))
 	}
 
-	// Layout Grid (Top row: Braille Chart + Per Core, Bottom row: Memory + Process Table)
-	topRow := lipgloss.JoinHorizontal(lipgloss.Top, boxStyle.Render(chartPanel.String()), " ", boxStyle.Render(corePanel.String()))
-	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, boxStyle.Render(memPanel.String()), " ", boxStyle.Render(procPanel.String()))
+	// Layout Rendering
+	cpuBox := boxStyle.Width(cpuBoxWidth).Render(cpuPanel.String())
+	memBox := boxStyle.Width(bottomBoxWidth).Render(memPanel.String())
+	procBox := boxStyle.Width(bottomBoxWidth).Render(procPanel.String())
 
-	return fmt.Sprintf("%s\n\n%s\n%s", header, topRow, bottomRow)
+	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, memBox, " ", procBox)
+
+	return fmt.Sprintf("%s\n\n%s\n\n%s", header, cpuBox, bottomRow)
 }
 
 func truncateStr(s string, max int) string {
