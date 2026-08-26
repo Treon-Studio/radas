@@ -148,40 +148,16 @@ function WebLandingPage() {
 
           {/* MAIN CONTENT AREA */}
           <main className="flex-1">
-            {/* 2. MINIMALIST HERO SECTION WITH FULL PIXEL LANDSCAPE BACKGROUND */}
+            {/* 2. HERO SECTION WITH RETRO PIXEL LANDSCAPE BACKGROUND */}
             <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
-              {/* Background Pixel Landscape Layer (Animated WebP) */}
+              {/* Background Pixel Landscape Layer */}
               <div 
                 className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
                 style={{
-                  backgroundImage: `url('/images/hero-pixel-landscape-animated.webp')`,
+                  backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
                   imageRendering: 'pixelated',
                 }}
               />
-
-              {/* Twinkling Pixel Sparkle Stars Layer */}
-              <div className="absolute inset-0 pointer-events-none z-0">
-                <div className="absolute top-8 left-12 animate-pulse opacity-90" style={{ animationDuration: '2s' }}>
-                  <svg width="14" height="14" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                  </svg>
-                </div>
-                <div className="absolute top-16 right-20 animate-pulse opacity-85" style={{ animationDuration: '3s', animationDelay: '1s' }}>
-                  <svg width="16" height="16" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                  </svg>
-                </div>
-                <div className="absolute top-12 left-1/4 animate-pulse opacity-80" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}>
-                  <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                  </svg>
-                </div>
-                <div className="absolute top-20 right-1/3 animate-pulse opacity-85" style={{ animationDuration: '3.5s', animationDelay: '1.5s' }}>
-                  <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                  </svg>
-                </div>
-              </div>
 
               {/* Hero Foreground Content */}
               <div className="relative z-10 max-w-3xl mx-auto space-y-6 py-20 sm:py-28 px-6 sm:px-12">
