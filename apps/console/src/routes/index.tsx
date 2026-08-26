@@ -148,91 +148,87 @@ function WebLandingPage() {
 
           {/* MAIN CONTENT AREA */}
           <main className="flex-1">
-            {/* 2. MINIMALIST HERO SECTION */}
-            <section className="relative w-full py-20 sm:py-28 text-center px-6 sm:px-12">
-              <div className="max-w-3xl mx-auto space-y-6">
-                {/* 3D Pixel Gamer Title (Scaled down by 40%) */}
+            {/* 2. MINIMALIST HERO SECTION WITH FULL PIXEL LANDSCAPE BACKGROUND */}
+            <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
+              {/* Background Pixel Landscape Layer (Covering full section) */}
+              <div 
+                className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
+                style={{
+                  backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
+                  imageRendering: 'pixelated',
+                }}
+              />
+
+              {/* Twinkling Pixel Sparkle Stars Layer */}
+              <div className="absolute inset-0 pointer-events-none z-0">
+                <div className="absolute top-8 left-12 animate-pulse opacity-90" style={{ animationDuration: '2s' }}>
+                  <svg width="14" height="14" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                  </svg>
+                </div>
+                <div className="absolute top-16 right-20 animate-pulse opacity-85" style={{ animationDuration: '3s', animationDelay: '1s' }}>
+                  <svg width="16" height="16" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                  </svg>
+                </div>
+                <div className="absolute top-12 left-1/4 animate-pulse opacity-80" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}>
+                  <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                  </svg>
+                </div>
+                <div className="absolute top-20 right-1/3 animate-pulse opacity-85" style={{ animationDuration: '3.5s', animationDelay: '1.5s' }}>
+                  <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                    <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Hero Foreground Content */}
+              <div className="relative z-10 max-w-3xl mx-auto space-y-6 py-20 sm:py-28 px-6 sm:px-12">
+                {/* 3D Pixel Gamer Title */}
                 <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
                   <span className="pixel-gamer-title block">MODERN GITOPS</span>
                   <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
                 </h1>
 
                 {/* Subtitle */}
-                <p className="text-[#6B7280] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans">
+                <p className="text-[#2A2A2A] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans font-semibold bg-white/75 backdrop-blur-xs py-1.5 px-4 pxl-corner-sm inline-block border border-white/80 shadow-xs">
                   Unified OpenTofu &amp; Ansible infrastructure control plane.
                 </p>
 
                 {/* Minimal CTA Actions */}
                 <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
                   <Link to="/login">
-                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#2A2A2A] text-white hover:bg-[#1a1a1a] font-bold font-pixel-grid text-sm px-7 py-3">
+                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-sm px-7 py-3">
                       Open Console <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </Link>
                   <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
-                    <Button variant="outline" className="pxl-corner-md border-[#D1D1D1] text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3">
+                    <Button variant="outline" className="pxl-corner-md border-[#2A2A2A] bg-white text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3 shadow-sm">
                       <Github className="h-4 w-4 mr-2" /> View Source
                     </Button>
                   </a>
                 </div>
 
-                {/* 16-Bit Retro Pixel Landscape Hero Banner */}
-                <div className="pt-6 pb-2 max-w-2xl mx-auto">
-                  <div className="relative w-full h-48 sm:h-56 pxl-corner-md border-2 border-[#2A2A2A] shadow-md overflow-hidden bg-[#4C84EC] select-none group">
-                    {/* Background Pixel Landscape */}
-                    <div 
-                      className="absolute inset-0 bg-cover bg-bottom pointer-events-none"
-                      style={{
-                        backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
-                        imageRendering: 'pixelated',
-                      }}
-                    />
-
-                    {/* Twinkling Pixel Sparkle Stars */}
-                    <div className="absolute top-4 left-6 animate-pulse opacity-90" style={{ animationDuration: '2s' }}>
-                      <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                      </svg>
-                    </div>
-                    <div className="absolute top-10 right-14 animate-pulse opacity-85" style={{ animationDuration: '3s', animationDelay: '1s' }}>
-                      <svg width="14" height="14" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                      </svg>
-                    </div>
-                    <div className="absolute top-6 left-1/3 animate-pulse opacity-75" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}>
-                      <svg width="10" height="10" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                      </svg>
-                    </div>
-                    <div className="absolute top-12 right-1/3 animate-pulse opacity-80" style={{ animationDuration: '3.5s', animationDelay: '1.5s' }}>
-                      <svg width="10" height="10" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
-                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
-                      </svg>
-                    </div>
-
-                    {/* Floating Animated Mascot Character */}
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-pointer transition-transform duration-300 group-hover:scale-110">
-                      {/* Speech Bubble */}
-                      <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2.5 py-1 pxl-corner-sm shadow-sm border border-[#2A2A2A]">
-                        RADAS CONTROL PLANE 🚀
-                      </div>
-                      {/* Animated Robot Mascot */}
-                      <img 
-                        src="/images/haro-animated.webp" 
-                        alt="RADAS Mascot" 
-                        className="w-14 h-14 sm:w-16 sm:h-16 block select-none pointer-events-none animate-pixel-bounce"
-                        style={{ imageRendering: 'pixelated' }}
-                      />
-                    </div>
+                {/* Animated Mascot Character */}
+                <div className="pt-4 flex flex-col items-center cursor-pointer transition-transform duration-300 hover:scale-110">
+                  <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2.5 py-1 pxl-corner-sm shadow-md border border-[#2A2A2A]">
+                    RADAS CONTROL PLANE 🚀
                   </div>
+                  <img 
+                    src="/images/haro-animated.webp" 
+                    alt="RADAS Mascot" 
+                    className="w-16 h-16 sm:w-20 sm:h-20 block select-none pointer-events-none animate-pixel-bounce"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
                 </div>
 
                 {/* Minimal Command Bar */}
-                <div className="pt-8 max-w-xl mx-auto">
-                  <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
+                <div className="pt-4 max-w-xl mx-auto">
+                  <div className="border-2 border-[#2A2A2A] pxl-corner-sm bg-white/95 backdrop-blur-xs p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-md">
                     <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
                       <span className="text-[#107A4D] font-bold">$</span>
-                      <code className="text-[#2A2A2A] truncate">go install github.com/raizora/radas/apps/cli@latest</code>
+                      <code className="text-[#2A2A2A] truncate font-bold">go install github.com/raizora/radas/apps/cli@latest</code>
                     </div>
                     <Button
                       size="sm"
