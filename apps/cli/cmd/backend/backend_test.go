@@ -1,4 +1,4 @@
-package frontend
+package backend
 
 import (
 	"context"
@@ -19,8 +19,8 @@ func (m *mockProber) Probe(ctx context.Context) error {
 }
 
 func TestCmdDefinition(t *testing.T) {
-	if Cmd.Use != "fe" {
-		t.Errorf("Cmd.Use = %q, want 'fe'", Cmd.Use)
+	if Cmd.Use != "be" {
+		t.Errorf("Cmd.Use = %q, want 'be'", Cmd.Use)
 	}
 	if Cmd.Short == "" {
 		t.Error("Cmd.Short should not be empty")
@@ -33,22 +33,11 @@ func TestCmdDefinition(t *testing.T) {
 func TestCmdHasSubcommands(t *testing.T) {
 	subs := Cmd.Commands()
 	if len(subs) == 0 {
-		t.Error("Frontend Cmd should have subcommands registered")
+		t.Error("Backend Cmd should have subcommands registered")
 	}
 }
 
-func TestCmdHelpOutput(t *testing.T) {
-	Cmd.SetOut(nil)
-	Cmd.SetErr(nil)
-	Cmd.SetArgs([]string{"--help"})
-	err := Cmd.Execute()
-	// Help flag exits with nil error in most cobra versions
-	if err != nil {
-		t.Errorf("Help command failed: %v", err)
-	}
-}
-
-func TestFrontendCommands_PreRunE(t *testing.T) {
+func TestBackendCommands_PreRunE(t *testing.T) {
 	tests := []struct {
 		name        string
 		cmd         *cobra.Command
@@ -57,12 +46,12 @@ func TestFrontendCommands_PreRunE(t *testing.T) {
 		{
 			name:        "InstallCmd",
 			cmd:         InstallCmd,
-			wantFeature: "Frontend Package Install",
+			wantFeature: "Backend Package Install",
 		},
 		{
 			name:        "VulnCmd",
 			cmd:         VulnCmd,
-			wantFeature: "Frontend Vulnerability Scan",
+			wantFeature: "Backend Vulnerability Scan",
 		},
 	}
 
@@ -108,4 +97,3 @@ func TestFrontendCommands_PreRunE(t *testing.T) {
 		})
 	}
 }
-
