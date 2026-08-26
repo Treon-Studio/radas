@@ -148,7 +148,7 @@ function WebLandingPage() {
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 w-full">
           {/* 2. HERO SECTION FULL WIDTH EDGE-TO-EDGE */}
-          <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
+          <section className="relative w-full overflow-hidden text-center">
             {/* Background Pixel Landscape Layer (Full Width Cover) */}
             <div 
               className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
@@ -158,66 +158,56 @@ function WebLandingPage() {
               }}
             />
 
-              {/* Hero Foreground Content */}
-              <div className="relative z-10 max-w-3xl mx-auto space-y-6 py-20 sm:py-28 px-6 sm:px-12">
-                {/* 3D Pixel Gamer Title */}
-                <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
-                  <span className="pixel-gamer-title block">MODERN GITOPS</span>
-                  <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
-                </h1>
+            {/* Hero Foreground Content */}
+            <div className="relative z-10 max-w-3xl mx-auto space-y-6 pt-20 sm:pt-28 pb-36 sm:pb-48 px-6 sm:px-12">
+              {/* 3D Pixel Gamer Title */}
+              <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider uppercase leading-snug">
+                <span className="pixel-gamer-title block">MODERN GITOPS</span>
+                <span className="pixel-gamer-green block mt-1.5">PLATFORM</span>
+              </h1>
 
-                {/* Subtitle */}
-                <p className="text-[#2A2A2A] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans font-semibold bg-white/75 backdrop-blur-xs py-1.5 px-4 pxl-corner-sm inline-block border border-white/80 shadow-xs">
-                  Unified OpenTofu &amp; Ansible infrastructure control plane.
-                </p>
+              {/* Subtitle */}
+              <p className="text-[#2A2A2A] text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-sans font-semibold bg-white/75 backdrop-blur-xs py-1.5 px-4 pxl-corner-sm inline-block border border-white/80 shadow-xs">
+                Unified OpenTofu &amp; Ansible infrastructure control plane.
+              </p>
 
-                {/* Minimal CTA Actions */}
-                <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-                  <Link to="/login">
-                    <Button className="pxl-corner-md pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-sm px-7 py-3">
-                      Open Console <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </Link>
-                  <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
-                    <Button variant="outline" className="pxl-corner-md border-[#2A2A2A] bg-white text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3 shadow-sm">
-                      <Github className="h-4 w-4 mr-2" /> View Source
-                    </Button>
-                  </a>
-                </div>
-
-                {/* Minimal Command Bar */}
-                <div className="pt-4 max-w-xl mx-auto">
-                  <div className="border-2 border-[#2A2A2A] pxl-corner-sm bg-white/95 backdrop-blur-xs p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-md">
-                    <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-                      <span className="text-[#107A4D] font-bold">$</span>
-                      <code className="text-[#2A2A2A] truncate font-bold">go install github.com/raizora/radas/apps/cli@latest</code>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        navigator.clipboard.writeText("go install github.com/raizora/radas/apps/cli@latest");
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      }}
-                      className="pxl-corner-sm text-[#6B7280] hover:text-[#2A2A2A] p-1.5 h-auto"
-                    >
-                      {copied ? <Check className="h-4 w-4 text-[#107A4D]" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
+              {/* Minimal CTA Actions */}
+              <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+                <Link to="/login">
+                  <Button className="pxl-corner-md pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-sm px-7 py-3">
+                    Open Console <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+                <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
+                  <Button variant="outline" className="pxl-corner-md border-[#2A2A2A] bg-white text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3 shadow-sm">
+                    <Github className="h-4 w-4 mr-2" /> View Source
+                  </Button>
+                </a>
               </div>
 
-              {/* Bottom Dangling Pixel Grass, Clovers & Vines Fringe */}
-              <div 
-                className="absolute bottom-0 left-0 right-0 h-10 sm:h-12 w-full bg-repeat-x bg-bottom pointer-events-none z-10"
-                style={{
-                  backgroundImage: `url('/images/grass-pixel-fringe.webp')`,
-                  backgroundSize: 'auto 100%',
-                  imageRendering: 'pixelated',
-                }}
-              />
-            </section>
+              {/* Minimal Command Bar */}
+              <div className="pt-4 max-w-xl mx-auto">
+                <div className="border-2 border-[#2A2A2A] pxl-corner-sm bg-white/95 backdrop-blur-xs p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-md">
+                  <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-[#107A4D] font-bold">$</span>
+                    <code className="text-[#2A2A2A] truncate font-bold">go install github.com/raizora/radas/apps/cli@latest</code>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      navigator.clipboard.writeText("go install github.com/raizora/radas/apps/cli@latest");
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="pxl-corner-sm text-[#6B7280] hover:text-[#2A2A2A] p-1.5 h-auto"
+                  >
+                    {copied ? <Check className="h-4 w-4 text-[#107A4D]" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
 
             {/* Dashed Separator Line */}
             <hr className="border-dashed border-[#D1D1D1] w-full" />
