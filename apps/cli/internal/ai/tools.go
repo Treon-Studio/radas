@@ -29,6 +29,9 @@ func (r *ToolRegistry) Register(t Tool) {
 }
 
 func (r *ToolRegistry) Definitions() []ToolDef {
+	if r == nil {
+		return nil
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	defs := make([]ToolDef, 0, len(r.tools))
@@ -39,6 +42,9 @@ func (r *ToolRegistry) Definitions() []ToolDef {
 }
 
 func (r *ToolRegistry) Execute(ctx context.Context, name string, params map[string]any) (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("tool registry is nil")
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	t, ok := r.tools[name]
