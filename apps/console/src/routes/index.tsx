@@ -150,11 +150,11 @@ function WebLandingPage() {
           <main className="flex-1">
             {/* 2. MINIMALIST HERO SECTION WITH FULL PIXEL LANDSCAPE BACKGROUND */}
             <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
-              {/* Background Pixel Landscape Layer (Covering full section) */}
+              {/* Background Pixel Landscape Layer (Animated WebP) */}
               <div 
                 className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
                 style={{
-                  backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
+                  backgroundImage: `url('/images/hero-pixel-landscape-animated.webp')`,
                   imageRendering: 'pixelated',
                 }}
               />
