@@ -149,14 +149,20 @@ function WebLandingPage() {
         <main className="flex-1 w-full">
           {/* 2. HERO SECTION FULL WIDTH EDGE-TO-EDGE */}
           <section className="relative w-full overflow-hidden text-center">
-            {/* Background Pixel Landscape Layer (Full Width Cover) */}
-            <div 
-              className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
-              style={{
-                backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
-                imageRendering: 'pixelated',
-              }}
-            />
+            {/* Background Pixel Landscape Layer (Full Width Animated Video Loop) */}
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                poster="/images/hero-pixel-landscape.webp"
+                className="w-full h-full object-cover object-bottom pointer-events-none"
+                style={{ imageRendering: 'pixelated' }}
+              >
+                <source src="/videos/hero-pixel-landscape.mp4" type="video/mp4" />
+              </video>
+            </div>
 
             {/* Hero Foreground Content */}
             <div className="relative z-10 max-w-3xl mx-auto space-y-6 pt-20 sm:pt-28 pb-36 sm:pb-48 px-6 sm:px-12">
