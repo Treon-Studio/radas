@@ -109,13 +109,11 @@ function WebLandingPage() {
         }}
       />
 
-      {/* Main Outer Container with Outer Bounds */}
-      <div className="relative z-10 mx-auto w-full max-w-[1550px] flex-1 flex flex-col">
-        {/* Main Frame with Side Borders border-x border-[#D1D1D1] */}
-        <div className="border-x border-[#D1D1D1] mx-4 sm:mx-12 md:mx-12 lg:mx-32 xl:mx-40 min-h-screen flex flex-col justify-between bg-[#F1EFEB]">
-          
-          {/* 1. NAVBAR */}
-          <nav className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-[#D1D1D1] bg-[#F1EFEB]">
+      {/* Full Width Layout */}
+      <div className="relative z-10 w-full flex-1 flex flex-col min-h-screen justify-between bg-[#F1EFEB]">
+        {/* 1. NAVBAR (Full Width with Centered Content) */}
+        <nav className="w-full border-b border-[#D1D1D1] bg-[#F1EFEB]">
+          <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-8 py-5">
             <div className="flex items-center gap-3">
               <div className="p-1.5 pxl-corner-sm bg-[#2A2A2A] text-white">
                 <RadasLogo size={20} />
@@ -144,20 +142,21 @@ function WebLandingPage() {
                 </Link>
               )}
             </div>
-          </nav>
+          </div>
+        </nav>
 
-          {/* MAIN CONTENT AREA */}
-          <main className="flex-1">
-            {/* 2. HERO SECTION WITH RETRO PIXEL LANDSCAPE BACKGROUND */}
-            <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
-              {/* Background Pixel Landscape Layer */}
-              <div 
-                className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
-                style={{
-                  backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
-                  imageRendering: 'pixelated',
-                }}
-              />
+        {/* MAIN CONTENT AREA */}
+        <main className="flex-1 w-full">
+          {/* 2. HERO SECTION FULL WIDTH EDGE-TO-EDGE */}
+          <section className="relative w-full overflow-hidden text-center border-b border-[#2A2A2A]/20">
+            {/* Background Pixel Landscape Layer (Full Width Cover) */}
+            <div 
+              className="absolute inset-0 bg-cover bg-bottom pointer-events-none z-0"
+              style={{
+                backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
+                imageRendering: 'pixelated',
+              }}
+            />
 
               {/* Hero Foreground Content */}
               <div className="relative z-10 max-w-3xl mx-auto space-y-6 py-20 sm:py-28 px-6 sm:px-12">
@@ -215,7 +214,7 @@ function WebLandingPage() {
 
             {/* 3. CAPABILITIES GRID */}
             <section id="capabilities" className="relative w-full py-16 sm:py-24">
-              <div className="px-6 sm:px-12 lg:px-16">
+              <div className="max-w-6xl mx-auto px-6 sm:px-12">
                 <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
                   <TextScramble text="[ CORE CAPABILITIES ]" className="font-mono" />
                 </div>
@@ -277,7 +276,7 @@ function WebLandingPage() {
 
             {/* 4. FAQ SECTION */}
             <section id="faq" className="relative w-full py-16 sm:py-24">
-              <div className="px-6 sm:px-12 lg:px-16">
+              <div className="max-w-6xl mx-auto px-6 sm:px-12">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-16 items-start">
                   <div>
                     <div className="text-sm uppercase tracking-widest font-mono mb-2 text-[#107A4D]">
@@ -304,19 +303,19 @@ function WebLandingPage() {
           {/* Dashed Separator Line */}
           <hr className="border-dashed border-[#D1D1D1] w-full" />
 
-          {/* 5. FOOTER */}
-          <footer className="mt-auto px-6 sm:px-12 lg:px-16 py-12 sm:py-16 border-t border-[#D1D1D1] bg-[#F1EFEB] flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-[#6B7280] font-mono">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
-              <span>&copy; 2026 GitOps Release.</span>
-            </div>
-            <div className="flex items-center gap-8">
-              <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="hover:text-[#2A2A2A]">GitHub</a>
-              <Link to="/login" className="hover:text-[#2A2A2A] font-semibold text-[#2A2A2A] font-pixel-grid">Sign In to Console →</Link>
+          {/* 5. FOOTER (Full Width) */}
+          <footer className="mt-auto w-full border-t border-[#D1D1D1] bg-[#F1EFEB]">
+            <div className="max-w-7xl mx-auto px-6 sm:px-12 py-12 sm:py-16 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-[#6B7280] font-mono">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-[#2A2A2A] font-pixel-grid">RADAS Platform</span>
+                <span>&copy; 2026 GitOps Release.</span>
+              </div>
+              <div className="flex items-center gap-8">
+                <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer" className="hover:text-[#2A2A2A]">GitHub</a>
+                <Link to="/login" className="hover:text-[#2A2A2A] font-semibold text-[#2A2A2A] font-pixel-grid">Sign In to Console →</Link>
+              </div>
             </div>
           </footer>
-
-        </div>
       </div>
     </div>
   );
