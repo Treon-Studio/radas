@@ -176,55 +176,6 @@ function WebLandingPage() {
                   </a>
                 </div>
 
-                {/* Animated 8-Bit NES Pixel Landscape Banner with Google Banana */}
-                <div className="pt-6 pb-2 max-w-2xl mx-auto">
-                  <div className="relative w-full h-44 sm:h-52 pxl-corner-md border-2 border-[#2A2A2A] shadow-md overflow-hidden bg-[#5C94FC] select-none group">
-                    {/* Sky & Pixel Clouds Layer */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-[#4C84EC] to-[#70A4FC]">
-                      {/* Floating Pixel Clouds */}
-                      <div className="absolute top-3 left-4 opacity-90 animate-pixel-bounce" style={{ animationDuration: '4s' }}>
-                        <svg width="64" height="24" viewBox="0 0 16 6" fill="white" shapeRendering="crispEdges">
-                          <path d="M4 1h8v1h4v3h-16v-3h4zM6 0h4v1h-4z" />
-                        </svg>
-                      </div>
-                      <div className="absolute top-6 right-10 opacity-80 animate-pixel-bounce" style={{ animationDuration: '6s', animationDelay: '1s' }}>
-                        <svg width="80" height="28" viewBox="0 0 20 7" fill="white" shapeRendering="crispEdges">
-                          <path d="M5 1h10v1h5v4h-20v-4h5zM7 0h6v1h-6z" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Rolling Green Grass Hills Layer */}
-                    <div className="absolute bottom-0 left-0 right-0 h-16 sm:h-20 bg-[#60B000] border-t-2 border-[#387000]">
-                      <div className="w-full h-3 bg-[#88D000] border-b border-[#387000]" />
-                      <div className="w-full h-full bg-[#488800] mt-2" />
-                    </div>
-
-                    {/* Animated Google Banana Character */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-pointer transition-transform duration-300 group-hover:scale-110">
-                      {/* Speech Bubble */}
-                      <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2 py-1 pxl-corner-sm shadow-sm border border-[#2A2A2A]">
-                        RADAS &amp; GOOGLE BANANA! 🍌
-                      </div>
-                      {/* Pixel Art Banana Sprite */}
-                      <svg width="40" height="44" viewBox="0 0 16 18" fill="none" shapeRendering="crispEdges" className="animate-pixel-bounce" style={{ animationDuration: '1.2s' }}>
-                        {/* Banana Peel / Body (Yellow) */}
-                        <path d="M6 2h4v2H6zM4 4h8v2H4zM3 6h10v6H3zM4 12h8v2H4zM6 14h4v2H6z" fill="#FFD700" />
-                        {/* Highlights (Light Yellow) */}
-                        <path d="M7 3h2v1H7zM5 5h2v6H5z" fill="#FFF44F" />
-                        {/* Shadows & Outline (Dark Gold/Brown) */}
-                        <path d="M10 6h2v6h-2zM8 13h3v1H8z" fill="#B8860B" />
-                        {/* Stem (Green) */}
-                        <path d="M7 0h2v2H7z" fill="#387000" />
-                        {/* Cute Pixel Eyes */}
-                        <path d="M6 7h1v2H6zM9 7h1v2H9z" fill="#1A1A2E" />
-                        {/* Happy Smile */}
-                        <path d="M7 10h2v1H7z" fill="#1A1A2E" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Minimal Command Bar */}
                 <div className="pt-8 max-w-xl mx-auto">
                   <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
