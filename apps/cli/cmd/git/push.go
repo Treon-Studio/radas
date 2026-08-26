@@ -7,12 +7,15 @@ import (
 	"os/exec"
 	"strings"
 	"github.com/spf13/cobra"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var PushCmd = &cobra.Command{
-	Use:   "push",
-	Short: "Alias for git push origin <current-branch>",
+	Use:     "push",
+	Short:   "Alias for git push origin <current-branch>",
+	PreRunE: netgate.RequireNetwork("Git Push"),
 	Run: func(cmd *cobra.Command, args []string) {
 		branch := ""
 		if len(args) > 0 {
@@ -28,10 +31,6 @@ var PushCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			branch = strings.TrimSpace(out.String())
-		}
-		if err := utils.CheckNetwork(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
 		}
 
 		pushCmd := exec.Command("git", "push", "origin", branch)
