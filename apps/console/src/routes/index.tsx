@@ -210,19 +210,6 @@ function WebLandingPage() {
                   </a>
                 </div>
 
-                {/* Animated Mascot Character */}
-                <div className="pt-4 flex flex-col items-center cursor-pointer transition-transform duration-300 hover:scale-110">
-                  <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2.5 py-1 pxl-corner-sm shadow-md border border-[#2A2A2A]">
-                    RADAS CONTROL PLANE 🚀
-                  </div>
-                  <img 
-                    src="/images/haro-animated.webp" 
-                    alt="RADAS Mascot" 
-                    className="w-16 h-16 sm:w-20 sm:h-20 block select-none pointer-events-none animate-pixel-bounce"
-                    style={{ imageRendering: 'pixelated' }}
-                  />
-                </div>
-
                 {/* Minimal Command Bar */}
                 <div className="pt-4 max-w-xl mx-auto">
                   <div className="border-2 border-[#2A2A2A] pxl-corner-sm bg-white/95 backdrop-blur-xs p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-md">
