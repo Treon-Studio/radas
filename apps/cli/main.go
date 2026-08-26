@@ -58,18 +58,22 @@ func main() {
 Radas CLI provides tools for various development teams.
 It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.
 When run with no arguments in a terminal, it launches the TUI dashboard.`,
-		Version: constants.Version,
-		RunE:    runTUI,
+		Version:       constants.Version,
+		RunE:          runTUI,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
-	// Auto-check for updates but only print a message
-	go func() {
-		release, hasUpdate, err := updater.CheckForUpdate()
-		if err == nil && hasUpdate {
-			fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n", 
-				strings.TrimPrefix(release.TagName, "v"))
-		}
-	}()
+	// Auto-check for updates only on interactive root launch to avoid interfering with subcommands
+	if len(os.Args) <= 1 {
+		go func() {
+			release, hasUpdate, err := updater.CheckForUpdate()
+			if err == nil && hasUpdate {
+				fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n", 
+					strings.TrimPrefix(release.TagName, "v"))
+			}
+		}()
+	}
 
 
 
@@ -141,7 +145,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

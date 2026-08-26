@@ -110,8 +110,6 @@ It will process both design tokens and API specifications as defined in the cont
 }
 
 func init() {
-	Cmd.AddCommand(genAllCmd)
-	
 	// Add flags
 	genAllCmd.Flags().StringVarP(&genConfigPath, "config", "c", "", "Path to radas.yml configuration file")
 }

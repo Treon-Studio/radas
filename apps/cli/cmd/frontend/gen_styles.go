@@ -84,8 +84,6 @@ If no types are specified, all format types will be generated (css, scss, less, 
 }
 
 func init() {
-	Cmd.AddCommand(genStylesCmd)
-
 	// Define flags
 	genStylesCmd.Flags().StringVarP(&stylesSourceDir, "source", "s", "tokens", "Source directory containing design tokens in JSON format")
 	genStylesCmd.Flags().StringVarP(&stylesOutputDir, "output", "o", "__generated__/styles", "Output directory for generated style files")
