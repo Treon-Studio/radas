@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 // Release represents the GitHub release information
@@ -37,13 +38,17 @@ type Asset struct {
 
 // CheckForUpdate checks if a new version is available
 func CheckForUpdate() (*Release, bool, error) {
+	if err := netgate.EnsureConnected("Pemeriksaan Update RADAS"); err != nil {
+		return nil, false, err
+	}
+
 	// Get current version
 	currentVersion := constants.Version
 
 	// Get latest release from GitHub
 	release, err := getLatestRelease()
 	if err != nil {
-		return nil, false, err
+		return nil, false, netgate.WrapError("Pemeriksaan Update RADAS", err)
 	}
 
 	// Tag name usually starts with 'v', remove it if present
@@ -61,7 +66,7 @@ func getLatestRelease() (*Release, error) {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", constants.VersionCheckURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error creating request: %w", err))
 	}
 
 	// Set headers
@@ -72,25 +77,25 @@ func getLatestRelease() (*Release, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error making request: %w", err))
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("received non-200 response: %d", resp.StatusCode))
 	}
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error reading response body: %w", err))
 	}
 
 	// Parse JSON
 	var release Release
 	if err := json.Unmarshal(body, &release); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %v", err)
+		return nil, fmt.Errorf("error parsing JSON: %w", err)
 	}
 
 	return &release, nil
@@ -106,7 +111,7 @@ func DownloadRelease(release *Release) ([]byte, error) {
 		if len(nameParts) >= 3 {
 			isCurrentOS := strings.Contains(strings.ToLower(asset.Name), strings.ToLower(runtime.GOOS))
 			isCurrentArch := strings.Contains(strings.ToLower(asset.Name), strings.ToLower(runtime.GOARCH))
-			
+
 			if isCurrentOS && isCurrentArch {
 				assetURL = asset.BrowserDownloadURL
 				break
@@ -121,7 +126,7 @@ func DownloadRelease(release *Release) ([]byte, error) {
 	// Download the asset
 	req, err := http.NewRequest("GET", assetURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating download request: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error creating download request: %w", err))
 	}
 
 	req.Header.Set("User-Agent", "Radas-CLI")
@@ -129,18 +134,18 @@ func DownloadRelease(release *Release) ([]byte, error) {
 	client := &http.Client{Timeout: 5 * time.Minute} // Longer timeout for large downloads
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error downloading binary: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error downloading binary: %w", err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received non-200 response when downloading: %d", resp.StatusCode)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("received non-200 response when downloading: %d", resp.StatusCode))
 	}
 
 	// Read the response body
 	binary, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading download response: %v", err)
+		return nil, netgate.WrapError("Pemeriksaan Update RADAS", fmt.Errorf("error reading download response: %w", err))
 	}
 
 	return binary, nil
@@ -163,7 +168,7 @@ func PerformUpdate(newBinary []byte) error {
 	// Calculate SHA-256 checksum of the new binary for verification
 	hash := sha256.Sum256(newBinary)
 	checksum := hex.EncodeToString(hash[:])
-	
+
 	// Create a temporary file
 	tempFile := execPath + ".new"
 	if err := os.WriteFile(tempFile, newBinary, 0755); err != nil {
@@ -176,29 +181,29 @@ func PerformUpdate(newBinary []byte) error {
 		os.Remove(tempFile)
 		return fmt.Errorf("error reading temporary file: %v", err)
 	}
-	
+
 	writtenHash := sha256.Sum256(writtenData)
 	writtenChecksum := hex.EncodeToString(writtenHash[:])
-	
+
 	if checksum != writtenChecksum {
 		os.Remove(tempFile)
 		return errors.New("checksum verification failed")
 	}
-	
+
 	// On Windows, we can't replace a running executable, so we need
 	// to rename the current executable and then rename the new one
 	if runtime.GOOS == "windows" {
 		oldPath := execPath + ".old"
-		
+
 		// Delete old backup if it exists
 		_ = os.Remove(oldPath)
-		
+
 		// Rename current executable to .old
 		if err := os.Rename(execPath, oldPath); err != nil {
 			os.Remove(tempFile)
 			return fmt.Errorf("error backing up current executable: %v", err)
 		}
-		
+
 		// Rename new executable to original name
 		if err := os.Rename(tempFile, execPath); err != nil {
 			// Try to recover by restoring the old executable
@@ -206,7 +211,7 @@ func PerformUpdate(newBinary []byte) error {
 			os.Remove(tempFile)
 			return fmt.Errorf("error replacing executable: %v", err)
 		}
-		
+
 		// Success, now we can remove the old executable
 		_ = os.Remove(oldPath)
 	} else {
@@ -216,6 +221,6 @@ func PerformUpdate(newBinary []byte) error {
 			return fmt.Errorf("error replacing executable: %v", err)
 		}
 	}
-	
+
 	return nil
 } 
