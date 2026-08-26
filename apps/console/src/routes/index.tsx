@@ -176,6 +176,57 @@ function WebLandingPage() {
                   </a>
                 </div>
 
+                {/* 16-Bit Retro Pixel Landscape Hero Banner */}
+                <div className="pt-6 pb-2 max-w-2xl mx-auto">
+                  <div className="relative w-full h-48 sm:h-56 pxl-corner-md border-2 border-[#2A2A2A] shadow-md overflow-hidden bg-[#4C84EC] select-none group">
+                    {/* Background Pixel Landscape */}
+                    <div 
+                      className="absolute inset-0 bg-cover bg-bottom pointer-events-none"
+                      style={{
+                        backgroundImage: `url('/images/hero-pixel-landscape.webp')`,
+                        imageRendering: 'pixelated',
+                      }}
+                    />
+
+                    {/* Twinkling Pixel Sparkle Stars */}
+                    <div className="absolute top-4 left-6 animate-pulse opacity-90" style={{ animationDuration: '2s' }}>
+                      <svg width="12" height="12" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                      </svg>
+                    </div>
+                    <div className="absolute top-10 right-14 animate-pulse opacity-85" style={{ animationDuration: '3s', animationDelay: '1s' }}>
+                      <svg width="14" height="14" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                      </svg>
+                    </div>
+                    <div className="absolute top-6 left-1/3 animate-pulse opacity-75" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}>
+                      <svg width="10" height="10" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                      </svg>
+                    </div>
+                    <div className="absolute top-12 right-1/3 animate-pulse opacity-80" style={{ animationDuration: '3.5s', animationDelay: '1.5s' }}>
+                      <svg width="10" height="10" viewBox="0 0 6 6" fill="white" shapeRendering="crispEdges">
+                        <path d="M2 0h2v6H2zM0 2h6v2H0z" />
+                      </svg>
+                    </div>
+
+                    {/* Floating Animated Mascot Character */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-pointer transition-transform duration-300 group-hover:scale-110">
+                      {/* Speech Bubble */}
+                      <div className="nes-balloon from-bottom text-[10px] font-pixel-grid font-bold mb-1 bg-white text-[#2A2A2A] px-2.5 py-1 pxl-corner-sm shadow-sm border border-[#2A2A2A]">
+                        RADAS CONTROL PLANE 🚀
+                      </div>
+                      {/* Animated Robot Mascot */}
+                      <img 
+                        src="/images/haro-animated.webp" 
+                        alt="RADAS Mascot" 
+                        className="w-14 h-14 sm:w-16 sm:h-16 block select-none pointer-events-none animate-pixel-bounce"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Minimal Command Bar */}
                 <div className="pt-8 max-w-xl mx-auto">
                   <div className="border border-[#D1D1D1] pxl-corner-sm bg-white p-3.5 flex items-center justify-between gap-4 text-xs font-mono text-[#2A2A2A] shadow-sm">
