@@ -3,10 +3,13 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 func TestNewClient(t *testing.T) {
@@ -253,3 +256,167 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("user agent = %q, want radas-cli/1.0", c.userAgent)
 	}
 }
+
+func TestNetworkErrorWrapping_Do(t *testing.T) {
+	// Unreachable endpoint to trigger connection error
+	c := New(Config{
+		BaseURL: "http://127.0.0.1:1",
+		Timeout: 500 * time.Millisecond,
+	})
+	ctx := context.Background()
+
+	t.Run("Get", func(t *testing.T) {
+		var res map[string]any
+		err := c.Get(ctx, "/api/v1/health", &res)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var netErr *netgate.NetworkRequiredError
+		if !errors.As(err, &netErr) {
+			t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+		}
+		if netErr.Feature != "RADAS Control Plane API" {
+			t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS Control Plane API")
+		}
+		if !netgate.IsNetworkError(err) {
+			t.Error("IsNetworkError(err) should return true")
+		}
+	})
+
+	t.Run("Post", func(t *testing.T) {
+		var res map[string]any
+		err := c.Post(ctx, "/api/v1/action", map[string]string{"k": "v"}, &res)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var netErr *netgate.NetworkRequiredError
+		if !errors.As(err, &netErr) {
+			t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+		}
+		if netErr.Feature != "RADAS Control Plane API" {
+			t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS Control Plane API")
+		}
+	})
+
+	t.Run("Put", func(t *testing.T) {
+		var res map[string]any
+		err := c.Put(ctx, "/api/v1/update", map[string]string{"k": "v"}, &res)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var netErr *netgate.NetworkRequiredError
+		if !errors.As(err, &netErr) {
+			t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+		}
+		if netErr.Feature != "RADAS Control Plane API" {
+			t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS Control Plane API")
+		}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		err := c.Delete(ctx, "/api/v1/resource")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var netErr *netgate.NetworkRequiredError
+		if !errors.As(err, &netErr) {
+			t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+		}
+		if netErr.Feature != "RADAS Control Plane API" {
+			t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS Control Plane API")
+		}
+	})
+}
+
+func TestNetworkErrorWrapping_StreamSSE(t *testing.T) {
+	c := New(Config{
+		BaseURL: "http://127.0.0.1:1",
+		Timeout: 500 * time.Millisecond,
+	})
+	ctx := context.Background()
+
+	ch, err := c.StreamSSE(ctx, "/events")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if ch != nil {
+		t.Errorf("expected nil channel on error, got %v", ch)
+	}
+
+	var netErr *netgate.NetworkRequiredError
+	if !errors.As(err, &netErr) {
+		t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+	}
+	if netErr.Feature != "RADAS SSE Stream" {
+		t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS SSE Stream")
+	}
+}
+
+func TestNetworkErrorWrapping_PostStreamSSE(t *testing.T) {
+	c := New(Config{
+		BaseURL: "http://127.0.0.1:1",
+		Timeout: 500 * time.Millisecond,
+	})
+	ctx := context.Background()
+
+	ch, err := c.PostStreamSSE(ctx, "/chat", map[string]string{"prompt": "hello"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if ch != nil {
+		t.Errorf("expected nil channel on error, got %v", ch)
+	}
+
+	var netErr *netgate.NetworkRequiredError
+	if !errors.As(err, &netErr) {
+		t.Fatalf("expected error to be *netgate.NetworkRequiredError, got %T (%v)", err, err)
+	}
+	if netErr.Feature != "RADAS SSE Stream" {
+		t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS SSE Stream")
+	}
+}
+
+func TestNetworkErrorWrapping_Timeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := New(Config{BaseURL: srv.URL, Timeout: 1 * time.Millisecond})
+	err := c.Get(context.Background(), "/slow", nil)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+
+	var netErr *netgate.NetworkRequiredError
+	if !errors.As(err, &netErr) {
+		t.Fatalf("expected timeout to be wrapped in *netgate.NetworkRequiredError, got %T (%v)", err, err)
+	}
+	if netErr.Feature != "RADAS Control Plane API" {
+		t.Errorf("Feature = %q, want %q", netErr.Feature, "RADAS Control Plane API")
+	}
+}
+
+func TestHTTPError_NotNetworkError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"not found"}`))
+	}))
+	defer srv.Close()
+
+	c := New(Config{BaseURL: srv.URL})
+	err := c.Get(context.Background(), "/missing", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var netErr *netgate.NetworkRequiredError
+	if errors.As(err, &netErr) {
+		t.Errorf("HTTPError should not be wrapped as *netgate.NetworkRequiredError: %v", err)
+	}
+	if netgate.IsNetworkError(err) {
+		t.Error("HTTPError should not be considered a network error")
+	}
+}
+

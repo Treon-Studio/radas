@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 type Config struct {
@@ -85,7 +87,7 @@ func (c *Client) StreamSSE(ctx context.Context, path string) (<-chan Event, erro
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sse request failed: %w", err)
+		return nil, fmt.Errorf("sse request failed: %w", netgate.WrapError("RADAS SSE Stream", err))
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -119,7 +121,7 @@ func (c *Client) PostStreamSSE(ctx context.Context, path string, body any) (<-ch
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sse post request failed: %w", err)
+		return nil, fmt.Errorf("sse post request failed: %w", netgate.WrapError("RADAS SSE Stream", err))
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -168,7 +170,7 @@ func (c *Client) newJSONRequest(ctx context.Context, method, path string, body a
 func (c *Client) do(req *http.Request, result any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return fmt.Errorf("request failed: %w", netgate.WrapError("RADAS Control Plane API", err))
 	}
 	defer resp.Body.Close()
 
