@@ -207,6 +207,16 @@ function WebLandingPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Bottom Dangling Pixel Grass, Clovers & Vines Fringe */}
+              <div 
+                className="absolute bottom-0 left-0 right-0 h-10 sm:h-12 w-full bg-repeat-x bg-bottom pointer-events-none z-10"
+                style={{
+                  backgroundImage: `url('/images/grass-pixel-fringe.webp')`,
+                  backgroundSize: 'auto 100%',
+                  imageRendering: 'pixelated',
+                }}
+              />
             </section>
 
             {/* Dashed Separator Line */}
