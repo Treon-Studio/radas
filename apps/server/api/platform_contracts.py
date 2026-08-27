@@ -52,6 +52,10 @@ _ERROR_CODES = {
     500: "INTERNAL_SERVER_ERROR",
 }
 _LEGACY_PLATFORM_PATHS = {"/api/platform/idempotency"}
+# The /api/v2 mirror of the pre-contract idempotency path stays outside the
+# contract as well (mirrored by ``api_v2._common._LEGACY_V2_PLATFORM_PATHS``
+# for the served document), so its v2 proxy behaves byte-identically to v1.
+_V2_LEGACY_PLATFORM_PATHS = {"/api/v2/platform/idempotency"}
 _SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
 
 #: Error codes a client may retry without client-side changes. This is the
@@ -264,11 +268,18 @@ def is_platform_request() -> bool:
     """Whether the active request uses the additive contract namespace."""
     if not has_request_context():
         return False
+    path = request.path
+    # The served /api/v2 document (flask-smorest mirrors of the legacy API
+    # plus the platform namespace) promises ErrorEnvelope error bodies and
+    # X-Request-ID correlation, so the whole v2 namespace is normalized like
+    # /api/platform/*. Exact legacy mirrors stay outside the contract.
+    if path == "/api/v2" or path.startswith("/api/v2/"):
+        return path not in _V2_LEGACY_PLATFORM_PATHS
     # The namespace root is part of the new contract even though it has no
     # view. Exact legacy paths remain outside the contract by design.
     return (
-        (request.path == "/api/platform" or request.path.startswith("/api/platform/")) and request.path not in _LEGACY_PLATFORM_PATHS
-    ) or bool(_SERVICE_ROUTE_RE.fullmatch(request.path) or _SERVICE_ROUTE_RE.match(request.path))
+        (path == "/api/platform" or path.startswith("/api/platform/")) and path not in _LEGACY_PLATFORM_PATHS
+    ) or bool(_SERVICE_ROUTE_RE.fullmatch(path) or _SERVICE_ROUTE_RE.match(path))
 
 
 def _copy_response_headers(source: Response, target: Response) -> Response:

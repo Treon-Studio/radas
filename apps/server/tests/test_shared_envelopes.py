@@ -13,6 +13,9 @@ Covers the brief's required interfaces:
 - The served ``/api/v2`` document defines the shared schemas in
   ``components/schemas`` and the platform envelope operations reference them
   via ``$ref``.
+- At HTTP level, real test-client requests to annotated v2 operations return
+  bodies that round-trip validate against those schemas, with X-Request-ID
+  correlation — the served contract is true at runtime.
 - Legacy ``/api/*`` payloads and documents stay untouched.
 """
 from __future__ import annotations
@@ -22,6 +25,7 @@ from flask import Flask
 
 from api.route_inventory import register_blueprints
 from api.platform_contracts import (
+    REQUEST_ID_HEADER,
     RETRYABLE_ERROR_CODES,
     error_envelope,
     is_retryable,
@@ -404,6 +408,113 @@ def test_contract_schemas_reject_envelopes_missing_request_id():
 
     with pytest.raises(MarshmallowValidationError):
         SuccessEnvelope().load({"data": {}})
+
+
+# ---------------------------------------------------------------------------
+# Runtime-vs-contract: real HTTP requests against an annotated v2 operation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def http_contract_app():
+    """Full production-shape app (blueprints + cloud + v2) for HTTP probes.
+
+    Unlike :func:`contract_app` this also enables realistic error handling so
+    real test-client requests exercise the app-level contract finalizer the
+    way production does. Auth/pg state is isolated per test (``data_dir``).
+    """
+    app = Flask(__name__)
+    app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
+    register_blueprints(app)
+    from services.cloud_provisioning import register as _register_cloud
+
+    _register_cloud(app)
+    init_api_v2(app)
+    finalize_api_v2(app)
+    return app
+
+
+def test_unauthenticated_v2_operation_returns_served_error_envelope(
+    http_contract_app, data_dir
+):
+    """The served document claims ``default → ErrorEnvelope`` on this operation.
+
+    At HTTP level the legacy middleware shape (``{"error": "Authentication
+    required", ...}``) must be normalized into the ErrorEnvelope contract and
+    correlated via the X-Request-ID response header.
+    """
+    from auth import middleware
+    from api_v2.schemas.contracts import ErrorEnvelope
+
+    middleware.set_data_dir(data_dir)
+    client = http_contract_app.test_client()
+
+    response = client.get("/api/v2/platform/catalog")
+    assert response.status_code == 401
+    error_body = ErrorEnvelope().load(response.get_json())
+    assert error_body["error"]["code"] == "UNAUTHORIZED"
+    assert error_body["error"]["message"] == "Access token missing"
+    assert response.headers[REQUEST_ID_HEADER] == error_body["request_id"]
+
+    # A well-formed client-supplied X-Request-ID is reused on v2 responses.
+    echoed = client.get(
+        "/api/v2/platform/catalog", headers={REQUEST_ID_HEADER: "probe-echo-123"}
+    )
+    assert echoed.status_code == 401
+    assert echoed.headers[REQUEST_ID_HEADER] == "probe-echo-123"
+    assert ErrorEnvelope().load(echoed.get_json())["request_id"] == "probe-echo-123"
+
+
+def test_authenticated_v2_operation_returns_served_success_envelope(
+    http_contract_app, data_dir
+):
+    """With a valid token the annotated operation serves SuccessEnvelope."""
+    from auth import middleware
+    from api_v2.schemas.contracts import SuccessEnvelope
+    from auth.service import generate_token
+    from services import service_catalog
+
+    middleware.set_data_dir(data_dir)
+    service_catalog.seed_recommended_definitions()
+    token = generate_token(
+        "u1", "contract-user", ["member"], data_dir, token_type="access"
+    )
+    response = http_contract_app.test_client().get(
+        "/api/v2/platform/catalog", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200
+    success_body = SuccessEnvelope().load(response.get_json())
+    assert set(success_body["data"]) == {"definitions"}
+    assert response.headers[REQUEST_ID_HEADER] == success_body["request_id"]
+
+
+def test_legacy_paths_stay_outside_contract_at_http_level(
+    http_contract_app, data_dir, monkeypatch
+):
+    """Legacy error shapes stay byte-identical: no envelope, no request ID."""
+    import api.platform_routes as platform_routes
+    from auth import middleware
+
+    middleware.set_data_dir(data_dir)
+    # The idempotency status route reads a shared store; isolate it so the
+    # assertion does not depend on ambient entries from other runs.
+    monkeypatch.setattr(
+        platform_routes, "_idem_path", lambda: data_dir / "idempotency.json"
+    )
+    client = http_contract_app.test_client()
+
+    legacy = client.get("/api/projects/p1/environments")
+    assert legacy.status_code == 401
+    assert legacy.get_json() == {
+        "error": "Authentication required",
+        "message": "Access token missing",
+    }
+    assert REQUEST_ID_HEADER not in legacy.headers
+
+    mirror = client.get("/api/v2/platform/idempotency")
+    assert mirror.status_code == 200
+    assert mirror.get_json() == {"entries": 0}
+    assert REQUEST_ID_HEADER not in mirror.headers
 
 
 # ---------------------------------------------------------------------------
