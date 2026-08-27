@@ -9,6 +9,7 @@ import (
 
 	"github.com/raizora/radas/v4/cmd/approval"
 	"github.com/raizora/radas/v4/cmd/audit"
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/cmd/backend"
 	"github.com/raizora/radas/v4/cmd/cloud"
 	"github.com/raizora/radas/v4/cmd/config"
@@ -50,7 +51,7 @@ var (
 func main() {
 	// Handle aliases if first argument is an alias
 	handleAliases()
-	
+
 	// Root command
 	rootCmd := &cobra.Command{
 		Use:   "radas",
@@ -81,6 +82,9 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootcmd.RegisterRuntimeFlags(rootCmd)
 
 	rootCmd.AddCommand(config.ConfigCmd)
+
+	// Auth command group (login/refresh/status/logout, Task 3.1)
+	rootCmd.AddCommand(auth.Cmd)
 
 	// Add team commands to root
 	rootCmd.AddCommand(frontend.Cmd)
@@ -121,7 +125,6 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(git.CloneCmd)
 	rootCmd.AddCommand(rootcmd.GotoCmd)
 
-
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
 	rootCmd.AddCommand(scan.ScanCmd)
 
@@ -160,28 +163,28 @@ func handleAliases() {
 	if len(os.Args) < 2 {
 		return
 	}
-	
+
 	// Check if the first argument is an alias
 	alias := os.Args[1]
 	if fullCommand, exists := constants.CommandAliases[alias]; exists {
 		// Split the full command into parts
 		cmdParts := strings.Split(fullCommand, " ")
-		
+
 		// Create a new args slice with "radas" as the program name,
 		// followed by the expanded command parts,
 		// followed by any additional args provided by the user
-		newArgs := make([]string, 0, len(cmdParts) + len(os.Args) - 1)
-		newArgs = append(newArgs, os.Args[0]) // Program name (radas)
+		newArgs := make([]string, 0, len(cmdParts)+len(os.Args)-1)
+		newArgs = append(newArgs, os.Args[0])  // Program name (radas)
 		newArgs = append(newArgs, cmdParts...) // Expanded command
-		
+
 		// Add any additional arguments that were provided (if any)
 		if len(os.Args) > 2 {
 			newArgs = append(newArgs, os.Args[2:]...)
 		}
-		
+
 		// Replace os.Args with the new arguments
 		os.Args = newArgs
-		
+
 		// Print a message to show the alias expansion (optional)
 		fmt.Printf("Using alias: %s → radas %s\n\n", alias, fullCommand)
 	}

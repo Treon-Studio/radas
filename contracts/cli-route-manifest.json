@@ -137,6 +137,30 @@
             "note": "Reachability probe against the configured RADAS_API_URL base; offline is reported honestly, never as failure of the doctor run."
         },
         {
+            "command": "auth login",
+            "method": "POST",
+            "path": "/api/auth/login",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/auth/auth.go",
+            "note": "Body {\"username\", \"password\"} read from stdin (password never on argv). Persists api_url + access/refresh tokens in a 0600 file. mfa_required responses fail explicitly with console guidance (the CLI does not prompt for TOTP codes). Added in Task 3.1."
+        },
+        {
+            "command": "auth refresh",
+            "method": "POST",
+            "path": "/api/auth/refresh",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/auth/auth.go",
+            "note": "Body {\"refresh_token\"}; persists the rotated access token. A 401 (invalid/expired refresh) clears stored credentials and fails with a typed error. Added in Task 3.1."
+        },
+        {
+            "command": "auth logout",
+            "method": "POST",
+            "path": "/api/auth/logout",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/auth/auth.go",
+            "note": "require_auth route that blacklists the presented bearer; the CLI clears the local credential store afterwards. A 401 (session already invalid) still clears locally and is reported honestly. Added in Task 3.1."
+        },
+        {
             "command": "approval list",
             "method": "GET",
             "path": "/api/approvals",
@@ -481,6 +505,15 @@
             "source_file": "apps/cli/cmd/user/user.go",
             "decision": "explicit-typed-error",
             "note": "The only session-revocation route is POST /api/auth/revoke-all-sessions, which revokes the *current* user's sessions, not an arbitrary user's; no unambiguous per-user route exists, so the fake success was replaced by an explicit error in Task 2.4."
+        },
+        {
+            "command": "auth status",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/auth/auth.go",
+            "decision": "local-store-read",
+            "note": "Reads the local credential store and decodes the access-token JWT payload for display (username/expiry, no signature verification, never trusted for authorization); zero HTTP calls. Added in Task 3.1."
         },
         {
             "command": "config env get [env]",
