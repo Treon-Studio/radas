@@ -15,10 +15,17 @@ import (
 )
 
 type Config struct {
-	BaseURL    string
-	Timeout    time.Duration
-	AuthToken  string
-	UserAgent  string
+	BaseURL   string
+	Timeout   time.Duration
+	AuthToken string
+	UserAgent string
+
+	// Default tenant/correlation context applied to every request. Per-request
+	// RequestOptions values override these for a single call.
+	ProjectID      string
+	OrganizationID string
+	RequestID      string
+	TraceID        string
 }
 
 type Client struct {
@@ -26,6 +33,11 @@ type Client struct {
 	baseURL    string
 	authToken  string
 	userAgent  string
+
+	projectID      string
+	organizationID string
+	requestID      string
+	traceID        string
 }
 
 func New(cfg Config) *Client {
@@ -37,15 +49,19 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		httpClient: &http.Client{Timeout: cfg.Timeout},
-		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
-		authToken:  cfg.AuthToken,
-		userAgent:  cfg.UserAgent,
+		httpClient:     &http.Client{Timeout: cfg.Timeout},
+		baseURL:        strings.TrimRight(cfg.BaseURL, "/"),
+		authToken:      cfg.AuthToken,
+		userAgent:      cfg.UserAgent,
+		projectID:      cfg.ProjectID,
+		organizationID: cfg.OrganizationID,
+		requestID:      cfg.RequestID,
+		traceID:        cfg.TraceID,
 	}
 }
 
 func (c *Client) Get(ctx context.Context, path string, result any) error {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil, RequestOptions{})
 	if err != nil {
 		return err
 	}
@@ -53,7 +69,7 @@ func (c *Client) Get(ctx context.Context, path string, result any) error {
 }
 
 func (c *Client) Post(ctx context.Context, path string, body, result any) error {
-	req, err := c.newJSONRequest(ctx, http.MethodPost, path, body)
+	req, err := c.newJSONRequest(ctx, http.MethodPost, path, body, RequestOptions{})
 	if err != nil {
 		return err
 	}
@@ -61,7 +77,7 @@ func (c *Client) Post(ctx context.Context, path string, body, result any) error 
 }
 
 func (c *Client) Put(ctx context.Context, path string, body, result any) error {
-	req, err := c.newJSONRequest(ctx, http.MethodPut, path, body)
+	req, err := c.newJSONRequest(ctx, http.MethodPut, path, body, RequestOptions{})
 	if err != nil {
 		return err
 	}
@@ -69,15 +85,27 @@ func (c *Client) Put(ctx context.Context, path string, body, result any) error {
 }
 
 func (c *Client) Delete(ctx context.Context, path string) error {
-	req, err := c.newRequest(ctx, http.MethodDelete, path, nil)
+	req, err := c.newRequest(ctx, http.MethodDelete, path, nil, RequestOptions{})
 	if err != nil {
 		return err
 	}
 	return c.do(req, nil)
 }
 
+// Do performs an arbitrary request with full per-request context control via
+// RequestOptions, returning a buffered *Response for successful (2xx) calls.
+// Non-2xx responses are returned as *HTTPError; transport failures are wrapped
+// by netgate. body is JSON-encoded when non-nil.
+func (c *Client) Do(ctx context.Context, method, path string, body any, opts RequestOptions) (*Response, error) {
+	req, err := c.newJSONRequest(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, err
+	}
+	return c.execute(req)
+}
+
 func (c *Client) StreamSSE(ctx context.Context, path string) (<-chan Event, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil, RequestOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -101,20 +129,10 @@ func (c *Client) StreamSSE(ctx context.Context, path string) (<-chan Event, erro
 }
 
 func (c *Client) PostStreamSSE(ctx context.Context, path string, body any) (<-chan Event, error) {
-	var reqBody io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("marshal sse body: %w", err)
-		}
-		reqBody = bytes.NewReader(data)
-	}
-
-	req, err := c.newRequest(ctx, http.MethodPost, path, reqBody)
+	req, err := c.newJSONRequest(ctx, http.MethodPost, path, body, RequestOptions{})
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Connection", "keep-alive")
@@ -134,7 +152,10 @@ func (c *Client) PostStreamSSE(ctx context.Context, path string, body any) (<-ch
 	return ch, nil
 }
 
-func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
+// newRequest is the single request builder for every outgoing call (GET, POST,
+// PUT, DELETE, SSE, Do). It resolves the URL, applies auth and user-agent
+// headers, and propagates tenant/correlation context headers.
+func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader, opts RequestOptions) (*http.Request, error) {
 	url := c.resolveURL(path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -144,10 +165,11 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 		req.Header.Set("Authorization", "Bearer "+c.authToken)
 	}
 	req.Header.Set("User-Agent", c.userAgent)
+	c.applyContextHeaders(req.Header, opts)
 	return req, nil
 }
 
-func (c *Client) newJSONRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
+func (c *Client) newJSONRequest(ctx context.Context, method, path string, body any, opts RequestOptions) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -157,7 +179,7 @@ func (c *Client) newJSONRequest(ctx context.Context, method, path string, body a
 		reqBody = bytes.NewReader(data)
 	}
 
-	req, err := c.newRequest(ctx, method, path, reqBody)
+	req, err := c.newRequest(ctx, method, path, reqBody, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -167,30 +189,42 @@ func (c *Client) newJSONRequest(ctx context.Context, method, path string, body a
 	return req, nil
 }
 
-func (c *Client) do(req *http.Request, result any) error {
+// execute sends the request and returns a buffered *Response on 2xx, a
+// *HTTPError on non-2xx, and a netgate-wrapped error on transport failure.
+func (c *Client) execute(req *http.Request) (*Response, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", netgate.WrapError("RADAS Control Plane API", err))
+		return nil, fmt.Errorf("request failed: %w", netgate.WrapError("RADAS Control Plane API", err))
 	}
 	defer resp.Body.Close()
 
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", netgate.WrapError("RADAS Control Plane API", err))
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return &HTTPError{
+		return nil, &HTTPError{
 			Status:     resp.Status,
 			StatusCode: resp.StatusCode,
-			Body:       string(body),
+			Body:       string(data),
 		}
 	}
 
-	if result == nil {
-		return nil
-	}
+	return &Response{
+		StatusCode: resp.StatusCode,
+		Status:     resp.Status,
+		Header:     resp.Header,
+		Body:       data,
+	}, nil
+}
 
-	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+func (c *Client) do(req *http.Request, result any) error {
+	resp, err := c.execute(req)
+	if err != nil {
+		return err
 	}
-	return nil
+	return resp.JSON(result)
 }
 
 func (c *Client) resolveURL(path string) string {
