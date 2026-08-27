@@ -100,6 +100,14 @@ class FlagWriteOut(BaseModel):
     flag: FlagRecord
 
 
+class FlagDeleteOut(BaseModel):
+    """Successful permanent delete: the runtime returns exactly
+    ``{"success": true}`` (api/feature_flag_routes.py) — no flag record."""
+
+    model_config = ConfigDict(extra="allow")
+    success: bool = True
+
+
 class FlagEvaluateOut(BaseModel):
     model_config = ConfigDict(extra="allow")
     key: str
@@ -196,7 +204,7 @@ class FlagView(MethodView):
 
     @doc(
         responses={
-            "200": json_response(FlagWriteOut, "Deleted flag."),
+            "200": json_response(FlagDeleteOut, "Deleted flag (body is ``{'success': true}``)."),
             "default": ERROR_ENVELOPE_RESPONSE,
         },
         parameters=[

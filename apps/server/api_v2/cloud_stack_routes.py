@@ -108,6 +108,14 @@ class StackWriteOut(BaseModel):
     name: str
 
 
+class StackDeleteOut(BaseModel):
+    """Successful delete: the runtime returns exactly ``{"ok": true}``
+    (services/cloud_provisioning.py) — unlike PUT/POST, no stack name."""
+
+    model_config = ConfigDict(extra="allow")
+    ok: bool = True
+
+
 class StackActionOut(BaseModel):
     model_config = ConfigDict(extra="allow")
     ok: bool = True
@@ -179,7 +187,7 @@ class StackView(MethodView):
 
     @doc(
         responses={
-            "200": json_response(StackWriteOut, "Deleted stack."),
+            "200": json_response(StackDeleteOut, "Deleted stack (body is ``{'ok': true}``)."),
             "default": ERROR_ENVELOPE_RESPONSE,
         },
         parameters=[

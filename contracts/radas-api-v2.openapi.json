@@ -3999,26 +3999,20 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
+                  "description": "Successful delete: the runtime returns exactly ``{\"ok\": true}``\n(services/cloud_provisioning.py) — unlike PUT/POST, no stack name.",
                   "properties": {
-                    "name": {
-                      "title": "Name",
-                      "type": "string"
-                    },
                     "ok": {
                       "default": true,
                       "title": "Ok",
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "name"
-                  ],
-                  "title": "StackWriteOut",
+                  "title": "StackDeleteOut",
                   "type": "object"
                 }
               }
             },
-            "description": "Deleted stack."
+            "description": "Deleted stack (body is ``{'ok': true}``)."
           },
           "default": {
             "content": {
@@ -6729,117 +6723,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$defs": {
-                    "FlagRecord": {
-                      "additionalProperties": true,
-                      "properties": {
-                        "enabled": {
-                          "anyOf": [
-                            {
-                              "type": "boolean"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Enabled"
-                        },
-                        "id": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Id"
-                        },
-                        "key": {
-                          "title": "Key",
-                          "type": "string"
-                        },
-                        "name": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Name"
-                        },
-                        "scope_id": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Scope Id"
-                        },
-                        "scope_type": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Scope Type"
-                        },
-                        "tags": {
-                          "anyOf": [
-                            {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "default": null,
-                          "title": "Tags"
-                        }
-                      },
-                      "required": [
-                        "key"
-                      ],
-                      "title": "FlagRecord",
-                      "type": "object"
-                    }
-                  },
                   "additionalProperties": true,
+                  "description": "Successful permanent delete: the runtime returns exactly\n``{\"success\": true}`` (api/feature_flag_routes.py) — no flag record.",
                   "properties": {
-                    "flag": {
-                      "$ref": "#/components/schemas/FlagRecord"
-                    },
                     "success": {
                       "default": true,
                       "title": "Success",
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "flag"
-                  ],
-                  "title": "FlagWriteOut",
+                  "title": "FlagDeleteOut",
                   "type": "object"
                 }
               }
             },
-            "description": "Deleted flag."
+            "description": "Deleted flag (body is ``{'success': true}``)."
           },
           "default": {
             "content": {

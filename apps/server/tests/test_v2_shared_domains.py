@@ -441,6 +441,51 @@ def test_replaced_domains_keep_full_method_coverage(v2spec):
         assert methods <= documented, f"{path}: missing {methods - documented}"
 
 
+def test_delete_operations_document_runtime_response_shape(v2spec):
+    """Review findings (Task 2.3): the two delete operations return tiny
+    success bodies at runtime — ``{"success": true}`` for flags and
+    ``{"ok": true}`` for stacks — so their documented 200 schemas must be the
+    dedicated delete models, not the write-out shapes with required record
+    fields (a generated client would fail on every successful delete)."""
+    delete_flag = _operation(v2spec, "delete", "/api/v2/flags/{key}")
+    flag_schema = delete_flag["responses"]["200"]["content"]["application/json"]["schema"]
+    assert flag_schema["title"] == "FlagDeleteOut"
+    assert "success" in flag_schema["properties"]
+    assert "flag" not in flag_schema["properties"], (
+        "DELETE flags documents a required 'flag' record the runtime never returns"
+    )
+
+    delete_stack = _operation(v2spec, "delete", "/api/v2/cloud/stacks/{name}")
+    stack_schema = delete_stack["responses"]["200"]["content"]["application/json"]["schema"]
+    assert stack_schema["title"] == "StackDeleteOut"
+    assert "ok" in stack_schema["properties"]
+    assert "name" not in stack_schema["properties"], (
+        "DELETE stacks documents a required 'name' field the runtime never returns"
+    )
+
+    # The mutating neighbours keep the write-out shapes (regression guard:
+    # only the two DELETE operations were re-documented).
+    update_stack = _operation(v2spec, "put", "/api/v2/cloud/stacks/{name}")
+    put_schema = update_stack["responses"]["200"]["content"]["application/json"]["schema"]
+    assert put_schema["title"] == "StackWriteOut" and "name" in put_schema["required"]
+    create_flag = _operation(v2spec, "post", "/api/v2/flags")
+    create_schema = create_flag["responses"]["201"]["content"]["application/json"]["schema"]
+    assert create_schema["title"] == "FlagWriteOut" and "flag" in create_schema["required"]
+
+
+def test_delete_response_models_validate_exact_runtime_bodies():
+    """The documented 200 models pin the EXACT runtime bodies produced by the
+    delegated v1 handlers (api/feature_flag_routes.py ``{"success": True}``,
+    services/cloud_provisioning.py ``{"ok": True}``)."""
+    from api_v2.cloud_stack_routes import StackDeleteOut
+    from api_v2.flag_routes import FlagDeleteOut
+
+    flag_body = FlagDeleteOut.model_validate({"success": True})
+    assert flag_body.success is True
+    stack_body = StackDeleteOut.model_validate({"ok": True})
+    assert stack_body.ok is True
+
+
 # ---------------------------------------------------------------------------
 # Contract-check refinement: explicit optional header params are legal
 # ---------------------------------------------------------------------------
@@ -634,6 +679,36 @@ def test_cloud_stack_list_get_and_actions_contract(domain_app, data_dir, headers
     ErrorEnvelope().load(unknown.get_json())
 
 
+def test_stack_delete_success_body_contract(domain_app, data_dir, headers, seeded_project):
+    """Review finding 2: DELETE /api/v2/cloud/stacks/{name} returns exactly
+    ``{"ok": true}`` at runtime (PUT/POST return ``{"ok", "name"}`` — only
+    DELETE differs) and the documented 200 model (StackDeleteOut) validates
+    that body. HTTP-real: the stack working directory is seeded and the real
+    v1 handler removes it."""
+    from services.cloud_provisioning import _envs_dir
+
+    (_envs_dir(PROJECT) / "doomed").mkdir(parents=True, exist_ok=True)
+    (_envs_dir(PROJECT) / "doomed" / "terraform.tfvars").write_text(
+        'env = "dev"\n', encoding="utf-8"
+    )
+    client = domain_app.test_client()
+    scoped = {**headers, "X-Project-Id": PROJECT}
+
+    deleted = client.delete("/api/v2/cloud/stacks/doomed", headers=scoped)
+    assert deleted.status_code == 200
+    assert deleted.get_json() == {"ok": True}, (
+        "runtime stack delete body drifted from the documented StackDeleteOut shape"
+    )
+    from api_v2.cloud_stack_routes import StackDeleteOut
+
+    assert StackDeleteOut.model_validate(deleted.get_json()).ok is True
+
+    # Second delete: the working directory is gone → enveloped 404.
+    gone = client.delete("/api/v2/cloud/stacks/doomed", headers=scoped)
+    assert gone.status_code == 404
+    ErrorEnvelope().load(gone.get_json())
+
+
 def test_flags_list_create_update_evaluate_contract(domain_app, data_dir, admin_headers):
     client = domain_app.test_client()
 
@@ -674,6 +749,51 @@ def test_flags_list_create_update_evaluate_contract(domain_app, data_dir, admin_
     denied = client.post("/api/v2/flags", json={"key": "x.flag"}, headers={})
     assert denied.status_code == 401
     ErrorEnvelope().load(denied.get_json())
+
+
+def test_flag_delete_success_body_contract(domain_app, data_dir, admin_headers):
+    """Review finding 1: DELETE /api/v2/flags/{key} returns exactly
+    ``{"success": true}`` at runtime (no flag record) and the documented 200
+    model (FlagDeleteOut) validates that body.
+
+    HTTP-real: the permanent-delete success path requires an archived flag,
+    so this walks the real flow (create → delete → 409 → archive → delete →
+    200) through the mounted v1+v2 routes.
+    """
+    client = domain_app.test_client()
+
+    created = client.post(
+        "/api/v2/flags",
+        json={"key": "contract.delete.flag", "name": "Delete me"},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201
+
+    # Not archived yet: the runtime refuses permanent deletion with a 409
+    # error envelope (documented as the default error response).
+    blocked = client.delete(
+        "/api/v2/flags/contract.delete.flag", headers=admin_headers
+    )
+    assert blocked.status_code == 409
+    ErrorEnvelope().load(blocked.get_json())
+
+    archived = client.post(
+        "/api/flags/contract.delete.flag/archive",
+        json={"reason": "contract test"},
+        headers=admin_headers,
+    )
+    assert archived.status_code == 200
+
+    deleted = client.delete(
+        "/api/v2/flags/contract.delete.flag", headers=admin_headers
+    )
+    assert deleted.status_code == 200
+    assert deleted.get_json() == {"success": True}, (
+        "runtime delete body drifted from the documented FlagDeleteOut shape"
+    )
+    from api_v2.flag_routes import FlagDeleteOut
+
+    assert FlagDeleteOut.model_validate(deleted.get_json()).success is True
 
 
 def test_approvals_list_and_approve_contract(domain_app, data_dir, headers, seeded_project):
@@ -767,6 +887,27 @@ def test_worker_heartbeat_rejects_invalid_token(domain_app, data_dir, workers_en
     )
     assert response.status_code == 401
     ErrorEnvelope().load(response.get_json())
+
+
+def test_worker_claim_rejects_user_jwt(domain_app, data_dir, headers):
+    """Review minor 3: ``/api/v2/worker/*`` is worker-token-only (the
+    middleware verifies a worker-registry token and returns 401 before the
+    user-JWT branch ever runs) — a normal user access token must be rejected
+    with the enveloped 401.
+
+    POST /worker/claim is the probe because every ``/api/v2/worker/*``
+    operation is POST-only; a GET would fail with 405 before the
+    ``require_auth`` decorator executes.
+    """
+    from auth.middleware import set_data_dir
+
+    set_data_dir(data_dir)
+    response = domain_app.test_client().post(
+        "/api/v2/worker/claim", json={}, headers=headers
+    )
+    assert response.status_code == 401
+    error = ErrorEnvelope().load(response.get_json())
+    assert error["error"]["code"] == "UNAUTHORIZED"
 
 
 def test_services_list_get_create_operations_contract(
