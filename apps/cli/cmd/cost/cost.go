@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the FinOps cost management group.
@@ -23,24 +24,21 @@ and ByteDC, helping prevent accidental billing surprises before and after apply.
 }
 
 type CostEstimate struct {
-	StackID       string             `json:"stack_id"`
-	Currency      string             `json:"currency"`
-	MonthlyDelta  float64            `json:"monthly_delta"`
-	CurrentTotal  float64            `json:"current_total"`
-	Breakdown     map[string]float64 `json:"breakdown,omitempty"`
+	StackID      string             `json:"stack_id"`
+	Currency     string             `json:"currency"`
+	MonthlyDelta float64            `json:"monthly_delta"`
+	CurrentTotal float64            `json:"current_total"`
+	Breakdown    map[string]float64 `json:"breakdown,omitempty"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var estimateCmd = &cobra.Command{
@@ -52,12 +50,15 @@ var estimateCmd = &cobra.Command{
 		spin := utils.NewSpinner(fmt.Sprintf("💰 Estimating FinOps monthly cloud spend for '%s'...", stackID))
 		spin.Start()
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
 		var est CostEstimate
-		err := c.Get(ctx, fmt.Sprintf("/api/finops/estimate/%s", stackID), &est)
+		err = c.Get(ctx, fmt.Sprintf("/api/finops/estimate/%s", stackID), &est)
 		spin.Stop()
 		if err != nil {
 			fmt.Printf("FinOps Cost Estimation for '%s':\n", stackID)

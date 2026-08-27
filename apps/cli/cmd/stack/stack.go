@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the stack orchestration group.
@@ -33,32 +34,30 @@ type StackInfo struct {
 }
 
 type PlanResult struct {
-	StackID   string `json:"stack_id"`
-	Status    string `json:"status"`
-	AddCount  int    `json:"add_count"`
-	ModCount  int    `json:"mod_count"`
-	DelCount  int    `json:"del_count"`
-	DiffLog   string `json:"diff_log,omitempty"`
+	StackID  string `json:"stack_id"`
+	Status   string `json:"status"`
+	AddCount int    `json:"add_count"`
+	ModCount int    `json:"mod_count"`
+	DelCount int    `json:"del_count"`
+	DiffLog  string `json:"diff_log,omitempty"`
 }
 
 var (
 	apiClientOverride *client.Client
 )
 
-func getClient() *client.Client {
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client. apiClientOverride
+// lets tests inject a client pointed at an httptest server.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
 	if apiClientOverride != nil {
-		return apiClientOverride
+		return apiClientOverride, nil
 	}
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var listCmd = &cobra.Command{
@@ -69,7 +68,10 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("📡 Fetching infrastructure stacks from RADAS API...")
 		spin.Start()
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -103,14 +105,17 @@ var planCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		fmt.Printf("Generating speculative plan for stack '%s'...\n\n", stackID)
 		var res PlanResult
 		payload := map[string]string{"action": "plan"}
-		err := c.Post(ctx, fmt.Sprintf("/api/cloud/stacks/%s/plan", stackID), payload, &res)
+		err = c.Post(ctx, fmt.Sprintf("/api/cloud/stacks/%s/plan", stackID), payload, &res)
 		if err != nil {
 			fmt.Printf("✔ Plan completed (local execution): 2 to add, 1 to change, 0 to destroy.\n")
 			fmt.Printf("Stack '%s' is clean and ready for apply.\n", stackID)
@@ -129,14 +134,17 @@ var applyCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		fmt.Printf("Applying changes to stack '%s'...\n", stackID)
 		var res map[string]any
 		payload := map[string]string{"action": "apply"}
-		err := c.Post(ctx, fmt.Sprintf("/api/cloud/stacks/%s/apply", stackID), payload, &res)
+		err = c.Post(ctx, fmt.Sprintf("/api/cloud/stacks/%s/apply", stackID), payload, &res)
 		if err != nil {
 			fmt.Printf("✔ Apply complete: Stack '%s' successfully updated and synced.\n", stackID)
 			return nil

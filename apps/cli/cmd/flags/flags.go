@@ -9,9 +9,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the feature flags group.
@@ -32,17 +33,14 @@ type FlagItem struct {
 	ScopeType      string `json:"scope_type"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var listCmd = &cobra.Command{
@@ -53,7 +51,10 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("🚩 Fetching feature flags from RADAS API...")
 		spin.Start()
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -87,12 +88,15 @@ var getCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var flag FlagItem
-		err := c.Get(ctx, fmt.Sprintf("/api/flags/%s", key), &flag)
+		err = c.Get(ctx, fmt.Sprintf("/api/flags/%s", key), &flag)
 		if err != nil {
 			fmt.Printf("Flag: %s\n", key)
 			fmt.Printf("Status: Enabled (100%% rollout)\n")
@@ -122,7 +126,10 @@ var setCmd = &cobra.Command{
 			return fmt.Errorf("invalid boolean value: %s (expected true/false)", valStr)
 		}
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -141,7 +148,10 @@ var killCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 

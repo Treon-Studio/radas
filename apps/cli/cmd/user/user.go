@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the user management group.
@@ -30,17 +31,14 @@ type UserItem struct {
 	Status string `json:"status"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var listCmd = &cobra.Command{
@@ -51,7 +49,10 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("👥 Fetching team members & roles from RADAS API...")
 		spin.Start()
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -87,7 +88,10 @@ var inviteCmd = &cobra.Command{
 		email := args[0]
 		role, _ := cmd.Flags().GetString("role")
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 

@@ -22,6 +22,7 @@ import (
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/org"
 	"github.com/raizora/radas/v4/cmd/policy"
+	"github.com/raizora/radas/v4/cmd/project"
 	"github.com/raizora/radas/v4/cmd/registry"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
 	"github.com/raizora/radas/v4/cmd/scan"
@@ -69,13 +70,15 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 		go func() {
 			release, hasUpdate, err := updater.CheckForUpdate()
 			if err == nil && hasUpdate {
-				fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n", 
+				fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n",
 					strings.TrimPrefix(release.TagName, "v"))
 			}
 		}()
 	}
 
-
+	// Shared connection/tenant flags (--api-url, --token, --org-id,
+	// --project-id) resolved by internal/config.LoadRuntimeConfig.
+	rootcmd.RegisterRuntimeFlags(rootCmd)
 
 	rootCmd.AddCommand(config.ConfigCmd)
 
@@ -137,6 +140,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(worker.Cmd)
 	rootCmd.AddCommand(org.Cmd)
 	rootCmd.AddCommand(user.Cmd)
+	rootCmd.AddCommand(project.Cmd)
 	rootCmd.AddCommand(secret.Cmd)
 	rootCmd.AddCommand(drift.Cmd)
 	rootCmd.AddCommand(state.Cmd)

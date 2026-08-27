@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the policy guardrail group.
@@ -29,17 +30,14 @@ type Violation struct {
 	Description string `json:"description"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var checkCmd = &cobra.Command{
@@ -92,7 +90,10 @@ var exemptCmd = &cobra.Command{
 			return fmt.Errorf("a non-empty --reason is mandatory when requesting a policy exemption")
 		}
 
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 

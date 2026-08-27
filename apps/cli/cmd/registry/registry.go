@@ -8,8 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/config"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the code registry group.
@@ -30,17 +31,14 @@ type RegistryItem struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
+// getClient resolves the shared runtime configuration (flags, environment,
+// persisted selector) and builds the common API client.
+func getClient(cmd *cobra.Command) (*client.Client, error) {
+	rc, err := config.LoadRuntimeConfig(cmd)
+	if err != nil {
+		return nil, err
 	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
-	})
+	return rc.NewClient(), nil
 }
 
 var listCmd = &cobra.Command{
@@ -48,7 +46,10 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "List available OpenTofu modules and Ansible roles",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -82,7 +83,10 @@ var installCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := args[0]
-		c := getClient()
+		c, err := getClient(cmd)
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
