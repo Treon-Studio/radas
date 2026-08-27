@@ -55,6 +55,10 @@ These route families are supported contracts for Phase 0.1 and must not be silen
 
 New platform service APIs must be additive, JWT-authenticated, project-authorized, asynchronous for infrastructure work, idempotent, redacted, and audited. Existing APIs are not retrofitted in this documentation task.
 
+### Contract surfaces: `/api/v2` (forward) and `/api/*` (compatibility)
+
+`/api/v2` is the forward shared contract surface: it is mounted by the flask-smorest `Api` in `apps/server/app.py` (`api_v2.init_api_v2` and `finalize_api_v2`) and publishes an OpenAPI 3.0.3 document at `/api/v2/openapi.json` with Swagger UI at `/api/v2/docs`. It combines hand-converted blueprints (`yaml`, `roles_usage`, `api_tokens`, `queue_search`) with auto-proxies that mirror every registered `/api/*` route and delegate execution to the same v1 view functions. The legacy `/api/*` surface remains the compatibility contract: it is unchanged by the v2 mount, and when `flask-smorest` is unavailable the `/api/v2` pilot is skipped and `/api/*` serves all traffic. New cross-client contracts shared by the console and CLI should be specified against `/api/v2`, while existing `/api/*` routes keep their current shapes and behavior.
+
 ## Async operation contract as it exists today
 
 The current durable execution contract is an execution record, not yet a service operation record:
