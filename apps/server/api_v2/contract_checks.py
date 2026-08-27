@@ -49,22 +49,34 @@ def find_duplicate_operation_ids(spec: dict[str, Any]) -> list[str]:
 def find_undocumented_required_parameters(spec: dict[str, Any]) -> list[str]:
     """Required request parameters that the document fails to describe.
 
-    Two failure shapes:
-    - a declared path/header parameter without ``required: true``;
+    Failure shapes:
+    - a declared path/header parameter that omits ``required`` entirely
+      (ambiguous — OpenAPI defaults it to false, so the intent is unclear);
+    - a declared path parameter without ``required: true`` (path parameters
+      are always required by definition);
     - a path template variable with no matching declared parameter.
+
+    Header parameters MAY be explicitly optional (``required: false``) — that
+    is the documented form of the ``Idempotency-Key`` header on mutating
+    contract operations (Task 2.3).
     """
     violations: set[str] = set()
     for method, path, operation in iter_operations(spec):
         declared = [p for p in (operation.get("parameters") or []) if isinstance(p, dict)]
         declared_names = {p.get("name") for p in declared}
         for parameter in declared:
-            if (
-                parameter.get("in") in ("path", "header")
-                and parameter.get("required") is not True
-            ):
+            location = parameter.get("in")
+            if location not in ("path", "header"):
+                continue
+            if "required" not in parameter:
                 violations.add(
                     f"{method} {path}: parameter {parameter.get('name')!r} "
-                    f"(in {parameter.get('in')}) is missing required=true"
+                    f"(in {location}) is missing required=true"
+                )
+            elif location == "path" and parameter["required"] is not True:
+                violations.add(
+                    f"{method} {path}: parameter {parameter.get('name')!r} "
+                    f"(in {location}) is missing required=true"
                 )
         for name in _PATH_PARAM_RE.findall(path):
             if name not in declared_names:

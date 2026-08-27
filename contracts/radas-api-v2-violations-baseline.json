@@ -1,14 +1,13 @@
 {
-  "comment": "Explicit no-regression baseline for the /api/v2 OpenAPI contract (Task 2.1 of the 2026-08-27 console-CLI integration plan). Entries are deterministic 'METHOD path: detail' strings derived from contracts/radas-api-v2.openapi.json. Tests fail on any NEW violation not listed here. Pre-existing auto-proxied legacy endpoints carry undocumented path parameters because they mirror hand-written v1 routes without schemas; they are ratcheted here and shrink as domains gain explicit schemas (Task 2.3). Regenerate this file and the snapshot together, only with a reviewed diff.",
+  "comment": "Explicit no-regression baseline for the /api/v2 OpenAPI contract (Task 2.1 of the 2026-08-27 console-CLI integration plan). Entries are deterministic 'METHOD path: detail' strings derived from contracts/radas-api-v2.openapi.json. Tests fail on any NEW violation not listed here. Pre-existing auto-proxied legacy endpoints carry undocumented path parameters because they mirror hand-written v1 routes without schemas; they are ratcheted here and shrink as domains gain explicit schemas (Task 2.3: auth/token, org/project, cloud stack, flags, approvals, workers, services and GET /api/search now carry explicit schemas, shrinking this file 460 -> 444). Regenerate this file and the snapshot together, only with a reviewed diff.",
   "counts": {
     "duplicate_operation_ids": 0,
-    "missing_error_responses": 0,
-    "undocumented_required_parameters": 460
+    "undocumented_required_parameters": 444,
+    "missing_error_responses": 0
   },
   "source_snapshot": "contracts/radas-api-v2.openapi.json",
   "violations": {
     "duplicate_operation_ids": [],
-    "missing_error_responses": [],
     "undocumented_required_parameters": [
       "DELETE /api/v2/api-tokens/{token_id}: path parameter 'token_id' is not documented",
       "DELETE /api/v2/automation/rules/{rule_id}: path parameter 'rule_id' is not documented",
@@ -16,8 +15,6 @@
       "DELETE /api/v2/budget/{project_id}: path parameter 'project_id' is not documented",
       "DELETE /api/v2/byoc/accounts/{account_id}: path parameter 'account_id' is not documented",
       "DELETE /api/v2/cloud/stacks/{name}/state/lock: path parameter 'name' is not documented",
-      "DELETE /api/v2/cloud/stacks/{name}: path parameter 'name' is not documented",
-      "DELETE /api/v2/flags/{key}: path parameter 'key' is not documented",
       "DELETE /api/v2/github/repos/{owner}/{repo}/runners/{runner_id}: path parameter 'owner' is not documented",
       "DELETE /api/v2/github/repos/{owner}/{repo}/runners/{runner_id}: path parameter 'repo' is not documented",
       "DELETE /api/v2/github/repos/{owner}/{repo}/runners/{runner_id}: path parameter 'runner_id' is not documented",
@@ -83,7 +80,6 @@
       "GET /api/v2/cloud/stacks/{name}/state: path parameter 'name' is not documented",
       "GET /api/v2/cloud/stacks/{name}/timeout: path parameter 'name' is not documented",
       "GET /api/v2/cloud/stacks/{name}/ttl: path parameter 'name' is not documented",
-      "GET /api/v2/cloud/stacks/{name}: path parameter 'name' is not documented",
       "GET /api/v2/cloud/stacks/{stack}/drift-schedule: path parameter 'stack' is not documented",
       "GET /api/v2/cloud/{provider}/schema: path parameter 'provider' is not documented",
       "GET /api/v2/executions/{execution_id}/log: path parameter 'execution_id' is not documented",
@@ -176,17 +172,12 @@
       "GET /api/v2/projects/{project_id}/services/{service_id}/operations/{operation_id}: path parameter 'operation_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/operations/{operation_id}: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/operations/{operation_id}: path parameter 'service_id' is not documented",
-      "GET /api/v2/projects/{project_id}/services/{service_id}/operations: path parameter 'project_id' is not documented",
-      "GET /api/v2/projects/{project_id}/services/{service_id}/operations: path parameter 'service_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/pipeline: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/pipeline: path parameter 'service_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/revisions: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/revisions: path parameter 'service_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/source: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/services/{service_id}/source: path parameter 'service_id' is not documented",
-      "GET /api/v2/projects/{project_id}/services/{service_id}: path parameter 'project_id' is not documented",
-      "GET /api/v2/projects/{project_id}/services/{service_id}: path parameter 'service_id' is not documented",
-      "GET /api/v2/projects/{project_id}/services: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/sources/status: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/sources/{source_key}/sync/check-conflict: path parameter 'project_id' is not documented",
       "GET /api/v2/projects/{project_id}/sources/{source_key}/sync/check-conflict: path parameter 'source_key' is not documented",
@@ -227,17 +218,12 @@
       "GET /api/v2/users/{user_id}: path parameter 'user_id' is not documented",
       "PATCH /api/v2/automation/rules/{rule_id}: path parameter 'rule_id' is not documented",
       "PATCH /api/v2/executions/{execution_id}: path parameter 'execution_id' is not documented",
-      "PATCH /api/v2/flags/{key}: path parameter 'key' is not documented",
       "PATCH /api/v2/orgs/{org_id}/members/{user_id}: path parameter 'org_id' is not documented",
       "PATCH /api/v2/orgs/{org_id}/members/{user_id}: path parameter 'user_id' is not documented",
-      "PATCH /api/v2/projects/{project_id}/services/{service_id}: path parameter 'project_id' is not documented",
-      "PATCH /api/v2/projects/{project_id}/services/{service_id}: path parameter 'service_id' is not documented",
       "PATCH /api/v2/tests/{test_id}: path parameter 'test_id' is not documented",
       "PATCH /api/v2/webhooks/{webhook_id}: path parameter 'webhook_id' is not documented",
       "POST /api/v2/api-tokens/{token_id}/revoke: path parameter 'token_id' is not documented",
       "POST /api/v2/api-tokens/{token_id}/rotate: path parameter 'token_id' is not documented",
-      "POST /api/v2/approvals/{approval_id}/approve: path parameter 'approval_id' is not documented",
-      "POST /api/v2/approvals/{approval_id}/reject: path parameter 'approval_id' is not documented",
       "POST /api/v2/approvals/{approval_id}/step: path parameter 'approval_id' is not documented",
       "POST /api/v2/budget/{project_id}/check: path parameter 'project_id' is not documented",
       "POST /api/v2/byoc/accounts/{account_id}/import: path parameter 'account_id' is not documented",
@@ -246,7 +232,6 @@
       "POST /api/v2/byoc/accounts/{account_id}/state-sync: path parameter 'account_id' is not documented",
       "POST /api/v2/byoc/accounts/{account_id}/validate: path parameter 'account_id' is not documented",
       "POST /api/v2/cloud/executions/{execution_id}/comments: path parameter 'execution_id' is not documented",
-      "POST /api/v2/cloud/stacks/{name}/actions: path parameter 'name' is not documented",
       "POST /api/v2/cloud/stacks/{name}/archive: path parameter 'name' is not documented",
       "POST /api/v2/cloud/stacks/{name}/circuit-breaker/reset: path parameter 'name' is not documented",
       "POST /api/v2/cloud/stacks/{name}/clone: path parameter 'name' is not documented",
@@ -385,7 +370,6 @@
       "POST /api/v2/projects/{project_id}/services/{service_id}/source/resolve: path parameter 'service_id' is not documented",
       "POST /api/v2/projects/{project_id}/services/{service_id}/usage: path parameter 'project_id' is not documented",
       "POST /api/v2/projects/{project_id}/services/{service_id}/usage: path parameter 'service_id' is not documented",
-      "POST /api/v2/projects/{project_id}/services: path parameter 'project_id' is not documented",
       "POST /api/v2/projects/{project_id}/sources/analyze: path parameter 'project_id' is not documented",
       "POST /api/v2/projects/{project_id}/sources/resolve: path parameter 'project_id' is not documented",
       "POST /api/v2/projects/{project_id}/sources/revert: path parameter 'project_id' is not documented",
@@ -434,7 +418,6 @@
       "PUT /api/v2/cloud/stacks/{name}/state/backend: path parameter 'name' is not documented",
       "PUT /api/v2/cloud/stacks/{name}/timeout: path parameter 'name' is not documented",
       "PUT /api/v2/cloud/stacks/{name}/ttl: path parameter 'name' is not documented",
-      "PUT /api/v2/cloud/stacks/{name}: path parameter 'name' is not documented",
       "PUT /api/v2/cloud/stacks/{stack}/drift-schedule: path parameter 'stack' is not documented",
       "PUT /api/v2/flags/{key}/rollout-schedule: path parameter 'key' is not documented",
       "PUT /api/v2/github/repos/{owner}/{repo}/branches/{branch}/protection: path parameter 'branch' is not documented",
@@ -470,6 +453,7 @@
       "PUT /api/v2/roles/file/{pack_id}/{role_name}/{file_path}: path parameter 'role_name' is not documented",
       "PUT /api/v2/roles/{role_id}: path parameter 'role_id' is not documented",
       "PUT /api/v2/users/{user_id}: path parameter 'user_id' is not documented"
-    ]
+    ],
+    "missing_error_responses": []
   }
 }

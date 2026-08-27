@@ -148,7 +148,11 @@ def require_auth(f: Callable) -> Callable:
             from services.worker_registry import verify_token as verify_worker_token
         except ImportError:
             from services.worker_registry import verify_token as verify_worker_token
-        is_worker_path = request.path.startswith('/api/worker/')
+        # Worker tokens authenticate the worker protocol on the legacy paths
+        # and on their /api/v2 contract mirrors (Task 2.3) — the v2 worker
+        # operations document BearerAuth and must actually accept the
+        # worker-registry tokens the documented clients send.
+        is_worker_path = request.path.startswith('/api/worker/') or request.path.startswith('/api/v2/worker/')
         is_execution_get = request.path.startswith('/api/executions/') and request.method == 'GET'
         if is_worker_path or is_execution_get:
             result = verify_worker_token(token)

@@ -195,6 +195,262 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v2/admin/workers": {
+      "get": {
+        "operationId": "get_admin_workers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "WorkerInfo": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "capabilities": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": true,
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Capabilities"
+                        },
+                        "currentExecutionId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Currentexecutionid"
+                        },
+                        "enabled": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Enabled"
+                        },
+                        "id": {
+                          "title": "Id",
+                          "type": "string"
+                        },
+                        "lastSeenAt": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Lastseenat"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "tags": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Tags"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "title": "WorkerInfo",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    },
+                    "workers": {
+                      "items": {
+                        "$ref": "#/components/schemas/WorkerInfo"
+                      },
+                      "title": "Workers",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "workers"
+                  ],
+                  "title": "WorkersOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "All registered workers with registry state."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List registered workers (registry + last-seen state).",
+        "tags": [
+          "workers_v2"
+        ]
+      },
+      "post": {
+        "operationId": "post_admin_workers",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "capabilities": {
+                    "additionalProperties": true,
+                    "title": "Capabilities",
+                    "type": "object"
+                  },
+                  "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "title": "Tags",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "AdminWorkerCreateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "message": {
+                      "title": "Message",
+                      "type": "string"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    },
+                    "workerId": {
+                      "title": "Workerid",
+                      "type": "string"
+                    },
+                    "workerToken": {
+                      "description": "Plaintext worker token. Shown only once.",
+                      "title": "Workertoken",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workerId",
+                    "workerToken",
+                    "message"
+                  ],
+                  "title": "AdminWorkerCreateOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created worker registration; the plaintext token is returned only once."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Register a worker and obtain its one-time worker token.",
+        "tags": [
+          "workers_v2"
+        ]
+      }
+    },
     "/api/v2/ai/chat": {
       "post": {
         "operationId": "post_ai_chat",
@@ -846,26 +1102,338 @@
     "/api/v2/approvals": {
       "get": {
         "operationId": "get_approvals",
+        "parameters": [
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Explicit project scope (X-Project-Id header is preferred).",
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by lifecycle status (pending/approved/rejected/expired).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "ApprovalRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "action": {
+                          "title": "Action",
+                          "type": "string"
+                        },
+                        "id": {
+                          "title": "Id",
+                          "type": "string"
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Note"
+                        },
+                        "project_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Project Id"
+                        },
+                        "requested_by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Requested By"
+                        },
+                        "stack": {
+                          "title": "Stack",
+                          "type": "string"
+                        },
+                        "status": {
+                          "title": "Status",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "stack",
+                        "action",
+                        "status"
+                      ],
+                      "title": "ApprovalRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "approvals": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApprovalRecord"
+                      },
+                      "title": "Approvals",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "approvals"
+                  ],
+                  "title": "ApprovalsOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approvals for the scoped project (optionally filtered by status)."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_list_approvals.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List approval requests for the scoped project.",
         "tags": [
-          "Approval Api"
+          "approvals_v2"
         ]
       },
       "post": {
         "operationId": "post_approvals",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "action": {
+                    "description": "apply | destroy | plan",
+                    "title": "Action",
+                    "type": "string"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Note"
+                  },
+                  "project_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "description": "Defaults to the X-Project-Id header context.",
+                    "title": "Project Id"
+                  },
+                  "stack": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Stack",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "stack",
+                  "action"
+                ],
+                "title": "ApprovalCreateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "ApprovalRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "action": {
+                          "title": "Action",
+                          "type": "string"
+                        },
+                        "id": {
+                          "title": "Id",
+                          "type": "string"
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Note"
+                        },
+                        "project_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Project Id"
+                        },
+                        "requested_by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Requested By"
+                        },
+                        "stack": {
+                          "title": "Stack",
+                          "type": "string"
+                        },
+                        "status": {
+                          "title": "Status",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "stack",
+                        "action",
+                        "status"
+                      ],
+                      "title": "ApprovalRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "approval": {
+                      "$ref": "#/components/schemas/ApprovalRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "approval"
+                  ],
+                  "title": "ApprovalWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created approval request."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_create_approval.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Request an approval for a stack action (one pending per action).",
         "tags": [
-          "Approval Api"
+          "approvals_v2"
         ]
       }
     },
@@ -911,14 +1479,148 @@
       ],
       "post": {
         "operationId": "post_approvals_approval_id_approve",
+        "parameters": [
+          {
+            "description": "Approval record id.",
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "ApprovalRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "action": {
+                          "title": "Action",
+                          "type": "string"
+                        },
+                        "id": {
+                          "title": "Id",
+                          "type": "string"
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Note"
+                        },
+                        "project_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Project Id"
+                        },
+                        "requested_by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Requested By"
+                        },
+                        "stack": {
+                          "title": "Stack",
+                          "type": "string"
+                        },
+                        "status": {
+                          "title": "Status",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "stack",
+                        "action",
+                        "status"
+                      ],
+                      "title": "ApprovalRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "approval": {
+                      "$ref": "#/components/schemas/ApprovalRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "approval"
+                  ],
+                  "title": "ApprovalWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approved approval record."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_approve.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Approve a pending approval request.",
         "tags": [
-          "Approval Api"
+          "approvals_v2"
         ]
       }
     },
@@ -936,14 +1638,148 @@
       ],
       "post": {
         "operationId": "post_approvals_approval_id_reject",
+        "parameters": [
+          {
+            "description": "Approval record id.",
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "ApprovalRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "action": {
+                          "title": "Action",
+                          "type": "string"
+                        },
+                        "id": {
+                          "title": "Id",
+                          "type": "string"
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Note"
+                        },
+                        "project_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Project Id"
+                        },
+                        "requested_by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Requested By"
+                        },
+                        "stack": {
+                          "title": "Stack",
+                          "type": "string"
+                        },
+                        "status": {
+                          "title": "Status",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "stack",
+                        "action",
+                        "status"
+                      ],
+                      "title": "ApprovalRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "approval": {
+                      "$ref": "#/components/schemas/ApprovalRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "approval"
+                  ],
+                  "title": "ApprovalWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rejected approval record."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_reject.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Reject a pending approval request.",
         "tags": [
-          "Approval Api"
+          "approvals_v2"
         ]
       }
     },
@@ -1144,14 +1980,207 @@
     "/api/v2/auth/login": {
       "post": {
         "operationId": "post_auth_login",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "password": {
+                    "maxLength": 1024,
+                    "minLength": 1,
+                    "title": "Password",
+                    "type": "string"
+                  },
+                  "username": {
+                    "maxLength": 150,
+                    "minLength": 1,
+                    "title": "Username",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "title": "LoginIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": "Username and password. MFA-enrolled users receive a short-lived mfa_token instead of a token pair.",
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "_UserRef": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Email"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "roles": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Roles"
+                        },
+                        "username": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Username"
+                        }
+                      },
+                      "title": "_UserRef",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "Successful login. The MFA challenge variant adds ``mfa_required`` and\n``mfa_token`` and omits the token pair (documented via allowed extras).",
+                  "properties": {
+                    "access_token": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Access Token"
+                    },
+                    "active_org_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Active Org Id"
+                    },
+                    "orgs": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "additionalProperties": true,
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Orgs"
+                    },
+                    "refresh_token": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Refresh Token"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    },
+                    "user": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/_UserRef"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "title": "LoginOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Token pair (or MFA challenge). Rate-limited, validation and credential failures return the error envelope."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_auth_login.",
+        "summary": "Exchange username and password for an access/refresh token pair.",
         "tags": [
-          "Auth"
+          "auth_v2"
         ]
       }
     },
@@ -1173,13 +2202,174 @@
       "get": {
         "operationId": "get_auth_me",
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "_MeUser": {
+                      "additionalProperties": true,
+                      "description": "The authenticated user's profile as returned by /auth/me.",
+                      "properties": {
+                        "created_at": {
+                          "anyOf": [
+                            {},
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Created At"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Email"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "is_active": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Is Active"
+                        },
+                        "last_login": {
+                          "anyOf": [
+                            {},
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Last Login"
+                        },
+                        "permissions": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Permissions"
+                        },
+                        "role_details": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "additionalProperties": true,
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Role Details"
+                        },
+                        "roles": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Roles"
+                        },
+                        "username": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Username"
+                        }
+                      },
+                      "title": "_MeUser",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/_MeUser"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "title": "MeOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The authenticated user's profile, roles and permissions."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_auth_me.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Identity of the authenticated user (roles, permissions, activity).",
         "tags": [
-          "Auth"
+          "auth_v2"
         ]
       }
     },
@@ -1256,14 +2446,83 @@
     "/api/v2/auth/refresh": {
       "post": {
         "operationId": "post_auth_refresh",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "refresh_token": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "title": "Refresh Token",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "refresh_token"
+                ],
+                "title": "RefreshIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "access_token": {
+                      "title": "Access Token",
+                      "type": "string"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "access_token"
+                  ],
+                  "title": "RefreshOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fresh access token."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_auth_refresh.",
+        "summary": "Exchange a valid refresh token for a fresh access token.",
         "tags": [
-          "Auth"
+          "auth_v2"
         ]
       }
     },
@@ -1326,14 +2585,98 @@
     "/api/v2/auth/switch-org": {
       "post": {
         "operationId": "post_auth_switch_org",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "org_id": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Org Id",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "org_id"
+                ],
+                "title": "SwitchOrgIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "access_token": {
+                      "title": "Access Token",
+                      "type": "string"
+                    },
+                    "active_org_id": {
+                      "title": "Active Org Id",
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "title": "Refresh Token",
+                      "type": "string"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "access_token",
+                    "refresh_token",
+                    "active_org_id"
+                  ],
+                  "title": "SwitchOrgOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fresh access/refresh tokens carrying the new active org id."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Switch active org: returns fresh access/refresh tokens carrying org_id.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Switch the active organization: re-issues org-bound tokens.",
         "tags": [
-          "Auth"
+          "org_project_v2"
         ]
       }
     },
@@ -2281,26 +3624,255 @@
     "/api/v2/cloud/stacks": {
       "get": {
         "operationId": "get_cloud_stacks",
+        "parameters": [
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "StackSummary": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "cloud_project": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Cloud Project"
+                        },
+                        "env": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Env"
+                        },
+                        "last_action": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Last Action"
+                        },
+                        "last_status": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Last Status"
+                        },
+                        "name": {
+                          "title": "Name",
+                          "type": "string"
+                        },
+                        "provider": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Provider"
+                        },
+                        "region": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Region"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "title": "StackSummary",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "stacks": {
+                      "items": {
+                        "$ref": "#/components/schemas/StackSummary"
+                      },
+                      "title": "Stacks",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "stacks"
+                  ],
+                  "title": "StacksOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Stacks of the scoped project with their latest run status."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_list.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the project's cloud stacks with latest-run status.",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       },
       "post": {
         "operationId": "post_cloud_stacks",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "name": {
+                    "description": "Lowercase letters, digits, '-' or '_' (3-50 chars).",
+                    "maxLength": 50,
+                    "minLength": 3,
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "default": "bytedc",
+                    "title": "Provider",
+                    "type": "string"
+                  },
+                  "values": {
+                    "additionalProperties": true,
+                    "title": "Values",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "StackCreateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "title": "Name",
+                      "type": "string"
+                    },
+                    "ok": {
+                      "default": true,
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "StackWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created stack."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_create.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a cloud stack from a provider template in the scoped project.",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       }
     },
@@ -2391,26 +3963,223 @@
     "/api/v2/cloud/stacks/{name}": {
       "delete": {
         "operationId": "delete_cloud_stacks_name",
+        "parameters": [
+          {
+            "description": "Stack name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "title": "Name",
+                      "type": "string"
+                    },
+                    "ok": {
+                      "default": true,
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "StackWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Deleted stack."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_delete.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a cloud stack (working directory and metadata).",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       },
       "get": {
         "operationId": "get_cloud_stacks_name",
+        "parameters": [
+          {
+            "description": "Stack name (lowercase letters, digits, '-' or '_').",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "files": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Files"
+                    },
+                    "has_secrets": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Has Secrets"
+                    },
+                    "lock_reason": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Lock Reason"
+                    },
+                    "locked": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Locked"
+                    },
+                    "name": {
+                      "title": "Name",
+                      "type": "string"
+                    },
+                    "outputs": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Outputs"
+                    },
+                    "provider": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Provider"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "StackDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Stack files, provider metadata, drift and lock state."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_get.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Inspect one cloud stack of the scoped project.",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       },
       "parameters": [
@@ -2426,14 +4195,102 @@
       ],
       "put": {
         "operationId": "put_cloud_stacks_name",
+        "parameters": [
+          {
+            "description": "Stack name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "values": {
+                    "additionalProperties": true,
+                    "title": "Values",
+                    "type": "object"
+                  }
+                },
+                "title": "StackUpdateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "title": "Name",
+                      "type": "string"
+                    },
+                    "ok": {
+                      "default": true,
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "StackWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Updated stack."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_update.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a stack's variable values (secrets are separated server-side).",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       }
     },
@@ -2451,14 +4308,100 @@
       ],
       "post": {
         "operationId": "post_cloud_stacks_name_actions",
+        "parameters": [
+          {
+            "description": "Stack name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "description": "One of the stack lifecycle actions (plan/apply/destroy/refresh/lock/...).\n\nThe runtime validates the action token and returns the error envelope for\nunsupported or blocked actions; extra keys carry action-specific inputs\n(worker_id, priority, address, reason, ...).",
+                "properties": {
+                  "action": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "title": "Action",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "StackActionIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": "The lifecycle action to run: plan, apply, destroy, refresh, lock, unlock, taint, untaint, ... Mutating actions honor feature-flag and lock safety gates (blocked with 423) and queue a worker run.",
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "ok": {
+                      "default": true,
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "title": "StackActionOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Action accepted or executed (mutating actions queue a run and return run identifiers; lock/taint style actions apply immediately)."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 stacks_action.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Run a lifecycle action on a cloud stack (gated, worker-queued).",
         "tags": [
-          "Cloud Provisioning"
+          "cloud_stack_v2"
         ]
       }
     },
@@ -4034,26 +5977,450 @@
     "/api/v2/flags": {
       "get": {
         "operationId": "get_flags",
+        "parameters": [
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Explicit listing scope (with scope_id).",
+            "in": "query",
+            "name": "scope_type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "global",
+                "organization",
+                "project"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Scope identifier for explicit organization/project listings.",
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter flags by tag.",
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flags enabled in this environment.",
+            "in": "query",
+            "name": "env",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only enabled (true) or disabled (false) flags.",
+            "in": "query",
+            "name": "enabled",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "FlagRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "enabled": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Enabled"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "key": {
+                          "title": "Key",
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "scope_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Id"
+                        },
+                        "scope_type": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Type"
+                        },
+                        "tags": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Tags"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ],
+                      "title": "FlagRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "flags": {
+                      "items": {
+                        "$ref": "#/components/schemas/FlagRecord"
+                      },
+                      "title": "Flags",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "flags"
+                  ],
+                  "title": "FlagsOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Flags visible in the resolved scope (effective records include inherited org/global flags)."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_list_flags.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List feature flags in the resolved scope.",
         "tags": [
-          "Feature Flag Api"
+          "flags_v2"
         ]
       },
       "post": {
         "operationId": "post_flags",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "description": "Flag body: ``key`` is required; every other registry field is optional\nand validated server-side (unknown keys are tolerated for forward-compat).",
+                "properties": {
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Description"
+                  },
+                  "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Enabled"
+                  },
+                  "key": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Key",
+                    "type": "string"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Name"
+                  },
+                  "scope_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Scope Id"
+                  },
+                  "scope_type": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "description": "global | organization | project (with scope_id).",
+                    "title": "Scope Type"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "title": "FlagCreateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "FlagRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "enabled": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Enabled"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "key": {
+                          "title": "Key",
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "scope_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Id"
+                        },
+                        "scope_type": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Type"
+                        },
+                        "tags": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Tags"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ],
+                      "title": "FlagRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "flag": {
+                      "$ref": "#/components/schemas/FlagRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "flag"
+                  ],
+                  "title": "FlagWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created flag."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_create_flag.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a feature flag in the resolved scope (admin-gated for global).",
         "tags": [
-          "Feature Flag Api"
+          "flags_v2"
         ]
       }
     },
@@ -4088,14 +6455,169 @@
     "/api/v2/flags/evaluate": {
       "post": {
         "operationId": "post_flags_evaluate",
+        "parameters": [
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "env": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Env"
+                  },
+                  "key": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Key",
+                    "type": "string"
+                  },
+                  "scope_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Scope Id"
+                  },
+                  "scope_type": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Scope Type"
+                  },
+                  "user": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "User"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "title": "FlagEvaluateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "enabled": {
+                      "title": "Enabled",
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "title": "Key",
+                      "type": "string"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Reason"
+                    },
+                    "source": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Source"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "enabled"
+                  ],
+                  "title": "FlagEvaluateOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Evaluation result: enabled plus the matched scope/reason. Evaluation fails closed (enabled=false) on errors."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_evaluate_flag.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Evaluate a flag for the current user and resolved scope.",
         "tags": [
-          "Feature Flag Api"
+          "flags_v2"
         ]
       }
     },
@@ -4172,14 +6694,172 @@
     "/api/v2/flags/{key}": {
       "delete": {
         "operationId": "delete_flags_key",
+        "parameters": [
+          {
+            "description": "Flag key.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "FlagRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "enabled": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Enabled"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "key": {
+                          "title": "Key",
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "scope_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Id"
+                        },
+                        "scope_type": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Type"
+                        },
+                        "tags": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Tags"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ],
+                      "title": "FlagRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "flag": {
+                      "$ref": "#/components/schemas/FlagRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "flag"
+                  ],
+                  "title": "FlagWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Deleted flag."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_delete_flag.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a feature flag from the resolved scope.",
         "tags": [
-          "Feature Flag Api"
+          "flags_v2"
         ]
       },
       "parameters": [
@@ -4195,14 +6875,223 @@
       ],
       "patch": {
         "operationId": "patch_flags_key",
+        "parameters": [
+          {
+            "description": "Flag key (dot-namespaced, e.g. safety.cloud.apply.block).",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project scoping for project-tenant operations (preferred over the ``project_id`` query/body source). The authenticated user must be a member of the organization owning the project; cross-tenant access is rejected with 403.",
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Description"
+                  },
+                  "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Enabled"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Name"
+                  }
+                },
+                "title": "FlagUpdateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "FlagRecord": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "enabled": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Enabled"
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Id"
+                        },
+                        "key": {
+                          "title": "Key",
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "scope_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Id"
+                        },
+                        "scope_type": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Scope Type"
+                        },
+                        "tags": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Tags"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ],
+                      "title": "FlagRecord",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "properties": {
+                    "flag": {
+                      "$ref": "#/components/schemas/FlagRecord"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "flag"
+                  ],
+                  "title": "FlagWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Updated flag."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_update_flag.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a feature flag in the resolved scope.",
         "tags": [
-          "Feature Flag Api"
+          "flags_v2"
         ]
       }
     },
@@ -6542,25 +9431,137 @@
       "get": {
         "operationId": "get_orgs",
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "orgs": {
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "title": "Orgs",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "orgs"
+                  ],
+                  "title": "OrgsOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Organizations the authenticated user belongs to."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_list_orgs.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the organizations of the authenticated user.",
         "tags": [
-          "Org Api"
+          "org_project_v2"
         ]
       },
       "post": {
         "operationId": "post_orgs",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Name",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "CreateOrgIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "org": {
+                      "additionalProperties": true,
+                      "title": "Org",
+                      "type": "object"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "org"
+                  ],
+                  "title": "OrgCreateOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created organization with the caller as owner."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 api_create_org.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an organization owned by the authenticated user.",
         "tags": [
-          "Org Api"
+          "org_project_v2"
         ]
       }
     },
@@ -7348,27 +10349,184 @@
     "/api/v2/projects": {
       "get": {
         "operationId": "get_projects",
+        "parameters": [
+          {
+            "description": "Include archived projects when true.",
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "projects": {
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "title": "Projects",
+                      "type": "array"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "projects"
+                  ],
+                  "title": "ProjectsOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Projects visible to the user: every project of their organizations (archived ones only with include_archived=true)."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "API:",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List org-visible projects (multi-tenant scoped).",
         "tags": [
-          "Projects"
+          "org_project_v2"
         ]
       },
       "post": {
-        "description": "Creates a truly empty project with:\n- All required directories (mkdir only, no content copied)\n- project.json with explicit defaults for sources (local mode)\n- Empty .sync_state.json\n- No fallback to BASE_DIR or Default Project data",
         "operationId": "post_projects",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Description"
+                  },
+                  "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "org_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "description": "Owning organization; must be one of the caller's orgs (defaults to the caller's first org).",
+                    "title": "Org Id"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "CreateProjectIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "project": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null,
+                      "title": "Project"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "title": "ProjectWriteOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created project (empty, deterministic layout)."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "API:",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an org-scoped project for the authenticated user.",
         "tags": [
-          "Projects"
+          "org_project_v2"
         ]
       }
     },
@@ -8234,14 +11392,47 @@
     "/api/v2/projects/{project_id}/services": {
       "get": {
         "operationId": "get_projects_project_id_services",
+        "parameters": [
+          {
+            "description": "Project id (org membership enforced).",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]. data: {services: [service instance view], org_id}."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 list_services.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the project's service instances (optionally filtered).",
         "tags": [
-          "Service Instance Api"
+          "services_v2"
         ]
       },
       "parameters": [
@@ -8257,14 +11448,131 @@
       ],
       "post": {
         "operationId": "post_projects_project_id_services",
+        "parameters": [
+          {
+            "description": "Required (1-255 chars) when the request sets deploy=true: keys the queued operation for safe retries; reusing a key replays the recorded response.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project id (org membership enforced).",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "catalog_slug": {
+                    "title": "Catalog Slug",
+                    "type": "string"
+                  },
+                  "catalog_version": {
+                    "title": "Catalog Version",
+                    "type": "string"
+                  },
+                  "deploy": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "description": "Queue an initial deploy after creation — requires the Idempotency-Key header; returns 202 OperationEnvelope.",
+                    "title": "Deploy"
+                  },
+                  "environment": {
+                    "description": "Target environment (e.g. development, staging, production).",
+                    "title": "Environment",
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "runtime_id": {
+                    "title": "Runtime Id",
+                    "type": "string"
+                  },
+                  "spec": {
+                    "additionalProperties": true,
+                    "description": "Manifest-validated inputs.",
+                    "title": "Spec",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "name",
+                  "environment",
+                  "catalog_slug",
+                  "catalog_version",
+                  "runtime_id"
+                ],
+                "title": "ServiceCreateIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": "Catalog definition + validated spec. Set deploy=true (with an Idempotency-Key header) to create and queue the initial deploy operation in one call.",
+          "required": true
+        },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]. data: {service: detailed instance view}."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationEnvelope"
+                }
+              }
+            },
+            "description": "Asynchronous operation envelope: the queued operation (poll its poll_url) plus a request correlation identifier. Credential material is redacted to [REDACTED]. Returned when deploy=true queues the initial deploy."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 create_service.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a service instance (optionally queue its initial deploy).",
         "tags": [
-          "Service Instance Api"
+          "services_v2"
         ]
       }
     },
@@ -8296,14 +11604,56 @@
     "/api/v2/projects/{project_id}/services/{service_id}": {
       "get": {
         "operationId": "get_projects_project_id_services_service_id",
+        "parameters": [
+          {
+            "description": "Project id (org membership enforced).",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Service instance id.",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]. data: {service: detailed instance view with desired revision}."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 get_service.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Fetch one service instance with its desired revision.",
         "tags": [
-          "Service Instance Api"
+          "services_v2"
         ]
       },
       "parameters": [
@@ -8328,14 +11678,100 @@
       ],
       "patch": {
         "operationId": "patch_projects_project_id_services_service_id",
+        "parameters": [
+          {
+            "description": "Project id (org membership enforced).",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Service instance id.",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "spec": {
+                    "additionalProperties": true,
+                    "description": "Complete replacement manifest-validated spec.",
+                    "title": "Spec",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "spec"
+                ],
+                "title": "ServicePatchIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": "Complete replacement spec validated against the catalog manifest; production instances additionally require a confirmation token.",
+          "required": true
+        },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]. data: {service: detailed instance view}."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationEnvelope"
+                }
+              }
+            },
+            "description": "Asynchronous operation envelope: the queued operation (poll its poll_url) plus a request correlation identifier. Credential material is redacted to [REDACTED]. Returned when the patch queues an update operation."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 patch_service.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a service instance spec (may queue an update operation).",
         "tags": [
-          "Service Instance Api"
+          "services_v2"
         ]
       }
     },
@@ -8576,14 +12012,56 @@
     "/api/v2/projects/{project_id}/services/{service_id}/operations": {
       "get": {
         "operationId": "get_projects_project_id_services_service_id_operations",
+        "parameters": [
+          {
+            "description": "Project id (org membership enforced).",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Service instance id.",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]. data: {operations: [service operation view]}. Operations carry their poll_url as the v1-relative service-operation URL (/api/projects/{project_id}/services/{service_id}/operations/{operation_id}); the same URL shape is emitted from every namespace and runtime URLs are unchanged — poll it as returned."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
-        "summary": "Proxy of v1 list_service_operations.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the async operations of a service instance.",
         "tags": [
-          "Service Instance Api"
+          "services_v2"
         ]
       },
       "parameters": [
@@ -10991,6 +14469,160 @@
       }
     },
     "/api/v2/search": {
+      "get": {
+        "description": "Unified full-text search over stacks, runs, playbooks and secrets (UC396). Queries shorter than 2 characters are rejected with the error envelope.",
+        "operationId": "get_search",
+        "parameters": [
+          {
+            "description": "Search string (minimum 2 characters).",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 500,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict the search to one project.",
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results per category (clamped to 1-100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "SearchGETItem": {
+                      "additionalProperties": true,
+                      "description": "One matched record. Extra keys (meta, provider, env, ...) are preserved.",
+                      "properties": {
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Name"
+                        },
+                        "project_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Project Id"
+                        },
+                        "type": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "default": null,
+                          "title": "Type"
+                        }
+                      },
+                      "title": "SearchGETItem",
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "Unified search result buckets (stacks, runs, playbooks, secrets).",
+                  "properties": {
+                    "playbooks": {
+                      "items": {
+                        "$ref": "#/components/schemas/SearchGETItem"
+                      },
+                      "title": "Playbooks",
+                      "type": "array"
+                    },
+                    "query": {
+                      "title": "Query",
+                      "type": "string"
+                    },
+                    "runs": {
+                      "items": {
+                        "$ref": "#/components/schemas/SearchGETItem"
+                      },
+                      "title": "Runs",
+                      "type": "array"
+                    },
+                    "secrets": {
+                      "items": {
+                        "$ref": "#/components/schemas/SearchGETItem"
+                      },
+                      "title": "Secrets",
+                      "type": "array"
+                    },
+                    "stacks": {
+                      "items": {
+                        "$ref": "#/components/schemas/SearchGETItem"
+                      },
+                      "title": "Stacks",
+                      "type": "array"
+                    },
+                    "total_matches": {
+                      "minimum": 0,
+                      "title": "Total Matches",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "query",
+                    "total_matches"
+                  ],
+                  "title": "SearchGETOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Search across stacks, runs, playbooks and secrets (UC396).",
+        "tags": [
+          "queue_search_v2"
+        ]
+      },
       "post": {
         "operationId": "post_search",
         "requestBody": {
@@ -12332,6 +15964,424 @@
         ]
       }
     },
+    "/api/v2/worker/claim": {
+      "post": {
+        "operationId": "post_worker_claim",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "maxConcurrency": {
+                    "anyOf": [
+                      {
+                        "maximum": 64,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Maxconcurrency"
+                  },
+                  "projectId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Projectid"
+                  },
+                  "recovering": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Recovering"
+                  },
+                  "tags": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Tags"
+                  }
+                },
+                "title": "WorkerClaimIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": "Claim parameters: project filter, concurrency cap and tag matching. Service operations share this claim endpoint.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "createdAt": {
+                      "type": [
+                        "number",
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "executionId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "description": "service_operation claims carry this marker plus a serviceOperation payload.",
+                      "type": "string"
+                    },
+                    "playbookId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "queuedAt": {
+                      "type": [
+                        "number",
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "runParams": {
+                      "type": "object"
+                    },
+                    "serviceOperation": {
+                      "type": "object"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "executionId",
+                    "projectId"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Claimed execution (legacy playbook run) or service operation."
+          },
+          "204": {
+            "description": "No queued execution available (worker stays idle)."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Claim the next queued execution or service operation.",
+        "tags": [
+          "workers_v2"
+        ]
+      }
+    },
+    "/api/v2/worker/executions/{execution_id}/finish": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "execution_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_worker_executions_execution_id_finish",
+        "parameters": [
+          {
+            "description": "Execution or service-operation id.",
+            "in": "path",
+            "name": "execution_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "duration": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Duration"
+                  },
+                  "error": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Error"
+                  },
+                  "finishedAt": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Finishedat"
+                  },
+                  "result": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Result"
+                  },
+                  "returnCode": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Returncode"
+                  },
+                  "status": {
+                    "description": "SUCCESS | FAILED | CANCELED",
+                    "title": "Status",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "title": "WorkerFinishIn",
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    }
+                  },
+                  "title": "WorkerFinishOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Finish recorded (service operations return the finished operation)."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Finish a claimed execution with a terminal status.",
+        "tags": [
+          "workers_v2"
+        ]
+      }
+    },
+    "/api/v2/worker/heartbeat": {
+      "post": {
+        "operationId": "post_worker_heartbeat",
+        "parameters": [
+          {
+            "description": "Optional idempotency key for POST replay protection on the contract namespace: repeating a POST with the same key and an identical body replays the recorded response, while reusing a key with a different body is rejected with 409 CONFLICT. Some operations additionally require this header at runtime (described per operation).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "currentExecutionId": {
+                    "description": "Execution or service operation the worker is running (lease is renewed for service operations).",
+                    "type": "string"
+                  },
+                  "leaseToken": {
+                    "description": "Lease token for service-operation heartbeats.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "requestSystemInfo": {
+                      "title": "Requestsysteminfo",
+                      "type": "boolean"
+                    },
+                    "success": {
+                      "default": true,
+                      "title": "Success",
+                      "type": "boolean"
+                    },
+                    "workerId": {
+                      "title": "Workerid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workerId",
+                    "requestSystemInfo"
+                  ],
+                  "title": "HeartbeatOut",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Heartbeat recorded; requestSystemInfo tells the worker to report host info."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Worker liveness heartbeat (worker-token authenticated).",
+        "tags": [
+          "workers_v2"
+        ]
+      }
+    },
     "/api/v2/yaml/parse": {
       "post": {
         "operationId": "post_yaml_parse",
@@ -12573,6 +16623,34 @@
     {
       "description": "Execution queue, global search, runtime capabilities.",
       "name": "queue_search_v2"
+    },
+    {
+      "description": "Authentication: login, token refresh and session identity.",
+      "name": "auth_v2"
+    },
+    {
+      "description": "Multi-tenant organizations and org-scoped projects.",
+      "name": "org_project_v2"
+    },
+    {
+      "description": "OpenTofu/Terraform cloud stacks (list, inspect, mutate, run actions).",
+      "name": "cloud_stack_v2"
+    },
+    {
+      "description": "Tenant-scoped feature flags (list, create, update, delete, evaluate).",
+      "name": "flags_v2"
+    },
+    {
+      "description": "Approval workflow for destructive cloud actions (UC50/68/72).",
+      "name": "approvals_v2"
+    },
+    {
+      "description": "Worker registry (admin) and worker claim/heartbeat/finish protocol.",
+      "name": "workers_v2"
+    },
+    {
+      "description": "Project-scoped service instances (catalog-driven) and their async operations. Success responses use the shared envelope schemas; operation poll_url values are the v1-relative service-operation URLs and are identical across namespaces.",
+      "name": "services_v2"
     },
     {
       "description": "Ai Api (auto-documented proxy of legacy /api/*).",

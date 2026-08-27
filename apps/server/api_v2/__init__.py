@@ -103,6 +103,17 @@ def _register_manual_blueprints(api) -> None:
         ("api_v2.roles_usage_routes", "blp"),
         ("api_v2.api_tokens_routes", "blp"),
         ("api_v2.queue_search_routes", "blp"),
+        # Task 2.3 — explicit schemas for the shared client domains. Each of
+        # these owns the v2 paths of the v1 routes listed in
+        # ``auto_register._MANUAL_V2_PATHS`` (full method coverage, so the
+        # contract surface never shrinks); handlers delegate to v1 views.
+        ("api_v2.auth_routes", "blp"),
+        ("api_v2.org_project_routes", "blp"),
+        ("api_v2.cloud_stack_routes", "blp"),
+        ("api_v2.flag_routes", "blp"),
+        ("api_v2.approval_routes", "blp"),
+        ("api_v2.worker_routes", "blp"),
+        ("api_v2.service_routes", "blp"),
     )
     failures: list[str] = []
     for module_path, attr in registrations:

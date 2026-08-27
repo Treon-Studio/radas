@@ -125,6 +125,12 @@ if TYPE_CHECKING:
 
 # ---------------------------------------------------------------------------
 # Paths already covered by manually converted v2 blueprints.
+#
+# Task 2.3 rule: a v1 path listed here is replaced in the v2 document by an
+# explicit blueprint with full method coverage — the auto-proxy must not add
+# a generic mirror on top of it. Every path below maps 1:1 to routes in
+# api_v2/{auth_routes,org_project_routes,cloud_stack_routes,flag_routes,
+# approval_routes,worker_routes,service_routes,queue_search_routes}.
 # ---------------------------------------------------------------------------
 _MANUAL_V2_PATHS: set[str] = {
     # yaml_v2
@@ -137,11 +143,40 @@ _MANUAL_V2_PATHS: set[str] = {
     "/api/api-tokens/<token_id>",
     "/api/api-tokens/<token_id>/rotate",
     "/api/api-tokens/<token_id>/revoke",
-    # queue_search_v2
+    # queue_search_v2 (GET /api/search is owned by SearchView.get)
     "/api/queue",
     "/api/search",
     "/api/capabilities",
     "/api/projects/<project_id>/queue-stats",
+    # auth_v2
+    "/api/auth/login",
+    "/api/auth/refresh",
+    "/api/auth/me",
+    # org_project_v2 (org/project list/create/switch)
+    "/api/orgs",
+    "/api/projects",
+    "/api/auth/switch-org",
+    # cloud_stack_v2
+    "/api/cloud/stacks",
+    "/api/cloud/stacks/<name>",
+    "/api/cloud/stacks/<name>/actions",
+    # flags_v2
+    "/api/flags",
+    "/api/flags/<key>",
+    "/api/flags/evaluate",
+    # approvals_v2
+    "/api/approvals",
+    "/api/approvals/<approval_id>/approve",
+    "/api/approvals/<approval_id>/reject",
+    # workers_v2
+    "/api/admin/workers",
+    "/api/worker/heartbeat",
+    "/api/worker/claim",
+    "/api/worker/executions/<execution_id>/finish",
+    # services_v2
+    "/api/projects/<project_id>/services",
+    "/api/projects/<project_id>/services/<service_id>",
+    "/api/projects/<project_id>/services/<service_id>/operations",
 }
 
 
