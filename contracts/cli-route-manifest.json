@@ -1,0 +1,522 @@
+{
+    "$schema": "https://radas.dev/schemas/cli-route-manifest-v1.json",
+    "version": 1,
+    "description": "Reviewed manifest of every HTTP call made by the RADAS CLI (apps/cli) plus the classification of every command that does not call the server. Sources: Task 1.3 route-mismatch table (.superpowers/sdd/task-1.3-report.md), grep of cmd/ for c.Get/c.Post/c.Put/c.Delete/c.Do/client.Do, and the live Flask route table (app.url_map).",
+    "metadata": {
+        "server_app": "apps/server",
+        "server_boot": "scripts/export_openapi.build_contract_app (same blueprint registration as app.py, including blueprint prefixes already resolved into full url_map paths)",
+        "blueprint_prefix_accounting": "Blueprint prefixes (e.g. the cloud_provisioning blueprint prefix /api/cloud) are already part of every rule string in app.url_map, so the checker compares full served paths; the manifest records full paths including prefixes.",
+        "console_current_rewriting": {
+            "implemented_in": "apps/console/src/lib/api.ts:131",
+            "behavior": "The console HTTP wrapper rewrites the literal path segment '/_current/' to the concrete project id (path.replace('/_current/', '/<projectId>/')) before the request leaves the browser. The server therefore never sees a literal /_current/ segment, and no server route contains it.",
+            "manifest_policy": "The CLI never uses /_current/ paths: it resolves a concrete project id (runtime config / X-Project-Id header). The checker rejects any manifest entry whose path contains a literal /_current/ segment with a dedicated diagnostic instead of comparing it against app.url_map."
+        },
+        "path_param_syntax": "Go fmt verbs (%s) in manifest paths denote a single literal path segment sent by the CLI; the checker matches them against Flask variable segments (<name>, <int:name>, ...).",
+        "known_mismatches_initial_table": "The initial (pre-fix) manifest for Task 2.4 marked these as failing entries (kind remote-broken where applicable): approval list GET /api/approvals/pending (no server route), audit list GET /api/audit?action=&user= (server serves GET /api/audit-log), user invite POST /api/users/invite (server serves POST /api/users/invites), cost estimate GET /api/finops/estimate/<id> (no server route), policy exempt POST /api/policies/exemptions (no server route), org rules GET/POST /api/orgs/<id>/rules (no server route), worker drain POST /api/workers/<id>/drain (no drain route), registry publish from local dir (server publishes from server-side stacks), cloud provider probe (no ad-hoc probe endpoint), cloud inventory (needs a stack/account selector), flags get GET /api/flags/<key> (never registered; found by this checker during Task 2.4), state unlock (fake success with no server call). Each is now fixed to a real route or reclassified kind=local with an explicit decision note; tests/test_route_parity.py pins this mapping so nothing is waived silently."
+    },
+    "commands": [
+        {
+            "command": "stack list",
+            "method": "GET",
+            "path": "/api/cloud/stacks",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/stack/stack.go"
+        },
+        {
+            "command": "stack plan <stack>",
+            "method": "POST",
+            "path": "/api/cloud/stacks/%s/actions",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/stack/stack.go",
+            "note": "Body {\"action\":\"plan\"}; server queues a worker run (202) and the CLI reports it honestly."
+        },
+        {
+            "command": "stack apply <stack>",
+            "method": "POST",
+            "path": "/api/cloud/stacks/%s/actions",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/stack/stack.go",
+            "note": "Body {\"action\":\"apply\"}."
+        },
+        {
+            "command": "stack status <stack>",
+            "method": "GET",
+            "path": "/api/cloud/stacks/%s",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/stack/stack.go"
+        },
+        {
+            "command": "cloud diff <stack>",
+            "method": "GET",
+            "path": "/api/cloud/stacks/%s/drift",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/cloud/cloud.go"
+        },
+        {
+            "command": "flags list",
+            "method": "GET",
+            "path": "/api/flags",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/flags/flags.go"
+        },
+        {
+            "command": "flags get <key>",
+            "method": "GET",
+            "path": "/api/flags",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/flags/flags.go",
+            "note": "The server registers no GET /api/flags/<key> route (only PATCH and DELETE for a single key), so the CLI fetches GET /api/flags and selects the flag locally, failing explicitly when the key is absent. Found by the Task 2.4 parity check (the previous GET /api/flags/<key> entry was a method mismatch)."
+        },
+        {
+            "command": "flags set <key>",
+            "method": "PATCH",
+            "path": "/api/flags/%s",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/flags/flags.go",
+            "note": "Body {\"enabled\": bool} (was POST /api/flags/<key>/toggle, fixed in Task 1.3)."
+        },
+        {
+            "command": "flags kill <key>",
+            "method": "PATCH",
+            "path": "/api/flags/%s",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/flags/flags.go",
+            "note": "Body {\"kill_switch\": true} (was POST /api/flags/<key>/kill-switch, fixed in Task 1.3)."
+        },
+        {
+            "command": "org list",
+            "method": "GET",
+            "path": "/api/orgs",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/org/org.go"
+        },
+        {
+            "command": "project list",
+            "method": "GET",
+            "path": "/api/projects",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/project/project.go"
+        },
+        {
+            "command": "registry list",
+            "method": "GET",
+            "path": "/api/registry",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/registry/registry.go",
+            "note": "Was GET /api/registry/items, fixed in Task 1.3."
+        },
+        {
+            "command": "registry install <type/slug> --stack",
+            "method": "POST",
+            "path": "/api/registry/%s/install",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/registry/registry.go",
+            "note": "Body {\"stack\": ..., \"version\": ...}; was POST /api/registry/install, fixed in Task 1.3."
+        },
+        {
+            "command": "worker list",
+            "method": "GET",
+            "path": "/api/admin/workers",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/worker/worker.go",
+            "note": "Admin-gated; non-admin users get an honest 403 typed error."
+        },
+        {
+            "command": "worker status",
+            "method": "GET",
+            "path": "/api/queue",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/worker/worker.go"
+        },
+        {
+            "command": "doctor",
+            "method": "GET",
+            "path": "/api/health",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/rootcmd/doctor.go",
+            "note": "Reachability probe against the configured RADAS_API_URL base; offline is reported honestly, never as failure of the doctor run."
+        },
+        {
+            "command": "approval list",
+            "method": "GET",
+            "path": "/api/approvals",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/approval/approval.go",
+            "note": "Decodes {\"approvals\":[...]}. Was GET /api/approvals/pending (no server route) with ignored errors and fabricated fallback rows; fixed in Task 2.4."
+        },
+        {
+            "command": "approval approve <id>",
+            "method": "POST",
+            "path": "/api/approvals/%s/approve",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/approval/approval.go",
+            "note": "Path already matched the server; the ignored client error and unconditional fake success were removed in Task 2.4."
+        },
+        {
+            "command": "approval reject <id>",
+            "method": "POST",
+            "path": "/api/approvals/%s/reject",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/approval/approval.go",
+            "note": "Path already matched the server; the ignored client error and unconditional fake success were removed in Task 2.4."
+        },
+        {
+            "command": "audit list",
+            "method": "GET",
+            "path": "/api/audit-log",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/audit/audit.go",
+            "note": "Decodes {\"entries\":[...]}; project-scoped via X-Project-Id. Was GET /api/audit?action=&user= (no such route) with ignored errors and fabricated rows; fixed in Task 2.4."
+        },
+        {
+            "command": "audit list --action <action>",
+            "method": "GET",
+            "path": "/api/audit/search",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/audit/audit.go",
+            "note": "Action-filtered listing uses the real search endpoint (supports action and actor_user_id); added in Task 2.4."
+        },
+        {
+            "command": "audit export",
+            "method": "GET",
+            "path": "/api/audit-log/export",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/audit/audit.go",
+            "note": "Writes the fetched csv/jsonl body to a local file and reports the real count only from the server response; was fabricated local output, fixed in Task 2.4."
+        },
+        {
+            "command": "audit evidence",
+            "method": "GET",
+            "path": "/api/compliance/report",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/audit/audit.go",
+            "note": "Prints the real compliance scorecard from the server; was fabricated '100% rotated' output, fixed in Task 2.4."
+        },
+        {
+            "command": "user list",
+            "method": "GET",
+            "path": "/api/users",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/user/user.go",
+            "note": "Ignored client error and fabricated fallback rows removed in Task 2.4."
+        },
+        {
+            "command": "user invite <email>",
+            "method": "POST",
+            "path": "/api/users/invites",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/user/user.go",
+            "note": "Body {\"email\": ..., \"roles\":[...]}; prints the real token and expiry from the response. Was POST /api/users/invite with a fabricated invite link and token; fixed in Task 2.4."
+        },
+        {
+            "command": "user deactivate <id>",
+            "method": "PUT",
+            "path": "/api/users/%s",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/user/user.go",
+            "note": "Body {\"is_active\": false}; was a fake success with no server call, fixed in Task 2.4."
+        },
+        {
+            "command": "state pull <stack>",
+            "method": "GET",
+            "path": "/api/cloud/stacks/%s/state",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/state/state.go",
+            "note": "Prints state_present, resource count and the real resource addresses from the server; was a fabricated tfstate JSON, fixed in Task 2.4."
+        },
+        {
+            "command": "state unlock <stack> --lock-id",
+            "method": "DELETE",
+            "path": "/api/cloud/stacks/%s/state/lock",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/state/state.go",
+            "note": "Query lock_id (optional force/reason); success text only when the server returns ok. Was a fake success with no server call, fixed in Task 2.4."
+        },
+        {
+            "command": "state graph <stack>",
+            "method": "GET",
+            "path": "/api/cloud/stacks/%s/state",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/state/state.go",
+            "note": "Local rendering of the real resource address list fetched from the server; fabricated DAG removed in Task 2.4."
+        },
+        {
+            "command": "policy violations",
+            "method": "GET",
+            "path": "/api/cloud/policy/violations",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/policy/policy.go",
+            "note": "Decodes {\"count\", \"violations\"}; was fabricated static rows, fixed in Task 2.4."
+        },
+        {
+            "command": "config env check [env]",
+            "method": "GET",
+            "path": "/api/health",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/config/envcmd.go",
+            "note": "Reports real local facts (radas.yml presence, envs/ files) and a real API reachability probe; fabricated database/IAM/KMS/drift diagnostics removed in Task 2.4."
+        },
+        {
+            "command": "drift scan <stack>",
+            "method": "POST",
+            "path": "/api/cloud/stacks/%s/drift-check",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/drift/drift.go",
+            "note": "Queues a read-only drift execution (202, run_id). Previously printed fabricated 'IN SYNC' rows for three fake stacks with zero server calls; a stack argument is now required because there is no all-stacks scan route. Fixed in Task 2.4."
+        },
+        {
+            "command": "drift remediate <stack>",
+            "method": "POST",
+            "path": "/api/cloud/stacks/%s/actions",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/drift/drift.go",
+            "note": "Body {\"action\":\"apply\"}: the control plane reconciles drift by queueing a normal apply run; there is no dedicated remediation endpoint. Previously fabricated '0 changes needed' with zero server calls. Fixed in Task 2.4."
+        },
+        {
+            "command": "drift schedule <stack>",
+            "method": "GET",
+            "path": "/api/cloud/stacks/%s/drift-schedule",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/drift/drift.go",
+            "note": "Shows the current per-stack schedule. Previously fabricated a schedule success with zero server calls. Fixed in Task 2.4."
+        },
+        {
+            "command": "drift schedule <stack> <cron>",
+            "method": "PUT",
+            "path": "/api/cloud/stacks/%s/drift-schedule",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/drift/drift.go",
+            "note": "Sets the per-stack schedule (server validates the cron expression). Previously fabricated. Fixed in Task 2.4."
+        },
+        {
+            "command": "test list",
+            "method": "GET",
+            "path": "/api/tests",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/testcmd/testcmd.go",
+            "note": "Decodes {\"test_cases\":[...]}. Previously printed five fabricated rows. Fixed in Task 2.4."
+        },
+        {
+            "command": "test show <test-id>",
+            "method": "GET",
+            "path": "/api/tests",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/testcmd/testcmd.go",
+            "note": "The control plane registers no GET /api/tests/<id> detail route (only PATCH and DELETE), so the case is selected from the list endpoint and unknown ids fail explicitly. Previously fabricated assertion details. Fixed in Task 2.4."
+        },
+        {
+            "command": "test run <test-id>",
+            "method": "POST",
+            "path": "/api/tests/%s/run",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/testcmd/testcmd.go",
+            "note": "Runs one registered test case server-side (201 with a real verdict); there is no stack-wide run route, so the argument is now a test id. Previously fabricated three 'PASS' lines. Fixed in Task 2.4."
+        },
+        {
+            "command": "test score <stack>",
+            "method": "GET",
+            "path": "/api/test-cases/score",
+            "kind": "remote",
+            "source_file": "apps/cli/cmd/testcmd/testcmd.go",
+            "note": "Query param stack=<name>; decodes the real score/grade/pass-fail counts. Previously fabricated '96.5% (GRADE: A+)'. Fixed in Task 2.4."
+        },
+        {
+            "command": "test idempotency <playbook>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/testcmd/testcmd.go",
+            "decision": "explicit-typed-error",
+            "note": "POST /api/test-cases/ansible-idempotency evaluates pre-collected pass results for a server-side stack (stack + pass counts); it does not execute a local playbook, so the command fails explicitly instead of fabricating 'Idempotency VERIFIED'. Decision recorded in Task 2.4."
+        },
+        {
+            "command": "secret scan [dir]",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/secret/secret.go",
+            "decision": "local-scan",
+            "note": "A real local scan of config-like files for credential-looking assignments; reports the actual match count and exits non-zero when findings exist. Previously fabricated '0 secrets detected / PASSED'. Fixed in Task 2.4."
+        },
+        {
+            "command": "secret rotate <key-id>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/secret/secret.go",
+            "decision": "explicit-typed-error",
+            "note": "No control-plane key-rotation route and no local KMS integration; previously fabricated 'new key version active' and audit evidence. Fixed in Task 2.4."
+        },
+        {
+            "command": "secret encrypt <file> / secret decrypt <file>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/secret/secret.go",
+            "decision": "explicit-typed-error",
+            "note": "No local AES-GCM implementation is wired and no server route exists; previously fabricated 'encrypted successfully' without touching the file. Fixed in Task 2.4."
+        },
+        {
+            "command": "cloud probe <provider>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/cloud/cloud.go",
+            "decision": "explicit-typed-error",
+            "note": "No ad-hoc provider-probe endpoint exists (BYOC credential validation is server-side per registered account, POST /api/byoc/accounts/<id>/state-sync is not a probe). Zero HTTP calls; fails explicitly. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "cloud inventory",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/cloud/cloud.go",
+            "decision": "explicit-typed-error",
+            "note": "Real endpoints are per-stack (GET /api/cloud/stacks/<name>/inventory) and per-BYOC-account (GET /api/byoc/accounts/<account_id>/inventory); the CLI lacks the selector argument, so the command fails explicitly instead of guessing. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "cloud import",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/cloud/cloud.go",
+            "decision": "local-generator",
+            "note": "Purely local import-config generator, explicitly labeled as making no server call."
+        },
+        {
+            "command": "org switch <org>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/org/org.go",
+            "decision": "local-selector",
+            "note": "Persists the CLI organization selector (IDs only) via config.SaveSelector; explicitly labeled as a local selector change."
+        },
+        {
+            "command": "org rules",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/org/org.go",
+            "decision": "explicit-typed-error",
+            "note": "The control plane has no org rules API (verified against app.url_map); fails explicitly with zero HTTP calls. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "org set-rules",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/org/org.go",
+            "decision": "explicit-typed-error",
+            "note": "No org rules API on the server; fails explicitly with zero HTTP calls. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "registry publish [dir]",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/registry/registry.go",
+            "decision": "explicit-typed-error",
+            "note": "POST /api/registry/publish publishes from server-side stacks (stack/name/file_patterns), not local directories; fails explicitly with zero HTTP calls. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "worker drain <id>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/worker/worker.go",
+            "decision": "explicit-typed-error",
+            "note": "No drain route exists; admin enable/disable (POST /api/admin/workers/<id>/enable|disable) have different semantics, so they were not silently reused. Fails explicitly with zero HTTP calls. Decision carried over from Task 1.3."
+        },
+        {
+            "command": "policy check [stack]",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/policy/policy.go",
+            "decision": "explicit-typed-error",
+            "note": "No policy evaluation endpoint exists on the server (policy evaluation happens server-side during stack runs); the fabricated '3/3 rules passed' output was removed in Task 2.4 and the command fails explicitly."
+        },
+        {
+            "command": "policy exempt <rule> <stack>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/policy/policy.go",
+            "decision": "explicit-typed-error",
+            "note": "POST /api/policies/exemptions is not registered on the server (initial-manifest remote-broken entry); the ignored client error and fake success were removed in Task 2.4 and the command fails explicitly with zero HTTP calls."
+        },
+        {
+            "command": "approval history",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/approval/approval.go",
+            "decision": "explicit-typed-error",
+            "note": "No approval-decision-history route exists on the server; the fabricated static rows were removed in Task 2.4 and the command fails explicitly."
+        },
+        {
+            "command": "cost estimate <stack>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/cost/cost.go",
+            "decision": "explicit-typed-error",
+            "note": "GET /api/finops/estimate/<stack-id> is not registered (initial-manifest remote-broken entry). The real POST /api/cost/estimate requires a provider + resources payload, which is a per-stack FinOps flow deferred to Phase 3; the fabricated '+$48.50' fallback was removed in Task 2.4 and the command fails explicitly."
+        },
+        {
+            "command": "cost anomalies",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/cost/cost.go",
+            "decision": "explicit-typed-error",
+            "note": "No cost-alert/anomalies route exists on the server; the fabricated static rows were removed in Task 2.4 and the command fails explicitly."
+        },
+        {
+            "command": "user revoke-sessions <id>",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/user/user.go",
+            "decision": "explicit-typed-error",
+            "note": "The only session-revocation route is POST /api/auth/revoke-all-sessions, which revokes the *current* user's sessions, not an arbitrary user's; no unambiguous per-user route exists, so the fake success was replaced by an explicit error in Task 2.4."
+        },
+        {
+            "command": "config env get [env]",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/config/envcmd.go",
+            "decision": "local-collect",
+            "note": "Collects real environment variables from local .env/wrangler files; remote fetch failures are reported as warnings, never hidden."
+        },
+        {
+            "command": "config env set [env]",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/config/envcmd.go",
+            "decision": "local-editor",
+            "note": "Opens the local envs/.env.<env> file in $EDITOR."
+        },
+        {
+            "command": "config env list",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/config/envcmd.go",
+            "decision": "local-listing",
+            "note": "Lists the envs/ directory from the local workspace; fabricated production/staging rows removed in Task 2.4."
+        },
+        {
+            "command": "config read / config set / config init",
+            "method": "",
+            "path": "",
+            "kind": "local",
+            "source_file": "apps/cli/cmd/config/config.go",
+            "decision": "local-file-utility",
+            "note": "Local radas.yml utilities; no server interaction."
+        }
+    ]
+}
