@@ -276,6 +276,18 @@ def register_blueprints(app: "Flask", *, strict_required: bool = True) -> None:
     credential leakage through messages has no channel; correlation uses the
     module name.
     """
+    # The outcome report is created and published on extensions BEFORE any
+    # registration step runs, so even a platform-contract init failure lands
+    # registry state on the app (the docstring's "regardless of the mode"
+    # promise) and app.py's readiness-failing boot path can observe it.
+    report: dict[str, Any] = {
+        "strict_required": bool(strict_required),
+        "registered": [],
+        "failed_required": [],
+        "skipped_optional": [],
+    }
+    app.extensions[REGISTRY_EXTENSION_KEY] = report
+
     # The response contract is opt-in. It installs request finalization at
     # app scope. ``platform_routes`` is intentionally legacy-only (health
     # probes and the idempotency status route), so it must not receive
@@ -283,13 +295,6 @@ def register_blueprints(app: "Flask", *, strict_required: bool = True) -> None:
     from api.platform_contracts import register_platform_contracts
 
     register_platform_contracts(app)
-
-    report: dict[str, Any] = {
-        "strict_required": bool(strict_required),
-        "registered": [],
-        "failed_required": [],
-        "skipped_optional": [],
-    }
 
     # De-duplicate while preserving order: REQUIRED first so the mandatory
     # surface mounts and reports before anything optional.

@@ -105,6 +105,34 @@ def test_strict_registration_raises_and_records_broken_required_blueprint(
     assert all(m in report["registered"] for m in REQUIRED_BLUEPRINT_MODULES)
 
 
+def test_pre_contract_failure_still_records_registry_report(monkeypatch):
+    """A platform-contract init failure must still land the registry report.
+
+    app.py converts strict registration errors into a readiness-failing boot
+    state, which only works when the outcome is on ``app.extensions`` — the
+    docstring promises this "regardless of the mode", including failures that
+    happen before any blueprint is attempted.
+    """
+    from api import platform_contracts
+
+    def _explode(app):
+        raise RuntimeError("contract init failed")
+
+    monkeypatch.setattr(platform_contracts, "register_platform_contracts", _explode)
+    app = Flask(__name__)
+    app.config.update(TESTING=True)
+
+    with pytest.raises(RuntimeError, match="contract init failed"):
+        register_blueprints(app)
+
+    report = app.extensions[REGISTRY_EXTENSION_KEY]
+    assert isinstance(report, dict)
+    assert report["strict_required"] is True
+    assert report["registered"] == []
+    assert report["failed_required"] == []
+    assert report["skipped_optional"] == []
+
+
 def test_broken_optional_blueprint_is_logged_skip_not_failure(
     probe_app, monkeypatch, caplog
 ):
