@@ -113,15 +113,21 @@ func TestFlagsListEmptyReportsEmpty(t *testing.T) {
 	}
 }
 
-func TestFlagsGetSuccess(t *testing.T) {
+func TestFlagsGetFetchesListAndSelectsLocally(t *testing.T) {
+	// The control plane registers no GET /api/flags/<key> route, so `get`
+	// must fetch GET /api/flags and select the flag from the list.
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/flags/dark-mode-v2" {
-			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		gotPath = r.URL.Path
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected method %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"key": "dark-mode-v2", "name": "Dark Mode", "enabled": true,
-			"rollout_percent": 80, "kill_switch": false, "scope_type": "global",
+			"flags": []map[string]any{
+				{"key": "other-flag", "name": "Other", "enabled": false, "rollout_percent": 0, "kill_switch": false, "scope_type": "global"},
+				{"key": "dark-mode-v2", "name": "Dark Mode", "enabled": true, "rollout_percent": 80, "kill_switch": false, "scope_type": "global"},
+			},
 		})
 	}))
 	defer srv.Close()
@@ -130,8 +136,24 @@ func TestFlagsGetSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("flags get: %v", err)
 	}
-	if !strings.Contains(out, "80%") {
-		t.Errorf("server-provided rollout missing from output:\n%s", out)
+	if gotPath != "/api/flags" {
+		t.Errorf("flags get must use GET /api/flags, got %s", gotPath)
+	}
+	if !strings.Contains(out, "80%") || !strings.Contains(out, "Dark Mode") {
+		t.Errorf("server-provided flag details missing from output:\n%s", out)
+	}
+}
+
+func TestFlagsGetUnknownKeyFailsExplicitly(t *testing.T) {
+	srv := statusServer(t, http.StatusOK, `{"flags": []}`)
+	defer srv.Close()
+
+	out, err := runFlags(t, srv.URL, "get", "no-such-flag")
+	if err == nil {
+		t.Fatal("expected an error for an unknown flag key")
+	}
+	if !strings.Contains(out, "no-such-flag") || !strings.Contains(out, "not found") {
+		t.Errorf("expected an explicit not-found error, got:\n%s", out)
 	}
 }
 

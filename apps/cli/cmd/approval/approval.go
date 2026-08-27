@@ -1,9 +1,14 @@
 // Package approval implements the `radas approval` command group for plan and change request approvals.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// None of the commands print success text when the server call fails.
 package approval
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -22,14 +27,16 @@ var Cmd = &cobra.Command{
 tracking, and mandatory rejection reason logging for speculative execution plans.`,
 }
 
+// ApprovalRequest mirrors the string fields of the server's approval record
+// (services/approval_service.py). Numeric timestamps (created_at, expires_at)
+// are deliberately not decoded: the CLI does not render them.
 type ApprovalRequest struct {
 	ID          string `json:"id"`
-	StackID     string `json:"stack_id"`
+	Stack       string `json:"stack"`
 	Action      string `json:"action"`
-	Requester   string `json:"requester"`
+	RequestedBy string `json:"requested_by"`
 	Status      string `json:"status"`
-	ExpiresAt   string `json:"expires_at"`
-	Description string `json:"description"`
+	Note        string `json:"note"`
 }
 
 // getClient resolves the shared runtime configuration (flags, environment,
@@ -42,11 +49,32 @@ func getClient(cmd *cobra.Command) (*client.Client, error) {
 	return rc.NewClient(), nil
 }
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
-	Short:   "List pending approval requests requiring reviewer sign-off",
+	Short:   "List approval requests, optionally filtered by status",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		status, _ := cmd.Flags().GetString("status")
+
 		c, err := getClient(cmd)
 		if err != nil {
 			return err
@@ -54,22 +82,28 @@ var listCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		// The control plane serves approvals at GET /api/approvals (optional
+		// ?status=); there is no /api/approvals/pending route.
+		path := "/api/approvals"
+		if status != "" {
+			path = fmt.Sprintf("/api/approvals?status=%s", status)
+		}
 		var resp struct {
-			Success   bool              `json:"success"`
 			Approvals []ApprovalRequest `json:"approvals"`
 		}
+		if _, err := doAPI(ctx, c, http.MethodGet, path, nil, &resp); err != nil {
+			return fmt.Errorf("approval list: %w", err)
+		}
 
-		_ = c.Get(ctx, "/api/approvals/pending", &resp)
+		if len(resp.Approvals) == 0 {
+			fmt.Println("No approval requests found.")
+			return nil
+		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "APPROVAL ID\tSTACK\tACTION\tREQUESTER\tSTATUS\tEXPIRES IN")
-		if len(resp.Approvals) > 0 {
-			for _, a := range resp.Approvals {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", a.ID, a.StackID, a.Action, a.Requester, a.Status, a.ExpiresAt)
-			}
-		} else {
-			fmt.Fprintln(w, "appr-9821a\tprod-vpc\tapply\talice@corp.io\tpending (1/2)\t3h 45m")
-			fmt.Fprintln(w, "appr-3312c\tbytedc-db\tscale-up\tbob@corp.io\tpending (0/2)\t7h 12m")
+		fmt.Fprintln(w, "APPROVAL ID\tSTACK\tACTION\tREQUESTED BY\tSTATUS\tNOTE")
+		for _, a := range resp.Approvals {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", a.ID, a.Stack, a.Action, a.RequestedBy, a.Status, a.Note)
 		}
 		w.Flush()
 		return nil
@@ -92,11 +126,16 @@ var approveCmd = &cobra.Command{
 		defer cancel()
 
 		payload := map[string]string{"action": "approve", "comment": comment}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/approvals/%s/approve", apprID), payload, &res)
+		var res struct {
+			Success  bool            `json:"success"`
+			Approval ApprovalRequest `json:"approval"`
+		}
+		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/approvals/%s/approve", apprID), payload, &res); err != nil {
+			return fmt.Errorf("approval approve: %w", err)
+		}
 
 		fmt.Printf("✔ Approval request '%s' signed successfully.\n", apprID)
-		fmt.Printf("Quorum condition reached. Execution unlocked.\n")
+		fmt.Printf("Status: %s\n", res.Approval.Status)
 		return nil
 	},
 }
@@ -120,8 +159,13 @@ var rejectCmd = &cobra.Command{
 		defer cancel()
 
 		payload := map[string]string{"action": "reject", "reason": reason}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/approvals/%s/reject", apprID), payload, &res)
+		var res struct {
+			Success  bool            `json:"success"`
+			Approval ApprovalRequest `json:"approval"`
+		}
+		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/approvals/%s/reject", apprID), payload, &res); err != nil {
+			return fmt.Errorf("approval reject: %w", err)
+		}
 
 		fmt.Printf("✖ Approval request '%s' rejected.\n", apprID)
 		fmt.Printf("Reason logged: %s\n", reason)
@@ -133,16 +177,12 @@ var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "View audit trail of recent approval and rejection decisions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "TIMESTAMP\tAPPROVAL ID\tSTACK\tDECISION\tDECIDED BY\tCOMMENT / REASON")
-		fmt.Fprintln(w, "2026-08-23 18:20\tappr-8812a\tprod-vpc\tAPPROVED\tjane@corp.io\tReviewed plan diff OK")
-		fmt.Fprintln(w, "2026-08-23 14:10\tappr-7721b\tbytedc-db\tREJECTED\tdave@corp.io\tExceeds maintenance budget")
-		w.Flush()
-		return nil
+		return fmt.Errorf("approval history is not available: the control plane has no approval-decision-history route; nothing was fetched")
 	},
 }
 
 func init() {
+	listCmd.Flags().StringP("status", "s", "", "Filter by status (pending, approved, rejected)")
 	approveCmd.Flags().StringP("comment", "m", "", "Optional approval comment")
 	rejectCmd.Flags().StringP("reason", "r", "", "Mandatory reason for rejection")
 

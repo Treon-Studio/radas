@@ -120,10 +120,24 @@ var getCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var flag FlagItem
-		_, err = doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/flags/%s", key), nil, &flag)
-		if err != nil {
+		// The control plane registers no GET /api/flags/<key> route (only
+		// PATCH and DELETE for a single key), so the flag list is fetched
+		// and the requested flag is selected locally.
+		var resp struct {
+			Flags []FlagItem `json:"flags"`
+		}
+		if _, err := doAPI(ctx, c, http.MethodGet, "/api/flags", nil, &resp); err != nil {
 			return fmt.Errorf("flags get: %w", err)
+		}
+		var flag *FlagItem
+		for i := range resp.Flags {
+			if resp.Flags[i].Key == key {
+				flag = &resp.Flags[i]
+				break
+			}
+		}
+		if flag == nil {
+			return fmt.Errorf("flags get: flag '%s' not found in the control-plane registry", key)
 		}
 
 		fmt.Printf("Flag: %s\n", flag.Key)

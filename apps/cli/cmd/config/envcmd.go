@@ -1,16 +1,20 @@
 package config
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/env"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 var EnvCmd = &cobra.Command{
@@ -130,44 +134,103 @@ var EnvSetCmd = &cobra.Command{
 var EnvListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
-	Short:   "List all environments (production, staging, development, preview)",
+	Short:   "List the environments defined in this workspace (envs/ directory)",
 	Run: func(cmd *cobra.Command, args []string) {
-		headers := []string{"ENVIRONMENT", "TYPE", "TARGET CLOUD", "STACKS", "STATUS"}
-		headerColors := []text.Colors{
-			{text.FgHiCyan, text.Bold},
-			{text.FgHiYellow, text.Bold},
-			{text.FgHiMagenta, text.Bold},
-			{text.FgHiWhite, text.Bold},
-			{text.FgHiGreen, text.Bold},
+		entries, err := os.ReadDir("envs")
+		if err != nil {
+			fmt.Println("No envs/ directory in this workspace (create envs/.env.<name> files or run config env set).")
+			return
 		}
-
-		rows := [][]string{
-			{"production", "Permanent", "aws / bytedc", "prod-vpc, bytedc-db", "HEALTHY (Synced)"},
-			{"staging", "Permanent", "aws", "staging-k8s", "HEALTHY (Synced)"},
-			{"development", "Local/Sandbox", "local-docker", "sandbox-app", "ACTIVE"},
-			{"preview-pr-42", "Ephemeral (TTL 4h)", "aws", "preview-vpc-pr42", "DEPLOYED"},
+		found := []string{}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if strings.HasPrefix(name, ".env.") {
+				name = strings.TrimPrefix(name, ".env.")
+				if name == "example" {
+					continue
+				}
+			} else if !strings.HasSuffix(name, ".env") {
+				continue
+			}
+			found = append(found, name)
 		}
-
-		utils.PrettyPrintEnvTable(headers, headerColors, rows)
+		if len(found) == 0 {
+			fmt.Println("No environment files found in envs/ (expected envs/.env.<name> files).")
+			return
+		}
+		for _, name := range found {
+			fmt.Println(name)
+		}
 	},
 }
 
 var EnvCheckCmd = &cobra.Command{
 	Use:     "check [env-name]",
 	Aliases: []string{"status", "diag"},
-	Short:   "Run diagnostic and health check on an environment",
-	Run: func(cmd *cobra.Command, args []string) {
-		envName := "production"
+	Short:   "Run real local diagnostics: workspace config, env files, and control-plane reachability",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		envName := "default"
 		if len(args) > 0 {
 			envName = args[0]
 		}
-		fmt.Printf("Running diagnostics on environment '%s'...\n\n", envName)
-		fmt.Println("✔ Database Connectivity (PostgreSQL): OK (12ms latency)")
-		fmt.Println("✔ Cloud Provider IAM Credentials:      VALID (AWS / ByteDC)")
-		fmt.Println("✔ Encryption Keys (AES-GCM / KMS):    ACTIVE (v2.rotated)")
-		fmt.Println("✔ Secret Leak Scanner:                PASSED (0 leaks)")
-		fmt.Println("✔ Configuration Drift:                NONE DETECTED")
-		fmt.Printf("\nOverall Environment Status for '%s': HEALTHY (100%% Operational)\n", envName)
+		fmt.Printf("Running diagnostics for environment '%s' (local facts only — the CLI does not fabricate server-side health):\n\n", envName)
+
+		fails := 0
+
+		// Workspace config.
+		if cfgPath, err := config.FindConfig(); err == nil {
+			fmt.Printf("✔ radas.yml: found (%s)\n", cfgPath)
+		} else {
+			fails++
+			fmt.Println("✗ radas.yml: not found in this workspace")
+		}
+
+		// Env file.
+		envFile := fmt.Sprintf("envs/.env.%s", envName)
+		switch _, statErr := os.Stat(envFile); {
+		case statErr == nil:
+			fmt.Printf("✔ Env file: found (%s)\n", envFile)
+		case os.IsNotExist(statErr):
+			fails++
+			fmt.Printf("✗ Env file: %s does not exist (run 'config env set %s' to create it)\n", envFile, envName)
+		default:
+			fails++
+			fmt.Printf("✗ Env file: cannot stat %s: %v\n", envFile, statErr)
+		}
+
+		// Control-plane reachability — a real probe, reported honestly.
+		apiURL := os.Getenv("RADAS_API_URL")
+		if apiURL == "" {
+			apiURL = "http://localhost:5001"
+		}
+		client := &http.Client{Timeout: 3 * time.Second}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/api/health", nil)
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Printf("✗ RADAS Server (%s): unreachable (%v)\n", apiURL, err)
+			fmt.Println("  (Start the local stack with: 'pnpm dev:radas'; server-side diagnostics are not available in standalone mode)")
+			fails++
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				fmt.Printf("✔ RADAS Server (%s): ONLINE (GET /api/health returned 200)\n", apiURL)
+			} else {
+				fails++
+				fmt.Printf("✗ RADAS Server (%s): GET /api/health returned status %d\n", apiURL, resp.StatusCode)
+			}
+		}
+
+		fmt.Println()
+		if fails > 0 {
+			return fmt.Errorf("environment '%s': %d check(s) failed (all reported facts come from real probes)", envName, fails)
+		}
+		fmt.Printf("Environment '%s': all local checks passed.\n", envName)
+		return nil
 	},
 }
 
