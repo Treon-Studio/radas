@@ -486,6 +486,16 @@ def cancel_operation(project_id: str, operation_id: str, *, actor_id: str | None
     return service_operations._row(updated)
 
 
+def default_registry() -> runtime_registry.RuntimeProviderRegistry:
+    """The shared provider registry for every runtime consumer.
+
+    Both the operation runner and observability resolve providers through this
+    one configuration source so an enabled local container runtime is
+    reachable identically from either path.
+    """
+    return runtime_registry.registry_from_environment()
+
+
 def execute_claimed(operation_id: str, worker_id: str, *, registry: runtime_registry.RuntimeProviderRegistry | None = None) -> dict[str, Any] | None:
     """Invoke a provider for a live claim and fail safely on every boundary."""
     row = pg.query_one("SELECT * FROM service_operations WHERE id=%s", (operation_id,))
@@ -502,7 +512,7 @@ def execute_claimed(operation_id: str, worker_id: str, *, registry: runtime_regi
                                     lease_token=lease_token)
         append_event(operation_id, "provider_step", message=f"invoking {payload['operation']}", details={"runtime_id": payload["runtime_id"]})
         if registry is None:
-            registry = runtime_registry.build_default_registry()
+            registry = default_registry()
         operation_name = payload["operation"]
         args = (operation_id, payload["spec"]) if operation_name in {"deploy", "update", "rollback"} else (operation_id, payload["instance"])
         result = registry.invoke(
