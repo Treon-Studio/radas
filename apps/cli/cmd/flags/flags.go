@@ -1,9 +1,14 @@
 // Package flags implements the `radas flags` command group for feature flag management.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// None of the commands print success text when the server call fails.
 package flags
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"text/tabwriter"
@@ -43,6 +48,25 @@ func getClient(cmd *cobra.Command) (*client.Client, error) {
 	return rc.NewClient(), nil
 }
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
@@ -53,29 +77,30 @@ var listCmd = &cobra.Command{
 
 		c, err := getClient(cmd)
 		if err != nil {
+			spin.Stop()
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
-			Success bool       `json:"success"`
-			Flags   []FlagItem `json:"flags"`
+			Flags []FlagItem `json:"flags"`
+		}
+		_, err = doAPI(ctx, c, http.MethodGet, "/api/flags", nil, &resp)
+		spin.Stop()
+		if err != nil {
+			return fmt.Errorf("flags list: %w", err)
 		}
 
-		_ = c.Get(ctx, "/api/flags", &resp)
-		spin.Stop()
+		if len(resp.Flags) == 0 {
+			fmt.Println("No feature flags found.")
+			return nil
+		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "FLAG KEY\tENABLED\tROLLOUT\tKILL-SWITCH\tSCOPE")
-		if len(resp.Flags) > 0 {
-			for _, f := range resp.Flags {
-				fmt.Fprintf(w, "%s\t%v\t%d%%\t%v\t%s\n", f.Key, f.Enabled, f.RolloutPercent, f.KillSwitch, f.ScopeType)
-			}
-		} else {
-			fmt.Fprintln(w, "dark-mode-v2\ttrue\t100%\tfalse\tglobal")
-			fmt.Fprintln(w, "beta-k8s-engine\ttrue\t25%\tfalse\tproject")
-			fmt.Fprintln(w, "circuit-breaker-db\tfalse\t0%\ttrue\torg")
+		for _, f := range resp.Flags {
+			fmt.Fprintf(w, "%s\t%v\t%d%%\t%v\t%s\n", f.Key, f.Enabled, f.RolloutPercent, f.KillSwitch, f.ScopeType)
 		}
 		w.Flush()
 		return nil
@@ -96,13 +121,9 @@ var getCmd = &cobra.Command{
 		defer cancel()
 
 		var flag FlagItem
-		err = c.Get(ctx, fmt.Sprintf("/api/flags/%s", key), &flag)
+		_, err = doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/flags/%s", key), nil, &flag)
 		if err != nil {
-			fmt.Printf("Flag: %s\n", key)
-			fmt.Printf("Status: Enabled (100%% rollout)\n")
-			fmt.Printf("Scope: Global\n")
-			fmt.Printf("Kill Switch: Ready\n")
-			return nil
+			return fmt.Errorf("flags get: %w", err)
 		}
 
 		fmt.Printf("Flag: %s\n", flag.Key)
@@ -133,11 +154,19 @@ var setCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		// The control plane updates flags via PATCH /api/flags/<key>; there
+		// is no dedicated /toggle route.
 		payload := map[string]any{"enabled": val}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/flags/%s/toggle", key), payload, &res)
+		var res struct {
+			Success bool     `json:"success"`
+			Flag    FlagItem `json:"flag"`
+		}
+		_, err = doAPI(ctx, c, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
+		if err != nil {
+			return fmt.Errorf("flags set: %w", err)
+		}
 
-		fmt.Printf("✔ Feature flag '%s' set to %v.\n", key, val)
+		fmt.Printf("✔ Feature flag '%s' set to %v (server confirmed).\n", key, val)
 		return nil
 	},
 }
@@ -155,11 +184,20 @@ var killCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/flags/%s/kill-switch", key), map[string]any{"active": true}, &res)
+		// The kill switch is the flag's kill_switch field on the control
+		// plane; evaluations return disabled until it is cleared.
+		payload := map[string]any{"kill_switch": true}
+		var res struct {
+			Success bool     `json:"success"`
+			Flag    FlagItem `json:"flag"`
+		}
+		_, err = doAPI(ctx, c, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
+		if err != nil {
+			return fmt.Errorf("flags kill: %w", err)
+		}
 
-		fmt.Printf("⚠️ Emergency Kill Switch activated for flag '%s'!\n", key)
-		fmt.Printf("Traffic immediately diverted to fallback path.\n")
+		fmt.Printf("⚠️ Kill switch enabled for flag '%s' (server confirmed).\n", key)
+		fmt.Println("Flag evaluations return disabled until the kill switch is cleared.")
 		return nil
 	},
 }

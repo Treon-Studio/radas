@@ -1,9 +1,15 @@
 // Package org implements the `radas org` command group for multi-tenant organization management.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// Switching the active organization is a local selector change: the server
+// remains the authorization authority and validates access on every request.
 package org
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -19,8 +25,9 @@ var Cmd = &cobra.Command{
 	Use:     "org",
 	Aliases: []string{"orgs", "organization"},
 	Short:   "Manage multi-tenant organizations and switch active context",
-	Long: `The org command group enables managing organizational boundaries,
-listing memberships, and switching active org context.`,
+	Long: `The org command group enables listing organizational memberships from the
+control plane and switching the active org context. The switch is a local
+CLI selector change; the server validates organization access per request.`,
 }
 
 type OrgInfo struct {
@@ -41,6 +48,25 @@ func getClient(cmd *cobra.Command) (*client.Client, error) {
 	return rc.NewClient(), nil
 }
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
@@ -51,32 +77,34 @@ var listCmd = &cobra.Command{
 
 		c, err := getClient(cmd)
 		if err != nil {
+			spin.Stop()
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
-			Success bool      `json:"success"`
-			Orgs    []OrgInfo `json:"orgs"`
+			Orgs []OrgInfo `json:"orgs"`
+		}
+		_, err = doAPI(ctx, c, http.MethodGet, "/api/orgs", nil, &resp)
+		spin.Stop()
+		if err != nil {
+			return fmt.Errorf("org list: %w", err)
 		}
 
-		_ = c.Get(ctx, "/api/orgs", &resp)
-		spin.Stop()
+		if len(resp.Orgs) == 0 {
+			fmt.Println("No organizations found.")
+			return nil
+		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "ORG ID\tSLUG\tNAME\tYOUR ROLE\tACTIVE")
-		if len(resp.Orgs) > 0 {
-			for _, o := range resp.Orgs {
-				activeStr := ""
-				if o.IsCurrent {
-					activeStr = "✔ CURRENT"
-				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", o.ID, o.Slug, o.Name, o.Role, activeStr)
+		for _, o := range resp.Orgs {
+			activeStr := ""
+			if o.IsCurrent {
+				activeStr = "✔ CURRENT"
 			}
-		} else {
-			fmt.Fprintln(w, "org-global\tprimary-org\tPrimary Org\tadmin\t✔ CURRENT")
-			fmt.Fprintln(w, "org-sandbox\tsandbox-dev\tSandbox Team\tdeveloper\t")
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", o.ID, o.Slug, o.Name, o.Role, activeStr)
 		}
 		w.Flush()
 		return nil
@@ -85,11 +113,18 @@ var listCmd = &cobra.Command{
 
 var switchCmd = &cobra.Command{
 	Use:   "switch <org-id-or-slug>",
-	Short: "Switch the active organization context for subsequent commands",
+	Short: "Switch the active organization selector used by subsequent commands",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		orgTarget := args[0]
-		fmt.Printf("✔ Switched active organization context to '%s'.\n", orgTarget)
+
+		// Local selector persistence only: identifiers are stored, never
+		// tokens, and the server validates membership on every request.
+		if err := config.SaveSelector(config.Selector{OrganizationID: orgTarget}); err != nil {
+			return fmt.Errorf("save organization selector: %w", err)
+		}
+
+		fmt.Printf("✔ Active organization selector set to '%s' (local selector; the server validates access on every request).\n", orgTarget)
 		return nil
 	},
 }
@@ -99,19 +134,7 @@ var rulesCmd = &cobra.Command{
 	Aliases: []string{"standards", "policies"},
 	Short:   "View organization-wide standard best-practice guardrails and rules",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		orgTarget := "current organization"
-		if len(args) > 0 {
-			orgTarget = args[0]
-		}
-		fmt.Printf("Standard Best-Practice Rules for '%s':\n\n", orgTarget)
-		fmt.Println("  • Enforcement Mode:    ENFORCE (Strict blocking on apply violations)")
-		fmt.Println("  • Mandatory Tags:      [environment, owner, CostCenter, Team]")
-		fmt.Println("  • Blocked Open Ports:  [22 (SSH), 3389 (RDP), 5432 (Postgres Public), 3306 (MySQL)]")
-		fmt.Println("  • At-Rest Encryption:  REQUIRED (KMS / AES-256 for all EBS, S3, RDS, ByteDC)")
-		fmt.Println("  • FinOps Cost Spike:   Alert & block on > $500 monthly delta")
-		fmt.Println("  • Approval Quorum:     Minimum 2 reviewer approvals for production applies")
-		fmt.Println("  • PR Merge Gates:      Speculative plan diff and syntax validation required")
-		return nil
+		return fmt.Errorf("org rules are not available: the control plane does not expose an organization rules API yet (no GET /api/orgs/<org_id>/rules route), so no rules can be shown")
 	},
 }
 
@@ -119,35 +142,7 @@ var setRulesCmd = &cobra.Command{
 	Use:   "set-rules [org-id]",
 	Short: "Configure standard best practice rules and enforcement mode for an organization",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		orgTarget := "current organization"
-		if len(args) > 0 {
-			orgTarget = args[0]
-		}
-		tags, _ := cmd.Flags().GetString("require-tags")
-		ports, _ := cmd.Flags().GetString("deny-ports")
-		enforce, _ := cmd.Flags().GetBool("enforce")
-
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		payload := map[string]any{
-			"enforcement_mode": "enforce",
-			"mandatory_tags":   tags,
-			"denied_ports":     ports,
-			"is_blocking":      enforce,
-		}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/orgs/%s/rules", orgTarget), payload, &res)
-
-		fmt.Printf("✔ Standard best practice rules updated for '%s'.\n", orgTarget)
-		fmt.Printf("  - Mandatory tags: %s\n", tags)
-		fmt.Printf("  - Denied ingress ports: %s\n", ports)
-		fmt.Printf("  - Blocking enforcement: %v\n", enforce)
-		return nil
+		return fmt.Errorf("org set-rules is not available: the control plane does not expose an organization rules API yet (no POST /api/orgs/<org_id>/rules route), so no rules were changed")
 	},
 }
 

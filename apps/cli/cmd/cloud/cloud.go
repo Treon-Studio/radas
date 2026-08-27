@@ -1,8 +1,15 @@
 // Package cloud implements the `radas cloud` command group for BYOC multi-cloud discovery and adoption.
+//
+// Commands that are not yet backed by a control-plane endpoint fail
+// explicitly instead of fabricating remote state. cloud diff is wired to the
+// real per-stack drift endpoint; cloud import is a purely local generator and
+// is labeled as such.
 package cloud
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -18,21 +25,14 @@ var Cmd = &cobra.Command{
 	Use:     "cloud",
 	Aliases: []string{"byoc", "provider"},
 	Short:   "Discover cloud resources, probe credentials, and import existing infrastructure",
-	Long: `The cloud command group enables Bring-Your-Own-Cloud (BYOC) account probing,
-resource discovery, drift comparison against stacks, and OpenTofu import generation.`,
-}
-
-type CloudResource struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Name      string `json:"name"`
-	Region    string `json:"region"`
-	ManagedBy string `json:"managed_by"`
+	Long: `The cloud command group enables Bring-Your-Own-Cloud (BYOC) account adoption.
+Credential validation and resource inventory run server-side against a
+registered BYOC account; this CLI does not fabricate probe or inventory
+results locally.`,
 }
 
 // getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client. It is used once the
-// cloud commands are wired to real server routes.
+// persisted selector) and builds the common API client.
 func getClient(cmd *cobra.Command) (*client.Client, error) {
 	rc, err := config.LoadRuntimeConfig(cmd)
 	if err != nil {
@@ -41,21 +41,32 @@ func getClient(cmd *cobra.Command) (*client.Client, error) {
 	return rc.NewClient(), nil
 }
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
 var probeCmd = &cobra.Command{
 	Use:   "probe <provider>",
 	Short: "Probe connection and IAM credentials for a cloud provider (aws, gcp, azure, bytedc, cloudflare, kubernetes)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		provider := args[0]
-		spin := utils.NewSpinner(fmt.Sprintf("☁️ Probing %s provider IAM credentials & connectivity...", provider))
-		spin.Start()
-		time.Sleep(300 * time.Millisecond)
-		spin.Stop()
-
-		fmt.Printf("✔ Authentication OK: Assumed role / credentials valid.\n")
-		fmt.Printf("✔ API Reachability OK: Latency 24ms.\n")
-		fmt.Printf("✔ Permissions OK: Read-only & provisioning scopes verified.\n")
-		return nil
+		return fmt.Errorf("cloud probe for '%s' is not available: the control plane validates credentials server-side for registered BYOC accounts only, and no provider probe endpoint is exposed yet; register the account in the RADAS console so validation happens there", provider)
 	},
 }
 
@@ -64,18 +75,7 @@ var inventoryCmd = &cobra.Command{
 	Aliases: []string{"inv"},
 	Short:   "List discovered cloud resources and check management status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spin := utils.NewSpinner("☁️ Querying multi-cloud resource inventory...")
-		spin.Start()
-		time.Sleep(200 * time.Millisecond)
-		spin.Stop()
-
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "RESOURCE ID\tTYPE\tNAME\tREGION\tSTATUS")
-		fmt.Fprintln(w, "vpc-0a1b2c3d\taws_vpc\tproduction-core-vpc\tus-east-1\tMANAGED (prod-vpc)")
-		fmt.Fprintln(w, "vol-99887766\tbytedc_volume\tdb-primary-nvme\tid-cgk-1\tMANAGED (bytedc-db)")
-		fmt.Fprintln(w, "i-0987654321\taws_instance\tlegacy-bastion-vm\tus-east-1\tUNMANAGED (adoptable)")
-		w.Flush()
-		return nil
+		return fmt.Errorf("cloud inventory is not available: resource inventory requires a registered BYOC account and is served per account (GET /api/byoc/accounts/<account_id>/inventory); this CLI does not yet select accounts, so no inventory can be shown")
 	},
 }
 
@@ -88,7 +88,9 @@ var importCmd = &cobra.Command{
 		tfAddr := args[1]
 		cloudID := args[2]
 
-		fmt.Printf("Generated OpenTofu Import Statement for '%s':\n\n", resType)
+		// Local-only text generation from the caller's arguments: no server
+		// call, no remote state claimed.
+		fmt.Printf("Generated OpenTofu import block locally (no server call) for '%s':\n\n", resType)
 		fmt.Printf("import {\n")
 		fmt.Printf("  to = %s\n", tfAddr)
 		fmt.Printf("  id = \"%s\"\n", cloudID)
@@ -101,16 +103,48 @@ var importCmd = &cobra.Command{
 
 var diffCmd = &cobra.Command{
 	Use:   "diff <stack-id>",
-	Short: "Diff real-world cloud inventory attributes against local OpenTofu state",
+	Short: "Show the server-side drift status of a stack's real-world cloud inventory",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		spin := utils.NewSpinner(fmt.Sprintf("🔍 Diffing real-world cloud resources against state for '%s'...", stackID))
+		spin := utils.NewSpinner(fmt.Sprintf("🔍 Fetching drift status for stack '%s' from RADAS API...", stackID))
 		spin.Start()
-		time.Sleep(300 * time.Millisecond)
-		spin.Stop()
 
-		fmt.Println("✔ 14/14 resources in sync. Zero out-of-band drifts detected.")
+		c, err := getClient(cmd)
+		if err != nil {
+			spin.Stop()
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var res struct {
+			Enabled       bool   `json:"enabled"`
+			Status        string `json:"status"`
+			LastRunID     string `json:"last_run_id"`
+			LastCheckedAt any    `json:"last_checked_at"`
+			ReturnCode    any    `json:"returncode"`
+		}
+		_, err = doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s/drift", stackID), nil, &res)
+		spin.Stop()
+		if err != nil {
+			return fmt.Errorf("cloud diff: %w", err)
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+		fmt.Fprintln(w, "FIELD\tVALUE")
+		fmt.Fprintf(w, "Drift detection\tenabled\n")
+		fmt.Fprintf(w, "Status\t%s\n", res.Status)
+		if res.LastRunID != "" {
+			fmt.Fprintf(w, "Last drift run\t%s\n", res.LastRunID)
+		}
+		if res.LastCheckedAt != nil {
+			fmt.Fprintf(w, "Last checked at\t%v\n", res.LastCheckedAt)
+		}
+		if res.ReturnCode != nil {
+			fmt.Fprintf(w, "Return code\t%v\n", res.ReturnCode)
+		}
+		w.Flush()
 		return nil
 	},
 }

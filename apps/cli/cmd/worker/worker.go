@@ -1,9 +1,14 @@
 // Package worker implements the `radas worker` command group for runner pool management.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// None of the commands print success text when the server call fails.
 package worker
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -19,17 +24,19 @@ var Cmd = &cobra.Command{
 	Use:     "worker",
 	Aliases: []string{"daemon", "runners"},
 	Short:   "Inspect worker daemon pool, queue statuses, and drain nodes",
-	Long: `The worker command group allows monitoring distributed Go runner daemons,
-tracking heartbeats and active job claims, and draining workers gracefully.`,
+	Long: `The worker command group allows monitoring registered worker daemons and
+the execution queue served by the RADAS control plane.`,
 }
 
+// WorkerNode mirrors the fields of the server's GET /api/admin/workers
+// response that the CLI renders.
 type WorkerNode struct {
-	ID        string `json:"id"`
-	Hostname  string `json:"hostname"`
-	Status    string `json:"status"`
-	Capacity  int    `json:"capacity"`
-	ActiveJob string `json:"active_job,omitempty"`
-	LastSeen  string `json:"last_seen"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Description        string `json:"description,omitempty"`
+	Enabled            bool   `json:"enabled"`
+	LastSeenAt         any    `json:"lastSeenAt,omitempty"`
+	CurrentExecutionID string `json:"currentExecutionId,omitempty"`
 }
 
 // getClient resolves the shared runtime configuration (flags, environment,
@@ -42,38 +49,64 @@ func getClient(cmd *cobra.Command) (*client.Client, error) {
 	return rc.NewClient(), nil
 }
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
-	Short:   "List active worker daemons in the execution pool",
+	Short:   "List registered worker daemons in the execution pool",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		spin := utils.NewSpinner("⚙️ Querying worker daemons & execution pool...")
 		spin.Start()
 
 		c, err := getClient(cmd)
 		if err != nil {
+			spin.Stop()
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
-			Success bool         `json:"success"`
 			Workers []WorkerNode `json:"workers"`
 		}
-
-		_ = c.Get(ctx, "/api/workers", &resp)
+		// The control plane serves the worker registry under /api/admin/workers.
+		_, err = doAPI(ctx, c, http.MethodGet, "/api/admin/workers", nil, &resp)
 		spin.Stop()
+		if err != nil {
+			return fmt.Errorf("worker list: %w", err)
+		}
+
+		if len(resp.Workers) == 0 {
+			fmt.Println("No workers registered.")
+			return nil
+		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "WORKER ID\tHOSTNAME\tSTATUS\tCAPACITY\tLAST HEARTBEAT")
-		if len(resp.Workers) > 0 {
-			for _, n := range resp.Workers {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", n.ID, n.Hostname, n.Status, n.Capacity, n.LastSeen)
+		fmt.Fprintln(w, "WORKER ID\tNAME\tENABLED\tLAST SEEN\tCURRENT RUN")
+		for _, n := range resp.Workers {
+			current := n.CurrentExecutionID
+			if current == "" {
+				current = "-"
 			}
-		} else {
-			fmt.Fprintln(w, "worker-node-01\tradas-runner-sg1\tREADY (IDLE)\t4\t3s ago")
-			fmt.Fprintln(w, "worker-node-02\tradas-runner-sg2\tBUSY (1 RUN)\t4\t2s ago")
+			fmt.Fprintf(w, "%s\t%s\t%v\t%v\t%s\n", n.ID, n.Name, n.Enabled, n.LastSeenAt, current)
 		}
 		w.Flush()
 		return nil
@@ -86,6 +119,14 @@ var drainCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		nodeID := args[0]
+		return fmt.Errorf("worker drain for '%s' is not available: the control plane does not expose a drain route yet (worker registration and enable/disable live under /api/admin/workers), so the node state was not changed", nodeID)
+	},
+}
+
+var statusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show the pending execution queue served by the control plane",
+	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := getClient(cmd)
 		if err != nil {
 			return err
@@ -93,25 +134,26 @@ var drainCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		payload := map[string]any{"action": "drain"}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/workers/%s/drain", nodeID), payload, &res)
+		var resp struct {
+			Queued []struct {
+				ID      string `json:"id"`
+				RunName string `json:"runName"`
+			} `json:"queued"`
+			Count int `json:"count"`
+		}
+		_, err = doAPI(ctx, c, http.MethodGet, "/api/queue", nil, &resp)
+		if err != nil {
+			return fmt.Errorf("worker status: %w", err)
+		}
 
-		fmt.Printf("✔ Worker '%s' placed in DRAINING state.\n", nodeID)
-		fmt.Println("No new plan/apply jobs will be scheduled on this daemon.")
-		return nil
-	},
-}
-
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show job queue health, fair scheduling metrics, and backlog",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Worker Queue Health:")
-		fmt.Println("  Pending Jobs:    0")
-		fmt.Println("  Running Jobs:    1 (stack: prod-vpc)")
-		fmt.Println("  Fairness Policy: Round-robin per project")
-		fmt.Println("  Health Status:   OPTIMAL")
+		fmt.Printf("Pending (QUEUED) runs: %d\n", resp.Count)
+		for _, run := range resp.Queued {
+			if run.RunName != "" {
+				fmt.Printf("  %s  %s\n", run.ID, run.RunName)
+			} else {
+				fmt.Printf("  %s\n", run.ID)
+			}
+		}
 		return nil
 	},
 }

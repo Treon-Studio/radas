@@ -102,6 +102,14 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// NewRequestID generates a random correlation ID for callers that need the
+// request identifier up front — for example to include it in error messages
+// while passing the same value via RequestOptions.RequestID. It contains no
+// user, credential, or payload data.
+func NewRequestID() string {
+	return newRequestID()
+}
+
 // newRequestID generates a random correlation ID for requests that lack an
 // explicit one. It contains no user, credential, or payload data.
 func newRequestID() string {
