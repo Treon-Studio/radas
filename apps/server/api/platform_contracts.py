@@ -54,6 +54,22 @@ _ERROR_CODES = {
 _LEGACY_PLATFORM_PATHS = {"/api/platform/idempotency"}
 _SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
 
+#: Error codes a client may retry without client-side changes. This is the
+#: single source of truth for retryability: API errors may expose it only as a
+#: boolean (``details.retryable``) or a category token
+#: (``details.retry_category``) — never as free text, internal exception
+#: messages, or credential material.
+RETRYABLE_ERROR_CODES = frozenset({"RATE_LIMITED"})
+
+#: Canonical ``details`` keys for retryability (boolean + category token).
+RETRYABLE_DETAIL_KEY = "retryable"
+RETRY_CATEGORY_DETAIL_KEY = "retry_category"
+
+
+def is_retryable(code: str) -> bool:
+    """Whether an error ``code`` is classified as safe to retry."""
+    return code in RETRYABLE_ERROR_CODES
+
 
 def generate_request_id() -> str:
     """Return a fresh opaque request identifier."""
@@ -168,7 +184,17 @@ def error_envelope(
     details: Mapping[str, Any] | None = None,
     request_id_value: str | None = None,
 ) -> dict[str, Any]:
-    """Build a safe standard error body."""
+    """Build a safe standard error body.
+
+    Contract policy (mirrored in ``api_v2/schemas/contracts.py`` and the served
+    ``/api/v2`` document):
+
+    - ``error.details`` must never carry credential material — sensitive keys
+      and inline secret values are replaced with ``[REDACTED]``.
+    - Internal exception text must never reach ``message`` or ``details``.
+    - Retryability may appear only as the boolean ``details.retryable`` or the
+      category token ``details.retry_category`` (see :data:`RETRYABLE_ERROR_CODES`).
+    """
     return {
         "error": {
             "code": code,

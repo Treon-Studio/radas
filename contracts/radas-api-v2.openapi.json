@@ -36,6 +36,98 @@
         },
         "type": "object"
       },
+      "ErrorBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "Stable machine-readable error category token, for example VALIDATION_ERROR, NOT_FOUND, RATE_LIMITED.",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {},
+            "description": "Machine-readable error context, for example {'errors': [...]} for VALIDATION_ERROR failures. Redaction policy: credential material (passwords, tokens, API keys, secrets, private keys, authorization headers) is replaced with [REDACTED] before serialization. This field never carries credential material or internal exception text. Retryability, when present, is expressed only as the boolean 'retryable' or the category token 'retry_category' — never as free-form text.",
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable summary safe for display. Redaction policy: credential material (passwords, tokens, API keys, secrets, private keys, authorization headers) is replaced with [REDACTED] before serialization. This field never carries credential material or internal exception text.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "details",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody",
+            "description": "Structured error payload."
+          },
+          "request_id": {
+            "description": "Opaque request correlation identifier, echoed in the X-Request-ID response header. A well-formed client-supplied X-Request-ID is reused; otherwise a fresh UUID is generated.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "request_id"
+        ],
+        "type": "object"
+      },
+      "Operation": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "description": "Stable operation identifier used for polling.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Operation kind token, for example 'service.deploy'.",
+            "type": "string"
+          },
+          "poll_url": {
+            "description": "Relative URL a client polls for operation progress and result.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Lifecycle status token, for example 'queued', 'running', 'succeeded' or 'failed'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "poll_url",
+          "status"
+        ],
+        "type": "object"
+      },
+      "OperationEnvelope": {
+        "properties": {
+          "data": {
+            "additionalProperties": {},
+            "description": "Deprecated compatibility alias mirroring the operation under 'data.operation' for older console clients. New clients must read the top-level 'operation' field.",
+            "type": "object"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation",
+            "description": "The queued or running operation."
+          },
+          "request_id": {
+            "description": "Opaque request correlation identifier, echoed in the X-Request-ID response header. A well-formed client-supplied X-Request-ID is reused; otherwise a fresh UUID is generated.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "request_id"
+        ],
+        "type": "object"
+      },
       "PaginationMetadata": {
         "additionalProperties": false,
         "properties": {
@@ -68,6 +160,23 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "SuccessEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "description": "Opaque, operation-specific success payload. Structure is defined per endpoint. Redaction policy: credential material (passwords, tokens, API keys, secrets, private keys, authorization headers) is replaced with [REDACTED] before serialization. This field never carries credential material or internal exception text."
+          },
+          "request_id": {
+            "description": "Opaque request correlation identifier, echoed in the X-Request-ID response header. A well-formed client-supplied X-Request-ID is reused; otherwise a fresh UUID is generated.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
         "type": "object"
       }
     },
@@ -7008,8 +7117,25 @@
       "get": {
         "operationId": "get_platform_catalog",
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
         "summary": "Proxy of v1 list_catalog.",
@@ -7020,8 +7146,25 @@
       "post": {
         "operationId": "post_platform_catalog",
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
         "summary": "Proxy of v1 publish_catalog.",
@@ -7034,8 +7177,25 @@
       "get": {
         "operationId": "get_platform_catalog_slug",
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
         "summary": "Proxy of v1 get_catalog.",
@@ -7079,8 +7239,25 @@
       "post": {
         "operationId": "post_platform_catalog_slug_version_deprecate",
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Success envelope: opaque operation-specific payload plus a request correlation identifier. Credential material is redacted to [REDACTED]."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
         "summary": "Proxy of v1 deprecate.",
@@ -9135,8 +9312,25 @@
       "post": {
         "operationId": "post_projects_project_id_services_service_id_source_deploy",
         "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationEnvelope"
+                }
+              }
+            },
+            "description": "Asynchronous operation envelope: the queued operation (poll its poll_url) plus a request correlation identifier. Credential material is redacted to [REDACTED]."
+          },
           "default": {
-            "$ref": "#/components/responses/DEFAULT_ERROR"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Structured error envelope: stable machine-readable code, human-readable message and machine-readable details. Credential material is redacted to [REDACTED]; retryability appears only as a boolean or category token."
           }
         },
         "summary": "Proxy of v1 deploy_source.",

@@ -173,6 +173,16 @@ def init_api_v2(app: "Flask") -> None:
             app, "init", e, "Failed to apply v2 security scheme"
         ) from e
 
+    # Shared envelope schemas (success / structured error / async operation)
+    # are part of the required contract surface.
+    try:
+        from ._common import register_contract_schemas
+        register_contract_schemas(api)
+    except Exception as e:
+        raise _fail_mount(
+            app, "init", e, "Failed to register v2 shared envelope schemas"
+        ) from e
+
     try:
         _register_manual_blueprints(api)
     except Exception as e:
@@ -253,6 +263,13 @@ def finalize_api_v2(app: "Flask") -> None:
     except Exception as e:
         _record_surface_state(app, ok=False, phase="finalize", error_type=type(e).__name__)
         raise RuntimeError(f"/api/v2 auto-proxy finalize failed: {e}") from e
+
+    try:
+        from ._common import annotate_platform_envelope_operations
+        annotate_platform_envelope_operations(api)
+    except Exception as e:
+        _record_surface_state(app, ok=False, phase="finalize", error_type=type(e).__name__)
+        raise RuntimeError(f"/api/v2 platform envelope annotation failed: {e}") from e
 
     try:
         _apply_stable_operation_ids(api)
