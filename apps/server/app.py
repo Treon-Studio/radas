@@ -82,16 +82,19 @@ except Exception as _bp_err:
         exc_info=True,
     )
 
-# Pilot: flask-smorest auto-generated OpenAPI docs at /api/v2/*.
-# Fully additive — never touches legacy /api/* routes or /api/docs.
-# Silently no-ops if flask-smorest isn't installed.
+# /api/v2 contract surface (required, Task 2.1 of the 2026-08-27 plan).
+# flask-smorest is a pinned server dependency and a failed mount raises.
+# We keep booting to answer readiness probes honestly — the failure is on
+# app.extensions, so /readyz reports v2_contract_ok=False — mirroring the
+# required-blueprint fail-closed policy above. Never touches legacy /api/*.
+from api_v2 import init_api_v2 as _init_api_v2
 try:
-    from api_v2 import init_api_v2 as _init_api_v2
     _init_api_v2(app)
 except Exception as _v2_err:
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
-        f"/api/v2 pilot not mounted (continuing without it): {_v2_err}"
+    app.logger.error(
+        f"Required /api/v2 contract surface failed to mount "
+        f"({type(_v2_err).__name__}); readiness will report unhealthy.",
+        exc_info=True,
     )
 
 # CORS 
@@ -3075,15 +3078,18 @@ except Exception as e:
 # to backend/api/inventory_groups_hosts_routes.py.
 
 # Finalize /api/v2 auto-proxies: every v1 route is now on the URL map, so
-# scan and mount /api/v2/* mirrors for the flask-smorest spec. Safe no-op
-# if the pilot module didn't initialize.
+# scan and mount /api/v2/* mirrors and stamp stable operation IDs. Required
+# surface: a failed finalize leaves the unhealthy state on app.extensions
+# (readiness reports v2_contract_ok=False) instead of silently shrinking
+# the contract document.
+from api_v2 import finalize_api_v2 as _finalize_api_v2
 try:
-    from api_v2 import finalize_api_v2 as _finalize_api_v2
     _finalize_api_v2(app)
 except Exception as _v2_final_err:
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
-        f"/api/v2 auto-proxy finalize skipped: {_v2_final_err}"
+    app.logger.error(
+        f"Required /api/v2 auto-proxy finalize failed "
+        f"({type(_v2_final_err).__name__}); readiness will report unhealthy.",
+        exc_info=True,
     )
 
 if __name__ == '__main__':

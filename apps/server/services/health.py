@@ -51,15 +51,27 @@ def readiness() -> Dict:
         required_blueprints_ok_value = False
         version_value = "legacy"
 
+    # /api/v2 contract surface (Task 2.1, 2026-08-27): a failed or unfinished
+    # mount is never healthy. Missing evidence (init_api_v2 never ran on this
+    # app) stays healthy — same policy as required_blueprints_ok.
+    try:
+        from api_v2 import v2_surface_ok as _v2_surface_ok
+        v2_contract_ok_value = bool(_v2_surface_ok())
+    except Exception:
+        v2_contract_ok_value = False
+
     if checks.get("postgres") is not True or checks.get("data_dir") is not True:
         ok = False
     if not required_blueprints_ok_value:
+        ok = False
+    if not v2_contract_ok_value:
         ok = False
     return {
         "ok": ok,
         "checks": checks,
         "database_ok": checks.get("postgres") is True,
         "required_blueprints_ok": required_blueprints_ok_value,
+        "v2_contract_ok": v2_contract_ok_value,
         "contract_version": version_value,
     }
 

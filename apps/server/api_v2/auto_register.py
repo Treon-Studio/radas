@@ -49,6 +49,17 @@ _EXCLUDED_BLUEPRINTS: set[str] = {
     "cicd_api",
 }
 
+# ---------------------------------------------------------------------------
+# Legacy doc routes owned by the flask-smorest doc blueprint at /api/v2.
+#
+# Mirroring these onto /api/v2/* would create duplicate ownership of
+# /api/v2/openapi.json and /api/v2/docs (the flask-smorest doc blueprint
+# already serves them) — hidden dispatch conflicts plus phantom spec
+# entries documenting the legacy docs views. The legacy routes themselves
+# stay untouched; only their v2 mirrors are suppressed.
+# ---------------------------------------------------------------------------
+_DOC_OWNED_V1_PATHS: frozenset[str] = frozenset({"/api/openapi.json", "/api/docs"})
+
 # Path substrings (case-insensitive) — hide any /api/* URL containing these.
 _EXCLUDED_PATH_PATTERNS: tuple[str, ...] = (
     "/health",
@@ -186,6 +197,8 @@ def _iter_v1_rules(app) -> Iterable[tuple[str, list[str], Callable, str]]:
         if path.startswith("/api/v2/"):
             continue
         if path in _MANUAL_V2_PATHS:
+            continue
+        if path in _DOC_OWNED_V1_PATHS:
             continue
         endpoint = rule.endpoint
         bp_name = endpoint.split(".", 1)[0] if "." in endpoint else "app"
