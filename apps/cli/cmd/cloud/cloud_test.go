@@ -93,6 +93,37 @@ func TestCloudInventoryIsExplicitFailureNotFakeRemoteState(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryErrorMessageIsFactual pins the not-wired message to the
+// real control-plane surface: inventory is served per stack at
+// GET /api/cloud/stacks/<name>/inventory (project-scoped, no BYOC account
+// needed), with per-account BYOC inventory as a separate flow. The old text
+// wrongly claimed inventory is only served per registered BYOC account.
+func TestCloudInventoryErrorMessageIsFactual(t *testing.T) {
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	_, err := runCloud(t, srv.URL, "inventory")
+	if err == nil {
+		t.Fatal("cloud inventory must fail until a stack/account selector is wired (Task 2.4)")
+	}
+	if hits != 0 {
+		t.Errorf("unwired inventory must not call the server, got %d hit(s)", hits)
+	}
+	if !strings.Contains(err.Error(), "/api/cloud/stacks/<name>/inventory") {
+		t.Errorf("error must point at the real per-stack inventory endpoint:\n%v", err)
+	}
+	if !strings.Contains(err.Error(), "no server call") {
+		t.Errorf("unwired command must be labeled as making no server call:\n%v", err)
+	}
+	if strings.Contains(err.Error(), "requires a registered BYOC account and is served per account") {
+		t.Errorf("error must not claim per-account BYOC is the only inventory path:\n%v", err)
+	}
+}
+
 func TestCloudImportIsExplicitlyLocal(t *testing.T) {
 	hits := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

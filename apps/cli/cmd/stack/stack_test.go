@@ -205,8 +205,9 @@ func TestStackStatusWiredToServer(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"name":        "prod-vpc",
 			"provider":    "aws",
+			"meta":        map[string]any{"locked": map[string]any{"reason": "manual lock", "by": "ops", "at": 1720000000}},
 			"locked":      true,
-			"lock_reason": map[string]any{"reason": "manual lock"},
+			"lock_reason": "manual lock",
 			"drift":       map[string]any{"enabled": true, "status": "in_sync"},
 		})
 	}))
@@ -218,6 +219,50 @@ func TestStackStatusWiredToServer(t *testing.T) {
 	}
 	if !strings.Contains(out, "aws") || !strings.Contains(out, "in_sync") {
 		t.Errorf("server-provided status fields missing from output:\n%s", out)
+	}
+}
+
+// TestStackStatusDecodesRealServerContract asserts that `stack status`
+// succeeds against the exact payload the real server returns for
+// GET /api/cloud/stacks/<name> (services/cloud_provisioning.py stacks_get):
+// locked is a bool, lock_reason is a plain string ("" when unlocked), and the
+// structured lock object only lives inside meta. Regresses the decode
+// mismatch where strict json.Unmarshal rejected every real response.
+func TestStackStatusDecodesRealServerContract(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/cloud/stacks/prod-vpc" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "prod-vpc",
+			"path": "infra/stacks/prod-vpc",
+			"files": ["backend.hcl", "main.tofu"],
+			"terraform_tfvars": "env = \"production\"\n",
+			"backend_hcl": "",
+			"has_secrets": true,
+			"meta": {"locked": {"reason": "change freeze", "by": "ops", "at": 1720000000}, "last_status": "applied"},
+			"provider": "aws",
+			"drift": {"enabled": true, "status": "in_sync", "last_run_id": "run-9", "last_checked_at": 1720000100, "returncode": 0, "run_status": "success"},
+			"locked": true,
+			"lock_reason": "change freeze",
+			"outputs": {"vpc_id": "vpc-123"}
+		}`))
+	}))
+	defer srv.Close()
+
+	out, err := runStack(t, srv.URL, "status", "prod-vpc")
+	if err != nil {
+		t.Fatalf("stack status must decode the real server shape: %v", err)
+	}
+	if !strings.Contains(out, "Locked: true") {
+		t.Errorf("locked state must be reported honestly:\n%s", out)
+	}
+	if !strings.Contains(out, "Lock Reason: change freeze") {
+		t.Errorf("string lock_reason missing from output:\n%s", out)
+	}
+	if !strings.Contains(out, "in_sync") || !strings.Contains(out, "applied") {
+		t.Errorf("drift/meta fields missing from output:\n%s", out)
 	}
 }
 

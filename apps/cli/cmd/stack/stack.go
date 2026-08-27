@@ -201,10 +201,10 @@ var statusCmd = &cobra.Command{
 				RunID   string `json:"last_run_id"`
 			} `json:"drift"`
 			Locked bool `json:"locked"`
-			// lock_reason mirrors the server's locked meta object.
-			LockReason struct {
-				Reason string `json:"reason"`
-			} `json:"lock_reason"`
+			// lock_reason is the server's plain-string lock description
+			// ("" when unlocked); the structured lock object only lives in
+			// meta["locked"], never in this top-level field.
+			LockReason string `json:"lock_reason"`
 		}
 		_, err = doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s", stackID), nil, &res)
 		if err != nil {
@@ -214,8 +214,8 @@ var statusCmd = &cobra.Command{
 		fmt.Printf("Stack Details: %s\n", res.Name)
 		fmt.Printf("Provider: %s\n", res.Provider)
 		fmt.Printf("Locked: %v\n", res.Locked)
-		if res.Locked && res.LockReason.Reason != "" {
-			fmt.Printf("Lock Reason: %s\n", res.LockReason.Reason)
+		if res.Locked && res.LockReason != "" {
+			fmt.Printf("Lock Reason: %s\n", res.LockReason)
 		}
 		if res.Drift.Enabled {
 			fmt.Printf("Drift Status: %s\n", res.Drift.Status)

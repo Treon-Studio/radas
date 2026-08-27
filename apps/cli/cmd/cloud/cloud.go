@@ -75,7 +75,7 @@ var inventoryCmd = &cobra.Command{
 	Aliases: []string{"inv"},
 	Short:   "List discovered cloud resources and check management status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return fmt.Errorf("cloud inventory is not available: resource inventory requires a registered BYOC account and is served per account (GET /api/byoc/accounts/<account_id>/inventory); this CLI does not yet select accounts, so no inventory can be shown")
+		return fmt.Errorf("cloud inventory is not wired yet in this CLI (no server call made): the control plane serves inventory per stack at GET /api/cloud/stacks/<name>/inventory (project-scoped, no BYOC account required) and separately per registered BYOC account at GET /api/byoc/accounts/<account_id>/inventory; this command does not yet accept a stack or account selector, so no inventory can be shown")
 	},
 }
 
