@@ -64,18 +64,21 @@ except ImportError:
 
 app = Flask(__name__)
 
-# Phase 1 of app.py blueprint refactor: register modular API blueprints.
-# Empty stubs today; subsequent phases will move route handlers from this
-# file into backend/api/*_routes.py. See .lovable/plan.md.
+# Modular API blueprints with an explicit required/optional policy.
+# Required modules fail closed: register_blueprints raises on a required
+# failure and records every outcome on app.extensions so /readyz can report
+# required_blueprints_ok=False. Optional/integration modules are logged skips.
+import app_context as _app_context
+_app_context.set_app(app)
+from api import register_blueprints as _register_api_blueprints
 try:
-    import app_context as _app_context
-    _app_context.set_app(app)
-    from api import register_blueprints as _register_api_blueprints
     _register_api_blueprints(app)
 except Exception as _bp_err:
-    import logging as _logging
-    _logging.getLogger(__name__).error(
-        f"Blueprint registration failed (continuing with legacy routes): {_bp_err}",
+    # Fail closed: keep booting enough to answer readiness probes honestly,
+    # but never serve traffic as if the required API surface were intact.
+    app.logger.error(
+        f"Required API blueprint registration failed ({type(_bp_err).__name__}); "
+        "readiness will report unhealthy.",
         exc_info=True,
     )
 
