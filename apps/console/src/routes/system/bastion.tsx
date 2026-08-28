@@ -47,7 +47,15 @@ export function BastionPage() {
 
   const bastionQ = useQuery({
     queryKey: ["bastion", projectId],
-    queryFn: () => api<BastionResponse>("GET", "/api/bastion/_current"),
+    queryFn: () =>
+      api<BastionResponse>(
+        "GET",
+        // Read the tenant from live localStorage so a project switch is
+        // honoured by the very next fetch, even before React re-renders.
+        // A literal "_current" placeholder would 403 — api() only rewrites
+        // "/_current/" segments, so resolve the id here.
+        `/api/bastion/${encodeURIComponent(getCurrentProjectId() ?? "")}`,
+      ),
     enabled: Boolean(projectId),
   });
 
@@ -62,9 +70,12 @@ export function BastionPage() {
 
   const saveMut = useMutation({
     mutationFn: (payload: { host: string; user: string; port: number; ssh_key: string }) =>
-      api<{ success?: boolean; bastion?: BastionConfig }>("PUT", "/api/bastion/_current", payload, {
-        headers: { "Idempotency-Key": newIdempotencyKey() },
-      }),
+      api<{ success?: boolean; bastion?: BastionConfig }>(
+        "PUT",
+        `/api/bastion/${encodeURIComponent(getCurrentProjectId() ?? "")}`,
+        payload,
+        { headers: { "Idempotency-Key": newIdempotencyKey() } },
+      ),
     onSuccess: () => {
       toast.success("Bastion configuration saved");
       void qc.invalidateQueries({ queryKey: ["bastion"] });
@@ -74,9 +85,12 @@ export function BastionPage() {
 
   const deleteMut = useMutation({
     mutationFn: () =>
-      api<{ success?: boolean }>("DELETE", "/api/bastion/_current", undefined, {
-        headers: { "Idempotency-Key": newIdempotencyKey() },
-      }),
+      api<{ success?: boolean }>(
+        "DELETE",
+        `/api/bastion/${encodeURIComponent(getCurrentProjectId() ?? "")}`,
+        undefined,
+        { headers: { "Idempotency-Key": newIdempotencyKey() } },
+      ),
     onSuccess: () => {
       toast.success("Bastion configuration removed");
       setDeleteOpen(false);

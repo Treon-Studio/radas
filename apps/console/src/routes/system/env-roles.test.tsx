@@ -80,7 +80,7 @@ afterEach(() => {
 describe("EnvRolesPage", () => {
   it("shows a loading state, then renders the configured mapping with tenant headers", async () => {
     const calls = installFetch((path) => {
-      expect(path).toBe("/api/env-roles/_current");
+      expect(path).toBe("/api/env-roles/p1");
       return jsonResponse(MAPPING);
     });
     renderPage(makeClient());
@@ -127,7 +127,7 @@ describe("EnvRolesPage", () => {
 
     await waitFor(() => {
       const put = calls.find((c) => (c.init.method ?? "") === "PUT");
-      expect(put?.path).toBe("/api/env-roles/_current");
+      expect(put?.path).toBe("/api/env-roles/p1");
       expect(headerOf(put, "Idempotency-Key")).toBeTruthy();
       expect(headerOf(put, "X-Project-Id")).toBe("p1");
       // Duplicates removed, roles trimmed.

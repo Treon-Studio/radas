@@ -52,7 +52,15 @@ export function EnvRolesPage() {
 
   const envRolesQ = useQuery({
     queryKey: ["env-roles", projectId],
-    queryFn: () => api<{ env_roles?: EnvRoles }>("GET", "/api/env-roles/_current"),
+    queryFn: () =>
+      api<{ env_roles?: EnvRoles }>(
+        "GET",
+        // Read the tenant from live localStorage so a project switch is
+        // honoured by the very next fetch, even before React re-renders.
+        // A literal "_current" placeholder would 403 — api() only rewrites
+        // "/_current/" segments, so resolve the id here.
+        `/api/env-roles/${encodeURIComponent(getCurrentProjectId() ?? "")}`,
+      ),
     enabled: Boolean(projectId),
   });
 
@@ -67,8 +75,12 @@ export function EnvRolesPage() {
 
   const saveMut = useMutation({
     mutationFn: (mapping: EnvRoles) =>
-      api<{ success?: boolean; env_roles?: EnvRoles }>("PUT", "/api/env-roles/_current",
-        { env_roles: mapping }, { headers: { "Idempotency-Key": newIdempotencyKey() } }),
+      api<{ success?: boolean; env_roles?: EnvRoles }>(
+        "PUT",
+        `/api/env-roles/${encodeURIComponent(getCurrentProjectId() ?? "")}`,
+        { env_roles: mapping },
+        { headers: { "Idempotency-Key": newIdempotencyKey() } },
+      ),
     onSuccess: () => {
       toast.success("Environment roles saved");
       setConfirmOpen(false);

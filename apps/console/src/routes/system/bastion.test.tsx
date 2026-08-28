@@ -82,7 +82,7 @@ afterEach(() => {
 describe("BastionPage", () => {
   it("shows a loading state, then renders the stored config with tenant headers", async () => {
     const calls = installFetch((path) => {
-      expect(path).toBe("/api/bastion/_current");
+      expect(path).toBe("/api/bastion/p1");
       return jsonResponse(CONFIGURED);
     });
     renderPage(makeClient());
@@ -142,7 +142,7 @@ describe("BastionPage", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Bastion host")).toHaveValue("jump.example.com"));
     const put = calls.find((c) => (c.init.method ?? "") === "PUT");
-    expect(put?.path).toBe("/api/bastion/_current");
+    expect(put?.path).toBe("/api/bastion/p1");
     expect(put?.path).not.toContain("ssh_key");
     expect(headerOf(put, "Idempotency-Key")).toBeTruthy();
     expect(headerOf(put, "X-Project-Id")).toBe("p1");
@@ -170,7 +170,7 @@ describe("BastionPage", () => {
 
     await waitFor(() => {
       const del = calls.find((c) => (c.init.method ?? "") === "DELETE");
-      expect(del?.path).toBe("/api/bastion/_current");
+      expect(del?.path).toBe("/api/bastion/p1");
       expect(headerOf(del, "Idempotency-Key")).toBeTruthy();
     });
   });
