@@ -14,6 +14,10 @@ export const ROUTE_CRUMBS: Record<string, Crumb[]> = {
   "/system/retry-policy": [{ label: "System", to: "/system/settings" }, { label: "Retry Policy" }],
   "/system/inbound-webhooks": [{ label: "System", to: "/system/settings" }, { label: "Inbound Webhooks" }],
   "/system/branch-mapping": [{ label: "System", to: "/system/settings" }, { label: "Branch Mapping" }],
+  "/system/bastion": [{ label: "System", to: "/system/settings" }, { label: "Bastion Host" }],
+  "/system/mfa": [{ label: "System", to: "/system/settings" }, { label: "Multi-Factor Auth" }],
+  "/system/provider-mirror": [{ label: "System", to: "/system/settings" }, { label: "Provider Mirror" }],
+  "/system/env-roles": [{ label: "System", to: "/system/settings" }, { label: "Environment Roles" }],
 };
 
 /** Fallback labels for pathname segments not covered by ROUTE_CRUMBS. */

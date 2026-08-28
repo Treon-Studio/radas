@@ -40,9 +40,13 @@ import { Route as SystemAiRouteImport } from './routes/system/ai'
 import { Route as SystemApiRouteImport } from './routes/system/api'
 import { Route as SystemAuditRouteImport } from './routes/system/audit'
 import { Route as SystemAutomationRouteImport } from './routes/system/automation'
+import { Route as SystemBastionRouteImport } from './routes/system/bastion'
 import { Route as SystemBranchMappingRouteImport } from './routes/system/branch-mapping'
+import { Route as SystemEnvRolesRouteImport } from './routes/system/env-roles'
 import { Route as SystemGithubActionsRouteImport } from './routes/system/github-actions'
 import { Route as SystemInboundWebhooksRouteImport } from './routes/system/inbound-webhooks'
+import { Route as SystemMfaRouteImport } from './routes/system/mfa'
+import { Route as SystemProviderMirrorRouteImport } from './routes/system/provider-mirror'
 import { Route as SystemRetryPolicyRouteImport } from './routes/system/retry-policy'
 import { Route as SystemSecretsRouteImport } from './routes/system/secrets'
 import { Route as SystemSettingsRouteImport } from './routes/system/settings'
@@ -224,9 +228,19 @@ const SystemAutomationRoute = SystemAutomationRouteImport.update({
   path: '/system/automation',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemBastionRoute = SystemBastionRouteImport.update({
+  id: '/system/bastion',
+  path: '/system/bastion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SystemBranchMappingRoute = SystemBranchMappingRouteImport.update({
   id: '/system/branch-mapping',
   path: '/system/branch-mapping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemEnvRolesRoute = SystemEnvRolesRouteImport.update({
+  id: '/system/env-roles',
+  path: '/system/env-roles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SystemGithubActionsRoute = SystemGithubActionsRouteImport.update({
@@ -237,6 +251,16 @@ const SystemGithubActionsRoute = SystemGithubActionsRouteImport.update({
 const SystemInboundWebhooksRoute = SystemInboundWebhooksRouteImport.update({
   id: '/system/inbound-webhooks',
   path: '/system/inbound-webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemMfaRoute = SystemMfaRouteImport.update({
+  id: '/system/mfa',
+  path: '/system/mfa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemProviderMirrorRoute = SystemProviderMirrorRouteImport.update({
+  id: '/system/provider-mirror',
+  path: '/system/provider-mirror',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SystemRetryPolicyRoute = SystemRetryPolicyRouteImport.update({
@@ -388,9 +412,13 @@ export interface FileRoutesByFullPath {
   '/system/api': typeof SystemApiRoute
   '/system/audit': typeof SystemAuditRoute
   '/system/automation': typeof SystemAutomationRoute
+  '/system/bastion': typeof SystemBastionRoute
   '/system/branch-mapping': typeof SystemBranchMappingRoute
+  '/system/env-roles': typeof SystemEnvRolesRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/inbound-webhooks': typeof SystemInboundWebhooksRoute
+  '/system/mfa': typeof SystemMfaRoute
+  '/system/provider-mirror': typeof SystemProviderMirrorRoute
   '/system/retry-policy': typeof SystemRetryPolicyRoute
   '/system/secrets': typeof SystemSecretsRoute
   '/system/settings': typeof SystemSettingsRoute
@@ -446,9 +474,13 @@ export interface FileRoutesByTo {
   '/system/api': typeof SystemApiRoute
   '/system/audit': typeof SystemAuditRoute
   '/system/automation': typeof SystemAutomationRoute
+  '/system/bastion': typeof SystemBastionRoute
   '/system/branch-mapping': typeof SystemBranchMappingRoute
+  '/system/env-roles': typeof SystemEnvRolesRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/inbound-webhooks': typeof SystemInboundWebhooksRoute
+  '/system/mfa': typeof SystemMfaRoute
+  '/system/provider-mirror': typeof SystemProviderMirrorRoute
   '/system/retry-policy': typeof SystemRetryPolicyRoute
   '/system/secrets': typeof SystemSecretsRoute
   '/system/settings': typeof SystemSettingsRoute
@@ -505,9 +537,13 @@ export interface FileRoutesById {
   '/system/api': typeof SystemApiRoute
   '/system/audit': typeof SystemAuditRoute
   '/system/automation': typeof SystemAutomationRoute
+  '/system/bastion': typeof SystemBastionRoute
   '/system/branch-mapping': typeof SystemBranchMappingRoute
+  '/system/env-roles': typeof SystemEnvRolesRoute
   '/system/github-actions': typeof SystemGithubActionsRoute
   '/system/inbound-webhooks': typeof SystemInboundWebhooksRoute
+  '/system/mfa': typeof SystemMfaRoute
+  '/system/provider-mirror': typeof SystemProviderMirrorRoute
   '/system/retry-policy': typeof SystemRetryPolicyRoute
   '/system/secrets': typeof SystemSecretsRoute
   '/system/settings': typeof SystemSettingsRoute
@@ -565,9 +601,13 @@ export interface FileRouteTypes {
     | '/system/api'
     | '/system/audit'
     | '/system/automation'
+    | '/system/bastion'
     | '/system/branch-mapping'
+    | '/system/env-roles'
     | '/system/github-actions'
     | '/system/inbound-webhooks'
+    | '/system/mfa'
+    | '/system/provider-mirror'
     | '/system/retry-policy'
     | '/system/secrets'
     | '/system/settings'
@@ -623,9 +663,13 @@ export interface FileRouteTypes {
     | '/system/api'
     | '/system/audit'
     | '/system/automation'
+    | '/system/bastion'
     | '/system/branch-mapping'
+    | '/system/env-roles'
     | '/system/github-actions'
     | '/system/inbound-webhooks'
+    | '/system/mfa'
+    | '/system/provider-mirror'
     | '/system/retry-policy'
     | '/system/secrets'
     | '/system/settings'
@@ -681,9 +725,13 @@ export interface FileRouteTypes {
     | '/system/api'
     | '/system/audit'
     | '/system/automation'
+    | '/system/bastion'
     | '/system/branch-mapping'
+    | '/system/env-roles'
     | '/system/github-actions'
     | '/system/inbound-webhooks'
+    | '/system/mfa'
+    | '/system/provider-mirror'
     | '/system/retry-policy'
     | '/system/secrets'
     | '/system/settings'
@@ -740,9 +788,13 @@ export interface RootRouteChildren {
   SystemApiRoute: typeof SystemApiRoute
   SystemAuditRoute: typeof SystemAuditRoute
   SystemAutomationRoute: typeof SystemAutomationRoute
+  SystemBastionRoute: typeof SystemBastionRoute
   SystemBranchMappingRoute: typeof SystemBranchMappingRoute
+  SystemEnvRolesRoute: typeof SystemEnvRolesRoute
   SystemGithubActionsRoute: typeof SystemGithubActionsRoute
   SystemInboundWebhooksRoute: typeof SystemInboundWebhooksRoute
+  SystemMfaRoute: typeof SystemMfaRoute
+  SystemProviderMirrorRoute: typeof SystemProviderMirrorRoute
   SystemRetryPolicyRoute: typeof SystemRetryPolicyRoute
   SystemSecretsRoute: typeof SystemSecretsRoute
   SystemSettingsRoute: typeof SystemSettingsRoute
@@ -972,11 +1024,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SystemAutomationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system/bastion': {
+      id: '/system/bastion'
+      path: '/system/bastion'
+      fullPath: '/system/bastion'
+      preLoaderRoute: typeof SystemBastionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/system/branch-mapping': {
       id: '/system/branch-mapping'
       path: '/system/branch-mapping'
       fullPath: '/system/branch-mapping'
       preLoaderRoute: typeof SystemBranchMappingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system/env-roles': {
+      id: '/system/env-roles'
+      path: '/system/env-roles'
+      fullPath: '/system/env-roles'
+      preLoaderRoute: typeof SystemEnvRolesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system/github-actions': {
@@ -991,6 +1057,20 @@ declare module '@tanstack/react-router' {
       path: '/system/inbound-webhooks'
       fullPath: '/system/inbound-webhooks'
       preLoaderRoute: typeof SystemInboundWebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system/mfa': {
+      id: '/system/mfa'
+      path: '/system/mfa'
+      fullPath: '/system/mfa'
+      preLoaderRoute: typeof SystemMfaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system/provider-mirror': {
+      id: '/system/provider-mirror'
+      path: '/system/provider-mirror'
+      fullPath: '/system/provider-mirror'
+      preLoaderRoute: typeof SystemProviderMirrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system/retry-policy': {
@@ -1230,9 +1310,13 @@ const rootRouteChildren: RootRouteChildren = {
   SystemApiRoute: SystemApiRoute,
   SystemAuditRoute: SystemAuditRoute,
   SystemAutomationRoute: SystemAutomationRoute,
+  SystemBastionRoute: SystemBastionRoute,
   SystemBranchMappingRoute: SystemBranchMappingRoute,
+  SystemEnvRolesRoute: SystemEnvRolesRoute,
   SystemGithubActionsRoute: SystemGithubActionsRoute,
   SystemInboundWebhooksRoute: SystemInboundWebhooksRoute,
+  SystemMfaRoute: SystemMfaRoute,
+  SystemProviderMirrorRoute: SystemProviderMirrorRoute,
   SystemRetryPolicyRoute: SystemRetryPolicyRoute,
   SystemSecretsRoute: SystemSecretsRoute,
   SystemSettingsRoute: SystemSettingsRoute,

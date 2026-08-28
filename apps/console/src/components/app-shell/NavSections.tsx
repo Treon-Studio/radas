@@ -8,6 +8,8 @@ import {
   RiGithubLine as Github, RiCloudLine as Cloud, RiCodeBoxLine as CodeBox, RiStackLine as Services,
   RiRobotLine as Robot, RiFileListLine as FileList, RiTimerLine as Timer,
   RiWebhookLine as Webhook, RiGitBranchLine as Branch,
+  RiServerLine as Server, RiLockPasswordLine as LockPassword,
+  RiBox3Line as Box, RiUserStarLine as UserStar,
 } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -53,6 +55,10 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
     { to: "/system/retry-policy", label: "Retry Policy", icon: Timer },
     { to: "/system/inbound-webhooks", label: "Inbound Webhooks", icon: Webhook },
     { to: "/system/branch-mapping", label: "Branch Mapping", icon: Branch },
+    { to: "/system/bastion", label: "Bastion Host", icon: Server },
+    { to: "/system/mfa", label: "Multi-Factor Auth", icon: LockPassword },
+    { to: "/system/provider-mirror", label: "Provider Mirror", icon: Box },
+    { to: "/system/env-roles", label: "Environment Roles", icon: UserStar },
   ] as Item[],
 });
 
