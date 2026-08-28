@@ -301,10 +301,7 @@ table, th, td, tr, thead, tbody, tfoot {
    ============================================================ */
 
 /* Image inset outline so edges don't blur into the surface */
-img {
-  outline: 1px solid rgba(0, 0, 0, 0.08);
-  outline-offset: -1px;
-}
+
 @media (prefers-color-scheme: dark) {
   img { outline-color: rgba(255, 255, 255, 0.08); }
 }
