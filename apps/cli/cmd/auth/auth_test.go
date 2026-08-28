@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -125,6 +126,77 @@ func TestLoginSuccessPersistsCredentials(t *testing.T) {
 		if strings.Contains(out.String(), secret) {
 			t.Errorf("command output leaked %q: %q", secret, out.String())
 		}
+	}
+}
+
+// The control plane resolves the user's organizations on login and returns
+// the active one (the first membership, also embedded in the token). Login
+// must persist it to the CLI selector so every subsequent remote command
+// sends the right X-Org-Id without asking again.
+func TestLoginPersistsActiveOrgToSelector(t *testing.T) {
+	root, _, dir := newTestRoot(t)
+	srv := jsonServer(t, http.StatusOK, map[string]any{
+		"success":       true,
+		"access_token":  testAccess,
+		"refresh_token": testRefrsh,
+		"orgs":          []map[string]any{{"id": "org-abc", "slug": "acme", "name": "Acme"}},
+		"active_org_id": "org-abc",
+		"user":          map[string]any{"id": "u1", "username": testUser},
+	})
+	defer srv.Close()
+
+	if err := runAuth(t, root, testUser+"\n"+testPass+"\n", "login", "--api-url", srv.URL); err != nil {
+		t.Fatalf("auth login: %v", err)
+	}
+
+	sel, err := config.LoadSelector()
+	if err != nil {
+		t.Fatalf("load selector: %v", err)
+	}
+	if sel.OrganizationID != "org-abc" {
+		t.Errorf("selector org_id = %q, want the login response's active_org_id %q", sel.OrganizationID, "org-abc")
+	}
+	// The selector file holds identifiers only; it must never receive tokens.
+	data, err := os.ReadFile(dir + "/" + config.SelectorFileName)
+	if err != nil {
+		t.Fatalf("read selector file: %v", err)
+	}
+	for _, secret := range []string{testAccess, testRefrsh, testPass} {
+		if strings.Contains(string(data), secret) {
+			t.Error("selector file must never contain credential material")
+		}
+	}
+}
+
+// Login must not wipe a previously chosen project when it records the active
+// org, and a login without org context (active_org_id null) must leave the
+// selector untouched.
+func TestLoginPreservesProjectAndSkipsEmptyActiveOrg(t *testing.T) {
+	root, _, _ := newTestRoot(t)
+	if err := config.SaveSelector(config.Selector{OrganizationID: "org-old", ProjectID: "proj-7"}); err != nil {
+		t.Fatalf("seed selector: %v", err)
+	}
+
+	srv := jsonServer(t, http.StatusOK, map[string]any{
+		"success":       true,
+		"access_token":  testAccess,
+		"refresh_token": testRefrsh,
+		"orgs":          []any{},
+		"active_org_id": nil,
+		"user":          map[string]any{"id": "u1", "username": testUser},
+	})
+	defer srv.Close()
+
+	if err := runAuth(t, root, testUser+"\n"+testPass+"\n", "login", "--api-url", srv.URL); err != nil {
+		t.Fatalf("auth login: %v", err)
+	}
+
+	sel, err := config.LoadSelector()
+	if err != nil {
+		t.Fatalf("load selector: %v", err)
+	}
+	if sel.OrganizationID != "org-old" || sel.ProjectID != "proj-7" {
+		t.Errorf("selector = %+v, want the pre-login org %q and project %q untouched", sel, "org-old", "proj-7")
 	}
 }
 

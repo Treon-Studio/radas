@@ -14,8 +14,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -38,14 +38,15 @@ type RegistryItem struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -72,10 +73,6 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "List available OpenTofu modules and Ansible roles",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -83,7 +80,7 @@ var listCmd = &cobra.Command{
 			Items []RegistryItem `json:"items"`
 		}
 		// The control plane serves the catalog at GET /api/registry.
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/registry", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/registry", nil, &resp)
 		if err != nil {
 			return fmt.Errorf("registry list: %w", err)
 		}
@@ -123,10 +120,6 @@ var installCmd = &cobra.Command{
 			name = target[i+1:]
 		}
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
@@ -138,7 +131,7 @@ var installCmd = &cobra.Command{
 			Success   bool           `json:"success"`
 			Installed map[string]any `json:"installed"`
 		}
-		_, err = doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/registry/%s/install", name), payload, &res)
+		_, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/registry/%s/install", name), payload, &res)
 		if err != nil {
 			return fmt.Errorf("registry install: %w", err)
 		}

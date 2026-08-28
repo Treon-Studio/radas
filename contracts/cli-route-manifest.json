@@ -166,7 +166,7 @@
             "path": "/api/approvals",
             "kind": "remote",
             "source_file": "apps/cli/cmd/approval/approval.go",
-            "note": "Decodes {\"approvals\":[...]}. Was GET /api/approvals/pending (no server route) with ignored errors and fabricated fallback rows; fixed in Task 2.4."
+            "note": "Decodes {\"approvals\":[...]}. Was GET /api/approvals/pending (no server route) with ignored errors and fabricated fallback rows; fixed in Task 2.4. Status filtering is server-side (?status=); Task 3.2: authenticates via --token/RADAS_TOKEN or stored credentials with one auto-refresh."
         },
         {
             "command": "approval approve <id>",
@@ -174,7 +174,7 @@
             "path": "/api/approvals/%s/approve",
             "kind": "remote",
             "source_file": "apps/cli/cmd/approval/approval.go",
-            "note": "Path already matched the server; the ignored client error and unconditional fake success were removed in Task 2.4."
+            "note": "Sends no request body: the server approve handler consumes none (decider = authenticated user). The inert --comment flag (accepted but never persisted) was removed in Task 3.2; authenticates via --token/RADAS_TOKEN or stored credentials with one auto-refresh."
         },
         {
             "command": "approval reject <id>",
@@ -182,7 +182,7 @@
             "path": "/api/approvals/%s/reject",
             "kind": "remote",
             "source_file": "apps/cli/cmd/approval/approval.go",
-            "note": "Path already matched the server; the ignored client error and unconditional fake success were removed in Task 2.4."
+            "note": "Sends no request body: the server reject handler consumes none. The inert --reason flag (accepted but never persisted) was removed in Task 3.2 and the output no longer claims a reason was logged; authenticates via --token/RADAS_TOKEN or stored credentials with one auto-refresh."
         },
         {
             "command": "audit list",
@@ -206,7 +206,7 @@
             "path": "/api/audit-log/export",
             "kind": "remote",
             "source_file": "apps/cli/cmd/audit/audit.go",
-            "note": "Writes the fetched csv/jsonl body to a local file and reports the real count only from the server response; was fabricated local output, fixed in Task 2.4."
+            "note": "Writes the fetched csv/jsonl body to a local file and reports the real count only from the server response; was fabricated local output, fixed in Task 2.4. Task 3.2: the reported count excludes the CSV header row (was off by one) and handles quoted newlines."
         },
         {
             "command": "audit evidence",

@@ -14,6 +14,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
 	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
@@ -38,14 +39,15 @@ type OrgInfo struct {
 	IsCurrent bool   `json:"is_current"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -75,18 +77,13 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("🏢 Fetching accessible organizations from RADAS API...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
 			Orgs []OrgInfo `json:"orgs"`
 		}
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/orgs", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/orgs", nil, &resp)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("org list: %w", err)

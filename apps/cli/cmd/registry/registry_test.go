@@ -2,12 +2,16 @@ package registry
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	cmdauth "github.com/raizora/radas/v4/cmd/auth"
+	cliauth "github.com/raizora/radas/v4/internal/auth"
 )
 
 // runRegistry executes a registry subcommand with the runtime configuration
@@ -15,12 +19,31 @@ import (
 // with the command error.
 func runRegistry(t *testing.T, srvURL string, args ...string) (string, error) {
 	t.Helper()
+	return runRegistryEnv(t, srvURL, nil, args...)
+}
+
+// runRegistryEnv executes a registry subcommand with isolated runtime
+// configuration. When creds is non-nil it is seeded into the CLI credential
+// store so the command must authenticate from stored credentials
+// (RADAS_TOKEN stays empty); otherwise no credentials exist at all.
+func runRegistryEnv(t *testing.T, srvURL string, creds *cliauth.Credentials, args ...string) (string, error) {
+	t.Helper()
 
 	t.Setenv("RADAS_API_URL", srvURL)
 	t.Setenv("RADAS_TOKEN", "")
 	t.Setenv("RADAS_ORG_ID", "")
 	t.Setenv("RADAS_PROJECT_ID", "proj-1")
 	t.Setenv("RADAS_CONFIG_DIR", t.TempDir())
+
+	if creds != nil {
+		c := *creds
+		if c.APIURL == "" {
+			c.APIURL = srvURL
+		}
+		if err := cliauth.NewStoreAt(os.Getenv("RADAS_CONFIG_DIR")).Save(c); err != nil {
+			t.Fatalf("seed stored credentials: %v", err)
+		}
+	}
 
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -76,7 +99,7 @@ func TestRegistryListSuccess(t *testing.T) {
 }
 
 func TestRegistryListServerErrorNeverPrintsFallbackRows(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError} {
+	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError} {
 		srv := statusServer(t, code, `{"error":"boom"}`)
 		out, err := runRegistry(t, srv.URL, "list")
 		srv.Close()
@@ -92,6 +115,48 @@ func TestRegistryListServerErrorNeverPrintsFallbackRows(t *testing.T) {
 		if !strings.Contains(out, "request req-") {
 			t.Errorf("status %d: error output must carry the request ID:\n%s", code, out)
 		}
+	}
+}
+
+// With no stored credentials and no RADAS_TOKEN, a 401 must surface as the
+// typed not-authenticated error that tells the user how to fix it.
+func TestRegistryListWithoutCredentialsSurfacesNotAuthenticated(t *testing.T) {
+	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	defer srv.Close()
+
+	_, err := runRegistry(t, srv.URL, "list")
+	if !errors.Is(err, cmdauth.ErrNotAuthenticated) {
+		t.Fatalf("error = %v, want cmdauth.ErrNotAuthenticated", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
+	}
+}
+
+// The adapter must authenticate from the credentials stored by
+// `radas auth login` when no --token/RADAS_TOKEN override is present.
+func TestRegistryListAuthenticatesFromStoredCredentials(t *testing.T) {
+	var (
+		gotAuth  string
+		authSeen int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		authSeen++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items": []}`))
+	}))
+	defer srv.Close()
+
+	creds := &cliauth.Credentials{AccessToken: "stored-access-token", Username: "alice"}
+	if _, err := runRegistryEnv(t, srv.URL, creds, "list"); err != nil {
+		t.Fatalf("registry list with stored credentials: %v", err)
+	}
+	if authSeen != 1 {
+		t.Fatalf("server calls = %d, want 1", authSeen)
+	}
+	if gotAuth != "Bearer stored-access-token" {
+		t.Errorf("Authorization = %q, want the stored access token as bearer", gotAuth)
 	}
 }
 
@@ -142,6 +207,32 @@ func TestRegistryInstallPostsToServerInstallRoute(t *testing.T) {
 	}
 	if !strings.Contains(out, "vpc-ha") || !strings.Contains(out, "prod-vpc") {
 		t.Errorf("install confirmation missing from output:\n%s", out)
+	}
+}
+
+// Mutations must carry the selected project's context and an idempotency key.
+func TestRegistryInstallSendsProjectAndIdempotencyHeaders(t *testing.T) {
+	var (
+		gotProject string
+		gotIdemKey string
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProject = r.Header.Get("X-Project-Id")
+		gotIdemKey = r.Header.Get("Idempotency-Key")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"success": true, "installed": {"name": "vpc-ha"}}`))
+	}))
+	defer srv.Close()
+
+	if _, err := runRegistry(t, srv.URL, "install", "tofu-block/vpc-ha", "--stack", "prod-vpc"); err != nil {
+		t.Fatalf("registry install: %v", err)
+	}
+	if gotProject != "proj-1" {
+		t.Errorf("X-Project-Id = %q, want proj-1", gotProject)
+	}
+	if gotIdemKey == "" {
+		t.Error("Idempotency-Key header missing on install")
 	}
 }
 

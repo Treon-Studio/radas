@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -23,8 +23,10 @@ var Cmd = &cobra.Command{
 	Use:     "approval",
 	Aliases: []string{"approve", "approvals"},
 	Short:   "Review, approve, and reject infrastructure change requests",
-	Long: `The approval command group enables multi-party quorum reviews, approval TTL
-tracking, and mandatory rejection reason logging for speculative execution plans.`,
+	Long: `The approval command group enables multi-party quorum reviews and approval TTL
+tracking against the control plane. Approve/reject decisions are recorded
+server-side; the control plane does not persist decision comments or rejection
+reasons, so the CLI sends none.`,
 }
 
 // ApprovalRequest mirrors the string fields of the server's approval record
@@ -39,14 +41,15 @@ type ApprovalRequest struct {
 	Note        string `json:"note"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -75,10 +78,6 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		status, _ := cmd.Flags().GetString("status")
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -91,7 +90,7 @@ var listCmd = &cobra.Command{
 		var resp struct {
 			Approvals []ApprovalRequest `json:"approvals"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, path, nil, &resp); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, path, nil, &resp); err != nil {
 			return fmt.Errorf("approval list: %w", err)
 		}
 
@@ -116,21 +115,18 @@ var approveCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apprID := args[0]
-		comment, _ := cmd.Flags().GetString("comment")
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		payload := map[string]string{"action": "approve", "comment": comment}
+		// The control plane's approve handler consumes no request body (the
+		// decision is in the path, the decider is the authenticated user):
+		// comment payloads would be silently dropped, so none are sent.
 		var res struct {
 			Success  bool            `json:"success"`
 			Approval ApprovalRequest `json:"approval"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/approvals/%s/approve", apprID), payload, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/approvals/%s/approve", apprID), nil, &res); err != nil {
 			return fmt.Errorf("approval approve: %w", err)
 		}
 
@@ -142,33 +138,27 @@ var approveCmd = &cobra.Command{
 
 var rejectCmd = &cobra.Command{
 	Use:   "reject <approval-id>",
-	Short: "Reject a pending change request with a mandatory reason",
+	Short: "Reject a pending change request",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apprID := args[0]
-		reason, _ := cmd.Flags().GetString("reason")
-		if reason == "" {
-			return fmt.Errorf("a non-empty --reason is mandatory when rejecting an approval request")
-		}
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		payload := map[string]string{"action": "reject", "reason": reason}
+		// The control plane's reject handler consumes no request body: a
+		// rejection-reason payload would be silently dropped, so none is
+		// sent and the output does not claim a reason was recorded.
 		var res struct {
 			Success  bool            `json:"success"`
 			Approval ApprovalRequest `json:"approval"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/approvals/%s/reject", apprID), payload, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/approvals/%s/reject", apprID), nil, &res); err != nil {
 			return fmt.Errorf("approval reject: %w", err)
 		}
 
 		fmt.Printf("✖ Approval request '%s' rejected.\n", apprID)
-		fmt.Printf("Reason logged: %s\n", reason)
+		fmt.Printf("Status: %s\n", res.Approval.Status)
 		return nil
 	},
 }
@@ -183,8 +173,6 @@ var historyCmd = &cobra.Command{
 
 func init() {
 	listCmd.Flags().StringP("status", "s", "", "Filter by status (pending, approved, rejected)")
-	approveCmd.Flags().StringP("comment", "m", "", "Optional approval comment")
-	rejectCmd.Flags().StringP("reason", "r", "", "Mandatory reason for rejection")
 
 	Cmd.AddCommand(listCmd)
 	Cmd.AddCommand(approveCmd)

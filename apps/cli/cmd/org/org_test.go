@@ -2,6 +2,7 @@ package org
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	cmdauth "github.com/raizora/radas/v4/cmd/auth"
+	cliauth "github.com/raizora/radas/v4/internal/auth"
 	"github.com/raizora/radas/v4/internal/config"
 )
 
@@ -19,12 +22,31 @@ import (
 // stdout output together with the command error.
 func runOrg(t *testing.T, srvURL string, args ...string) (string, error) {
 	t.Helper()
+	return runOrgEnv(t, srvURL, nil, args...)
+}
+
+// runOrgEnv executes an org subcommand with isolated runtime configuration.
+// When creds is non-nil it is seeded into the CLI credential store so the
+// command must authenticate from stored credentials (RADAS_TOKEN stays
+// empty); otherwise no credentials exist at all.
+func runOrgEnv(t *testing.T, srvURL string, creds *cliauth.Credentials, args ...string) (string, error) {
+	t.Helper()
 
 	t.Setenv("RADAS_API_URL", srvURL)
 	t.Setenv("RADAS_TOKEN", "")
 	t.Setenv("RADAS_ORG_ID", "")
 	t.Setenv("RADAS_PROJECT_ID", "")
 	t.Setenv("RADAS_CONFIG_DIR", t.TempDir())
+
+	if creds != nil {
+		c := *creds
+		if c.APIURL == "" {
+			c.APIURL = srvURL
+		}
+		if err := cliauth.NewStoreAt(os.Getenv("RADAS_CONFIG_DIR")).Save(c); err != nil {
+			t.Fatalf("seed stored credentials: %v", err)
+		}
+	}
 
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -80,7 +102,7 @@ func TestOrgListSuccess(t *testing.T) {
 }
 
 func TestOrgListServerErrorNeverPrintsFallbackRows(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError} {
+	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError} {
 		srv := statusServer(t, code, `{"error":"boom"}`)
 		out, err := runOrg(t, srv.URL, "list")
 		srv.Close()
@@ -96,6 +118,48 @@ func TestOrgListServerErrorNeverPrintsFallbackRows(t *testing.T) {
 		if !strings.Contains(out, "request req-") {
 			t.Errorf("status %d: error output must carry the request ID:\n%s", code, out)
 		}
+	}
+}
+
+// With no stored credentials and no RADAS_TOKEN, a 401 must surface as the
+// typed not-authenticated error that tells the user how to fix it.
+func TestOrgListWithoutCredentialsSurfacesNotAuthenticated(t *testing.T) {
+	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	defer srv.Close()
+
+	_, err := runOrg(t, srv.URL, "list")
+	if !errors.Is(err, cmdauth.ErrNotAuthenticated) {
+		t.Fatalf("error = %v, want cmdauth.ErrNotAuthenticated", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
+	}
+}
+
+// The adapter must authenticate from the credentials stored by
+// `radas auth login` when no --token/RADAS_TOKEN override is present.
+func TestOrgListAuthenticatesFromStoredCredentials(t *testing.T) {
+	var (
+		gotAuth  string
+		authSeen int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		authSeen++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"orgs": []}`))
+	}))
+	defer srv.Close()
+
+	creds := &cliauth.Credentials{AccessToken: "stored-access-token", Username: "alice"}
+	if _, err := runOrgEnv(t, srv.URL, creds, "list"); err != nil {
+		t.Fatalf("org list with stored credentials: %v", err)
+	}
+	if authSeen != 1 {
+		t.Fatalf("server calls = %d, want 1", authSeen)
+	}
+	if gotAuth != "Bearer stored-access-token" {
+		t.Errorf("Authorization = %q, want the stored access token as bearer", gotAuth)
 	}
 }
 

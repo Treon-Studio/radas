@@ -119,6 +119,7 @@ type loginResponse struct {
 	MFARequired  bool   `json:"mfa_required"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	ActiveOrgID  string `json:"active_org_id"`
 	User         struct {
 		Username string `json:"username"`
 	} `json:"user"`
@@ -180,8 +181,31 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("store credentials: %w", err)
 	}
 
+	// Persist the server-resolved active organization to the CLI selector so
+	// subsequent remote commands send the matching X-Org-Id without asking
+	// again. The selector holds identifiers only and a login without org
+	// context leaves any existing selection untouched.
+	if err := persistActiveOrg(result.ActiveOrgID); err != nil {
+		return fmt.Errorf("persist active organization: %w", err)
+	}
+
 	fmt.Fprintf(out, "✔ Logged in as %s (API: %s). Credentials stored with 0600 permissions; they are never printed.\n", displayName, rc.APIURL)
 	return nil
+}
+
+// persistActiveOrg records the login response's active_org_id in the CLI
+// selector, preserving any previously chosen project. An empty active org
+// (the user has no organization yet) changes nothing.
+func persistActiveOrg(activeOrgID string) error {
+	if activeOrgID == "" {
+		return nil
+	}
+	sel, err := config.LoadSelector()
+	if err != nil {
+		return err
+	}
+	sel.OrganizationID = activeOrgID
+	return config.SaveSelector(sel)
 }
 
 // loginHTTPError converts a failed login request into typed errors. Server
@@ -519,8 +543,14 @@ func DoWithRefresh(ctx context.Context, cmd *cobra.Command, call func(c *client.
 	creds, loadErr := store.Load()
 	if loadErr != nil {
 		// No (readable) stored credentials: make the call token-less so the
-		// server's 401 surfaces as the typed not-authenticated error.
-		resp, callErr := call(client.New(client.Config{BaseURL: rc.APIURL}))
+		// server's 401 surfaces as the typed not-authenticated error. The
+		// tenant context still travels on the request — project-scoped
+		// endpoints validate/scope on X-Project-Id regardless of auth state.
+		resp, callErr := call(client.New(client.Config{
+			BaseURL:        rc.APIURL,
+			ProjectID:      rc.ProjectID,
+			OrganizationID: rc.OrganizationID,
+		}))
 		if callErr != nil && isUnauthorized(callErr) {
 			return nil, fmt.Errorf("%w", ErrNotAuthenticated)
 		}

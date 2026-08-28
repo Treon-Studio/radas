@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,12 +10,24 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	cmdauth "github.com/raizora/radas/v4/cmd/auth"
+	cliauth "github.com/raizora/radas/v4/internal/auth"
 )
 
 // runAudit executes an audit subcommand with the runtime configuration
 // pointed at srvURL and returns the combined cobra and stdout output together
 // with the command error.
 func runAudit(t *testing.T, srvURL string, args ...string) (string, error) {
+	t.Helper()
+	return runAuditEnv(t, srvURL, nil, args...)
+}
+
+// runAuditEnv executes an audit subcommand with isolated runtime
+// configuration. When creds is non-nil it is seeded into the CLI credential
+// store so the command must authenticate from stored credentials
+// (RADAS_TOKEN stays empty); otherwise no credentials exist at all.
+func runAuditEnv(t *testing.T, srvURL string, creds *cliauth.Credentials, args ...string) (string, error) {
 	t.Helper()
 
 	t.Setenv("RADAS_API_URL", srvURL)
@@ -28,6 +41,16 @@ func runAudit(t *testing.T, srvURL string, args ...string) (string, error) {
 		t.Fatalf("chdir: %v", err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(oldWd) })
+
+	if creds != nil {
+		c := *creds
+		if c.APIURL == "" {
+			c.APIURL = srvURL
+		}
+		if err := cliauth.NewStoreAt(os.Getenv("RADAS_CONFIG_DIR")).Save(c); err != nil {
+			t.Fatalf("seed stored credentials: %v", err)
+		}
+	}
 
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -121,7 +144,7 @@ func TestAuditListWithActionUsesSearchRoute(t *testing.T) {
 }
 
 func TestAuditListServerErrorNeverPrintsFallbackRows(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError} {
+	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError} {
 		srv := statusServer(t, code, `{"error":"boom"}`)
 		out, err := runAudit(t, srv.URL, "list")
 		srv.Close()
@@ -137,6 +160,51 @@ func TestAuditListServerErrorNeverPrintsFallbackRows(t *testing.T) {
 		if !strings.Contains(out, "request req-") {
 			t.Errorf("status %d: error output must carry the request ID:\n%s", code, out)
 		}
+	}
+}
+
+// With no stored credentials and no RADAS_TOKEN, a 401 must surface as the
+// typed not-authenticated error that tells the user how to fix it.
+func TestAuditListWithoutCredentialsSurfacesNotAuthenticated(t *testing.T) {
+	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	defer srv.Close()
+
+	_, err := runAudit(t, srv.URL, "list")
+	if !errors.Is(err, cmdauth.ErrNotAuthenticated) {
+		t.Fatalf("error = %v, want cmdauth.ErrNotAuthenticated", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
+	}
+}
+
+// The export path must also authenticate from stored credentials.
+func TestAuditExportAuthenticatesFromStoredCredentials(t *testing.T) {
+	var (
+		gotAuth  string
+		authSeen int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		authSeen++
+		w.Header().Set("Content-Type", "text/csv")
+		_, _ = w.Write([]byte("id,actor_user_id,action\nev-1,admin,stack.apply\n"))
+	}))
+	defer srv.Close()
+
+	creds := &cliauth.Credentials{AccessToken: "stored-access-token", Username: "alice"}
+	out, err := runAuditEnv(t, srv.URL, creds, "export", "--format", "csv", "--out", "creds.csv")
+	if err != nil {
+		t.Fatalf("audit export with stored credentials: %v", err)
+	}
+	if authSeen != 1 {
+		t.Fatalf("server calls = %d, want 1", authSeen)
+	}
+	if gotAuth != "Bearer stored-access-token" {
+		t.Errorf("Authorization = %q, want the stored access token as bearer", gotAuth)
+	}
+	if !strings.Contains(out, "1 records from the server") {
+		t.Errorf("expected the single CSV record counted (header excluded), got:\n%s", out)
 	}
 }
 
@@ -178,6 +246,99 @@ func TestAuditExportWritesServerBody(t *testing.T) {
 	}
 	if !strings.Contains(out, "export-test.csv") {
 		t.Errorf("expected the output path in the report:\n%s", out)
+	}
+}
+
+// The server's CSV export always writes a header row first; the reported
+// record count must not count that header as a record.
+func TestAuditExportCSVCountExcludesHeaderRow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/csv")
+		_, _ = w.Write([]byte("id,actor_user_id,action,created_at\n" +
+			"ev-1,admin,stack.apply,2026-08-27T10:00:00Z\n" +
+			"ev-2,admin,stack.destroy,2026-08-27T11:00:00Z\n"))
+	}))
+	defer srv.Close()
+
+	out, err := runAudit(t, srv.URL, "export", "--format", "csv", "--out", "count.csv")
+	if err != nil {
+		t.Fatalf("audit export: %v", err)
+	}
+	if !strings.Contains(out, "2 records from the server") {
+		t.Errorf("CSV count must exclude the header row (2 records), got:\n%s", out)
+	}
+}
+
+// Quoted CSV fields may contain newlines; they are part of one record, not
+// extra records.
+func TestAuditExportCSVCountHandlesQuotedNewlines(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/csv")
+		_, _ = w.Write([]byte("id,actor_user_id,action,meta\n" +
+			"ev-1,admin,stack.apply,\"line one\nline two\"\n" +
+			"ev-2,admin,stack.destroy,\n"))
+	}))
+	defer srv.Close()
+
+	out, err := runAudit(t, srv.URL, "export", "--format", "csv", "--out", "quoted.csv")
+	if err != nil {
+		t.Fatalf("audit export: %v", err)
+	}
+	if !strings.Contains(out, "2 records from the server") {
+		t.Errorf("quoted newlines must not inflate the record count, got:\n%s", out)
+	}
+}
+
+// A header-only CSV export contains zero records.
+func TestAuditExportCSVHeaderOnlyCountsZeroRecords(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/csv")
+		_, _ = w.Write([]byte("id,actor_user_id,action,created_at\n"))
+	}))
+	defer srv.Close()
+
+	out, err := runAudit(t, srv.URL, "export", "--format", "csv", "--out", "empty.csv")
+	if err != nil {
+		t.Fatalf("audit export: %v", err)
+	}
+	if !strings.Contains(out, "0 records from the server") {
+		t.Errorf("header-only CSV must report 0 records, got:\n%s", out)
+	}
+}
+
+// JSONL exports are newline-delimited objects: every non-empty line is a record.
+func TestAuditExportJSONLCountsRecords(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte("{\"id\": \"ev-1\", \"action\": \"a\"}\n{\"id\": \"ev-2\", \"action\": \"b\"}\n"))
+	}))
+	defer srv.Close()
+
+	out, err := runAudit(t, srv.URL, "export", "--format", "jsonl", "--out", "count.jsonl")
+	if err != nil {
+		t.Fatalf("audit export: %v", err)
+	}
+	if !strings.Contains(out, "2 records from the server") {
+		t.Errorf("JSONL count must equal the number of lines, got:\n%s", out)
+	}
+}
+
+// /api/audit-log is project-scoped (X-Project-Id is required by the server);
+// the command must send the selected project's context.
+func TestAuditListSendsProjectContextHeader(t *testing.T) {
+	var gotProject string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProject = r.Header.Get("X-Project-Id")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success": true, "entries": [], "count": 0}`))
+	}))
+	defer srv.Close()
+
+	if _, err := runAudit(t, srv.URL, "list"); err != nil {
+		t.Fatalf("audit list: %v", err)
+	}
+	if gotProject != "proj-1" {
+		t.Errorf("X-Project-Id = %q, want proj-1 (the server rejects /api/audit-log without it)", gotProject)
 	}
 }
 
@@ -237,7 +398,7 @@ func TestAuditEvidencePrintsLiveComplianceReport(t *testing.T) {
 }
 
 func TestAuditEvidenceServerErrorNeverFabricates(t *testing.T) {
-	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	srv := statusServer(t, http.StatusInternalServerError, `{"error":"boom"}`)
 	out, err := runAudit(t, srv.URL, "evidence")
 	srv.Close()
 

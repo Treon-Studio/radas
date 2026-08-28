@@ -6,17 +6,19 @@
 package audit
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -47,14 +49,17 @@ type auditListResponse struct {
 	Entries []AuditEvent `json:"entries"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+// The project context (X-Project-Id) always travels on the request — the
+// server requires it to scope /api/audit-log regardless of auth state.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -85,10 +90,6 @@ var listCmd = &cobra.Command{
 		user, _ := cmd.Flags().GetString("user")
 		limit, _ := cmd.Flags().GetInt("limit")
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -113,7 +114,7 @@ var listCmd = &cobra.Command{
 		} else {
 			path = "/api/audit-log?" + params.Encode()
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, path, nil, target); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, path, nil, target); err != nil {
 			return fmt.Errorf("audit list: %w", err)
 		}
 		events := listResp.Entries
@@ -155,18 +156,18 @@ var exportCmd = &cobra.Command{
 			outFile = fmt.Sprintf("audit_export_%d.%s", time.Now().Unix(), format)
 		}
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		// GET /api/audit-log/export returns the export document (csv or
-		// jsonl); the CLI writes exactly what the server produced.
+		// jsonl); the CLI writes exactly what the server produced. The call
+		// goes through the shared credential resolution like every other
+		// command; the raw body is returned undecoded.
 		rid := client.NewRequestID()
 		path := fmt.Sprintf("/api/audit-log/export?format=%s&limit=%d", url.QueryEscape(format), limit)
-		resp, err := c.Do(ctx, http.MethodGet, path, nil, client.RequestOptions{RequestID: rid})
+		resp, err := auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+			return c.Do(ctx, http.MethodGet, path, nil, client.RequestOptions{RequestID: rid})
+		})
 		if err != nil {
 			return fmt.Errorf("GET %s failed (request %s): %w", path, rid, err)
 		}
@@ -174,7 +175,7 @@ var exportCmd = &cobra.Command{
 			return fmt.Errorf("write export file %s: %w", outFile, err)
 		}
 
-		lines := countLines(resp.Body)
+		lines := countRecords(resp.Body, format)
 		fmt.Printf("✔ Exported audit log to '%s' (format: %s, %d records from the server).\n", outFile, format, lines)
 		return nil
 	},
@@ -184,10 +185,6 @@ var evidenceCmd = &cobra.Command{
 	Use:   "evidence",
 	Short: "Print the live compliance report for the selected project",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
@@ -203,7 +200,7 @@ var evidenceCmd = &cobra.Command{
 				} `json:"checks"`
 			} `json:"scorecard"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, "/api/compliance/report", nil, &report); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, "/api/compliance/report", nil, &report); err != nil {
 			return fmt.Errorf("audit evidence: %w", err)
 		}
 
@@ -246,23 +243,45 @@ func init() {
 	Cmd.AddCommand(evidenceCmd)
 }
 
-// countLines counts non-empty newline-terminated records in an export body.
-func countLines(body []byte) int {
-	var raw []map[string]any
-	if err := json.Unmarshal(body, &raw); err == nil {
-		return len(raw)
+// countRecords counts the data records in an export body. CSV exports always
+// carry a header row (which is not a record) and quoted fields may contain
+// newlines, so the body is parsed with encoding/csv. JSONL exports are
+// newline-delimited JSON objects: every non-empty line is one record.
+func countRecords(body []byte, format string) int {
+	if format == "csv" {
+		return countCSVRecords(body)
 	}
 	count := 0
-	start := true
-	for _, b := range body {
-		if b == '\n' || b == '\r' {
-			start = true
-			continue
-		}
-		if start {
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.TrimSpace(line) != "" {
 			count++
-			start = false
 		}
 	}
 	return count
+}
+
+func countCSVRecords(body []byte) int {
+	r := csv.NewReader(bytes.NewReader(body))
+	// The trailing meta column is free-form; rows are records regardless of
+	// field-count variations.
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	if err != nil {
+		// Best effort for bodies encoding/csv cannot parse: count non-empty
+		// lines and drop the header row the server always writes first.
+		n := 0
+		for _, line := range strings.Split(string(body), "\n") {
+			if strings.TrimSpace(line) != "" {
+				n++
+			}
+		}
+		if n > 0 {
+			n--
+		}
+		return n
+	}
+	if len(rows) == 0 {
+		return 0
+	}
+	return len(rows) - 1 // row 0 is the header
 }
