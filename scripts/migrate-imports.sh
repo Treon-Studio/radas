@@ -2,11 +2,13 @@
 
 # Script to migrate imports from old structure to new monorepo structure
 # Usage: ./scripts/migrate-imports.sh [target-directory]
-# Example: ./scripts/migrate-imports.sh apps/chrome-ext
+# Example: ./scripts/migrate-imports.sh apps/console
 
 set -e
 
-TARGET_DIR="${1:-apps/chrome-ext}"
+# The target directory is explicit: there is no default (the historical
+# default apps/chrome-ext no longer exists in the repository).
+TARGET_DIR="${1:?usage: migrate-imports.sh <target-directory>}"
 
 echo "🚀 Starting import migration for: $TARGET_DIR"
 echo ""

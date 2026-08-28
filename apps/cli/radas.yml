@@ -10,9 +10,8 @@ stacks:
   - zod
   - react
 contract:
-  design:
-    - path: contracts/bungas/design
-      type: css
+  # No design contract exists in this repository; gen-styles falls back to
+  # its explicit --source flag when this list is empty.
   api:
-    - path: contracts/investrack/api/openapi.json
+    - path: contracts/radas-api-v2.openapi.json
       type: open-api
