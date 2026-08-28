@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 type OpenAIConfig struct {
@@ -92,6 +94,10 @@ type toolCall struct {
 }
 
 func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Event, error) {
+	if err := netgate.EnsureConnected("RADAS AI Assistant"); err != nil {
+		return nil, err
+	}
+
 	msgs := make([]chatMessage, len(req.Messages))
 	for i, m := range req.Messages {
 		msgs[i] = chatMessage{
@@ -131,7 +137,7 @@ func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Even
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
+		return nil, fmt.Errorf("http request: %w", netgate.WrapError("OpenAI API", err))
 	}
 
 	ch := make(chan Event)

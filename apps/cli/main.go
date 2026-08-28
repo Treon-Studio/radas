@@ -9,6 +9,7 @@ import (
 
 	"github.com/raizora/radas/v4/cmd/approval"
 	"github.com/raizora/radas/v4/cmd/audit"
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/cmd/backend"
 	"github.com/raizora/radas/v4/cmd/cloud"
 	"github.com/raizora/radas/v4/cmd/config"
@@ -22,6 +23,7 @@ import (
 	"github.com/raizora/radas/v4/cmd/infra"
 	"github.com/raizora/radas/v4/cmd/org"
 	"github.com/raizora/radas/v4/cmd/policy"
+	"github.com/raizora/radas/v4/cmd/project"
 	"github.com/raizora/radas/v4/cmd/registry"
 	"github.com/raizora/radas/v4/cmd/rootcmd"
 	"github.com/raizora/radas/v4/cmd/scan"
@@ -49,7 +51,7 @@ var (
 func main() {
 	// Handle aliases if first argument is an alias
 	handleAliases()
-	
+
 	// Root command
 	rootCmd := &cobra.Command{
 		Use:   "radas",
@@ -58,22 +60,31 @@ func main() {
 Radas CLI provides tools for various development teams.
 It includes commands for Frontend (fe), Backend (be), DevOps, and Design teams.
 When run with no arguments in a terminal, it launches the TUI dashboard.`,
-		Version: constants.Version,
-		RunE:    runTUI,
+		Version:       constants.Version,
+		RunE:          runTUI,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
-	// Auto-check for updates but only print a message
-	go func() {
-		release, hasUpdate, err := updater.CheckForUpdate()
-		if err == nil && hasUpdate {
-			fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n", 
-				strings.TrimPrefix(release.TagName, "v"))
-		}
-	}()
+	// Auto-check for updates only on interactive root launch to avoid interfering with subcommands
+	if len(os.Args) <= 1 {
+		go func() {
+			release, hasUpdate, err := updater.CheckForUpdate()
+			if err == nil && hasUpdate {
+				fmt.Printf("\nNew version %s available! Run 'radas update' to upgrade.\n\n",
+					strings.TrimPrefix(release.TagName, "v"))
+			}
+		}()
+	}
 
-
+	// Shared connection/tenant flags (--api-url, --token, --org-id,
+	// --project-id) resolved by internal/config.LoadRuntimeConfig.
+	rootcmd.RegisterRuntimeFlags(rootCmd)
 
 	rootCmd.AddCommand(config.ConfigCmd)
+
+	// Auth command group (login/refresh/status/logout, Task 3.1)
+	rootCmd.AddCommand(auth.Cmd)
 
 	// Add team commands to root
 	rootCmd.AddCommand(frontend.Cmd)
@@ -114,7 +125,6 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(git.CloneCmd)
 	rootCmd.AddCommand(rootcmd.GotoCmd)
 
-
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
 	rootCmd.AddCommand(scan.ScanCmd)
 
@@ -133,6 +143,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(worker.Cmd)
 	rootCmd.AddCommand(org.Cmd)
 	rootCmd.AddCommand(user.Cmd)
+	rootCmd.AddCommand(project.Cmd)
 	rootCmd.AddCommand(secret.Cmd)
 	rootCmd.AddCommand(drift.Cmd)
 	rootCmd.AddCommand(state.Cmd)
@@ -141,7 +152,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -152,28 +163,28 @@ func handleAliases() {
 	if len(os.Args) < 2 {
 		return
 	}
-	
+
 	// Check if the first argument is an alias
 	alias := os.Args[1]
 	if fullCommand, exists := constants.CommandAliases[alias]; exists {
 		// Split the full command into parts
 		cmdParts := strings.Split(fullCommand, " ")
-		
+
 		// Create a new args slice with "radas" as the program name,
 		// followed by the expanded command parts,
 		// followed by any additional args provided by the user
-		newArgs := make([]string, 0, len(cmdParts) + len(os.Args) - 1)
-		newArgs = append(newArgs, os.Args[0]) // Program name (radas)
+		newArgs := make([]string, 0, len(cmdParts)+len(os.Args)-1)
+		newArgs = append(newArgs, os.Args[0])  // Program name (radas)
 		newArgs = append(newArgs, cmdParts...) // Expanded command
-		
+
 		// Add any additional arguments that were provided (if any)
 		if len(os.Args) > 2 {
 			newArgs = append(newArgs, os.Args[2:]...)
 		}
-		
+
 		// Replace os.Args with the new arguments
 		os.Args = newArgs
-		
+
 		// Print a message to show the alias expansion (optional)
 		fmt.Printf("Using alias: %s → radas %s\n\n", alias, fullCommand)
 	}

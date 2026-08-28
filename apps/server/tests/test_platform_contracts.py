@@ -11,6 +11,7 @@ from api import register_blueprints
 from api.platform_contracts import (
     REQUEST_ID_HEADER,
     error_response,
+    is_platform_request,
     operation_envelope,
     operation_response,
     redact_sensitive,
@@ -191,6 +192,32 @@ def test_platform_root_namespace_is_enveloped(app: Flask):
     assert response.status_code == 404
     assert response.get_json()["error"]["code"] == "NOT_FOUND"
     assert response.get_json()["request_id"] == response.headers[REQUEST_ID_HEADER]
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        # The served /api/v2 document promises ErrorEnvelope errors and
+        # X-Request-ID correlation, so the whole v2 namespace is contract.
+        ("/api/v2", True),
+        ("/api/v2/platform/catalog", True),
+        ("/api/v2/openapi.json", True),
+        ("/api/v2/projects/p1/services/s1/source/deploy", True),
+        # Exact legacy mirrors stay outside the contract, byte-identical to v1.
+        ("/api/v2/platform/idempotency", False),
+        ("/api/platform/catalog", True),
+        ("/api/platform", True),
+        ("/api/platform/idempotency", False),
+        ("/api/projects/p1/services/s1/source/deploy", True),
+        ("/api/projects/p1/environments", False),
+        ("/healthz", False),
+        ("/readyz", False),
+    ],
+)
+def test_contract_namespace_classification(path: str, expected: bool):
+    bare = Flask(__name__)
+    with bare.test_request_context(path):
+        assert is_platform_request() is expected
 
 
 def test_legacy_health_and_method_errors_keep_legacy_shapes(app: Flask, monkeypatch):

@@ -268,12 +268,23 @@ def _est_scope(project_id: str) -> str:
     safe = "".join(c for c in project_id if c.isalnum() or c in "-_") or "default"
     return f"cost_estimates:{safe}"
 
+def list_estimates_strict(project_id: str) -> List[Dict[str, Any]]:
+    """list_estimates that propagates storage failures instead of returning [].
+
+    Budget checks must distinguish "no estimates" from "cost storage
+    unavailable" (Task 5.5) — callers that need that distinction use this
+    variant; the legacy ``list_estimates`` keeps its ``[]`` fallback for read
+    routes.
+    """
+    from storage import kv
+    v = kv.kv_load(_est_scope(project_id))
+    return v if isinstance(v, list) else []
+
 def list_estimates(project_id: str) -> List[Dict[str, Any]]:
     try:
-        from storage import kv
-        v = kv.kv_load(_est_scope(project_id))
-        return v if isinstance(v, list) else []
-    except Exception:
+        return list_estimates_strict(project_id)
+    except Exception as e:
+        logger.error(f"cost_store.list_estimates_failed: {type(e).__name__}")
         return []
 
 def save_estimate(project_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:

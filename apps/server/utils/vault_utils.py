@@ -62,6 +62,8 @@ def ansible_vault_decrypt(encrypted_content: str, password: str, vault_id: Optio
             os.chmod(pass_path, 0o600)
             cmd = ['ansible-vault', 'decrypt', enc_path, '--output', '-']
             if vault_id:
+                # sensitive-path-ok: vault_id and a chmod-600 temp-file path
+                # form a single argv element; no shell; no flag splitting.
                 cmd.extend(['--vault-id', f'{vault_id}@{pass_path}'])
             else:
                 cmd.extend(['--vault-password-file', pass_path])

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/constants"
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
@@ -18,16 +19,10 @@ var (
 )
 
 var DelBranchCmd = &cobra.Command{
-	Use:   "del-branch [branch-name]",
-	Short: "Delete local and/or origin branches.",
+	Use:     "del-branch [branch-name]",
+	Short:   "Delete local and/or origin branches.",
+	PreRunE: netgate.RequireNetwork("Git Delete Remote Branch"),
 	Run: func(cmd *cobra.Command, args []string) {
-		if flagAllType || flagAllOrigin || flagOriginOnly {
-			if err := utils.CheckNetwork(); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		}
-		
 		if flagAllType {
 			// Delete all local and all origin branches except current
 			fmt.Println("🌪️ Bip bop! Mengaktifkan mode sapu jagat...")

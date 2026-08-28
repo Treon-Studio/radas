@@ -80,11 +80,11 @@ Plan: [`2026-08-15-all-in-one-developer-platform.md`](superpowers/plans/2026-08-
 | 26 | Estimasi biaya stack sebelum apply | ✅ | P0 | 0 |
 | 27 | Ekstrak biaya dari terraform plan | ✅ | P0 | 0 |
 | 28 | Report biaya per provider | ✅ | P0 | 0 |
-| 29 | Trending & forecast biaya | ✅ | P1 | 3 |
+| 29 | Trending & forecast biaya | 🔶 | P1 | 3 |
 | 30 | Budget & alert threshold per project | ✅ | P0 | 1 |
-| 31 | Breakdown biaya per tag/role | ✅ | P1 | 3 |
+| 31 | Breakdown biaya per tag/role | 🔶 | P1 | 3 |
 | 32 | Rekomendasi rightsizing VM idle | ✅ | P2 | 3 |
-| 33 | Rollup biaya multi-project/org | ✅ | P1 | 3 |
+| 33 | Rollup biaya multi-project/org | 🔶 | P1 | 3 |
 
 ## D. Secrets & Keamanan (34–45)
 
@@ -647,7 +647,7 @@ fitur terpisah:
 | 479 | Worker fairness (round-robin stack) | ✅ | P2 | 6 |
 | 480 | Worker drain: selesaikan run sebelum restart | ✅ | P2 | 6 |
 | 481 | Timeout eksekusi per action (default) | ✅ | P1 | 6 |
-| 482 | Retry policy per stack (sudah ada retry_policy) | ✅ | P1 | 6 |
+| 482 | Retry policy per stack (sudah ada retry_policy) | 🔶 | P1 | 6 |
 | 483 | Concurrency limit per project | ✅ | P1 | 6 |
 | 484 | Quota worker (sudah quota stacks/vms) | ✅ | P1 | 6 |
 | 485 | Harga: estimasi instance per provider CSP | ✅ | P2 | 6 |
@@ -842,6 +842,12 @@ fitur terpisah:
 
 ## Ringkasan
 
-- ✅ Selesai: **100%** across all phases (Fase 1 s/d Fase 6 & BYOC Registry).
-- Semua use case roadmap telah diimplementasikan dengan test suite teruji (860+ passing tests) dan persisted PostgreSQL schema migrations.
+- Semua use case roadmap telah diimplementasikan, dengan contract/reliability
+  gates hijau di branch ini (OpenAPI snapshot pin, route parity, redaction
+  matrix, cross-client parity, failure/recovery drills) dan persisted
+  PostgreSQL schema migrations.
+- Status per baris mengikuti **evidence matrix**:
+  `docs/architecture/roadmap-evidence-matrix.md` — klaim "100%" sebelumnya
+  sudah dicabut karena beberapa baris hanya terverifikasi parsial
+  (lihat downgrade 🔶 dan fase yang verifikasi e2e-nya masih pending).
 

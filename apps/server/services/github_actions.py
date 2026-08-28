@@ -425,6 +425,8 @@ def upsert_secret(owner: str, repo: str, name: str, value: str) -> Dict[str, Any
     # For plan scope: store plaintext is NOT allowed — we require gh CLI to
     # encrypt. Use `gh secret set` which handles encryption automatically.
     try:
+        # sensitive-path-ok: argv list (no shell); owner/repo interpolate into
+        # one element and the secret value is gh CLI's own --body contract.
         r = subprocess.run(["gh", "secret", "set", name, "--repo", f"{owner}/{repo}",
                             "--body", value], capture_output=True, text=True, timeout=30)
     except FileNotFoundError:

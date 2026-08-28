@@ -8,14 +8,16 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/scan"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var VulnCmd = &cobra.Command{
-	Use:   "vuln",
-	Short: "Scan frontend dependencies for vulnerabilities",
-	Long:  `Runs pnpm audit (or npm audit) on the current frontend project to detect known vulnerabilities in dependencies.`,
+	Use:     "vuln",
+	Short:   "Scan frontend dependencies for vulnerabilities",
+	Long:    `Runs pnpm audit (or npm audit) on the current frontend project to detect known vulnerabilities in dependencies.`,
+	PreRunE: netgate.RequireNetwork("Frontend Vulnerability Scan"),
 	Run: func(cmd *cobra.Command, args []string) {
 		results := []*scan.VulnResult{}
 

@@ -32,10 +32,21 @@ def api_put_budget(project_id):
         amount = float(data.get("amount", 0))
     except (TypeError, ValueError):
         return jsonify({"error": "invalid amount", "message": "amount must be a number"}), 400
-    if amount <= 0:
-        return jsonify({"error": "invalid amount", "message": "amount must be > 0"}), 400
-    b = save_budget(project_id, amount, str(data.get("currency") or "USD"),
-                    float(data.get("alert_at_pct") or 80))
+    raw_pct = data.get("alert_at_pct")
+    if raw_pct is None:
+        raw_pct = 80
+    try:
+        alert_at_pct = float(raw_pct)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid alert_at_pct", "message": "alert_at_pct must be a number"}), 400
+    try:
+        # Service-level validation rejects negative, NaN, infinite and
+        # oversized amounts and out-of-range alert_at_pct (Task 5.5).
+        b = save_budget(project_id, amount, str(data.get("currency") or "USD"), alert_at_pct)
+    except ValueError as exc:
+        message = str(exc) or "invalid budget input"
+        key = "invalid alert_at_pct" if "alert_at_pct" in message else "invalid amount"
+        return jsonify({"error": key, "message": message}), 400
     return jsonify({"success": True, "budget": b})
 
 

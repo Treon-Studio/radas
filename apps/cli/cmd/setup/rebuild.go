@@ -50,16 +50,15 @@ var RebuildCmd = &cobra.Command{
 		}
 
 		cmdExec := exec.Command("bash", scriptPath)
-		// Hide Stdout to let the spinner shine, but keep Stderr
+		cmdExec.Stdout = os.Stdout
 		cmdExec.Stderr = os.Stderr
 		cmdExec.Stdin = os.Stdin
 		cmdExec.Dir = filepath.Join(sourcePath, "apps", "cli")
 		
-		spin := utils.NewSpinner("🛠️ Bip bop! Rebuild & auto-install jalan... Siap-siap ketik password Mac kamu ya ngab!")
+		spin := utils.NewSpinner("🛠️ Bip bop! Rebuild & auto-install jalan... Siap-siap ketik password Mac kamu ya ngab!\n")
 		spin.Start()
 		
 		err := cmdExec.Run()
-		
 		spin.Stop()
 		
 		if err != nil {

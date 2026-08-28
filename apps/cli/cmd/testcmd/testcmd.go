@@ -1,45 +1,119 @@
 // Package testcmd implements the `radas test` command group for automated test suites and idempotency.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// None of the commands print fabricated test results.
 package testcmd
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
+	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
+	"github.com/raizora/radas/v4/internal/client"
 	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the test execution group.
 var Cmd = &cobra.Command{
 	Use:     "test",
-	Aliases: []string{"tests", "check"},
-	Short:   "Execute OpenTofu test cases (.tftest.hcl), list test suites, and calculate scores",
-	Long: `The test command group manages and runs automated infrastructure tests,
-lists registered test suites (.tftest.hcl, policy assertions, idempotency checks),
-and calculates stack reliability and compliance scores.`,
+	Aliases: []string{"tests"},
+	Short:   "List, run, and score the control-plane test cases for a project",
+	Long: `The test command group manages the test cases registered on the RADAS control
+plane (.tftest.hcl assertions, policy assertions, idempotency checks): listing
+(GET /api/tests), queueing runs (POST /api/tests/<id>/run), and computing the
+stack security score (GET /api/test-cases/score).`,
 }
 
+// TestCase mirrors the fields of the control-plane test case rows the CLI
+// renders (services/test_cases.list_test_cases).
 type TestCase struct {
-	ID          string `json:"id"`
-	Suite       string `json:"suite"`
-	Type        string `json:"type"`
-	TargetStack string `json:"target_stack"`
-	Assertions  int    `json:"assertions"`
-	Status      string `json:"status"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
+	Stack   string `json:"stack"`
+	Enabled *bool  `json:"enabled"`
+}
+
+func (tc TestCase) status() string {
+	if tc.Enabled == nil {
+		return "unknown"
+	}
+	if *tc.Enabled {
+		return "enabled"
+	}
+	return "disabled"
+}
+
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
+}
+
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
+// listTestCases fetches the project's test cases from GET /api/tests through
+// the shared credential resolution.
+func listTestCases(ctx context.Context, cmd *cobra.Command) ([]TestCase, error) {
+	var resp struct {
+		TestCases []TestCase `json:"test_cases"`
+	}
+	if _, err := callAPI(ctx, cmd, http.MethodGet, "/api/tests", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.TestCases, nil
 }
 
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls", "cases"},
-	Short:   "List all registered test cases, assertions, and test suites",
+	Short:   "List the test cases registered on the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		cases, err := listTestCases(ctx, cmd)
+		if err != nil {
+			return fmt.Errorf("test list: %w", err)
+		}
+
+		if len(cases) == 0 {
+			fmt.Println("No test cases registered for this project.")
+			return nil
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "TEST ID\tSUITE FILE\tTYPE\tTARGET STACK\tASSERTIONS\tSTATUS")
-		fmt.Fprintln(w, "tc-001\ttests/vpc_cidr_block_valid.tftest.hcl\tOpenTofu Unit\tprod-vpc\t4\tPASS")
-		fmt.Fprintln(w, "tc-002\ttests/subnet_tier_distribution.tftest.hcl\tOpenTofu Integration\tprod-vpc\t6\tPASS")
-		fmt.Fprintln(w, "tc-003\ttests/nat_gateway_redundancy.tftest.hcl\tOpenTofu Unit\tprod-vpc\t3\tPASS")
-		fmt.Fprintln(w, "tc-004\tplaybooks/idempotency_check.yml\tAnsible Idempotency\tbytedc-db\t8\tPASS")
-		fmt.Fprintln(w, "tc-005\tpolicies/encryption_guard.rego\tPolicy-as-Code\tall\t5\tPASS")
+		fmt.Fprintln(w, "TEST ID\tNAME\tKIND\tSTACK\tSTATUS")
+		for _, tc := range cases {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", tc.ID, tc.Name, tc.Kind, tc.Stack, tc.status())
+		}
 		w.Flush()
 		return nil
 	},
@@ -47,37 +121,74 @@ var listCmd = &cobra.Command{
 
 var showCmd = &cobra.Command{
 	Use:   "show <test-id>",
-	Short: "Show details and assertions of a specific test case",
+	Short: "Show a registered test case from the control-plane registry",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		testID := args[0]
-		fmt.Printf("Test Case: %s\n", testID)
-		fmt.Printf("Suite:     tests/vpc_cidr_block_valid.tftest.hcl\n")
-		fmt.Printf("Type:      OpenTofu 1.8+ Native Test (.tftest.hcl)\n")
-		fmt.Printf("Stack:     prod-vpc\n")
-		fmt.Printf("Status:    PASS (All 4 assertions satisfied)\n\n")
-		fmt.Println("Assertions:")
-		fmt.Println("  1. assert { condition = var.vpc_cidr == \"10.0.0.0/16\" }")
-		fmt.Println("  2. assert { condition = length(aws_subnet.public) >= 2 }")
-		fmt.Println("  3. assert { condition = aws_vpc.main.enable_dns_hostnames == true }")
-		fmt.Println("  4. assert { condition = aws_vpc.main.enable_dns_support == true }")
-		return nil
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// The control plane registers no GET /api/tests/<id> detail route
+		// (only PATCH and DELETE), so the test case is selected from the
+		// list endpoint.
+		cases, err := listTestCases(ctx, cmd)
+		if err != nil {
+			return fmt.Errorf("test show: %w", err)
+		}
+		for _, tc := range cases {
+			if tc.ID == testID {
+				fmt.Printf("Test Case: %s\n", tc.ID)
+				fmt.Printf("Name:      %s\n", tc.Name)
+				fmt.Printf("Kind:      %s\n", tc.Kind)
+				fmt.Printf("Stack:     %s\n", tc.Stack)
+				fmt.Printf("Status:    %s\n", tc.status())
+				return nil
+			}
+		}
+		return fmt.Errorf("test show: test case '%s' not found in the control-plane registry", testID)
 	},
 }
 
 var runCmd = &cobra.Command{
-	Use:   "run [stack-id]",
-	Short: "Run all OpenTofu unit and integration test assertions (.tftest.hcl)",
+	Use:   "run <test-id>",
+	Short: "Queue a control-plane run of a registered test case",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		target := "current workspace"
-		if len(args) > 0 {
-			target = args[0]
+		testID := args[0]
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		// POST /api/tests/<test_id>/run executes the single registered test
+		// case server-side; there is no stack-wide run route.
+		payload := map[string]any{"timeout_seconds": 30}
+		var res struct {
+			Success bool `json:"success"`
+			Result  struct {
+				Status   string  `json:"status"`
+				Passed   *bool   `json:"passed"`
+				Name     string  `json:"name"`
+				Severity string  `json:"severity"`
+				Stack    string  `json:"stack"`
+				RunID    *string `json:"run_id"`
+			} `json:"result"`
 		}
-		fmt.Printf("Running test cases for '%s'...\n\n", target)
-		fmt.Println("  PASS: tests/vpc_cidr_block_valid.tftest.hcl (14ms)")
-		fmt.Println("  PASS: tests/subnet_tier_distribution.tftest.hcl (22ms)")
-		fmt.Println("  PASS: tests/nat_gateway_redundancy.tftest.hcl (18ms)")
-		fmt.Println("\n✔ All 3 test suites passed (0 failures).")
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/tests/%s/run", testID), payload, &res); err != nil {
+			return fmt.Errorf("test run: %w", err)
+		}
+
+		verdict := "FAILED"
+		if res.Result.Passed != nil && *res.Result.Passed {
+			verdict = "PASSED"
+		}
+		fmt.Printf("Test '%s' (%s): %s\n", testID, res.Result.Name, verdict)
+		if res.Result.RunID != nil && *res.Result.RunID != "" {
+			fmt.Printf("Server run: %s\n", *res.Result.RunID)
+		}
+		if verdict == "FAILED" && res.Result.Severity != "" {
+			fmt.Printf("Severity: %s\n", res.Result.Severity)
+		}
 		return nil
 	},
 }
@@ -87,27 +198,37 @@ var idempotencyCmd = &cobra.Command{
 	Short: "Execute dual-pass Ansible run to ensure zero changed tasks on second execution",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		playbook := args[0]
-		fmt.Printf("Testing idempotency for playbook '%s'...\n", playbook)
-		fmt.Println("  Pass 1: ok=12  changed=4  unreachable=0  failed=0")
-		fmt.Println("  Pass 2: ok=16  changed=0  unreachable=0  failed=0")
-		fmt.Println("\n✔ Idempotency VERIFIED: 0 changes on second execution pass.")
-		return nil
+		return fmt.Errorf("test idempotency is not available: the control-plane endpoint POST /api/test-cases/ansible-idempotency evaluates pre-collected pass results for a server-side stack (stack + pass counts), it does not execute a local playbook; nothing was executed")
 	},
 }
 
 var scoreCmd = &cobra.Command{
 	Use:   "score <stack-id>",
-	Short: "Calculate the overall security, reliability, and FinOps score for a stack",
+	Short: "Calculate the security & compliance score the control plane computes for a stack",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		fmt.Printf("Posture Scorecard for '%s':\n\n", stackID)
-		fmt.Println("  Security & Encryption:   96 / 100")
-		fmt.Println("  FinOps & Cost Accuracy:  92 / 100")
-		fmt.Println("  Policy Guardrails:      100 / 100")
-		fmt.Println("  Idempotency & Testing:   98 / 100")
-		fmt.Println("\nOverall Health Score: 96.5% (GRADE: A+)")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		var score struct {
+			Score       *float64 `json:"score"`
+			Grade       string   `json:"grade"`
+			TotalTests  int      `json:"total_tests"`
+			PassedTests int      `json:"passed_tests"`
+			FailedTests int      `json:"failed_tests"`
+		}
+		if _, err := callAPI(ctx, cmd, http.MethodGet, fmt.Sprintf("/api/test-cases/score?stack=%s", stackID), nil, &score); err != nil {
+			return fmt.Errorf("test score: %w", err)
+		}
+		if score.Score == nil {
+			return fmt.Errorf("test score: the control plane returned no score for stack '%s'", stackID)
+		}
+
+		fmt.Printf("Security & compliance scorecard for '%s' (computed by the control plane):\n\n", stackID)
+		fmt.Printf("  Score: %.0f / 100 (GRADE: %s)\n", *score.Score, score.Grade)
+		fmt.Printf("  Tests: %d passed / %d failed of %d evaluated\n", score.PassedTests, score.FailedTests, score.TotalTests)
 		return nil
 	},
 }

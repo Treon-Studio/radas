@@ -184,6 +184,11 @@ def dispatch_webhook_with_dlq(
         "created_at": time.time(),
     }
     kv_set(DLQ_SCOPE, dlq_id, dlq_entry)
+    try:
+        from storage.metrics_counters import incr
+        incr("webhook_delivery_failures_total")
+    except Exception:
+        pass
     logger.warning(f"[webhooks DLQ] Pushed failed webhook {event_type} to DLQ ({dlq_id}): {last_error}")
     return {
         "status": "dlq",

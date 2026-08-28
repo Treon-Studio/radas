@@ -22,7 +22,7 @@ VITE_API_BASE="https://radas-api.YOUR-TUNNEL.trycloudflare.com" \
   pnpm --filter @radas/console build
 
 # Deploy (wajib login sekali: npx wrangler login)
-cd apps/radas-console
+cd apps/console
 npx wrangler pages deploy dist --project-name radas-console
 ```
 
@@ -84,7 +84,7 @@ Sama seperti lokal — `pnpm dev:radas` atau pm2 di VPS:
 ```bash
 cd /path/to/radas
 pnpm install
-cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # set .env: DATABASE_URL (Neon) + JWT_SECRET_KEY kuat + CORS_ALLOWED_ORIGINS
 pm2 start ecosystem.config.cjs
 ```
@@ -153,7 +153,7 @@ docker run -d --name radas-tunnel --restart=always --network host --user 0:0 \
 Build console dengan domain permanen:
 ```bash
 VITE_API_BASE=https://api-radas.treonstudio.com pnpm --filter @radas/console build
-cd apps/radas-console && npx wrangler pages deploy dist --project-name radas-console
+cd apps/console && npx wrangler pages deploy dist --project-name radas-console
 ```
 
 Aktif: **https://radas-console.pages.dev** → API **https://api-radas.treonstudio.com**

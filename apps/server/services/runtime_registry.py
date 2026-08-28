@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import inspect
 import math
+import os
 import time
 from collections.abc import Iterable, Mapping
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, ClassVar
 
 from .runtime_provider import (
     ProviderLogPage,
@@ -183,6 +185,11 @@ class RuntimeProviderRegistry:
         else:
             code = "PROVIDER_ERROR"
         details = redact(getattr(exc, "details", {}))
+        try:
+            from storage.metrics_counters import incr
+            incr("provider_errors_total")
+        except Exception:
+            pass
         return ProviderResult.failed(
             operation,
             code,
@@ -300,6 +307,32 @@ class RuntimeProviderRegistry:
             raise UnsupportedTimeoutError(getattr(method, "__name__", "operation"))
         return method(*args, **kwargs)
 
+    @staticmethod
+    def _provider_gate(
+        provider: RuntimeProvider, operation: str, operation_id: str | None, idempotency_key: str | None,
+    ) -> ProviderResult | None:
+        """Allow administratively gated providers to report a stable status.
+
+        A provider that does not advertise an operation because it is
+        explicitly disabled by configuration may declare ``gate_result``; when
+        it returns a failed result, that result (e.g. ``PROVIDER_DISABLED``)
+        is normalized and returned instead of a generic capability error.
+        Genuinely unsupported operations raise ``UnsupportedCapabilityError``
+        exactly as before.
+        """
+        gate = getattr(provider, "gate_result", None)
+        if not callable(gate):
+            return None
+        try:
+            gated = gate(operation, operation_id=operation_id, idempotency_key=idempotency_key)
+            if not isinstance(gated, ProviderResult) or gated.success:
+                return None
+            return RuntimeProviderRegistry._validate_provider_result(
+                gated, operation, str(getattr(provider, "id", "")), operation_id, idempotency_key,
+            )
+        except Exception:
+            return None
+
     def invoke(
         self,
         provider_id: str,
@@ -311,8 +344,16 @@ class RuntimeProviderRegistry:
         """Dispatch an operation and normalize provider failures."""
         if operation not in _OPERATION_NAMES or operation == "logs":
             raise UnsupportedCapabilityError(provider_id, operation)
-        provider = self._check_capability(provider_id, operation)
+        provider = self.require(provider_id)
         operation_id = args[0] if args and operation not in {"status"} else None
+        method = getattr(provider, operation, None)
+        if not self.supports(provider_id, operation):
+            gated = self._provider_gate(provider, operation, operation_id, idempotency_key)
+            if gated is not None:
+                return gated
+            raise UnsupportedCapabilityError(provider_id, operation)
+        if not callable(method):
+            raise UnsupportedCapabilityError(provider_id, operation)
         try:
             normalized_timeout = self._validate_timeout(timeout)
             timeout_enforced = getattr(provider, "TIMEOUT_ENFORCED", False) is True
@@ -322,7 +363,7 @@ class RuntimeProviderRegistry:
                 provider.enforce_timeout(timeout=normalized_timeout)
             started = time.monotonic()
             result = self._call(
-                getattr(provider, operation), *args,
+                method, *args,
                 idempotency_key=idempotency_key,
                 timeout=normalized_timeout,
                 timeout_enforced=timeout_enforced,
@@ -434,3 +475,110 @@ def build_default_registry(*, enable_local_container: bool = False, local_config
     if enable_local_container:
         providers.append(LocalContainerProvider(config=local_config or {}, enabled=True))
     return RuntimeProviderRegistry(providers)
+
+
+class RuntimeConfigError(ValueError):
+    """Raised when the local runtime environment configuration is invalid."""
+
+
+@dataclass(frozen=True)
+class LocalRuntimeConfig:
+    """The single configuration source for the local container provider.
+
+    Every consumer (operation runner, observability, plan routes) resolves the
+    provider through :func:`registry_from_environment` so an enabled local
+    runtime is configured identically everywhere.  Execution stays behind the
+    explicit ``enable_local_container`` gate; the adapter additionally refuses
+    to spawn subprocesses without a bounded command timeout.
+    """
+
+    DEFAULT_COMMAND_TIMEOUT: ClassVar[float] = 120.0
+
+    enable_local_container: bool = False
+    runtime: str = "docker"
+    socket: str | None = None
+    network: str | None = None
+    command_timeout: float = DEFAULT_COMMAND_TIMEOUT
+
+    def provider_config(self) -> dict[str, Any]:
+        """Adapter-facing configuration; ``allow_execution`` is the gate."""
+        return {
+            "runtime": self.runtime,
+            "socket": self.socket,
+            "network": self.network,
+            "command_timeout": self.command_timeout,
+            "allow_execution": self.enable_local_container,
+        }
+
+
+ENV_ENABLE_LOCAL_CONTAINER = "RADAS_ENABLE_LOCAL_CONTAINER"
+ENV_LOCAL_RUNTIME = "RADAS_CONTAINER_RUNTIME"
+ENV_LOCAL_SOCKET = "RADAS_CONTAINER_SOCKET"
+ENV_LOCAL_NETWORK = "RADAS_CONTAINER_NETWORK"
+ENV_LOCAL_COMMAND_TIMEOUT = "RADAS_CONTAINER_COMMAND_TIMEOUT"
+_LOCAL_RUNTIMES = frozenset({"docker", "podman"})
+_TRUTHY = frozenset({"1", "true", "yes", "on"})
+_FALSY = frozenset({"0", "false", "no", "off", ""})
+
+
+def _parse_bool(value: str, *, env_name: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in _TRUTHY:
+        return True
+    if normalized in _FALSY:
+        return False
+    raise RuntimeConfigError(f"{env_name} must be a boolean value")
+
+
+def load_runtime_config(environ: Mapping[str, str] | None = None) -> LocalRuntimeConfig:
+    """Load and validate the local container configuration from one source.
+
+    ``environ`` defaults to the real process environment.  Invalid values raise
+    :class:`RuntimeConfigError` instead of silently degrading, so a broken
+    configuration can never be mistaken for a disabled or healthy runtime.
+    """
+    env = os.environ if environ is None else environ
+
+    enable = _parse_bool(str(env.get(ENV_ENABLE_LOCAL_CONTAINER, "")), env_name=ENV_ENABLE_LOCAL_CONTAINER)
+
+    runtime = str(env.get(ENV_LOCAL_RUNTIME, "")).strip().lower() or "docker"
+    if runtime not in _LOCAL_RUNTIMES:
+        raise RuntimeConfigError(f"{ENV_LOCAL_RUNTIME} must be one of: {', '.join(sorted(_LOCAL_RUNTIMES))}")
+
+    socket = str(env.get(ENV_LOCAL_SOCKET, "")).strip() or None
+    if socket is not None and any(character.isspace() for character in socket):
+        raise RuntimeConfigError(f"{ENV_LOCAL_SOCKET} must not contain whitespace")
+
+    network = str(env.get(ENV_LOCAL_NETWORK, "")).strip() or None
+    if network is not None and any(character.isspace() for character in network):
+        raise RuntimeConfigError(f"{ENV_LOCAL_NETWORK} must not contain whitespace")
+
+    raw_timeout = str(env.get(ENV_LOCAL_COMMAND_TIMEOUT, "")).strip()
+    try:
+        command_timeout = float(raw_timeout) if raw_timeout else LocalRuntimeConfig.DEFAULT_COMMAND_TIMEOUT
+    except ValueError as exc:
+        raise RuntimeConfigError(f"{ENV_LOCAL_COMMAND_TIMEOUT} must be a positive number of seconds") from exc
+    if not math.isfinite(command_timeout) or command_timeout <= 0 or command_timeout > 3600:
+        raise RuntimeConfigError(f"{ENV_LOCAL_COMMAND_TIMEOUT} must be a positive number of seconds (max 3600)")
+
+    return LocalRuntimeConfig(
+        enable_local_container=enable,
+        runtime=runtime,
+        socket=socket,
+        network=network,
+        command_timeout=command_timeout,
+    )
+
+
+def registry_from_environment(environ: Mapping[str, str] | None = None) -> RuntimeProviderRegistry:
+    """Build the registry every runtime consumer shares.
+
+    The local provider is always registered so that targeting it while
+    disabled yields the stable ``PROVIDER_DISABLED`` status instead of an
+    unknown-provider error; execution remains gated by configuration.
+    """
+    config = load_runtime_config(environ)
+    return build_default_registry(
+        enable_local_container=True,
+        local_config=config.provider_config(),
+    )

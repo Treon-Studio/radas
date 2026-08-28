@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/raizora/radas/v4/internal/config"
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -23,8 +24,9 @@ type SyncConfig struct {
 var dryRun bool
 
 var SyncRepoCmd = &cobra.Command{
-	Use:   "sync-repo",
-	Short: "Sync folders/files based on radas.yml config",
+	Use:     "sync-repo",
+	Short:   "Sync folders/files based on radas.yml config",
+	PreRunE: netgate.RequireNetwork("Sync Repo"),
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := SyncConfig{}
 		if err := loadRadasConfig(&cfg); err != nil {

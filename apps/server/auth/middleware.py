@@ -10,6 +10,14 @@ Security notes
 * Access tokens are accepted in the query string ONLY for a small allow-list
   of streaming endpoints (SSE), where the browser EventSource API cannot set
   Authorization headers.
+* Session revocation (logout-all, UC635) is deterministic during storage
+  outages: token verification rejects any token whose `iat` is <= the
+  file-based user cutoff (`auth/service.are_user_sessions_revoked`). The
+  file cutoff is the authoritative store; the PostgreSQL sessions row is
+  secondary enrichment, so a PG outage or missing rows never flip a revoked
+  token back to accepted (fail closed). If the authoritative file write
+  itself fails, `revoke_all_user_sessions` raises `SessionRevocationError`
+  and routes must return an error — logout-all never reports success.
 """
 from functools import wraps
 from flask import request, jsonify
@@ -148,7 +156,11 @@ def require_auth(f: Callable) -> Callable:
             from services.worker_registry import verify_token as verify_worker_token
         except ImportError:
             from services.worker_registry import verify_token as verify_worker_token
-        is_worker_path = request.path.startswith('/api/worker/')
+        # Worker tokens authenticate the worker protocol on the legacy paths
+        # and on their /api/v2 contract mirrors (Task 2.3) — the v2 worker
+        # operations document BearerAuth and must actually accept the
+        # worker-registry tokens the documented clients send.
+        is_worker_path = request.path.startswith('/api/worker/') or request.path.startswith('/api/v2/worker/')
         is_execution_get = request.path.startswith('/api/executions/') and request.method == 'GET'
         if is_worker_path or is_execution_get:
             result = verify_worker_token(token)

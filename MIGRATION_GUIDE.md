@@ -1,5 +1,11 @@
 # Migration Guide - Monorepo Restructuring
 
+> **RETIRED (2026-08-28):** this guide describes the `apps/chrome-ext` import
+> migration. The Chrome extension app was removed from the repository
+> (commit 4feaf59d, "chore: remove unused code"), so the instructions below
+> can no longer be executed and are kept for history only. Do not run them
+> against a live tree.
+
 ## Overview
 
 Dokumen ini menjelaskan bagaimana cara memigrasikan import paths dari struktur lama ke struktur monorepo yang baru.

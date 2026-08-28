@@ -9,8 +9,11 @@ pytz>=2023.3
 PyJWT>=2.8.0
 bcrypt>=4.0.1
 python-dotenv>=1.0.0
-# Pilot: auto-generated OpenAPI docs. Isolated under /api/v2/*; legacy
-# /api/docs and /api/openapi.json remain unchanged. Safe to remove.
+# REQUIRED (Task 2.1, 2026-08-27 plan): /api/v2 is the forward-facing API
+# contract for console and CLI. A missing flask-smorest fails the v2 mount
+# closed (readiness reports v2_contract_ok=False) instead of silently
+# disabling it. Isolated under /api/v2/*; legacy /api/docs and
+# /api/openapi.json remain unchanged until a separately reviewed migration.
 flask-smorest>=0.44.0
 marshmallow>=3.20.0
 apispec>=6.3.0

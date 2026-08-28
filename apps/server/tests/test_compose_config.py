@@ -6,7 +6,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[3]
-COMPOSE = ROOT / "apps" / "opensible-server" / "docker-compose.yml"
+COMPOSE = ROOT / "apps" / "server" / "docker-compose.yml"
 
 REQUIRED_PRODUCTION_ENV = (
     "FLASK_ENV",

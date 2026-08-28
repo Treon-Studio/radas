@@ -25,7 +25,6 @@ def readiness() -> Dict:
         checks["postgres"] = True
     except Exception:
         checks["postgres"] = False
-        ok = False
     try:
         d = _data_dir()
         d.mkdir(parents=True, exist_ok=True)
@@ -35,8 +34,46 @@ def readiness() -> Dict:
         checks["data_dir"] = True
     except Exception:
         checks["data_dir"] = False
+
+    # Blueprint registration policy (Task 0.2): a required module failure is
+    # never reported healthy. database_ok/contract_version mirror the fields
+    # console/CLI contract consumers rely on for gate decisions.
+    try:
+        from api.route_inventory import (
+            contract_version as _contract_version,
+            required_blueprints_ok as _required_blueprints_ok,
+        )
+        required_blueprints_ok_value = bool(_required_blueprints_ok())
+        version_value = str(_contract_version())
+    except Exception:
+        # The route-inventory module is part of the server itself; if it cannot
+        # even be imported, the process is not in a state we may call ready.
+        required_blueprints_ok_value = False
+        version_value = "legacy"
+
+    # /api/v2 contract surface (Task 2.1, 2026-08-27): a failed or unfinished
+    # mount is never healthy. Missing evidence (init_api_v2 never ran on this
+    # app) stays healthy — same policy as required_blueprints_ok.
+    try:
+        from api_v2 import v2_surface_ok as _v2_surface_ok
+        v2_contract_ok_value = bool(_v2_surface_ok())
+    except Exception:
+        v2_contract_ok_value = False
+
+    if checks.get("postgres") is not True or checks.get("data_dir") is not True:
         ok = False
-    return {"ok": ok, "checks": checks}
+    if not required_blueprints_ok_value:
+        ok = False
+    if not v2_contract_ok_value:
+        ok = False
+    return {
+        "ok": ok,
+        "checks": checks,
+        "database_ok": checks.get("postgres") is True,
+        "required_blueprints_ok": required_blueprints_ok_value,
+        "v2_contract_ok": v2_contract_ok_value,
+        "contract_version": version_value,
+    }
 
 
 _REDACT_KEYS = ("token", "password", "secret", "api_key", "authorization", "passwd")

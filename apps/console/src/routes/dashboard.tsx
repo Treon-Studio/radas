@@ -36,6 +36,7 @@ import { useProjects, type Project } from "@/lib/project";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { useT } from "@/lib/i18n";
 import { api, getStoredUser } from "@/lib/api";
+import { qk } from "@/lib/query";
 
 export const Route = createFileRoute("/dashboard")({ component: Dashboard });
 
@@ -57,7 +58,7 @@ const activityData = [
 export function Dashboard() {
   const t = useT();
   const navigate = useNavigate();
-  const { projects, loading, setCurrent } = useProjects();
+  const { projects, currentId, loading, setCurrent } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const [orgs, setOrgs] = useState<Org[]>([]);
 
@@ -75,7 +76,7 @@ export function Dashboard() {
   }, []);
 
   const workersQ = useQuery({
-    queryKey: ["system-workers-summary"],
+    queryKey: qk.dashboardWorkers(currentId),
     queryFn: () => api<{ workers?: Worker[] }>("GET", "/api/system/workers"),
   });
 

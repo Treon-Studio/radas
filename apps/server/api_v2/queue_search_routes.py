@@ -22,6 +22,7 @@ from api.queue_search_routes import (
     api_global_search as _v1_global_search,
     api_project_queue_stats as _v1_project_queue_stats,
 )
+from api.search_routes import api_search as _v1_query_search
 
 from ._pydantic import pyd_body, pyd_query, pyd_response
 
@@ -106,6 +107,27 @@ class SearchOut(BaseModel):
     query: str
 
 
+# ---------- Query search (GET /api/search, UC396/UC637) ----------
+
+class SearchGETItem(BaseModel):
+    """One matched record. Extra keys (meta, provider, env, ...) are preserved."""
+    model_config = ConfigDict(extra="allow")
+    type: Optional[str] = None
+    project_id: Optional[str] = None
+    name: Optional[str] = None
+
+
+class SearchGETOut(BaseModel):
+    """Unified search result buckets (stacks, runs, playbooks, secrets)."""
+    model_config = ConfigDict(extra="allow")
+    query: str
+    total_matches: int = Field(ge=0)
+    stacks: List[SearchGETItem] = Field(default_factory=list)
+    runs: List[SearchGETItem] = Field(default_factory=list)
+    playbooks: List[SearchGETItem] = Field(default_factory=list)
+    secrets: List[SearchGETItem] = Field(default_factory=list)
+
+
 # ---------- Capabilities ----------
 
 class CapabilitiesOut(BaseModel):
@@ -141,6 +163,42 @@ class QueueView(MethodView):
 
 @blp.route("/search")
 class SearchView(MethodView):
+    @pyd_response(200, SearchGETOut)
+    @blp.doc(
+        security=[{"BearerAuth": []}],
+        parameters=[
+            {
+                "name": "q",
+                "in": "query",
+                "required": True,
+                "schema": {"type": "string", "minLength": 2, "maxLength": 500},
+                "description": "Search string (minimum 2 characters).",
+            },
+            {
+                "name": "project_id",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Restrict the search to one project.",
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+                "description": "Maximum results per category (clamped to 1-100).",
+            },
+        ],
+        description=(
+            "Unified full-text search over stacks, runs, playbooks and secrets "
+            "(UC396). Queries shorter than 2 characters are rejected with the "
+            "error envelope."
+        ),
+    )
+    def get(self):
+        """Search across stacks, runs, playbooks and secrets (UC396)."""
+        return _v1_query_search()
+
     @require_auth
     @pyd_body(SearchIn)
     @pyd_response(200, SearchOut)

@@ -1,15 +1,22 @@
 // Package worker implements the `radas worker` command group for runner pool management.
+//
+// Every remote operation goes through the real control-plane API and surfaces
+// failures as errors with the request ID for server-side log correlation.
+// None of the commands print success text when the server call fails.
 package worker
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
+	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 // Cmd is the parent command for the worker daemon group.
@@ -17,57 +24,85 @@ var Cmd = &cobra.Command{
 	Use:     "worker",
 	Aliases: []string{"daemon", "runners"},
 	Short:   "Inspect worker daemon pool, queue statuses, and drain nodes",
-	Long: `The worker command group allows monitoring distributed Go runner daemons,
-tracking heartbeats and active job claims, and draining workers gracefully.`,
+	Long: `The worker command group allows monitoring registered worker daemons and
+the execution queue served by the RADAS control plane.`,
 }
 
+// WorkerNode mirrors the fields of the server's GET /api/admin/workers
+// response that the CLI renders.
 type WorkerNode struct {
-	ID        string `json:"id"`
-	Hostname  string `json:"hostname"`
-	Status    string `json:"status"`
-	Capacity  int    `json:"capacity"`
-	ActiveJob string `json:"active_job,omitempty"`
-	LastSeen  string `json:"last_seen"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Description        string `json:"description,omitempty"`
+	Enabled            bool   `json:"enabled"`
+	LastSeenAt         any    `json:"lastSeenAt,omitempty"`
+	CurrentExecutionID string `json:"currentExecutionId,omitempty"`
 }
 
-func getClient() *client.Client {
-	baseURL := os.Getenv("RADAS_API_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:5001"
-	}
-	token := os.Getenv("RADAS_TOKEN")
-	return client.New(client.Config{
-		BaseURL:   baseURL,
-		AuthToken: token,
-		Timeout:   30 * time.Second,
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
 	})
+}
+
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
 }
 
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
-	Short:   "List active worker daemons in the execution pool",
+	Short:   "List registered worker daemons in the execution pool",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := getClient()
+		spin := utils.NewSpinner("⚙️ Querying worker daemons & execution pool...")
+		spin.Start()
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
-			Success bool         `json:"success"`
 			Workers []WorkerNode `json:"workers"`
 		}
+		// The control plane serves the worker registry under /api/admin/workers.
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/admin/workers", nil, &resp)
+		spin.Stop()
+		if err != nil {
+			return fmt.Errorf("worker list: %w", err)
+		}
 
-		_ = c.Get(ctx, "/api/workers", &resp)
+		if len(resp.Workers) == 0 {
+			fmt.Println("No workers registered.")
+			return nil
+		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "WORKER ID\tHOSTNAME\tSTATUS\tCAPACITY\tLAST HEARTBEAT")
-		if len(resp.Workers) > 0 {
-			for _, n := range resp.Workers {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", n.ID, n.Hostname, n.Status, n.Capacity, n.LastSeen)
+		fmt.Fprintln(w, "WORKER ID\tNAME\tENABLED\tLAST SEEN\tCURRENT RUN")
+		for _, n := range resp.Workers {
+			current := n.CurrentExecutionID
+			if current == "" {
+				current = "-"
 			}
-		} else {
-			fmt.Fprintln(w, "worker-node-01\tradas-runner-sg1\tREADY (IDLE)\t4\t3s ago")
-			fmt.Fprintln(w, "worker-node-02\tradas-runner-sg2\tBUSY (1 RUN)\t4\t2s ago")
+			fmt.Fprintf(w, "%s\t%s\t%v\t%v\t%s\n", n.ID, n.Name, n.Enabled, n.LastSeenAt, current)
 		}
 		w.Flush()
 		return nil
@@ -80,29 +115,37 @@ var drainCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		nodeID := args[0]
-		c := getClient()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		payload := map[string]any{"action": "drain"}
-		var res map[string]any
-		_ = c.Post(ctx, fmt.Sprintf("/api/workers/%s/drain", nodeID), payload, &res)
-
-		fmt.Printf("✔ Worker '%s' placed in DRAINING state.\n", nodeID)
-		fmt.Println("No new plan/apply jobs will be scheduled on this daemon.")
-		return nil
+		return fmt.Errorf("worker drain for '%s' is not available: the control plane does not expose a drain route yet (worker registration and enable/disable live under /api/admin/workers), so the node state was not changed", nodeID)
 	},
 }
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show job queue health, fair scheduling metrics, and backlog",
+	Short: "Show the pending execution queue served by the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Worker Queue Health:")
-		fmt.Println("  Pending Jobs:    0")
-		fmt.Println("  Running Jobs:    1 (stack: prod-vpc)")
-		fmt.Println("  Fairness Policy: Round-robin per project")
-		fmt.Println("  Health Status:   OPTIMAL")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var resp struct {
+			Queued []struct {
+				ID      string `json:"id"`
+				RunName string `json:"runName"`
+			} `json:"queued"`
+			Count int `json:"count"`
+		}
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/queue", nil, &resp)
+		if err != nil {
+			return fmt.Errorf("worker status: %w", err)
+		}
+
+		fmt.Printf("Pending (QUEUED) runs: %d\n", resp.Count)
+		for _, run := range resp.Queued {
+			if run.RunName != "" {
+				fmt.Printf("  %s  %s\n", run.ID, run.RunName)
+			} else {
+				fmt.Printf("  %s\n", run.ID)
+			}
+		}
 		return nil
 	},
 }

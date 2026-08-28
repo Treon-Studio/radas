@@ -7,13 +7,16 @@ import (
 	"os/exec"
 	"strings"
 	"github.com/spf13/cobra"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var JustPushCmd = &cobra.Command{
-	Use:   "just-push [files]",
-	Short: "Add, commit, and push changes in one step",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "just-push [files]",
+	Short:   "Add, commit, and push changes in one step",
+	Args:    cobra.ArbitraryArgs,
+	PreRunE: netgate.RequireNetwork("Git Just Push"),
 	Run: func(cmd *cobra.Command, args []string) {
 		// 1. git add [files] if provided, default to '.' if not
 		addArgs := []string{"add"}
@@ -50,11 +53,6 @@ var JustPushCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		branch := strings.TrimSpace(out.String())
-
-		if err := utils.CheckNetwork(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
 
 		pushCmd := exec.Command("git", "push", "origin", branch)
 		pushCmd.Stderr = os.Stderr

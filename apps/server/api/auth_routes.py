@@ -125,7 +125,7 @@ def api_auth_login():
                                            token_type="refresh", org_id=org_id)
 
         current_app.logger.info(f"User {username} logged in successfully")
-        return jsonify({
+        resp = jsonify({
             "success": True,
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -133,6 +133,17 @@ def api_auth_login():
             "active_org_id": org_id,
             "user": {"id": user.id, "username": user.username, "email": user.email, "roles": role_names},
         })
+        is_secure = request.is_secure or (request.headers.get("X-Forwarded-Proto") == "https")
+        resp.set_cookie(
+            "radas_refresh_token",
+            refresh_token,
+            max_age=7 * 86400,
+            httponly=True,
+            samesite="Lax",
+            secure=is_secure,
+            path="/api/auth",
+        )
+        return resp
     except Exception as e:
         current_app.logger.error(f"Error in login: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Login error"}), 500
@@ -251,15 +262,19 @@ def api_auth_reset_password():
 
 
 @bp.route("/api/auth/logout", methods=["POST"])
-@require_auth
 def api_auth_logout():
     _, _, _, DATA_DIR = _services()
     try:
-        token = request.token
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else getattr(request, "token", None)
         if token:
             add_token_to_blacklist(DATA_DIR, token)
-            current_app.logger.info(f"User {request.current_user.get('username')} logged out")
-        return jsonify({"success": True, "message": "Logged out"})
+            cu = getattr(request, "current_user", {}) or {}
+            username = cu.get("username", "user")
+            current_app.logger.info(f"User {username} logged out")
+        resp = jsonify({"success": True, "message": "Logged out"})
+        resp.set_cookie("radas_refresh_token", "", max_age=0, path="/api/auth", httponly=True, samesite="Lax")
+        return resp
     except Exception as e:
         current_app.logger.error(f"Error in logout: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Logout error"}), 500
@@ -277,7 +292,9 @@ def api_auth_revoke_all_sessions():
             return jsonify({"success": False, "error": "User not authenticated"}), 401
         cutoff = revoke_all_user_sessions(user_id, DATA_DIR)
         current_app.logger.info(f"User {user_id} revoked all sessions at {cutoff}")
-        return jsonify({"success": True, "message": "All sessions and tokens revoked", "revoked_at": cutoff})
+        resp = jsonify({"success": True, "message": "All sessions and tokens revoked", "revoked_at": cutoff})
+        resp.set_cookie("radas_refresh_token", "", max_age=0, path="/api/auth", httponly=True, samesite="Lax")
+        return resp
     except Exception as e:
         current_app.logger.error(f"Error revoking sessions: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Revoke sessions error"}), 500
@@ -288,7 +305,7 @@ def api_auth_refresh():
     user_service, role_service, _, DATA_DIR = _services()
     try:
         data = request.json or {}
-        refresh_token = data.get("refresh_token", "").strip()
+        refresh_token = data.get("refresh_token", "").strip() or request.cookies.get("radas_refresh_token", "").strip()
         if not refresh_token:
             return jsonify({"success": False, "error": "Refresh token required"}), 400
 
@@ -307,9 +324,28 @@ def api_auth_refresh():
             if role:
                 role_names.append(role.name)
 
+        org_id = payload.get("org_id")
         access_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
-                                      data_dir=DATA_DIR, token_type="access")
-        return jsonify({"success": True, "access_token": access_token})
+                                      data_dir=DATA_DIR, token_type="access", org_id=org_id)
+        new_refresh_token = generate_token(user_id=user.id, username=user.username, roles=role_names,
+                                           data_dir=DATA_DIR, token_type="refresh", org_id=org_id)
+
+        resp = jsonify({
+            "success": True,
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+        })
+        is_secure = request.is_secure or (request.headers.get("X-Forwarded-Proto") == "https")
+        resp.set_cookie(
+            "radas_refresh_token",
+            new_refresh_token,
+            max_age=7 * 86400,
+            httponly=True,
+            samesite="Lax",
+            secure=is_secure,
+            path="/api/auth",
+        )
+        return resp
     except Exception as e:
         current_app.logger.error(f"Error in refresh: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Token refresh error"}), 500

@@ -44,7 +44,10 @@ INSTANCE_TRANSITIONS: dict[str, frozenset[str]] = {
 }
 
 _SENSITIVE_KEY = re.compile(
-    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
+    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer"
+    # Boundary-guarded short form so DB_PASS-style env names redact while
+    # prose-adjacent words (bypass, passthrough, compass) do not match.
+    r"|(?:^|[^a-z0-9])pass(?:word|wd|phrase)?(?=$|[^a-z0-9]))",
     re.IGNORECASE,
 )
 _SAFE_REFERENCE_KEYS = {"ref", "reference", "secret_ref", "secret_id", "id", "name"}

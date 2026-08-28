@@ -5,13 +5,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
 	"github.com/spf13/cobra"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 // InstallCmd is the command to install backend dependencies
 var InstallCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Install backend dependencies based on detected stack (Golang, Elixir, Rust, PHP, Laravel)",
+	Use:     "install",
+	Short:   "Install backend dependencies based on detected stack (Golang, Elixir, Rust, PHP, Laravel)",
+	PreRunE: netgate.RequireNetwork("Backend Package Install"),
 	Run: func(cmd *cobra.Command, args []string) {
 		stack, dir := detectBackendStack()
 		if stack == "" {

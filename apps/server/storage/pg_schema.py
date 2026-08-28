@@ -5,13 +5,19 @@
 auth/RBAC, config/projects, worker index, kv_store (JSON-config services),
 executions/logs, stack-scoped data (meta/secrets/state/snapshots), and the
 org tables for multi-tenancy (Fase D).
+
+This module is the single canonical schema authority. Numbered SQL files in
+`storage/migrations/` are only applied when registered in
+`SQL_MIGRATION_SOURCES`; unregistered files are unreachable dead DDL and
+`migrate()` refuses to run so the schema cannot drift silently.
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
-from typing import Any, List, Mapping
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Tuple
 
 from psycopg.types.json import Jsonb
 
@@ -626,11 +632,6 @@ _V20_DDL: List[str] = [
 ]
 
 # Version 21 — organization-private OpenTofu module registry.
-_V22_DDL: List[str] = [
-    """CREATE TABLE IF NOT EXISTS project_admission_leases (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, reference_id TEXT NOT NULL, worker_id TEXT, status TEXT NOT NULL, lease_until DOUBLE PRECISION, created_at DOUBLE PRECISION NOT NULL, updated_at DOUBLE PRECISION NOT NULL, UNIQUE(kind, reference_id))""",
-    """CREATE INDEX IF NOT EXISTS project_admission_leases_project_active_idx ON project_admission_leases(project_id, status, lease_until)""",
-]
-
 _V21_DDL: List[str] = [
     """CREATE TABLE IF NOT EXISTS tofu_modules (
         id TEXT PRIMARY KEY,
@@ -656,6 +657,12 @@ _V21_DDL: List[str] = [
         PRIMARY KEY (definition_id, version)
     )""",
     """CREATE INDEX IF NOT EXISTS idx_tofu_modules_org_slug ON tofu_modules(org_id, slug)""",
+]
+
+# Version 22 — project admission leases.
+_V22_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS project_admission_leases (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, reference_id TEXT NOT NULL, worker_id TEXT, status TEXT NOT NULL, lease_until DOUBLE PRECISION, created_at DOUBLE PRECISION NOT NULL, updated_at DOUBLE PRECISION NOT NULL, UNIQUE(kind, reference_id))""",
+    """CREATE INDEX IF NOT EXISTS project_admission_leases_project_active_idx ON project_admission_leases(project_id, status, lease_until)""",
 ]
 
 _V23_DDL: List[str] = [
@@ -737,6 +744,112 @@ MIGRATIONS = (
     (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL), (22, _V22_DDL),
     (23, _V23_DDL), (24, _V24_DDL), (25, _V25_DDL),
 )
+
+# Directory scanned by the reproducibility gate for numbered SQL migration
+# files (``NNN_name.sql``).
+MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
+
+# Numbered SQL files applied by the canonical runner, mapped to the schema
+# version whose DDL the file provides. A numbered SQL file inside
+# ``MIGRATIONS_DIR`` that is not listed here is unreachable dead DDL; the
+# reproducibility test fails and ``migrate()`` refuses to run so the schema
+# cannot drift silently.
+SQL_MIGRATION_SOURCES: Dict[str, int] = {}
+
+_NUMBERED_SQL_FILE = re.compile(r"\d+_.+\.sql\Z")
+
+
+def numbered_sql_files(directory: Any = None) -> List[str]:
+    """List numbered SQL migration files found in ``directory``."""
+    dir_path = Path(directory) if directory is not None else MIGRATIONS_DIR
+    if not dir_path.is_dir():
+        return []
+    return sorted(
+        entry.name for entry in dir_path.iterdir()
+        if entry.is_file() and _NUMBERED_SQL_FILE.fullmatch(entry.name)
+    )
+
+
+def unreachable_sql_migrations(directory: Any = None) -> List[str]:
+    """Numbered SQL files that the canonical migration runner never applies."""
+    return [
+        name for name in numbered_sql_files(directory)
+        if name not in SQL_MIGRATION_SOURCES
+    ]
+
+
+def load_sql_migration(filename: str, directory: Any = None) -> List[str]:
+    """Split a numbered SQL file into executable statements.
+
+    Comment-only fragments (file headers, trailing comments) are dropped;
+    statement bodies may still carry inline ``--`` comments, which PostgreSQL
+    accepts.
+    """
+    dir_path = Path(directory) if directory is not None else MIGRATIONS_DIR
+    text = (dir_path / filename).read_text()
+    statements: List[str] = []
+    for fragment in text.split(";"):
+        has_code = any(
+            line.strip() and not line.strip().startswith("--")
+            for line in fragment.splitlines()
+        )
+        if has_code:
+            statements.append(fragment.strip())
+    return statements
+
+
+def _migration_plan() -> List[Tuple[int, List[str]]]:
+    """Canonical, ordered migration sequence including file-backed versions."""
+    plan: Dict[int, List[str]] = {version: list(ddl) for version, ddl in MIGRATIONS}
+    for filename, version in SQL_MIGRATION_SOURCES.items():
+        if version in plan:
+            raise RuntimeError(
+                f"schema authority conflict: {filename} duplicates the inline DDL "
+                f"already registered for schema version {version}; the canonical "
+                "definition must exist exactly once"
+            )
+        plan[version] = load_sql_migration(filename)
+    return sorted(plan.items())
+
+
+def schema_snapshot(conn: Any) -> Dict[str, List[str]]:
+    """Return a reproducible fingerprint of the public schema.
+
+    Keys: ``tables`` (sorted names), ``columns`` (``table.column:type`` in
+    declaration order), ``indexes`` (``name::indexdef``), and
+    ``migration_versions`` (applied schema versions, ascending). Used by the
+    reproducibility gate to prove that ``migrate()`` is idempotent and that
+    fresh and upgrade paths converge.
+    """
+    def _cell(row: Any, key: str) -> Any:
+        return row[key] if isinstance(row, Mapping) else row[0]
+
+    tables = conn.execute(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+    ).fetchall()
+    columns = conn.execute(
+        "SELECT table_name, column_name, data_type FROM information_schema.columns "
+        "WHERE table_schema = 'public' ORDER BY table_name, ordinal_position"
+    ).fetchall()
+    indexes = conn.execute(
+        "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' "
+        "ORDER BY indexname"
+    ).fetchall()
+    versions = conn.execute(
+        "SELECT version FROM schema_migrations ORDER BY version"
+    ).fetchall()
+    return {
+        "tables": [str(_cell(row, "tablename")) for row in tables],
+        "columns": [
+            f"{_cell(row, 'table_name')}.{_cell(row, 'column_name')}:"
+            f"{_cell(row, 'data_type')}"
+            for row in columns
+        ],
+        "indexes": [
+            f"{_cell(row, 'indexname')}::{_cell(row, 'indexdef')}" for row in indexes
+        ],
+        "migration_versions": [str(_cell(row, "version")) for row in versions],
+    }
 
 
 class CatalogMigrationError(RuntimeError):
@@ -958,6 +1071,13 @@ def migrate(*, seed_catalog: bool = False) -> None:
     catalog definitions and never creates an instance or invokes a provider.
     Keeping it opt-in avoids surprising test/tools that only need schema DDL.
     """
+    unreachable = unreachable_sql_migrations()
+    if unreachable:
+        raise RuntimeError(
+            "numbered SQL migration file(s) not reachable from the canonical "
+            "migration runner: " + ", ".join(unreachable) + "; register them in "
+            "storage.pg_schema.SQL_MIGRATION_SOURCES or remove the files"
+        )
     pg.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
@@ -967,7 +1087,7 @@ def migrate(*, seed_catalog: bool = False) -> None:
     import time
 
     applied = {r["version"] for r in pg.query_all("SELECT version FROM schema_migrations")}
-    for version, ddl in MIGRATIONS:
+    for version, ddl in _migration_plan():
         if version in applied:
             continue
         with pg.transaction() as conn:

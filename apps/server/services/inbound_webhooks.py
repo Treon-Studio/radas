@@ -19,6 +19,15 @@ def _store_path() -> Path:
 
 
 def load() -> List[Dict[str, Any]]:
+    # KV is the store of record (create/_save write here). The legacy JSON
+    # file is only a read fallback so pre-KV registrations stay visible.
+    try:
+        from storage.kv import kv_load
+        v = kv_load("inbound_webhooks")
+        if isinstance(v, list) and v:
+            return v
+    except Exception:
+        pass
     try:
         p = _store_path()
         if p.exists():

@@ -17,6 +17,37 @@ export const Route = createRootRoute({
   ),
 });
 
+export type RootRedirectInput = {
+  path: string;
+  token: string | null;
+  onboardingStatus: { completed: boolean } | undefined;
+};
+
+export function isPublicPath(path: string): boolean {
+  return (
+    path === "/" ||
+    path.startsWith("/login") ||
+    path.startsWith("/forgot-password") ||
+    path.startsWith("/reset-password") ||
+    path.startsWith("/onboarding")
+  );
+}
+
+/**
+ * Pure routing decision so auth/onboarding redirects stay testable without
+ * mounting the router. Mirrors RootLayout's effect exactly.
+ */
+export function resolveRootRedirect({ path, token, onboardingStatus }: RootRedirectInput): string | null {
+  if (!token) {
+    return isPublicPath(path) ? null : "/login";
+  }
+  if (isPublicPath(path)) return null;
+  if (onboardingStatus && onboardingStatus.completed === false && path !== "/onboarding") {
+    return "/onboarding";
+  }
+  return null;
+}
+
 function RootLayout() {
   const navigate = useNavigate();
   const { location } = useRouterState();
@@ -25,9 +56,6 @@ function RootLayout() {
   useEffect(() => {
     setReady(true);
   }, []);
-
-  const isPublicPath = (path: string) =>
-    path === "/" || path.startsWith("/login") || path.startsWith("/forgot-password") || path.startsWith("/reset-password") || path.startsWith("/onboarding");
 
   // Check onboarding status for authenticated users
   const { data: onboardingStatus, isLoading: onboardingLoading } = useQuery({
@@ -38,17 +66,12 @@ function RootLayout() {
   });
 
   useEffect(() => {
-    const token = getToken();
-    if (!token && !isPublicPath(location.pathname)) {
-      navigate({ to: "/login", replace: true });
-      return;
-    }
-    if (token && !isPublicPath(location.pathname) && onboardingStatus && onboardingStatus.completed === false) {
-      if (location.pathname !== "/onboarding") {
-        navigate({ to: "/onboarding", replace: true });
-        return;
-      }
-    }
+    const redirect = resolveRootRedirect({
+      path: location.pathname,
+      token: getToken(),
+      onboardingStatus,
+    });
+    if (redirect) navigate({ to: redirect, replace: true });
   }, [location.pathname, navigate, onboardingStatus]);
 
   if (isPublicPath(location.pathname)) {

@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
+import { GlobalSearch } from "@/components/search/GlobalSearch";
 import { api, getStoredUser, setToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { minimizeWindow, maximizeWindow, closeWindow } from "@/lib/desktopBridge";
@@ -20,7 +21,7 @@ export function AppHeader() {
   const { pathname } = useLocation();
   const activeSection = getActiveSection(pathname);
   const { projects, currentId, setCurrent, loading } = useProjects();
-  const isProjectPicker = pathname === "/dashboard";
+  const isProjectPicker = pathname === "/dashboard" || pathname === "/" || !currentId;
   const navigate = useNavigate();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -135,29 +136,32 @@ export function AppHeader() {
           </div>
         </div>
 
-        {/* Layer 1 Primary Top Nav Tabs */}
-        <nav className="hidden md:flex items-center gap-1.5 h-full font-mono text-xs">
-          {primaryTabs.map((tab) => {
-            const active = activeSection === tab.key;
-            return (
-              <Link
-                key={tab.key}
-                to={tab.to}
-                className={cn(
-                  "flex items-center h-8 px-3.5 text-xs uppercase tracking-wider pxl-corner-sm transition-all duration-150 select-none",
-                  active
-                    ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold pxl-shadow"
-                    : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
-                )}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Layer 1 Primary Top Nav Tabs (Hidden on Project Picker / Home) */}
+        {!isProjectPicker && (
+          <nav className="hidden md:flex items-center gap-1.5 h-full font-mono text-xs">
+            {primaryTabs.map((tab) => {
+              const active = activeSection === tab.key;
+              return (
+                <Link
+                  key={tab.key}
+                  to={tab.to}
+                  className={cn(
+                    "flex items-center h-8 px-3.5 text-xs uppercase tracking-wider pxl-corner-sm transition-all duration-150 select-none",
+                    active
+                      ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold pxl-shadow"
+                      : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Right controls */}
         <div className="flex items-center gap-2 h-full">
+          <GlobalSearch />
           {/* Org-switcher only matters for users in multiple orgs; manage orgs from the account menu. */}
           {orgs.length > 1 && (
             <div className="hidden md:flex items-center gap-1" title="Active organization">

@@ -51,6 +51,18 @@ else
     echo -e "${YELLOW}Using platform-specific binary: $SOURCE_BIN${NC}"
 fi
 
+# Update GOPATH/bin/radas if present (user space, no sudo needed)
+GOPATH_BIN="$(go env GOPATH 2>/dev/null)/bin"
+if [ -d "$GOPATH_BIN" ]; then
+    cp "$SOURCE_BIN" "$GOPATH_BIN/$BINARY_NAME" 2>/dev/null || true
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        codesign -s - -f "$GOPATH_BIN/$BINARY_NAME" 2>/dev/null || true
+    fi
+fi
+
+# Remove existing system binary to avoid text file busy or AMFI code-signature conflicts
+sudo rm -f "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
+
 # Check if we have permission to write to target directory
 if [ ! -w "$TARGET_DIR" ]; then
     echo -e "${YELLOW}Need elevated privileges to copy to $TARGET_DIR${NC}"
@@ -76,5 +88,10 @@ fi
 # Make sure it's executable
 sudo chmod +x "$TARGET_DIR/$BINARY_NAME"
 
+# Ad-hoc codesign binary with sudo on macOS for system-wide directory
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sudo codesign -s - -f "$TARGET_DIR/$BINARY_NAME" 2>/dev/null || true
+fi
+
 echo -e "${GREEN}Installation complete!${NC}"
-echo -e "${YELLOW}You can now use '$BINARY_NAME' command from anywhere.${NC}" 
+echo -e "${YELLOW}You can now use '$BINARY_NAME' command from anywhere.${NC}"

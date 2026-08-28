@@ -17,7 +17,7 @@ from werkzeug.exceptions import HTTPException, MethodNotAllowed
 REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SENSITIVE_NAME = (
-    r"(?:password|passwd|secret|token|api[_-]?key|authorization|credential|"
+    r"(?:pass(?:word|wd|phrase)?|secret|token|api[_-]?key|authorization|credential|"
     r"access[_-]?token|refresh[_-]?token|client[_-]?secret|"
     r"aws[_-]?(?:secret[_-]?access[_-]?key|session[_-]?token)|private[_-]?key)"
 )
@@ -29,6 +29,13 @@ _SENSITIVE_INLINE_NAME = rf"(?:[\w-]+\.)*{_SENSITIVE_NAME}(?:\.[\w-]+)*"
 _SENSITIVE_QUOTED_VALUE_RE = re.compile(
     rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
     rf"(?P<quote>[\"'])(?P<value>.*?)(?P=quote)"
+)
+# Authorization-style header values are credential material in full (scheme
+# plus credentials, e.g. "authorization: Basic dXNlcjpwYXNz"), so the whole
+# remainder of the value is redacted, not just the first token.
+_SENSITIVE_CREDENTIAL_HEADER_RE = re.compile(
+    rf"(?i)(?P<prefix>[\"']?(?:proxy[-_])?authorization[\"']?\s*(?:=|:)\s*)"
+    r"(?P<value>[^\"',;}\r\n]*)"
 )
 _SENSITIVE_UNQUOTED_VALUE_RE = re.compile(
     rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
@@ -52,7 +59,27 @@ _ERROR_CODES = {
     500: "INTERNAL_SERVER_ERROR",
 }
 _LEGACY_PLATFORM_PATHS = {"/api/platform/idempotency"}
+# The /api/v2 mirror of the pre-contract idempotency path stays outside the
+# contract as well (mirrored by ``api_v2._common._LEGACY_V2_PLATFORM_PATHS``
+# for the served document), so its v2 proxy behaves byte-identically to v1.
+_V2_LEGACY_PLATFORM_PATHS = {"/api/v2/platform/idempotency"}
 _SERVICE_ROUTE_RE = re.compile(r"^/api/projects/[^/]+/services(?:/|$)")
+
+#: Error codes a client may retry without client-side changes. This is the
+#: single source of truth for retryability: API errors may expose it only as a
+#: boolean (``details.retryable``) or a category token
+#: (``details.retry_category``) — never as free text, internal exception
+#: messages, or credential material.
+RETRYABLE_ERROR_CODES = frozenset({"RATE_LIMITED"})
+
+#: Canonical ``details`` keys for retryability (boolean + category token).
+RETRYABLE_DETAIL_KEY = "retryable"
+RETRY_CATEGORY_DETAIL_KEY = "retry_category"
+
+
+def is_retryable(code: str) -> bool:
+    """Whether an error ``code`` is classified as safe to retry."""
+    return code in RETRYABLE_ERROR_CODES
 
 
 def generate_request_id() -> str:
@@ -146,6 +173,9 @@ def redact_sensitive(value: Any) -> Any:
             lambda match: f"{match.group('prefix')}{match.group('quote')}[REDACTED]{match.group('quote')}",
             value,
         )
+        value = _SENSITIVE_CREDENTIAL_HEADER_RE.sub(
+            lambda match: f"{match.group('prefix')}[REDACTED]", value
+        )
         return _SENSITIVE_UNQUOTED_VALUE_RE.sub(
             lambda match: f"{match.group('prefix')}[REDACTED]", value
         )
@@ -168,7 +198,17 @@ def error_envelope(
     details: Mapping[str, Any] | None = None,
     request_id_value: str | None = None,
 ) -> dict[str, Any]:
-    """Build a safe standard error body."""
+    """Build a safe standard error body.
+
+    Contract policy (mirrored in ``api_v2/schemas/contracts.py`` and the served
+    ``/api/v2`` document):
+
+    - ``error.details`` must never carry credential material — sensitive keys
+      and inline secret values are replaced with ``[REDACTED]``.
+    - Internal exception text must never reach ``message`` or ``details``.
+    - Retryability may appear only as the boolean ``details.retryable`` or the
+      category token ``details.retry_category`` (see :data:`RETRYABLE_ERROR_CODES`).
+    """
     return {
         "error": {
             "code": code,
@@ -238,11 +278,18 @@ def is_platform_request() -> bool:
     """Whether the active request uses the additive contract namespace."""
     if not has_request_context():
         return False
+    path = request.path
+    # The served /api/v2 document (flask-smorest mirrors of the legacy API
+    # plus the platform namespace) promises ErrorEnvelope error bodies and
+    # X-Request-ID correlation, so the whole v2 namespace is normalized like
+    # /api/platform/*. Exact legacy mirrors stay outside the contract.
+    if path == "/api/v2" or path.startswith("/api/v2/"):
+        return path not in _V2_LEGACY_PLATFORM_PATHS
     # The namespace root is part of the new contract even though it has no
     # view. Exact legacy paths remain outside the contract by design.
     return (
-        (request.path == "/api/platform" or request.path.startswith("/api/platform/")) and request.path not in _LEGACY_PLATFORM_PATHS
-    ) or bool(_SERVICE_ROUTE_RE.fullmatch(request.path) or _SERVICE_ROUTE_RE.match(request.path))
+        (path == "/api/platform" or path.startswith("/api/platform/")) and path not in _LEGACY_PLATFORM_PATHS
+    ) or bool(_SERVICE_ROUTE_RE.fullmatch(path) or _SERVICE_ROUTE_RE.match(path))
 
 
 def _copy_response_headers(source: Response, target: Response) -> Response:

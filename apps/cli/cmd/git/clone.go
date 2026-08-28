@@ -8,18 +8,16 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var CloneCmd = &cobra.Command{
-	Use:   "clone <repo-url>",
-	Short: "Clone a git repository and enter the project directory",
-	Args:  cobra.ExactArgs(1),
+	Use:     "clone <repo-url>",
+	Short:   "Clone a git repository and enter the project directory",
+	Args:    cobra.ExactArgs(1),
+	PreRunE: netgate.RequireNetwork("Git Clone"),
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := utils.CheckNetwork(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
 
 		repoURL := args[0]
 		

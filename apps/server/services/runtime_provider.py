@@ -22,6 +22,7 @@ PUBLIC_PROVIDER_VALIDATION_ERROR = "runtime provider validation failed"
 # malformed values are mapped to PROVIDER_ERROR before they can be persisted.
 RUNTIME_ERROR_CODES = frozenset({
     "PROVIDER_ERROR", "PROVIDER_TIMEOUT", "PROVIDER_DISABLED", "INVALID_RUNTIME",
+    "RUNTIME_UNAVAILABLE",
     "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_TIMEOUT", "UNSUPPORTED_IDEMPOTENCY",
     "IDEMPOTENCY_MISMATCH", "INVALID_PROVIDER_RESULT", "INVALID_PROVIDER_LOG",
     "INVALID_PROVIDER_VALIDATION", "INVALID_SPEC", "PROVIDER_VALIDATION_ERROR",
@@ -31,6 +32,7 @@ _ERROR_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _PUBLIC_ERROR_MESSAGES = {
     "PROVIDER_DISABLED": "runtime provider is disabled",
     "INVALID_RUNTIME": "runtime provider configuration is invalid",
+    "RUNTIME_UNAVAILABLE": "runtime provider is currently unavailable",
     "UNSUPPORTED_CAPABILITY": "runtime provider capability is unsupported",
     "UNSUPPORTED_TIMEOUT": "runtime provider adapter cannot honor operation timeout",
     "UNSUPPORTED_IDEMPOTENCY": "runtime provider adapter cannot honor idempotency key",
@@ -45,7 +47,10 @@ def safe_runtime_error_code(value: Any) -> str:
         return candidate
     return "PROVIDER_ERROR"
 _SENSITIVE_KEY = re.compile(
-    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
+    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer"
+    # Boundary-guarded short form so DB_PASS-style keys redact while
+    # prose-adjacent words (bypass, passthrough, compass) do not match.
+    r"|(?:^|[^a-z0-9])pass(?:word|wd|phrase)?(?=$|[^a-z0-9]))",
     re.IGNORECASE,
 )
 _PRIVATE_KEY = re.compile(

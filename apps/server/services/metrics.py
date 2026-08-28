@@ -53,6 +53,42 @@ def workers_online() -> int:
         return 0
 
 
+def queue_oldest_queued_seconds() -> float:
+    """Age of the oldest execution in the durable queue (0 when empty)."""
+    try:
+        from storage import pg
+        row = pg.query_one("SELECT MIN(queued_at) AS oldest FROM queued_executions")
+        oldest = row.get("oldest") if row else None
+        if oldest:
+            return max(0.0, time.time() - float(oldest))
+    except Exception:
+        pass
+    return 0.0
+
+
+def admission_leases_active() -> int:
+    """Active project admission leases across all projects."""
+    try:
+        from storage import pg
+        row = pg.query_one(
+            "SELECT COUNT(*) AS count FROM project_admission_leases "
+            "WHERE status IN ('reserved','active') AND (lease_until IS NULL OR lease_until >= %s)",
+            (time.time(),),
+        )
+        return int(row.get("count") or 0) if row else 0
+    except Exception:
+        return 0
+
+
+def failure_counters() -> Dict[str, int]:
+    """Recovery / contention / provider / delivery failure counters (drills)."""
+    try:
+        from storage.metrics_counters import snapshot
+        return snapshot()
+    except Exception:
+        return {}
+
+
 def counters() -> Dict[str, int]:
     return {
         "executions": sum(execution_counts().values()),
@@ -102,4 +138,23 @@ def render_prometheus() -> str:
     lines.append("# HELP radas_process_started_seconds Process start (server boot).")
     lines.append("# TYPE radas_process_started_seconds gauge")
     lines.append(f"radas_process_started_seconds {int(time.time())}")
+
+    # Failure/recovery observability (Task 6.3 drills).
+    lines.append("# HELP radas_queue_oldest_queued_seconds Age of the oldest queued execution.")
+    lines.append("# TYPE radas_queue_oldest_queued_seconds gauge")
+    lines.append(f"radas_queue_oldest_queued_seconds {queue_oldest_queued_seconds():.3f}")
+    lines.append("# HELP radas_admission_leases_active Active project admission leases.")
+    lines.append("# TYPE radas_admission_leases_active gauge")
+    lines.append(f"radas_admission_leases_active {admission_leases_active()}")
+    failure_counts = failure_counters()
+    for name in (
+        "recovery_terminalized_total",
+        "recovery_requeued_total",
+        "lock_contention_denials_total",
+        "provider_errors_total",
+        "webhook_delivery_failures_total",
+    ):
+        lines.append(f"# HELP radas_{name} Failure/recovery counter ({name}).")
+        lines.append(f"# TYPE radas_{name} counter")
+        lines.append(f"radas_{name} {failure_counts.get(name, 0)}")
     return "\n".join(lines) + "\n"

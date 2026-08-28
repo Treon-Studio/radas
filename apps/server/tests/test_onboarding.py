@@ -10,15 +10,7 @@ USER_ID = "test-onboarding-user"
 
 @pytest.fixture
 def setup_user(pg_db):
-    # Create onboarding_status table
-    pg.execute("""
-        CREATE TABLE IF NOT EXISTS onboarding_status (
-            user_id TEXT PRIMARY KEY,
-            completed_at REAL,
-            created_at REAL DEFAULT (EXTRACT(epoch FROM NOW())),
-            updated_at REAL DEFAULT (EXTRACT(epoch FROM NOW()))
-        )
-    """)
+    # onboarding_status comes from the canonical schema (pg_schema v1).
     # Create a test user
     now = 1234567890
     pg.execute(

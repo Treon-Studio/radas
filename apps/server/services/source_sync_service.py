@@ -839,7 +839,7 @@ class SourceSyncService:
                     # , - push ( )
                     # , origin
                     logger.info(f"[PUSH] Running: git rev-list --count HEAD...origin/{ref}")
-                    ahead_check = subprocess.run(['git', 'rev-list', '--count', f'HEAD...origin/{ref}'], capture_output=True, text=True)
+                    ahead_check = subprocess.run(['git', 'rev-list', '--count', f'HEAD...origin/{ref}'], capture_output=True, text=True)  # sensitive-path-ok: single argv element, no shell
                     commits_ahead = ahead_check.returncode == 0 and int(ahead_check.stdout.strip()) > 0
                     logger.info(f"[PUSH] Commits ahead of origin/{ref}: {ahead_check.stdout.strip() if commits_ahead else '0'}")
                     if ahead_check.stderr:
@@ -1073,7 +1073,7 @@ class SourceSyncService:
                 
                 # , - push ( )
                 logger.info(f"[PUSH] Running: git rev-list --count HEAD...origin/{ref} (legacy format)")
-                ahead_check = subprocess.run(['git', 'rev-list', '--count', f'HEAD...origin/{ref}'], capture_output=True, text=True)
+                ahead_check = subprocess.run(['git', 'rev-list', '--count', f'HEAD...origin/{ref}'], capture_output=True, text=True)  # sensitive-path-ok: single argv element, no shell
                 commits_ahead = ahead_check.returncode == 0 and int(ahead_check.stdout.strip()) > 0
                 logger.info(f"[PUSH] Commits ahead of origin/{ref}: {ahead_check.stdout.strip() if commits_ahead else '0'} (legacy format)")
                 if ahead_check.stderr:
@@ -1819,11 +1819,13 @@ class SourceSyncService:
                     if cur != ref:
                         subprocess.run(['git', 'checkout', ref], capture_output=True, text=True)
 
+                # sensitive-path-ok: refs interpolate into single argv
+                # elements (cannot split into flags); no shell anywhere.
                 upstream = subprocess.run(['git', 'rev-parse', '--verify', f'origin/{ref}'], capture_output=True, text=True)
                 if upstream.returncode == 0:
-                    ahead = subprocess.run(['git', 'rev-list', '--count', f'origin/{ref}..HEAD'], capture_output=True, text=True)
+                    ahead = subprocess.run(['git', 'rev-list', '--count', f'origin/{ref}..HEAD'], capture_output=True, text=True)  # sensitive-path-ok
                     if (ahead.stdout or '0').strip() not in ('', '0'):
-                        subprocess.run(['git', 'reset', '--soft', f'origin/{ref}'], capture_output=True, text=True)
+                        subprocess.run(['git', 'reset', '--soft', f'origin/{ref}'], capture_output=True, text=True)  # sensitive-path-ok
 
                 subprocess.run(['git', 'add', '-A'], check=True, capture_output=True, text=True)
                 status = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True)

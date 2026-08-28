@@ -2,9 +2,12 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/raizora/radas/v4/internal/netgate"
 )
 
 type toolCallProvider struct {
@@ -123,11 +126,45 @@ func TestChatLoop_MaxIterations(t *testing.T) {
 
 func TestChatLoop_AddSystemMessage(t *testing.T) {
 	chat := NewChatSession(ChatConfig{
-		Provider:     &toolCallProvider{},
-		Model:        "test",
+		Provider:      &toolCallProvider{},
+		Model:         "test",
 		MaxIterations: 5,
 	})
 
 	chat.AddSystem("You are a helpful assistant.")
 	// No error expected — just verify it doesn't panic
+}
+
+type errorProvider struct {
+	err error
+}
+
+func (p *errorProvider) Chat(ctx context.Context, req ChatRequest) (<-chan Event, error) {
+	return nil, p.err
+}
+
+func TestChatLoop_ProviderNetworkError(t *testing.T) {
+	netErr := &netgate.NetworkRequiredError{Feature: "RADAS AI Assistant"}
+	chat := NewChatSession(ChatConfig{
+		Provider: &errorProvider{err: netErr},
+		Model:    "test",
+	})
+
+	events := chat.Send(context.Background(), "hello")
+	var gotErr error
+	for e := range events {
+		if e.Type == EventError {
+			gotErr = e.Err
+		}
+	}
+	if gotErr == nil {
+		t.Fatal("expected error event, got nil")
+	}
+	var targetErr *netgate.NetworkRequiredError
+	if !errors.As(gotErr, &targetErr) {
+		t.Fatalf("expected *netgate.NetworkRequiredError, got %T (%v)", gotErr, gotErr)
+	}
+	if targetErr.Feature != "RADAS AI Assistant" {
+		t.Errorf("Feature = %q, want %q", targetErr.Feature, "RADAS AI Assistant")
+	}
 }

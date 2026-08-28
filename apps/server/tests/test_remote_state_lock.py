@@ -10,23 +10,7 @@ from storage import pg
 
 @pytest.fixture(scope="function")
 def with_lock_table(pg_db):
-    """Ensure the remote_state_locks table exists before tests."""
-    with pg.transaction() as conn:
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS remote_state_locks (
-            id TEXT PRIMARY KEY,
-            stack TEXT NOT NULL,
-            backend_type TEXT NOT NULL,
-            backend_key TEXT NOT NULL,
-            actor TEXT,
-            operation TEXT NOT NULL,
-            run_id TEXT,
-            acquired_at REAL NOT NULL,
-            expires_at REAL NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_remote_state_locks_stack_backend ON remote_state_locks(stack, backend_type, backend_key);
-        CREATE INDEX IF NOT EXISTS idx_remote_state_locks_expires ON remote_state_locks(expires_at);
-        """)
+    """pg_db already applied the canonical remote_state_locks schema (pg_schema v24)."""
     yield
 
 

@@ -7,14 +7,16 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/scan"
 	"github.com/raizora/radas/v4/internal/utils"
 )
 
 var VulnCmd = &cobra.Command{
-	Use:   "vuln",
-	Short: "Scan Go dependencies for vulnerabilities",
-	Long:  `Runs govulncheck on the current Go project to detect known vulnerabilities in dependencies.`,
+	Use:     "vuln",
+	Short:   "Scan Go dependencies for vulnerabilities",
+	Long:    `Runs govulncheck on the current Go project to detect known vulnerabilities in dependencies.`,
+	PreRunE: netgate.RequireNetwork("Backend Vulnerability Scan"),
 	Run: func(cmd *cobra.Command, args []string) {
 		r := scan.RunGovulncheck(".")
 		passStr := color.New(color.FgGreen).Sprint("✓")

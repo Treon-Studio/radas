@@ -594,6 +594,8 @@ class GitSourceManager:
                     # If we just fetched, reset hard to ensure we have latest changes
                     if needs_fetch:
                         # Try to reset to remote branch to get latest changes
+                        # sensitive-path-ok: ref interpolates into a single
+                        # argv element (cannot split into flags); no shell.
                         reset_result = subprocess.run(
                             ['git', 'reset', '--hard', f'origin/{ref}'],
                             cwd=cache_dir,

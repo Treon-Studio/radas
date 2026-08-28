@@ -10,11 +10,45 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from api.platform_contracts import redact_sensitive
+from services.runtime_provider import ProviderResult
 from storage import pg
 
 
 class ObservabilityError(ValueError):
     pass
+
+
+def _get_provider(runtime_id: str):
+    """Resolve a runtime provider through the shared environment registry.
+
+    The same configuration source feeds the operation runner, so an enabled
+    local container runtime is reachable here under identical settings.  A
+    disabled or unknown runtime resolves to the gated stub (or ``None`` for an
+    empty id) and surfaces the stable unavailable status instead of a false
+    healthy state.
+    """
+    from services import runtime_registry
+
+    normalized = str(runtime_id or "").strip()
+    if not normalized:
+        return None
+    return runtime_registry.registry_from_environment().get(normalized)
+
+
+def _provider_snapshot(instance: Mapping[str, Any]) -> dict[str, Any]:
+    """Best-effort live provider state; every failure is a stable status."""
+    try:
+        provider = _get_provider(str(instance.get("runtime_id") or ""))
+        if provider is None:
+            return {"available": False, "status": "PROVIDER_DISABLED"}
+        result = provider.status(dict(instance))
+    except Exception:
+        return {"available": False, "status": "PROVIDER_ERROR"}
+    error = getattr(result, "error", None) or {}
+    if not isinstance(result, ProviderResult) or not result.success:
+        return {"available": False, "status": str(error.get("code") or "PROVIDER_ERROR")}
+    data = result.data if isinstance(result.data, Mapping) else {}
+    return {"available": True, "state": str(data.get("state") or "unknown")}
 
 
 def _instance(project_id: str, instance_id: str, actor_id: str | None) -> dict[str, Any]:
@@ -44,7 +78,12 @@ def observe_health(project_id: str, instance_id: str, actor_id: str | None, stat
 def health(project_id: str, instance_id: str, actor_id: str | None) -> dict[str, Any]:
     instance = _instance(project_id, instance_id, actor_id)
     latest = pg.query_one("SELECT * FROM service_health_observations WHERE instance_id=%s ORDER BY observed_at DESC LIMIT 1", (instance_id,))
-    return {"current": dict(latest) if latest else {"status": "unknown", "observed_at": None}, "endpoint": redact_sensitive(instance.get("endpoint_summary")), "provider_ref": redact_sensitive(instance.get("provider_ref"))}
+    return {
+        "current": dict(latest) if latest else {"status": "unknown", "observed_at": None},
+        "endpoint": redact_sensitive(instance.get("endpoint_summary")),
+        "provider_ref": redact_sensitive(instance.get("provider_ref")),
+        "provider": _provider_snapshot(instance),
+    }
 
 
 def timeline(project_id: str, instance_id: str, actor_id: str, limit: int = 50) -> list[dict[str, Any]]:

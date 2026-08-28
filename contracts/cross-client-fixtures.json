@@ -1,0 +1,196 @@
+{
+    "$comment": [
+        "Cross-client contract fixtures (Task 6.2 of docs/superpowers/plans/2026-08-27-radas-console-cli-full-integration.md).",
+        "",
+        "Records, for the shared login -> projects read -> services read ->",
+        "idempotent service-deploy mutation -> replay/conflict flow, the exact",
+        "status / headers / body shape the RADAS server produces. Populated from",
+        "the ACTUAL server behaviour asserted by the server reference half",
+        "apps/server/tests/test_cli_server_integration.py and the envelope",
+        "constructors in apps/server/api/platform_contracts.py (success_envelope,",
+        "error_envelope, operation_envelope) plus app.py's after_request hook that",
+        "stamps X-Request-ID on every /api response.",
+        "",
+        "Every client leg (direct HTTP, Go client, TypeScript console client)",
+        "asserts equivalent: status, project scope, request ID, idempotency replay",
+        "result, and structured error code. Placeholder values in angle brackets",
+        "are per-request dynamic values; placeholder tokens are fixtures, never",
+        "real credentials."
+    ],
+    "contract_version": 1,
+    "steps": {
+        "login": {
+            "domain": "auth",
+            "endpoint": "POST /api/auth/login",
+            "request": {
+                "content_type": "application/json",
+                "body_keys": ["username", "password"]
+            },
+            "response": {
+                "status": 200,
+                "body_keys": ["success", "access_token", "refresh_token", "orgs", "active_org_id", "user"],
+                "user_keys": ["id", "username", "email", "roles"],
+                "sample": {
+                    "success": true,
+                    "access_token": "<access_token>",
+                    "refresh_token": "<refresh_token>",
+                    "orgs": [{"id": "<org_id>"}],
+                    "active_org_id": "<org_id>",
+                    "user": {"id": "<user_id>", "username": "<username>", "email": "<email>", "roles": []}
+                }
+            },
+            "error": {
+                "status": 401,
+                "body_keys": ["success", "error"],
+                "sample": {"success": false, "error": "Incorrect username or password"},
+                "note": "The legacy auth namespace returns a flat {success, error} body, NOT the platform {error: {code}} envelope."
+            }
+        },
+        "projects_list": {
+            "domain": "projects",
+            "endpoint": "GET /api/projects",
+            "request": {
+                "headers": {"Authorization": "Bearer <access_token>"}
+            },
+            "response": {
+                "status": 200,
+                "body_keys": ["success", "projects"],
+                "project_keys": ["id", "name", "orgId", "isArchived"],
+                "sample": {
+                    "success": true,
+                    "projects": [{"id": "<project_id>", "name": "<project_name>", "orgId": "<org_id>", "isArchived": false}]
+                },
+                "note": "Legacy envelope: no data wrapper, no request_id. Org-scoped: projects of orgs the user does not belong to are never listed (project scope assertion)."
+            }
+        },
+        "services_list": {
+            "domain": "services",
+            "endpoint": "GET /api/projects/<project_id>/services",
+            "request": {
+                "headers": {"Authorization": "Bearer <access_token>"}
+            },
+            "response": {
+                "status": 200,
+                "body_keys": ["data", "request_id"],
+                "data_keys": ["services"],
+                "headers": {"X-Request-ID": "<same as body request_id>"},
+                "sample": {
+                    "data": {"services": []},
+                    "request_id": "<request_id>"
+                },
+                "note": "Platform namespace envelope: request_id in the body AND the X-Request-ID response header must match it."
+            }
+        },
+        "service_deploy": {
+            "domain": "services",
+            "endpoint": "POST /api/projects/<project_id>/services",
+            "request": {
+                "headers": {
+                    "Authorization": "Bearer <access_token>",
+                    "Idempotency-Key": "<idempotency_key>",
+                    "Content-Type": "application/json"
+                },
+                "body_keys": ["name", "environment", "catalog_slug", "catalog_version", "runtime_id", "spec", "deploy"],
+                "sample": {
+                    "name": "<service_name>",
+                    "environment": "development",
+                    "catalog_slug": "<catalog_slug>",
+                    "catalog_version": "1.0.0",
+                    "runtime_id": "mock",
+                    "spec": {"mode": "safe"},
+                    "deploy": true
+                }
+            },
+            "response": {
+                "status": 202,
+                "body_keys": ["operation", "data", "request_id"],
+                "operation_keys": ["id", "kind", "status", "instance_id", "poll_url"],
+                "operation_values": {"kind": "service.deploy", "status": "queued"},
+                "data_keys": ["operation"],
+                "headers": {"X-Request-ID": "<same as body request_id>"},
+                "note": "Queued deploy: the operation is accepted (202) and stays queued unless a worker claims it; no execution happens during the contract flow."
+            }
+        },
+        "idempotency_replay": {
+            "domain": "services",
+            "endpoint": "POST /api/projects/<project_id>/services",
+            "request": {
+                "note": "Same Idempotency-Key + byte-identical JSON body as service_deploy."
+            },
+            "response": {
+                "status": 202,
+                "body_keys": ["operation", "data", "request_id"],
+                "operation_keys": ["id", "instance_id"],
+                "headers": {"X-Request-ID": "<same as body request_id>"},
+                "assertion": "The replayed envelope equals the original envelope verbatim: same operation id, same instance_id, same request_id (app-level idempotency cache; the DB-level layer replays the same operation id too)."
+            }
+        },
+        "idempotency_conflict": {
+            "domain": "services",
+            "endpoint": "POST /api/projects/<project_id>/services",
+            "request": {
+                "note": "Same Idempotency-Key as service_deploy but a DIFFERENT JSON body."
+            },
+            "response": {
+                "status": 409,
+                "error_codes": ["CONFLICT", "SERVICE_OPERATION_CONFLICT"],
+                "body_keys": ["error", "request_id"],
+                "error_keys": ["code", "message", "details"],
+                "headers": {"X-Request-ID": "<request_id>"},
+                "note": "CONFLICT = app-level idempotency cache answered; SERVICE_OPERATION_CONFLICT = the DB-level operation layer answered (cold cache / multi-process). Both are 409 contract codes."
+            }
+        },
+        "missing_idempotency_key": {
+            "domain": "services",
+            "endpoint": "POST /api/projects/<project_id>/services",
+            "request": {
+                "note": "deploy=true body WITHOUT the Idempotency-Key header."
+            },
+            "response": {
+                "status": 400,
+                "error_codes": ["SERVICE_VALIDATION_FAILED"],
+                "body_keys": ["error", "request_id"],
+                "error_keys": ["code", "message", "details"]
+            }
+        },
+        "scope_errors": {
+            "domain": "services",
+            "endpoint": "GET /api/projects/<project_id>/services",
+            "cases": [
+                {
+                    "request": {"note": "No Authorization header on the platform namespace."},
+                    "response": {
+                        "status": 401,
+                        "error_codes": ["UNAUTHORIZED"],
+                        "body_keys": ["error", "request_id"],
+                        "headers": {"X-Request-ID": "<request_id>"}
+                    }
+                },
+                {
+                    "request": {"note": "Bearer token for a project outside the user's orgs."},
+                    "response": {
+                        "status": 403,
+                        "error_codes": ["FORBIDDEN"],
+                        "body_keys": ["error", "request_id"],
+                        "headers": {"X-Request-ID": "<request_id>"},
+                        "note": "No existence leak: the foreign project is answered with FORBIDDEN."
+                    }
+                }
+            ]
+        }
+    },
+    "parity": {
+        "asserted_equivalences": [
+            "status per step is identical across direct HTTP, Go client, and TypeScript client legs",
+            "project scope: GET /api/projects lists only projects of the user's orgs, and the selected project's orgId matches the login active_org_id",
+            "request ID: platform-namespace responses carry body request_id == X-Request-ID header on every client leg",
+            "idempotency replay: same key + identical body returns the same operation id/instance_id on every client leg",
+            "structured error code: 409 key-reuse conflict and 400 missing-key rejection surface error.code from the fixture's error_codes on every client leg"
+        ],
+        "clients": {
+            "direct_http": "apps/cli/internal/integration/cross_client_test.go (leg 1: raw net/http)",
+            "go_client": "apps/cli/internal/integration/cross_client_test.go (leg 2: internal/client + cmd/auth) and apps/cli/internal/integration/server_contract_test.go",
+            "typescript_client": "apps/console/src/test/cross-client-fixtures.test.ts (always-on fixture leg via fetch stub + env-gated real-HTTP leg)"
+        }
+    }
+}

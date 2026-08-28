@@ -64,31 +64,37 @@ except ImportError:
 
 app = Flask(__name__)
 
-# Phase 1 of app.py blueprint refactor: register modular API blueprints.
-# Empty stubs today; subsequent phases will move route handlers from this
-# file into backend/api/*_routes.py. See .lovable/plan.md.
+# Modular API blueprints with an explicit required/optional policy.
+# Required modules fail closed: register_blueprints raises on a required
+# failure and records every outcome on app.extensions so /readyz can report
+# required_blueprints_ok=False. Optional/integration modules are logged skips.
+import app_context as _app_context
+_app_context.set_app(app)
+from api import register_blueprints as _register_api_blueprints
 try:
-    import app_context as _app_context
-    _app_context.set_app(app)
-    from api import register_blueprints as _register_api_blueprints
     _register_api_blueprints(app)
 except Exception as _bp_err:
-    import logging as _logging
-    _logging.getLogger(__name__).error(
-        f"Blueprint registration failed (continuing with legacy routes): {_bp_err}",
+    # Fail closed: keep booting enough to answer readiness probes honestly,
+    # but never serve traffic as if the required API surface were intact.
+    app.logger.error(
+        f"Required API blueprint registration failed ({type(_bp_err).__name__}); "
+        "readiness will report unhealthy.",
         exc_info=True,
     )
 
-# Pilot: flask-smorest auto-generated OpenAPI docs at /api/v2/*.
-# Fully additive — never touches legacy /api/* routes or /api/docs.
-# Silently no-ops if flask-smorest isn't installed.
+# /api/v2 contract surface (required, Task 2.1 of the 2026-08-27 plan).
+# flask-smorest is a pinned server dependency and a failed mount raises.
+# We keep booting to answer readiness probes honestly — the failure is on
+# app.extensions, so /readyz reports v2_contract_ok=False — mirroring the
+# required-blueprint fail-closed policy above. Never touches legacy /api/*.
+from api_v2 import init_api_v2 as _init_api_v2
 try:
-    from api_v2 import init_api_v2 as _init_api_v2
     _init_api_v2(app)
 except Exception as _v2_err:
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
-        f"/api/v2 pilot not mounted (continuing without it): {_v2_err}"
+    app.logger.error(
+        f"Required /api/v2 contract surface failed to mount "
+        f"({type(_v2_err).__name__}); readiness will report unhealthy.",
+        exc_info=True,
     )
 
 # CORS 
@@ -2881,7 +2887,18 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                             project_admission.release(conn, reference_id=execution_id)
                                     except Exception as release_e:
                                         app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
-                                    
+
+                                    try:
+                                        from services import lock_lifecycle as _ll
+                                        _lock_summary = _ll.release_for_execution(execution)
+                                        if _lock_summary.get("released"):
+                                            app.logger.info(
+                                                "[recovery] Released %d lock(s) for timed-out execution %s",
+                                                _lock_summary["released"], execution_id,
+                                            )
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release locks for recovered execution {execution_id}: {release_e}")
+
                                     app.logger.info(f"Recovered stuck RUNNING execution {execution_id} → FAILED ({recovery_reason}, worker: {worker_id})")
                                     recovered += 1
                             
@@ -2926,7 +2943,18 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                             project_admission.release(conn, reference_id=execution_id)
                                     except Exception as release_e:
                                         app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
-                                    
+
+                                    try:
+                                        from services import lock_lifecycle as _ll
+                                        _lock_summary = _ll.release_for_execution(execution)
+                                        if _lock_summary.get("released"):
+                                            app.logger.info(
+                                                "[recovery] Released %d lock(s) for force-canceled execution %s",
+                                                _lock_summary["released"], execution_id,
+                                            )
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release locks for recovered execution {execution_id}: {release_e}")
+
                                     app.logger.info(f"Recovered stuck CANCELING execution {execution_id} → CANCELED (timeout: {cancel_age_minutes:.1f} min)")
                                     recovered += 1
                         finally:
@@ -2936,7 +2964,12 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
         
         if recovered > 0:
             app.logger.info(f"Recovered {recovered} stuck executions")
-        
+            try:
+                from storage.metrics_counters import incr
+                incr("recovery_terminalized_total", recovered)
+            except Exception:
+                pass
+
         return recovered
     except Exception as e:
         app.logger.error(f"Error in server_recover_stuck_executions: {e}", exc_info=True)
@@ -2963,6 +2996,18 @@ def start_recovery_task():
         while True:
             try:
                 time.sleep(_recovery_interval())
+                # Expire stale project/remote-state leases so dead workers and
+                # crashed enqueues never permanently consume capacity (Task 5.3).
+                try:
+                    from services import lock_lifecycle as _ll
+                    _expired = _ll.cleanup_all()
+                    if any(_expired.values()):
+                        app.logger.info(
+                            "[recovery] Expired stale lock leases: project=%d remote=%d",
+                            _expired.get("project", 0), _expired.get("remote", 0),
+                        )
+                except Exception as lock_e:
+                    app.logger.warning(f"Lock lease cleanup failed: {lock_e}")
                 server_recover_stuck_executions(
                     max_age_minutes=30,
                     grace_period_minutes=5,
@@ -3072,15 +3117,18 @@ except Exception as e:
 # to backend/api/inventory_groups_hosts_routes.py.
 
 # Finalize /api/v2 auto-proxies: every v1 route is now on the URL map, so
-# scan and mount /api/v2/* mirrors for the flask-smorest spec. Safe no-op
-# if the pilot module didn't initialize.
+# scan and mount /api/v2/* mirrors and stamp stable operation IDs. Required
+# surface: a failed finalize leaves the unhealthy state on app.extensions
+# (readiness reports v2_contract_ok=False) instead of silently shrinking
+# the contract document.
+from api_v2 import finalize_api_v2 as _finalize_api_v2
 try:
-    from api_v2 import finalize_api_v2 as _finalize_api_v2
     _finalize_api_v2(app)
 except Exception as _v2_final_err:
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
-        f"/api/v2 auto-proxy finalize skipped: {_v2_final_err}"
+    app.logger.error(
+        f"Required /api/v2 auto-proxy finalize failed "
+        f"({type(_v2_final_err).__name__}); readiness will report unhealthy.",
+        exc_info=True,
     )
 
 if __name__ == '__main__':

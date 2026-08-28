@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RadasLogo } from "@/components/common/RadasLogo";
 import { PixelIcon } from "@/components/common/PixelIcon";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,18 @@ function LoginPage() {
   const search = useSearch({ from: "/login" });
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<"username" | "password" | null>(null);
+  const [customNotice, setCustomNotice] = useState<{ text: string; type: "error" | "info" | "success" } | null>(null);
+  const [noticeTimer, setNoticeTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const showMascotNotice = (text: string, type: "error" | "info" | "success" = "error", duration = 7000) => {
+    setCustomNotice({ text, type });
+    if (noticeTimer) clearTimeout(noticeTimer);
+    const timer = setTimeout(() => {
+      setCustomNotice(null);
+    }, duration);
+    setNoticeTimer(timer);
+  };
 
   const { data: sso } = useQuery({
     queryKey: ["sso-status"],
@@ -48,10 +60,16 @@ function LoginPage() {
     queryFn: () => api<{ success: boolean; enabled: boolean }>("GET", "/api/auth/google/config"),
   });
 
+  // Dismiss any existing toasts on login page mount
+  useEffect(() => {
+    toast.dismiss();
+  }, []);
+
   // Handle Google OAuth callback if code is present in query parameters
   useEffect(() => {
     if (search.code) {
       setGoogleLoading(true);
+      showMascotNotice("Signing you in with Google...", "info", 4000);
       const redirectUri = window.location.origin + "/login";
       api<{ success: boolean; token: string; refresh_token: string; user: unknown }>(
         "POST",
@@ -62,12 +80,12 @@ function LoginPage() {
           if (res.success && res.token) {
             setToken(res.token, res.refresh_token);
             if (res.user) saveUser(res.user);
-            toast.success("Successfully authenticated with Google");
+            showMascotNotice("Welcome aboard! Taking you in...", "success", 3000);
             navigate({ to: "/dashboard", replace: true });
           }
         })
         .catch((err) => {
-          toast.error(err instanceof Error ? err.message : "Google authentication failed");
+          showMascotNotice("Couldn't sign in with Google. Try again or use password?", "error", 8000);
           setGoogleLoading(false);
         });
     }
@@ -75,15 +93,22 @@ function LoginPage() {
 
   const mutation = useMutation({
     mutationFn: ({ u, p }: { u: string; p: string }) => login(u, p),
-    onSuccess: () => navigate({ to: "/dashboard", replace: true }),
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : t("auth.login.error"));
+    onSuccess: () => {
+      showMascotNotice("Welcome aboard, pilot! Taking you in...", "success", 3000);
+      navigate({ to: "/dashboard", replace: true });
+    },
+    onError: () => {
+      showMascotNotice("Hmm, that didn't match. Double-check your username or password?", "error", 8000);
     },
   });
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
     onSubmit: async ({ value }) => {
+      if (!value.username || !value.password) {
+        showMascotNotice("Oops! Don't forget to enter your username and password.", "error", 6000);
+        return;
+      }
       await mutation.mutateAsync({ u: value.username, p: value.password });
     },
   });
@@ -91,16 +116,65 @@ function LoginPage() {
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
+      showMascotNotice("Opening Google sign-in for you...", "info", 4000);
       const redirectUri = window.location.origin + "/login";
       const data = await api<{ success: boolean; url: string }>("GET", `/api/auth/google/url?redirect_uri=${encodeURIComponent(redirectUri)}`);
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (err) {
-      toast.error("Failed to initialize Google SSO");
+      showMascotNotice("Couldn't open Google login. Want to try password instead?", "error", 8000);
       setGoogleLoading(false);
     }
   };
+
+  const IDLE_DIALOGUES = [
+    "Hey there! Ready to launch today?",
+    "Welcome back! Good to see you again.",
+    "All systems look good and ready to fly 🚀",
+    "Sign in whenever you're ready :)",
+    "Need a hand getting into your control plane?",
+  ];
+
+  const [idleIndex, setIdleIndex] = useState(0);
+
+  // Cycle idle dialogue every 9 seconds calmly when not focused or in notice
+  useEffect(() => {
+    if (focusedField || mutation.isPending || customNotice) return;
+    const interval = setInterval(() => {
+      setIdleIndex((prev) => (prev + 1) % IDLE_DIALOGUES.length);
+    }, 9000);
+    return () => clearInterval(interval);
+  }, [focusedField, mutation.isPending, customNotice]);
+
+  const targetMessage = useMemo(() => {
+    if (customNotice) return customNotice.text;
+    if (mutation.isPending) return "Checking your credentials, hang tight...";
+    if (focusedField === "password") return "Type your secret key — no peeking! ( ^ ‿ ^ )";
+    if (focusedField === "username") return "What's your username or email?";
+    return IDLE_DIALOGUES[idleIndex] ?? "";
+  }, [customNotice, mutation.isPending, focusedField, idleIndex]);
+
+  // Retro Typewriter Effect (character-by-character typing with calm pacing)
+  const [displayedText, setDisplayedText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+
+  useEffect(() => {
+    let currentIdx = 0;
+    setDisplayedText("");
+    setIsTyping(true);
+
+    const timer = setInterval(() => {
+      currentIdx++;
+      setDisplayedText(targetMessage.slice(0, currentIdx));
+      if (currentIdx >= targetMessage.length) {
+        setIsTyping(false);
+        clearInterval(timer);
+      }
+    }, 32);
+
+    return () => clearInterval(timer);
+  }, [targetMessage]);
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 bg-[#CDEADC] overflow-hidden">
@@ -157,13 +231,13 @@ function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Retro Mascot & Speech Bubble */}
-        <div className="flex items-center justify-center gap-3 mb-5">
-          <div className="relative shrink-0 animate-pixel-bounce">
+        {/* Retro Mascot & Speech Bubble - Fixed Height Anchor to eliminate any jumping */}
+        <div className="flex items-center justify-center gap-3.5 mb-4 h-[90px]">
+          <div className="relative shrink-0 animate-pixel-bounce flex items-center justify-center">
             <img
               src="/images/haro-animated.webp"
-              alt="Animated Gundam Haro Mascot"
-              className="w-16 h-16 block select-none pointer-events-none"
+              alt="Animated Haro Mascot"
+              className="w-20 h-20 sm:w-22 sm:h-22 block select-none pointer-events-none transition-transform hover:scale-105"
               style={{
                 imageRendering: "pixelated",
                 outline: "none",
@@ -172,9 +246,34 @@ function LoginPage() {
               }}
             />
           </div>
-          <div className="nes-balloon from-left py-2 px-3.5">
-            <p className="font-pixel text-[8px] text-[#212529] leading-relaxed">
-              ENTER CREDENTIALS TO ACCESS RADAS CONTROL PLANE :)
+          <div
+            className={`nes-balloon from-left py-2 px-3 w-[220px] h-[58px] flex items-center shrink-0 transition-all ${
+              customNotice?.type === "error"
+                ? "border-[#E53E3E] shadow-[4px_4px_0_0_#E53E3E]"
+                : customNotice?.type === "success"
+                ? "border-[#38A169] shadow-[4px_4px_0_0_#38A169]"
+                : ""
+            }`}
+          >
+            <p
+              className={`font-pixel text-[8px] leading-snug break-words w-full select-none ${
+                customNotice?.type === "error"
+                  ? "text-[#C53030] font-semibold"
+                  : customNotice?.type === "success"
+                  ? "text-[#276749] font-semibold"
+                  : "text-[#212529]"
+              }`}
+            >
+              {displayedText}
+              {isTyping && (
+                <span
+                  className={`animate-pulse ml-0.5 ${
+                    customNotice?.type === "error" ? "text-[#C53030]" : "text-[#212529]"
+                  }`}
+                >
+                  ▍
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -223,6 +322,8 @@ function LoginPage() {
                     <Input
                       value={field.state.value}
                       onChange={e => field.handleChange(e.target.value)}
+                      onFocus={() => setFocusedField("username")}
+                      onBlur={() => setFocusedField(null)}
                       placeholder="Username / Email"
                       required
                       autoFocus
@@ -250,6 +351,8 @@ function LoginPage() {
                         type={showPassword ? "text" : "password"}
                         value={field.state.value}
                         onChange={e => field.handleChange(e.target.value)}
+                        onFocus={() => setFocusedField("password")}
+                        onBlur={() => setFocusedField(null)}
                         placeholder="••••••••••••"
                         required
                         className="pr-10"
