@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -49,14 +49,15 @@ func (tc TestCase) status() string {
 	return "disabled"
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -78,12 +79,13 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 	return resp, nil
 }
 
-// listTestCases fetches the project's test cases from GET /api/tests.
-func listTestCases(ctx context.Context, c *client.Client) ([]TestCase, error) {
+// listTestCases fetches the project's test cases from GET /api/tests through
+// the shared credential resolution.
+func listTestCases(ctx context.Context, cmd *cobra.Command) ([]TestCase, error) {
 	var resp struct {
 		TestCases []TestCase `json:"test_cases"`
 	}
-	if _, err := doAPI(ctx, c, http.MethodGet, "/api/tests", nil, &resp); err != nil {
+	if _, err := callAPI(ctx, cmd, http.MethodGet, "/api/tests", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp.TestCases, nil
@@ -94,14 +96,10 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls", "cases"},
 	Short:   "List the test cases registered on the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		cases, err := listTestCases(ctx, c)
+		cases, err := listTestCases(ctx, cmd)
 		if err != nil {
 			return fmt.Errorf("test list: %w", err)
 		}
@@ -128,17 +126,13 @@ var showCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		testID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		// The control plane registers no GET /api/tests/<id> detail route
 		// (only PATCH and DELETE), so the test case is selected from the
 		// list endpoint.
-		cases, err := listTestCases(ctx, c)
+		cases, err := listTestCases(ctx, cmd)
 		if err != nil {
 			return fmt.Errorf("test show: %w", err)
 		}
@@ -163,10 +157,6 @@ var runCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		testID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
@@ -184,7 +174,7 @@ var runCmd = &cobra.Command{
 				RunID    *string `json:"run_id"`
 			} `json:"result"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/tests/%s/run", testID), payload, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/tests/%s/run", testID), payload, &res); err != nil {
 			return fmt.Errorf("test run: %w", err)
 		}
 
@@ -219,10 +209,6 @@ var scoreCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
@@ -233,7 +219,7 @@ var scoreCmd = &cobra.Command{
 			PassedTests int      `json:"passed_tests"`
 			FailedTests int      `json:"failed_tests"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/test-cases/score?stack=%s", stackID), nil, &score); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, fmt.Sprintf("/api/test-cases/score?stack=%s", stackID), nil, &score); err != nil {
 			return fmt.Errorf("test score: %w", err)
 		}
 		if score.Score == nil {

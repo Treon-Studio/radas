@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -28,14 +28,15 @@ var Cmd = &cobra.Command{
 the per-stack audit schedule, and reconciles by queueing an apply run.`,
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -64,10 +65,6 @@ var scanCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
@@ -78,7 +75,7 @@ var scanCmd = &cobra.Command{
 			Stack  string `json:"stack"`
 			RunID  string `json:"run_id"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/drift-check", stackID), nil, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/drift-check", stackID), nil, &res); err != nil {
 			return fmt.Errorf("drift scan: %w", err)
 		}
 
@@ -98,10 +95,6 @@ var remediateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -114,7 +107,7 @@ var remediateCmd = &cobra.Command{
 			RunID  string `json:"run_id"`
 			Status string `json:"status"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res); err != nil {
 			return fmt.Errorf("drift remediate: %w", err)
 		}
 
@@ -130,10 +123,6 @@ var scheduleCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
@@ -144,7 +133,7 @@ var scheduleCmd = &cobra.Command{
 				Cron         string `json:"cron"`
 				AlertOnDrift bool   `json:"alert_on_drift"`
 			}
-			if _, err := doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s/drift-schedule", stackID), nil, &sched); err != nil {
+			if _, err := callAPI(ctx, cmd, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s/drift-schedule", stackID), nil, &sched); err != nil {
 				return fmt.Errorf("drift schedule: %w", err)
 			}
 			fmt.Printf("Drift schedule for '%s': enabled=%v cron=%s alert_on_drift=%v\n", stackID, sched.Enabled, sched.Cron, sched.AlertOnDrift)
@@ -162,7 +151,7 @@ var scheduleCmd = &cobra.Command{
 				AlertOnDrift bool   `json:"alert_on_drift"`
 			} `json:"schedule"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodPut, fmt.Sprintf("/api/cloud/stacks/%s/drift-schedule", stackID), payload, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodPut, fmt.Sprintf("/api/cloud/stacks/%s/drift-schedule", stackID), payload, &res); err != nil {
 			return fmt.Errorf("drift schedule: %w", err)
 		}
 

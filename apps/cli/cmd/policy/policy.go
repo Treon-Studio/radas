@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -39,14 +39,15 @@ type Violation struct {
 	RunID    string `json:"run_id"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -84,10 +85,6 @@ var violationsCmd = &cobra.Command{
 		stack, _ := cmd.Flags().GetString("stack")
 		severity, _ := cmd.Flags().GetString("severity")
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -107,7 +104,7 @@ var violationsCmd = &cobra.Command{
 			Count      int         `json:"count"`
 			Violations []Violation `json:"violations"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, path, nil, &resp); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, path, nil, &resp); err != nil {
 			return fmt.Errorf("policy violations: %w", err)
 		}
 

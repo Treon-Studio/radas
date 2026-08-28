@@ -55,6 +55,10 @@ var (
 	// ErrRefreshExpired is returned when the server rejects the stored
 	// refresh token; the credentials have been cleared from disk.
 	ErrRefreshExpired = errors.New("session expired: the refresh token was rejected and stored credentials were cleared (run 'radas auth login')")
+	// ErrStoredSessionRejected is returned when the server rejects the stored
+	// access token and no refresh token is stored, so the session cannot be
+	// renewed automatically.
+	ErrStoredSessionRejected = errors.New("stored session was rejected and cannot be refreshed (run 'radas auth login' to re-authenticate, or set --token/RADAS_TOKEN for CI)")
 )
 
 // stdin and stdinIsTerminal are injectable so tests can drive the
@@ -504,7 +508,7 @@ func runLogout(cmd *cobra.Command, args []string) error {
 	case err == nil:
 		_ = store.Clear()
 		fmt.Fprintln(out, "✔ Logged out: the presented token was revoked on the server and stored credentials were removed.")
-	case errors.Is(err, ErrRefreshExpired), errors.Is(err, ErrNotAuthenticated), isUnauthorized(err):
+	case errors.Is(err, ErrRefreshExpired), errors.Is(err, ErrNotAuthenticated), errors.Is(err, ErrStoredSessionRejected), isUnauthorized(err):
 		// The server no longer accepts the session (already revoked or
 		// expired, and the refresh was rejected too). Local state must go.
 		_ = store.Clear()
@@ -568,8 +572,15 @@ func DoWithRefresh(ctx context.Context, cmd *cobra.Command, call func(c *client.
 	}
 
 	resp, callErr := attempt()
-	if callErr == nil || !isUnauthorized(callErr) || creds.RefreshToken == "" {
+	if callErr == nil || !isUnauthorized(callErr) {
 		return resp, callErr
+	}
+
+	// The stored access token was rejected. Without a refresh token the
+	// session cannot be renewed, so surface the typed remediation error
+	// instead of a raw 401.
+	if creds.RefreshToken == "" {
+		return nil, ErrStoredSessionRejected
 	}
 
 	// One refresh, then one retry with the rotated token.

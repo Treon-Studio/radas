@@ -14,8 +14,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -38,14 +38,15 @@ type FlagItem struct {
 	ScopeType      string `json:"scope_type"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -75,18 +76,13 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("🚩 Fetching feature flags from RADAS API...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
 			Flags []FlagItem `json:"flags"`
 		}
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/flags", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/flags", nil, &resp)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("flags list: %w", err)
@@ -113,10 +109,6 @@ var getCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -126,7 +118,7 @@ var getCmd = &cobra.Command{
 		var resp struct {
 			Flags []FlagItem `json:"flags"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodGet, "/api/flags", nil, &resp); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodGet, "/api/flags", nil, &resp); err != nil {
 			return fmt.Errorf("flags get: %w", err)
 		}
 		var flag *FlagItem
@@ -161,10 +153,6 @@ var setCmd = &cobra.Command{
 			return fmt.Errorf("invalid boolean value: %s (expected true/false)", valStr)
 		}
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -175,7 +163,7 @@ var setCmd = &cobra.Command{
 			Success bool     `json:"success"`
 			Flag    FlagItem `json:"flag"`
 		}
-		_, err = doAPI(ctx, c, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
+		_, err = callAPI(ctx, cmd, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
 		if err != nil {
 			return fmt.Errorf("flags set: %w", err)
 		}
@@ -191,10 +179,6 @@ var killCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -205,7 +189,7 @@ var killCmd = &cobra.Command{
 			Success bool     `json:"success"`
 			Flag    FlagItem `json:"flag"`
 		}
-		_, err = doAPI(ctx, c, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
+		_, err := callAPI(ctx, cmd, http.MethodPatch, fmt.Sprintf("/api/flags/%s", key), payload, &res)
 		if err != nil {
 			return fmt.Errorf("flags kill: %w", err)
 		}

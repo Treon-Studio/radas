@@ -3,6 +3,7 @@ package flags
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,10 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
+	cmdauth "github.com/raizora/radas/v4/cmd/auth"
+	cliauth "github.com/raizora/radas/v4/internal/auth"
 	"github.com/raizora/radas/v4/internal/config"
 )
 
@@ -20,12 +24,31 @@ import (
 // command error.
 func runFlags(t *testing.T, srvURL string, args ...string) (string, error) {
 	t.Helper()
+	return runFlagsEnv(t, srvURL, nil, args...)
+}
+
+// runFlagsEnv executes a flags subcommand with isolated runtime configuration.
+// When creds is non-nil it is seeded into the CLI credential store so the
+// command must authenticate from stored credentials (RADAS_TOKEN stays
+// empty); otherwise no credentials exist at all.
+func runFlagsEnv(t *testing.T, srvURL string, creds *cliauth.Credentials, args ...string) (string, error) {
+	t.Helper()
 
 	t.Setenv("RADAS_API_URL", srvURL)
 	t.Setenv("RADAS_TOKEN", "")
 	t.Setenv("RADAS_ORG_ID", "org-test")
 	t.Setenv("RADAS_PROJECT_ID", "")
 	t.Setenv("RADAS_CONFIG_DIR", t.TempDir())
+
+	if creds != nil {
+		c := *creds
+		if c.APIURL == "" {
+			c.APIURL = srvURL
+		}
+		if err := cliauth.NewStoreAt(os.Getenv("RADAS_CONFIG_DIR")).Save(c); err != nil {
+			t.Fatalf("seed stored credentials: %v", err)
+		}
+	}
 
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -35,10 +58,17 @@ func runFlags(t *testing.T, srvURL string, args ...string) (string, error) {
 	os.Stdout = w
 
 	var buf strings.Builder
-	Cmd.SetOut(&buf)
-	Cmd.SetErr(&buf)
-	Cmd.SetArgs(args)
-	cmdErr := Cmd.Execute()
+	// A fresh production-shaped root per call: cobra's Execute() on a child
+	// delegates to Root(), so reusing the package-level Cmd directly would
+	// pick up stale args from any earlier root-based test in this package.
+	root := &cobra.Command{Use: "radas"}
+	config.RegisterPersistentFlags(root)
+	root.AddCommand(Cmd)
+	resetParsedFlags(Cmd)
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs(append([]string{Cmd.Name()}, args...))
+	cmdErr := root.Execute()
 
 	os.Stdout = old
 	_ = w.Close()
@@ -81,7 +111,10 @@ func TestFlagsListSuccess(t *testing.T) {
 }
 
 func TestFlagsListServerErrorNeverPrintsFallbackRows(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError} {
+	// 401 is excluded: with no stored credentials the wrapper surfaces the
+	// typed ErrNotAuthenticated (no per-request correlation ID); that path is
+	// covered by TestFlagsWithoutCredentialsSurfacesNotAuthenticated.
+	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError} {
 		srv := statusServer(t, code, `{"error":"boom"}`)
 		out, err := runFlags(t, srv.URL, "list")
 		srv.Close()
@@ -207,7 +240,9 @@ func TestFlagsSetPatchesServerFlag(t *testing.T) {
 }
 
 func TestFlagsSetFailureNeverClaimsSuccess(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError} {
+	// 401 excluded: surfaces as typed ErrNotAuthenticated without a request
+	// ID (see TestFlagsWithoutCredentialsSurfacesNotAuthenticated).
+	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError} {
 		srv := statusServer(t, code, `{"error":"boom"}`)
 		out, err := runFlags(t, srv.URL, "set", "dark-mode-v2", "true")
 		srv.Close()
@@ -302,6 +337,7 @@ func TestFlagsListUsesCentralRuntimeConfig(t *testing.T) {
 	root := &cobra.Command{Use: "radas"}
 	config.RegisterPersistentFlags(root)
 	root.AddCommand(Cmd)
+	resetParsedFlags(Cmd)
 	root.SetArgs([]string{
 		"--api-url", srv.URL,
 		"--token", "test-token-123",
@@ -328,5 +364,81 @@ func TestFlagsListUsesCentralRuntimeConfig(t *testing.T) {
 	}
 	if gotRequestID == "" {
 		t.Error("X-Request-Id header missing; shared client must correlate requests")
+	}
+}
+
+// authRecorder returns a server that records the Authorization header of the
+// remote call and answers with body (the command under test must succeed).
+func authRecorder(t *testing.T, body string, gotAuth *string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+}
+
+// The adapter must authenticate from the credentials stored by
+// `radas auth login` when no --token/RADAS_TOKEN override is present.
+func TestFlagsAuthenticatesFromStoredCredentials(t *testing.T) {
+	var gotAuth string
+	srv := authRecorder(t, `{"flags": []}`, &gotAuth)
+	defer srv.Close()
+
+	creds := &cliauth.Credentials{AccessToken: "stored-access-token", Username: "alice"}
+	if _, err := runFlagsEnv(t, srv.URL, creds, "list"); err != nil {
+		t.Fatalf("flags with stored credentials: %v", err)
+	}
+	if gotAuth != "Bearer stored-access-token" {
+		t.Errorf("Authorization = %q, want the stored access token as bearer", gotAuth)
+	}
+}
+
+// With no stored credentials and no RADAS_TOKEN, a 401 must surface as the
+// typed not-authenticated error that tells the user how to fix it.
+func TestFlagsWithoutCredentialsSurfacesNotAuthenticated(t *testing.T) {
+	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	defer srv.Close()
+
+	_, err := runFlags(t, srv.URL, "list")
+	if !errors.Is(err, cmdauth.ErrNotAuthenticated) {
+		t.Fatalf("error = %v, want cmdauth.ErrNotAuthenticated", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
+	}
+}
+
+// A stored access token without a refresh token cannot be renewed on a 401:
+// the adapter must surface the typed remediation error instead of a raw 401.
+func TestFlagsStoredSessionWithoutRefreshTokenSurfacesTypedError(t *testing.T) {
+	srv := statusServer(t, http.StatusUnauthorized, `{"error":"boom"}`)
+	defer srv.Close()
+
+	creds := &cliauth.Credentials{AccessToken: "stored-access-token", Username: "alice"}
+	_, err := runFlagsEnv(t, srv.URL, creds, "list")
+	if !errors.Is(err, cmdauth.ErrStoredSessionRejected) {
+		t.Fatalf("error = %v, want cmdauth.ErrStoredSessionRejected", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
+	}
+}
+
+// resetParsedFlags walks the shared command graph and restores every flag an
+// earlier test parsed: cobra merges root persistent flags into each child
+// command's flag set during execution, so parsed values (and their *Flag
+// pointers) stick to the package-level command vars across tests. Without
+// this reset, a stale --token/--api-url parsed by a previous test would win
+// over the current test's environment and stored credentials.
+func resetParsedFlags(c *cobra.Command) {
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			_ = f.Value.Set(f.DefValue)
+			f.Changed = false
+		}
+	})
+	for _, sub := range c.Commands() {
+		resetParsedFlags(sub)
 	}
 }

@@ -383,6 +383,10 @@ func TestDoWithRefreshClearsCredentialsWhenRefreshRejected(t *testing.T) {
 	}
 }
 
+// With a stored access token but no refresh token, a 401 cannot be remediated
+// by a refresh: the wrapper must surface the typed remediation error (same
+// remediation as the no-credentials path) instead of a raw 401 HTTPError, and
+// it must never attempt a refresh.
 func TestDoWithRefreshWithoutRefreshTokenDoesNotRetry(t *testing.T) {
 	root, _, dir := newTestRoot(t)
 	flow := newFlowServer(t,
@@ -394,9 +398,11 @@ func TestDoWithRefreshWithoutRefreshTokenDoesNotRetry(t *testing.T) {
 	seedCredentials(t, dir, flow.srv.URL, false) // no refresh token
 
 	_, err := DoWithRefresh(context.Background(), root, whoamiCall(context.Background()))
-	var httpErr *client.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusUnauthorized {
-		t.Errorf("error = %v, want the original 401 HTTPError", err)
+	if !errors.Is(err, ErrStoredSessionRejected) {
+		t.Errorf("error = %v, want ErrStoredSessionRejected", err)
+	}
+	if !strings.Contains(err.Error(), "radas auth login") {
+		t.Errorf("error must point at 'radas auth login', got %q", err.Error())
 	}
 	if flow.refresh != 0 || flow.gets != 1 {
 		t.Errorf("no refresh token stored: expected a single call, got gets=%d refresh=%d", flow.gets, flow.refresh)

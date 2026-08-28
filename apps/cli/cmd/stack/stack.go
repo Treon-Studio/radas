@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -49,22 +49,15 @@ type RunResult struct {
 	ProjectID string `json:"project_id"`
 }
 
-var (
-	apiClientOverride *client.Client
-)
-
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client. apiClientOverride
-// lets tests inject a client pointed at an httptest server.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	if apiClientOverride != nil {
-		return apiClientOverride, nil
-	}
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -94,18 +87,13 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("📡 Fetching infrastructure stacks from RADAS API...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var resp struct {
 			Stacks []StackInfo `json:"stacks"`
 		}
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/cloud/stacks", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/cloud/stacks", nil, &resp)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("stack list: %w", err)
@@ -132,17 +120,13 @@ var planCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		fmt.Printf("Queueing speculative plan for stack '%s'...\n", stackID)
 		var res RunResult
 		payload := map[string]string{"action": "plan"}
-		_, err = doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res)
+		_, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res)
 		if err != nil {
 			return fmt.Errorf("stack plan: %w", err)
 		}
@@ -158,17 +142,13 @@ var applyCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		fmt.Printf("Queueing apply for stack '%s'...\n", stackID)
 		var res RunResult
 		payload := map[string]string{"action": "apply"}
-		_, err = doAPI(ctx, c, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res)
+		_, err := callAPI(ctx, cmd, http.MethodPost, fmt.Sprintf("/api/cloud/stacks/%s/actions", stackID), payload, &res)
 		if err != nil {
 			return fmt.Errorf("stack apply: %w", err)
 		}
@@ -184,10 +164,6 @@ var statusCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -206,7 +182,7 @@ var statusCmd = &cobra.Command{
 			// meta["locked"], never in this top-level field.
 			LockReason string `json:"lock_reason"`
 		}
-		_, err = doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s", stackID), nil, &res)
+		_, err := callAPI(ctx, cmd, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s", stackID), nil, &res)
 		if err != nil {
 			return fmt.Errorf("stack status: %w", err)
 		}

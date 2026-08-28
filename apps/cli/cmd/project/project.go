@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
 	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
@@ -42,33 +43,50 @@ type ProjectInfo struct {
 	IsArchived bool   `json:"isArchived,omitempty"`
 }
 
-// listProjects performs the real GET /api/projects call through the shared
-// client and returns the accessible projects.
-func listProjects(ctx context.Context, c *client.Client) ([]ProjectInfo, error) {
-	resp, err := c.Do(ctx, http.MethodGet, "/api/projects", nil, client.RequestOptions{})
-	if err != nil {
-		return nil, err
-	}
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
+}
 
+// doAPI performs one control-plane call with an explicit correlation ID so
+// failures are reported with the request ID for server-side log lookup.
+// Mutating methods reuse the ID as the idempotency key.
+func doAPI(ctx context.Context, c *client.Client, method, path string, body, result any) (*client.Response, error) {
+	rid := client.NewRequestID()
+	opts := client.RequestOptions{RequestID: rid}
+	if method != http.MethodGet {
+		opts.IdempotencyKey = rid
+	}
+	resp, err := c.Do(ctx, method, path, body, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed (request %s): %w", method, path, rid, err)
+	}
+	if err := resp.JSON(result); err != nil {
+		return nil, fmt.Errorf("%s %s: decode response (request %s): %w", method, path, rid, err)
+	}
+	return resp, nil
+}
+
+// listProjects fetches the accessible projects from GET /api/projects through
+// the shared credential resolution and returns them.
+func listProjects(ctx context.Context, cmd *cobra.Command) ([]ProjectInfo, error) {
 	var payload struct {
 		Success  bool          `json:"success"`
 		Projects []ProjectInfo `json:"projects"`
 	}
-	if err := resp.JSON(&payload); err != nil {
+	if _, err := callAPI(ctx, cmd, http.MethodGet, "/api/projects", nil, &payload); err != nil {
 		return nil, err
 	}
 	if !payload.Success {
 		return nil, fmt.Errorf("project list request rejected by server")
 	}
 	return payload.Projects, nil
-}
-
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
 }
 
 var listCmd = &cobra.Command{
@@ -79,15 +97,10 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("🗂️ Fetching accessible projects from RADAS API...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		projects, err := listProjects(ctx, c)
+		projects, err := listProjects(ctx, cmd)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("list projects: %w", err)
@@ -122,15 +135,10 @@ var useCmd = &cobra.Command{
 		spin := utils.NewSpinner("🗂️ Resolving project on RADAS API...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		projects, err := listProjects(ctx, c)
+		projects, err := listProjects(ctx, cmd)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("resolve project: %w", err)

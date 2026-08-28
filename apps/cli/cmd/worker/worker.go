@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/raizora/radas/v4/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -39,14 +39,15 @@ type WorkerNode struct {
 	CurrentExecutionID string `json:"currentExecutionId,omitempty"`
 }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -76,11 +77,6 @@ var listCmd = &cobra.Command{
 		spin := utils.NewSpinner("⚙️ Querying worker daemons & execution pool...")
 		spin.Start()
 
-		c, err := getClient(cmd)
-		if err != nil {
-			spin.Stop()
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -88,7 +84,7 @@ var listCmd = &cobra.Command{
 			Workers []WorkerNode `json:"workers"`
 		}
 		// The control plane serves the worker registry under /api/admin/workers.
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/admin/workers", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/admin/workers", nil, &resp)
 		spin.Stop()
 		if err != nil {
 			return fmt.Errorf("worker list: %w", err)
@@ -127,10 +123,6 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show the pending execution queue served by the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -141,7 +133,7 @@ var statusCmd = &cobra.Command{
 			} `json:"queued"`
 			Count int `json:"count"`
 		}
-		_, err = doAPI(ctx, c, http.MethodGet, "/api/queue", nil, &resp)
+		_, err := callAPI(ctx, cmd, http.MethodGet, "/api/queue", nil, &resp)
 		if err != nil {
 			return fmt.Errorf("worker status: %w", err)
 		}

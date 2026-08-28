@@ -14,8 +14,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/raizora/radas/v4/cmd/auth"
 	"github.com/raizora/radas/v4/internal/client"
-	"github.com/raizora/radas/v4/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -42,14 +42,15 @@ type stateInfo struct {
 
 func (s stateInfo) present() bool { return s.StatePresent != nil && *s.StatePresent }
 
-// getClient resolves the shared runtime configuration (flags, environment,
-// persisted selector) and builds the common API client.
-func getClient(cmd *cobra.Command) (*client.Client, error) {
-	rc, err := config.LoadRuntimeConfig(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return rc.NewClient(), nil
+// callAPI performs one authenticated control-plane call through the shared
+// credential resolution (auth.DoWithRefresh): the --token flag / RADAS_TOKEN
+// environment wins for CI, stored `radas auth login` credentials are
+// presented otherwise and auto-refreshed once on a 401, and with neither
+// source the server's 401 surfaces as the typed auth.ErrNotAuthenticated.
+func callAPI(ctx context.Context, cmd *cobra.Command, method, path string, body, result any) (*client.Response, error) {
+	return auth.DoWithRefresh(ctx, cmd, func(c *client.Client) (*client.Response, error) {
+		return doAPI(ctx, c, method, path, body, result)
+	})
 }
 
 // doAPI performs one control-plane call with an explicit correlation ID so
@@ -71,10 +72,11 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 	return resp, nil
 }
 
-// fetchState fetches the remote state summary for a stack.
-func fetchState(ctx context.Context, c *client.Client, stackID string) (*stateInfo, error) {
+// fetchState fetches the remote state summary for a stack through the shared
+// credential resolution.
+func fetchState(ctx context.Context, cmd *cobra.Command, stackID string) (*stateInfo, error) {
 	var info stateInfo
-	if _, err := doAPI(ctx, c, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s/state", stackID), nil, &info); err != nil {
+	if _, err := callAPI(ctx, cmd, http.MethodGet, fmt.Sprintf("/api/cloud/stacks/%s/state", stackID), nil, &info); err != nil {
 		return nil, err
 	}
 	return &info, nil
@@ -87,14 +89,10 @@ var pullCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		info, err := fetchState(ctx, c, stackID)
+		info, err := fetchState(ctx, cmd, stackID)
 		if err != nil {
 			return fmt.Errorf("state pull: %w", err)
 		}
@@ -135,10 +133,6 @@ var unlockCmd = &cobra.Command{
 		force, _ := cmd.Flags().GetBool("force")
 		reason, _ := cmd.Flags().GetString("reason")
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
@@ -164,7 +158,7 @@ var unlockCmd = &cobra.Command{
 			Message string `json:"message"`
 			Error   string `json:"error"`
 		}
-		if _, err := doAPI(ctx, c, http.MethodDelete, path, nil, &res); err != nil {
+		if _, err := callAPI(ctx, cmd, http.MethodDelete, path, nil, &res); err != nil {
 			return fmt.Errorf("state unlock: %w", err)
 		}
 		if !res.OK {
@@ -187,14 +181,10 @@ var graphCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
-		c, err := getClient(cmd)
-		if err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		info, err := fetchState(ctx, c, stackID)
+		info, err := fetchState(ctx, cmd, stackID)
 		if err != nil {
 			return fmt.Errorf("state graph: %w", err)
 		}
