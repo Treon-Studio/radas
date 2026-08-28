@@ -102,3 +102,57 @@ jobs:
       - name: Check sensitive-path static rules
         working-directory: apps/server
         run: python scripts/check_sensitive_paths.py
+
+  # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
+  # of scripts/run-cross-client-contracts.sh: the pytest server reference
+  # contract, the console TypeScript client fixture leg (typecheck + vitest +
+  # build), and the Go CLI (vet + tests) / worker tests. The live-server legs
+  # (Go client + direct HTTP, TypeScript real HTTP) stay env-gated for
+  # self-hosted/manual runs via RUN_FULL_CONTRACT=1 (mode b).
+  cross-client-contracts:
+    name: Cross-Client Contract Parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          check-latest: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create server virtualenv
+        working-directory: apps/server
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run cross-client contract gate (mode a)
+        env:
+          TEST_DATABASE_URL: "sqlite:///:memory:"
+          JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
+          INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
+          GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
+        run: bash scripts/run-cross-client-contracts.sh
