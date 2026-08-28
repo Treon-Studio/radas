@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/project";
 import { logout } from "@/lib/auth";
 import { NewProjectDialog } from "@/components/project/NewProjectDialog";
+import { GlobalSearch } from "@/components/search/GlobalSearch";
 import { api, getStoredUser, setToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { minimizeWindow, maximizeWindow, closeWindow } from "@/lib/desktopBridge";
@@ -158,6 +159,7 @@ export function AppHeader() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2 h-full">
+          <GlobalSearch />
           {/* Org-switcher only matters for users in multiple orgs; manage orgs from the account menu. */}
           {orgs.length > 1 && (
             <div className="hidden md:flex items-center gap-1" title="Active organization">

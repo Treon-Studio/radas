@@ -37,4 +37,7 @@ export const qk = {
   serviceOperations: (projectId: string, serviceId: string) => ["projects", projectId, "services", serviceId, "operations"] as const,
   pipelines: ["cicd", "pipelines"] as const,
   cicdRuns: ["cicd", "runs"] as const,
+  // Dashboard widgets embed the active project id so a project switch
+  // (invalidateQueries) refetches per-project data under the right key.
+  dashboardWorkers: (projectId: string | null) => ["system", "workers-summary", projectId ?? "none"] as const,
 };
