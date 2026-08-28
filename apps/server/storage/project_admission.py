@@ -36,6 +36,11 @@ def admit(conn, project_id: str, *, limit: int, kind: str, reference_id: str, wo
     if existing:
         return dict(existing)
     if limit > 0 and active_count(conn, project_id) >= limit:
+        try:
+            from storage.metrics_counters import incr
+            incr("lock_contention_denials_total")
+        except Exception:
+            pass
         return None
     now = time.time()
     lease = {"id": str(uuid.uuid4()), "project_id": project_id, "kind": kind, "reference_id": reference_id, "worker_id": worker_id, "status": "active", "lease_until": lease_until, "created_at": now, "updated_at": now}

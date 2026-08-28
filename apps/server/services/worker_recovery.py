@@ -49,6 +49,13 @@ def recover_interrupted_queue(project_id: Optional[str] = None) -> Dict[str, Any
 
     logger.info(f"Worker queue recovery restored {len(recovered_ids)} running executions back to queued state")
 
+    if recovered_ids:
+        try:
+            from storage.metrics_counters import incr
+            incr("recovery_requeued_total", len(recovered_ids))
+        except Exception:
+            pass
+
     return {
         "success": True,
         "recovered_count": len(recovered_ids),

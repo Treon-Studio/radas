@@ -185,6 +185,11 @@ class RuntimeProviderRegistry:
         else:
             code = "PROVIDER_ERROR"
         details = redact(getattr(exc, "details", {}))
+        try:
+            from storage.metrics_counters import incr
+            incr("provider_errors_total")
+        except Exception:
+            pass
         return ProviderResult.failed(
             operation,
             code,

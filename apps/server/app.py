@@ -2964,7 +2964,12 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
         
         if recovered > 0:
             app.logger.info(f"Recovered {recovered} stuck executions")
-        
+            try:
+                from storage.metrics_counters import incr
+                incr("recovery_terminalized_total", recovered)
+            except Exception:
+                pass
+
         return recovered
     except Exception as e:
         app.logger.error(f"Error in server_recover_stuck_executions: {e}", exc_info=True)
