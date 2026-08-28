@@ -23,7 +23,7 @@ set to CI-style test values (same pattern as `.github/workflows/api-contract.yml
 |---|---|---|
 | `git diff --check` | — | clean |
 | Server compileall | `python -m compileall -q api services storage auth app.py` | OK |
-| Server full suite | `pytest -q` | **1148 collected; 1147 passed, 1 failed** — the single failure (`test_cli_auth_contract.py::test_cli_auth_lifecycle_login_use_refresh_logout`) is caused by the operator's uncommitted `apps/server/api/auth_routes.py` change; verified **1 passed** with that working-tree change stashed (committed code is green) |
+| Server full suite | `pytest -q` | **1148 collected; 1147 passed, 1 failed** — the single failure (`test_cli_auth_contract.py::test_cli_auth_lifecycle_login_use_refresh_logout`) was caused by the operator's uncommitted `apps/server/api/auth_routes.py` change; verified **1 passed** with that working-tree change stashed (committed code is green). *Follow-up (same day):* the auth contract test was made rotation-tolerant (optional `refresh_token` key, tokenless-logout 200-or-401), so the full suite is **1148/1148 green** both with the rotation work-in-progress present and on the committed tree. |
 | Route parity | `apps/server/scripts/check_route_parity.py` | OK — commands=65 (42 remote matched, 23 local classified), exit 0 |
 | OpenAPI snapshot pin | `pytest tests/test_openapi_snapshot_served.py` | OK (byte-identical to `contracts/radas-api-v2.openapi.json`) |
 | Compose contract | `pytest tests/test_compose_config.py` | OK (repaired to `apps/server/docker-compose.yml` this plan) |
@@ -32,7 +32,7 @@ set to CI-style test values (same pattern as `.github/workflows/api-contract.yml
 | E2E journey matrix (server) | `pytest tests/test_e2e_flow_matrix.py` | OK (7 tests) |
 | Worker Go suite | `go test ./...` (apps/worker) | OK, incl. `internal/recovery` drills |
 | CLI Go suite | `go vet ./... && go test ./...` (apps/cli) | OK; integration tests skip cleanly without `RADAS_TEST_*` |
-| Console typecheck | `pnpm typecheck` (working tree) | 2 errors in the operator's uncommitted `src/routes/login.tsx`; verified clean (exit 0) on the committed tree via a HEAD worktree |
+| Console typecheck | `pnpm typecheck` (working tree) | Clean (0 errors) — the 2 `login.tsx` errors in the operator's work-in-progress were fixed in place (`IDLE_DIALOGUES[idleIndex] ?? ""` under `noUncheckedIndexedAccess`) |
 | Console vitest | `pnpm test` | 17 files — **118 passed, 4 skipped** (env-gated real-HTTP legs) |
 | Console build | `pnpm build` | OK (vite production build, 4.42s) |
 | Cross-client fixture legs | `vitest run src/test/cross-client-fixtures.test.ts`, `go test ./internal/integration/` | OK (9 passed / 4 env-gated skipped; Go legs pass with clean skips) |

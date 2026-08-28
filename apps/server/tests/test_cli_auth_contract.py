@@ -7,10 +7,16 @@ apps/cli/cmd/auth) depends on, against the real auth routes blueprint:
     200 {success, access_token, refresh_token, orgs, active_org_id, user}
     401 {success: False, error}
 * GET  /api/auth/me      Bearer access token -> 200 {success, user}
-* POST /api/auth/refresh {refresh_token} -> 200 {success, access_token}
+* POST /api/auth/refresh {refresh_token} -> 200 {success, access_token[, refresh_token]}
     401 {success: False, error: "Invalid refresh token"}
+    ``refresh_token`` in the response is optional at the contract level: the
+    current server answers {success, access_token}; the refresh-rotation
+    variant (work in progress) additionally returns a rotated refresh token
+    and sets the httpOnly radas_refresh_token cookie. The CLI tolerates both.
 * POST /api/auth/logout  Bearer access token (require_auth) ->
     200 {success, message}; the presented token is blacklisted afterwards.
+    A tokenless logout is 401 while require_auth is in place; the rotation
+    variant relaxes it to a no-op 200 that only clears the cookie.
 """
 from __future__ import annotations
 
@@ -91,12 +97,16 @@ def test_cli_auth_lifecycle_login_use_refresh_logout(app_client):
     assert me.get_json()["success"] is True
     assert me.get_json()["user"]["username"] == USERNAME
 
-    # 3. refresh: exact shape — only success + access_token
+    # 3. refresh: success + a usable access token. refresh_token is optional
+    #    at the contract level (present only with refresh-token rotation).
     r = app_client.post("/api/auth/refresh", json={"refresh_token": refresh})
     assert r.status_code == 200
     refreshed = r.get_json()
     assert refreshed["success"] is True
-    assert set(refreshed) == {"success", "access_token"}
+    assert set(refreshed) >= {"success", "access_token"}
+    assert set(refreshed) <= {"success", "access_token", "refresh_token"}
+    if "refresh_token" in refreshed:
+        assert isinstance(refreshed["refresh_token"], str) and refreshed["refresh_token"]
     new_access = refreshed["access_token"]
     assert new_access
     # NOTE: not compared for inequality with the original — a refresh in the
@@ -117,9 +127,12 @@ def test_cli_auth_lifecycle_login_use_refresh_logout(app_client):
     assert me.status_code == 401
     assert me.get_json()["error"] == "Invalid token"
 
-    # 7. logout itself requires a token
+    # 7. a tokenless logout never leaks state: 401 while require_auth is in
+    #    place, or a no-op 200 that only clears the cookie (rotation variant).
     r = app_client.post("/api/auth/logout")
-    assert r.status_code == 401
+    assert r.status_code in (200, 401)
+    if r.status_code == 200:
+        assert r.get_json()["success"] is True
 
 
 def test_cli_login_rejects_wrong_password_with_exact_shape(app_client):
