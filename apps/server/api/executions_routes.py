@@ -242,6 +242,17 @@ def api_cancel_execution(project_id, execution_id):
         except Exception as e:
             _logger().warning(f"Failed to release admission lease for {execution_id}: {e}")
 
+        # Release execution-scoped locks on cancel (UC331/UC373 terminal path).
+        try:
+            from services import lock_lifecycle
+            _summary = lock_lifecycle.release_for_execution(execution)
+            if _summary.get("released"):
+                _logger().info(
+                    f"Released {_summary['released']} lock(s) for canceled execution {execution_id}"
+                )
+        except Exception as e:
+            _logger().warning(f"Failed to release locks for canceled execution {execution_id}: {e}")
+
         _logger().info(f"Canceled execution {execution_id} in project {project_id}")
         return jsonify({'success': True, 'status': 'CANCELED'})
 

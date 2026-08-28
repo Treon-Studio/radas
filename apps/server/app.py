@@ -2887,7 +2887,18 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                             project_admission.release(conn, reference_id=execution_id)
                                     except Exception as release_e:
                                         app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
-                                    
+
+                                    try:
+                                        from services import lock_lifecycle as _ll
+                                        _lock_summary = _ll.release_for_execution(execution)
+                                        if _lock_summary.get("released"):
+                                            app.logger.info(
+                                                "[recovery] Released %d lock(s) for timed-out execution %s",
+                                                _lock_summary["released"], execution_id,
+                                            )
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release locks for recovered execution {execution_id}: {release_e}")
+
                                     app.logger.info(f"Recovered stuck RUNNING execution {execution_id} → FAILED ({recovery_reason}, worker: {worker_id})")
                                     recovered += 1
                             
@@ -2932,7 +2943,18 @@ def server_recover_stuck_executions(max_age_minutes=30, grace_period_minutes=5, 
                                             project_admission.release(conn, reference_id=execution_id)
                                     except Exception as release_e:
                                         app.logger.warning(f"Failed to release admission lease for recovered execution {execution_id}: {release_e}")
-                                    
+
+                                    try:
+                                        from services import lock_lifecycle as _ll
+                                        _lock_summary = _ll.release_for_execution(execution)
+                                        if _lock_summary.get("released"):
+                                            app.logger.info(
+                                                "[recovery] Released %d lock(s) for force-canceled execution %s",
+                                                _lock_summary["released"], execution_id,
+                                            )
+                                    except Exception as release_e:
+                                        app.logger.warning(f"Failed to release locks for recovered execution {execution_id}: {release_e}")
+
                                     app.logger.info(f"Recovered stuck CANCELING execution {execution_id} → CANCELED (timeout: {cancel_age_minutes:.1f} min)")
                                     recovered += 1
                         finally:
@@ -2969,6 +2991,18 @@ def start_recovery_task():
         while True:
             try:
                 time.sleep(_recovery_interval())
+                # Expire stale project/remote-state leases so dead workers and
+                # crashed enqueues never permanently consume capacity (Task 5.3).
+                try:
+                    from services import lock_lifecycle as _ll
+                    _expired = _ll.cleanup_all()
+                    if any(_expired.values()):
+                        app.logger.info(
+                            "[recovery] Expired stale lock leases: project=%d remote=%d",
+                            _expired.get("project", 0), _expired.get("remote", 0),
+                        )
+                except Exception as lock_e:
+                    app.logger.warning(f"Lock lease cleanup failed: {lock_e}")
                 server_recover_stuck_executions(
                     max_age_minutes=30,
                     grace_period_minutes=5,

@@ -888,6 +888,19 @@ def stacks_delete(name):
     state_file = _stack_dir(pid, name) / "terraform.tfstate"
     if state_file.exists() and not force:
         return jsonify({"error": "Local state present. Pass ?force=true to delete anyway."}), 409
+    # Release the stack-scoped remote-state lock best-effort (Task 5.3). The
+    # project lock is intentionally untouched: it is project-scoped and may be
+    # held by another stack's active run.
+    try:
+        from services import remote_state_lock
+        from services.cloud_state import read_backend_config
+        bc = read_backend_config(_stack_dir(pid, name))
+        if bc.get("backend_type") not in ("local", None):
+            backend_type = bc.get("backend_type")
+            backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{name}.tfstate"
+            remote_state_lock.release(name, backend_type, backend_key, force=True)
+    except Exception as e:
+        current_app.logger.warning(f"[cloud] stack delete lock release failed for {name}: {e}")
     shutil.rmtree(_stack_dir(pid, name))
     sd = _data_base(pid) / name
     if sd.exists():
@@ -1199,6 +1212,7 @@ def stacks_action(name):
         except Exception:
             pass
 
+    _lock_acquisition = None
     if _mutating:
         _existing = _cloud_state.read_lock(_dd, _get_execution_record, pid)
         if _existing:
@@ -1209,34 +1223,53 @@ def stacks_action(name):
                 "lock": _existing,
             }), 409
 
-        # Acquire remote state lock (UC331) for stacks using a remote backend.
+        # Acquire execution-scoped locks (UC373 project + UC331 remote state).
+        # Acquired before enqueue (safe ordering: a worker can never claim work
+        # that is not yet locked). Released on enqueue failure below and on
+        # every terminal path via runParams["lock_ids"].
+        from services import lock_lifecycle
+        from services.cloud_state import read_backend_config
+        _lock_acquisition = None
         try:
-            from services import remote_state_lock
-            from services.cloud_state import read_backend_config
             bc = read_backend_config(_stack_dir(pid, name))
-            if bc.get("backend_type") not in ("local", None):
-                backend_type = bc.get("backend_type")
-                backend_key = bc.get("values", {}).get("key") or f"cloud-provisioning/{name}.tfstate"
-                rsl = remote_state_lock.acquire(
-                    name, backend_type, backend_key,
-                    actor=_tb or "unknown",
-                    operation=action,
+            _lock_acquisition = lock_lifecycle.acquire_for_execution(
+                pid, name, action, actor=_tb or "unknown", backend_config=bc,
+            )
+            _proj = _lock_acquisition.get("project") or {}
+            if not _proj.get("ok"):
+                return jsonify({
+                    "error": f"Project is locked by {_proj.get('lock', {}).get('actor')} "
+                             f"({_proj.get('lock', {}).get('operation')}). Wait for that run to finish "
+                             "or force-unlock from the State management panel.",
+                    "lock": _proj.get("lock"),
+                }), 409
+            _remote = _lock_acquisition.get("remote")
+            if _remote and not _remote.get("ok"):
+                lock_lifecycle.release_for_acquisition(
+                    _lock_acquisition, stack=name, project_id=pid,
                 )
-                if not rsl["ok"]:
-                    return jsonify({
-                        "error": f"Remote state is locked by {rsl['lock'].get('actor')} "
-                                 f"({rsl['lock'].get('operation')}) for {rsl['lock'].get('stack')}. "
-                                 "Wait for that run to finish or force-unlock.",
-                        "lock": rsl["lock"],
-                    }), 409
-                # Store lock id in meta for later release
-                _save_meta(pid, name, _remote_state_lock_id=rsl["lock"]["id"])
+                return jsonify({
+                    "error": f"Remote state is locked by {_remote['lock'].get('actor')} "
+                             f"({_remote['lock'].get('operation')}) for {_remote['lock'].get('stack')}. "
+                             "Wait for that run to finish or force-unlock.",
+                    "lock": _remote["lock"],
+                }), 409
         except Exception as e:
-            current_app.logger.warning(f"[cloud] remote state lock check failed: {e}")
-            # If remote state lock fails, still allow operation but log warning
+            current_app.logger.warning(f"[cloud] lock acquisition failed: {e}")
+            if _lock_acquisition:
+                lock_lifecycle.release_for_acquisition(_lock_acquisition, stack=name, project_id=pid)
+            _lock_acquisition = None
 
     try:
-        eid = _create_execution(pid, name, action, worker_id=worker_id, triggered_by=_tb, triggered_by_user_id=_tbid, priority=_priority)
+        from services import lock_lifecycle as _lock_lifecycle
+        eid = _create_execution(
+            pid, name, action, worker_id=worker_id, triggered_by=_tb,
+            triggered_by_user_id=_tbid, priority=_priority,
+            extra_run_params=(
+                {"lock_ids": _lock_lifecycle.lock_ids_from_acquisition(_lock_acquisition)}
+                if _mutating and _lock_acquisition else None
+            ),
+        )
         # Record audit event for queued execution
         from services.audit_events import record_audit_event
         record_audit_event(
@@ -1256,6 +1289,12 @@ def stacks_action(name):
         )
     except Exception as e:
         current_app.logger.error(f"[cloud] enqueue {action} for {name} failed: {e}")
+        if _mutating and _lock_acquisition:
+            from services import lock_lifecycle as _ll
+            _freed = _ll.release_for_acquisition(_lock_acquisition, stack=name, project_id=pid)
+            current_app.logger.warning(
+                "[cloud] released %d lock(s) after enqueue failure for %s/%s", _freed, pid, name
+            )
         return jsonify({"error": f"Failed to queue run: {e}"}), 500
     if _mutating:
         _cloud_state.snapshot_state(_stack_dir(pid, name), _dd,
