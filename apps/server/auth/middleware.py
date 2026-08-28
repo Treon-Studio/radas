@@ -10,6 +10,14 @@ Security notes
 * Access tokens are accepted in the query string ONLY for a small allow-list
   of streaming endpoints (SSE), where the browser EventSource API cannot set
   Authorization headers.
+* Session revocation (logout-all, UC635) is deterministic during storage
+  outages: token verification rejects any token whose `iat` is <= the
+  file-based user cutoff (`auth/service.are_user_sessions_revoked`). The
+  file cutoff is the authoritative store; the PostgreSQL sessions row is
+  secondary enrichment, so a PG outage or missing rows never flip a revoked
+  token back to accepted (fail closed). If the authoritative file write
+  itself fails, `revoke_all_user_sessions` raises `SessionRevocationError`
+  and routes must return an error — logout-all never reports success.
 """
 from functools import wraps
 from flask import request, jsonify

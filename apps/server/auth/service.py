@@ -145,24 +145,58 @@ def load_user_session_revocations(data_dir: Path) -> dict:
 
 
 def save_user_session_revocations(data_dir: Path, revocations: dict) -> None:
+    """Persist {user_id: cutoff_ts} atomically. Raises on failure.
+
+    This is the authoritative revocation write; persistence errors MUST
+    propagate so callers can fail closed instead of claiming success.
+    """
     path = get_user_session_revocations_path(data_dir)
-    try:
-        tmp = path.with_suffix(path.suffix + '.tmp')
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(revocations, f, indent=2)
-        os.replace(tmp, path)
-    except Exception as e:
-        logger.error(f"Error saving session revocations: {e}")
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(revocations, f, indent=2)
+    os.replace(tmp, path)
+
+
+class SessionRevocationError(RuntimeError):
+    """Raised when the authoritative (file-based) session revocation cutoff
+    cannot be persisted. Callers (e.g. /api/auth/revoke-all-sessions) must
+    treat this as a failed logout-all and return an error, never success."""
 
 
 def revoke_all_user_sessions(user_id: str, data_dir: Path) -> int:
-    """Revoke all current sessions and tokens for a user by setting a cutoff timestamp."""
+    """Revoke all current sessions and tokens for a user by setting a cutoff timestamp.
+
+    The file-based cutoff is the authoritative revocation store: middleware
+    token verification (``verify_token`` -> ``are_user_sessions_revoked``)
+    checks token ``iat`` against it. The PostgreSQL ``sessions.revoked_at``
+    update is secondary enrichment only.
+
+    Failure semantics (fail closed):
+
+    - If the authoritative file write fails, ``SessionRevocationError`` is
+      raised so callers return 500 instead of claiming success. There is no
+      automatic retry; the client retries logout-all manually (the write is
+      an idempotent atomic overwrite, so retry is safe).
+    - If only the PostgreSQL update fails, the cutoff is still returned and a
+      structured security warning (``security.session_revocation.pg_update_failed``)
+      is logged with the user id and the number of file-based cutoffs written.
+      No token or password material is ever logged.
+    """
     import time
     now = int(time.time())
     with _revocation_lock:
         revocations = load_user_session_revocations(data_dir)
         revocations[user_id] = now
-        save_user_session_revocations(data_dir, revocations)
+        try:
+            save_user_session_revocations(data_dir, revocations)
+        except Exception as e:
+            logger.error(
+                "security.session_revocation.persist_failed "
+                f"user_id={user_id} cutoffs={len(revocations)} error={type(e).__name__}"
+            )
+            raise SessionRevocationError(
+                f"Failed to persist session revocation cutoff for user {user_id}"
+            ) from e
 
     try:
         from storage import pg
@@ -170,8 +204,13 @@ def revoke_all_user_sessions(user_id: str, data_dir: Path) -> int:
             "UPDATE sessions SET revoked_at = %s WHERE user_id = %s AND revoked_at IS NULL",
             (datetime.utcnow().isoformat(), user_id),
         )
-    except Exception:
-        pass
+    except Exception as e:
+        # The file cutoff above is authoritative and already persisted; a PG
+        # outage must not fail logout-all. Degrade loudly instead.
+        logger.warning(
+            "security.session_revocation.pg_update_failed "
+            f"user_id={user_id} file_cutoffs={len(revocations)} error={type(e).__name__}"
+        )
 
     logger.info(f"Revoked all sessions for user {user_id} (cutoff={now})")
     return now
