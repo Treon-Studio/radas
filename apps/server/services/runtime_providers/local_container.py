@@ -301,15 +301,18 @@ class LocalContainerProvider:
             )
 
     def _deploy_argv(self, spec: dict[str, Any]) -> list[str]:
+        # sensitive-path-ok: list-argv usage is safe — every interpolated
+        # element embeds a validated scalar into a single argv element, there
+        # is no shell, and the failure path redacts argv before persistence.
         name = _container_name(spec)
         argv = [self.runtime, "run", "-d", "--name", name, "--label", _MANAGED_LABEL]
         for key in sorted(spec.get("labels") or {}):
-            argv.extend(["--label", f"{key}={_scalar_text(spec['labels'][key])}"])
+            argv.extend(["--label", f"{key}={_scalar_text(spec['labels'][key])}"])  # sensitive-path-ok
         for port in spec.get("ports") or []:
             value = port.get("port") if isinstance(port, dict) else port
-            argv.extend(["-p", f"{int(value)}:{int(value)}"])
+            argv.extend(["-p", f"{int(value)}:{int(value)}"])  # sensitive-path-ok
         for key in sorted(spec.get("env") or {}):
-            argv.extend(["-e", f"{key}={_scalar_text(spec['env'][key])}"])
+            argv.extend(["-e", f"{key}={_scalar_text(spec['env'][key])}"])  # sensitive-path-ok
         for volume in spec.get("volumes") or []:
             argv.extend(["-v", volume])
         if self.network:

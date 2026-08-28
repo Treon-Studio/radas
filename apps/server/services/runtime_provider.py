@@ -47,7 +47,10 @@ def safe_runtime_error_code(value: Any) -> str:
         return candidate
     return "PROVIDER_ERROR"
 _SENSITIVE_KEY = re.compile(
-    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer)",
+    r"(?:secret|password|credential|token|private.?key|api.?key|access.?key|authorization|bearer"
+    # Boundary-guarded short form so DB_PASS-style keys redact while
+    # prose-adjacent words (bypass, passthrough, compass) do not match.
+    r"|(?:^|[^a-z0-9])pass(?:word|wd|phrase)?(?=$|[^a-z0-9]))",
     re.IGNORECASE,
 )
 _PRIVATE_KEY = re.compile(

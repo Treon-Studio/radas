@@ -156,6 +156,9 @@ def _execute_step(project_id: str, run_id: str, index: int, step: Dict[str, Any]
             log.write(f"$ {command}\n\n")
             log.flush()
             try:
+                # sensitive-path-ok: CI pipeline shell steps execute
+                # user-authored commands by design (documented feature); the
+                # command is pipeline configuration, not server-interpolated.
                 proc = subprocess.Popen(
                     command,
                     shell=True,

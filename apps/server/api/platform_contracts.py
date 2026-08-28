@@ -17,7 +17,7 @@ from werkzeug.exceptions import HTTPException, MethodNotAllowed
 REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SENSITIVE_NAME = (
-    r"(?:password|passwd|secret|token|api[_-]?key|authorization|credential|"
+    r"(?:pass(?:word|wd|phrase)?|secret|token|api[_-]?key|authorization|credential|"
     r"access[_-]?token|refresh[_-]?token|client[_-]?secret|"
     r"aws[_-]?(?:secret[_-]?access[_-]?key|session[_-]?token)|private[_-]?key)"
 )
@@ -29,6 +29,13 @@ _SENSITIVE_INLINE_NAME = rf"(?:[\w-]+\.)*{_SENSITIVE_NAME}(?:\.[\w-]+)*"
 _SENSITIVE_QUOTED_VALUE_RE = re.compile(
     rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
     rf"(?P<quote>[\"'])(?P<value>.*?)(?P=quote)"
+)
+# Authorization-style header values are credential material in full (scheme
+# plus credentials, e.g. "authorization: Basic dXNlcjpwYXNz"), so the whole
+# remainder of the value is redacted, not just the first token.
+_SENSITIVE_CREDENTIAL_HEADER_RE = re.compile(
+    rf"(?i)(?P<prefix>[\"']?(?:proxy[-_])?authorization[\"']?\s*(?:=|:)\s*)"
+    r"(?P<value>[^\"',;}\r\n]*)"
 )
 _SENSITIVE_UNQUOTED_VALUE_RE = re.compile(
     rf"(?i)(?P<prefix>[\"']?{_SENSITIVE_INLINE_NAME}[\"']?\s*(?:=|:)\s*)"
@@ -165,6 +172,9 @@ def redact_sensitive(value: Any) -> Any:
         value = _SENSITIVE_QUOTED_VALUE_RE.sub(
             lambda match: f"{match.group('prefix')}{match.group('quote')}[REDACTED]{match.group('quote')}",
             value,
+        )
+        value = _SENSITIVE_CREDENTIAL_HEADER_RE.sub(
+            lambda match: f"{match.group('prefix')}[REDACTED]", value
         )
         return _SENSITIVE_UNQUOTED_VALUE_RE.sub(
             lambda match: f"{match.group('prefix')}[REDACTED]", value

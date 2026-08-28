@@ -277,8 +277,10 @@ def run_ansible():
             '--limit', ','.join(selected_hosts)
         ]
         
-        # group_vars/all.yml 
+        # group_vars/all.yml
         if group_vars_file.exists():
+            # sensitive-path-ok: single argv element built from a
+            # project-storage path; no shell; host names validated above.
             cmd.extend(['-e', f'@{group_vars_file}'])
         
         env = os.environ.copy()
