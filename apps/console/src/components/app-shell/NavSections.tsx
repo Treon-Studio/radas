@@ -6,6 +6,8 @@ import {
   RiBookOpenLine as BookOpen, RiShieldCheckLine as ShieldCheck, RiTeamLine as Users,
   RiCpuLine as Cpu, RiPlugLine as Plug, RiFlagLine as Flag, RiFlaskLine as Flask,
   RiGithubLine as Github, RiCloudLine as Cloud, RiCodeBoxLine as CodeBox, RiStackLine as Services,
+  RiRobotLine as Robot, RiFileListLine as FileList, RiTimerLine as Timer,
+  RiWebhookLine as Webhook, RiGitBranchLine as Branch,
 } from "@remixicon/react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,11 @@ const SECTIONS = (t: ReturnType<typeof useT>) => ({
     { to: "/system/secrets", label: t("nav.secretsManagement"), icon: ShieldCheck },
     { to: "/system/api", label: t("nav.api"), icon: Plug },
     { to: "/system/github-actions", label: t("nav.githubActions"), icon: Github },
+    { to: "/system/automation", label: "Automation Rules", icon: Robot },
+    { to: "/system/audit", label: "Audit Log", icon: FileList },
+    { to: "/system/retry-policy", label: "Retry Policy", icon: Timer },
+    { to: "/system/inbound-webhooks", label: "Inbound Webhooks", icon: Webhook },
+    { to: "/system/branch-mapping", label: "Branch Mapping", icon: Branch },
   ] as Item[],
 });
 

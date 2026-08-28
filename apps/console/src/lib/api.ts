@@ -73,6 +73,28 @@ export function isForbidden(error: unknown): error is ApiError {
   return error instanceof ApiError && error.status === 403;
 }
 
+/**
+ * Classify an ApiError for user-facing mutation feedback:
+ * validation (400/422), conflict (409), server error (5xx) or raw message.
+ */
+export function apiErrorTitle(error: unknown, fallback = "Request failed"): string {
+  if (error instanceof ApiError) {
+    const detail = error.message || fallback;
+    if (error.status === 400 || error.status === 422) return `Validation failed: ${detail}`;
+    if (error.status === 409) return `Conflict: ${detail}`;
+    if (error.status >= 500) return `Server error: ${detail}`;
+    return detail;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+/** Unique key for retry-safe mutations sent as the Idempotency-Key header. */
+export function newIdempotencyKey(): string {
+  const crypto = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 /** Return the payload inside a standard successful platform response. */
 export function unwrapData<T>(response: { data?: T } | T | null | undefined): T | undefined {
   if (response == null) return undefined;
@@ -83,7 +105,7 @@ export function unwrapData<T>(response: { data?: T } | T | null | undefined): T 
 }
 
 /** Operation responses use the canonical `{operation, request_id}` envelope. */
-export function unwrapOperation<T>(response: { operation?: T; data?: { operation?: T } } | T | null | undefined): T | undefined {
+export function unwrapOperation<T>(response: { operation?: T; request_id?: string; data?: { operation?: T } } | T | null | undefined): T | undefined {
   if (response == null) return undefined;
   if (typeof response === "object" && response !== null && "operation" in response) {
     return (response as { operation?: T }).operation;
