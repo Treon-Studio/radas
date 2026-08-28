@@ -86,8 +86,19 @@ jobs:
       - name: Run Python API tests
         working-directory: apps/server
         env:
-          TEST_DATABASE_URL: sqlite:///:memory:
+          TEST_DATABASE_URL: "sqlite:///:memory:"
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
           GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: pytest tests/
+
+      # Task 6.1: contract surface checks alongside the API tests. The full
+      # OpenAPI snapshot + PostgreSQL gate lives in api-contract.yml; these
+      # steps keep parity/redaction visible on every plain server run.
+      - name: Check CLI route parity (manifest vs served routes)
+        working-directory: apps/server
+        run: python scripts/check_route_parity.py
+
+      - name: Check sensitive-path static rules
+        working-directory: apps/server
+        run: python scripts/check_sensitive_paths.py
