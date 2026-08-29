@@ -18,8 +18,9 @@
 #
 #   (a) Default (always on): the offline-safe gate —
 #         1. [server]  pytest reference contract (real blueprints, isolated
-#                      test DB via TEST_DATABASE_URL; sqlite:///:memory: works,
-#                      default postgresql://localhost/radas_test)
+#                      test DB via TEST_DATABASE_URL; requires a running
+#                      PostgreSQL — the CI job provisions a postgres:16
+#                      service container)
 #         2. [console] typecheck + full vitest run (the fixture leg asserts the
 #                      console client against the contract; the real-HTTP leg
 #                      skips) + production build

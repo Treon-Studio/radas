@@ -65,6 +65,29 @@ jobs:
     name: Test Flask Server API
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: radas
+          POSTGRES_PASSWORD: radas
+          POSTGRES_DB: radas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radas -d radas_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
+      INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
+      GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -83,12 +106,6 @@ jobs:
 
       - name: Run Python API tests
         working-directory: apps/server
-        env:
-          DATABASE_URL: "sqlite:///:memory:"
-          TEST_DATABASE_URL: "sqlite:///:memory:"
-          JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
-          INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
-          GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: pytest tests/
 
       # Task 6.1: contract surface checks alongside the API tests. The full
@@ -112,6 +129,22 @@ jobs:
     name: Cross-Client Contract Parity
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: radas
+          POSTGRES_PASSWORD: radas
+          POSTGRES_DB: radas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radas -d radas_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -148,8 +181,8 @@ jobs:
 
       - name: Run cross-client contract gate (mode a)
         env:
-          DATABASE_URL: "sqlite:///:memory:"
-          TEST_DATABASE_URL: "sqlite:///:memory:"
+          DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+          TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
           GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
