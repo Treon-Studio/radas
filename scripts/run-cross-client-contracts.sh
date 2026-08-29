@@ -98,7 +98,10 @@ pnpm build
 echo "==> [cli] go vet + go test (live-server contract tests skip unless configured)"
 cd "$CLI_DIR"
 go vet ./...
-go test ./...
+# Unset DB env vars so the CLI's DSN() unit tests (TestDSN/no_env) see a clean
+# environment — the cross-client job sets DATABASE_URL for the server pytest
+# leg, and Go's os.Getenv reads it directly.
+env -u DATABASE_URL -u DB_URL -u SUPABASE_DB_URL go test ./...
 
 # --- gate 4: [worker] go test -----------------------------------------------
 echo "==> [worker] go test"
