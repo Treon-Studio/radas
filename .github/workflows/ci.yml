@@ -84,6 +84,7 @@ jobs:
       - name: Run Python API tests
         working-directory: apps/server
         env:
+          DATABASE_URL: "sqlite:///:memory:"
           TEST_DATABASE_URL: "sqlite:///:memory:"
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
@@ -147,6 +148,7 @@ jobs:
 
       - name: Run cross-client contract gate (mode a)
         env:
+          DATABASE_URL: "sqlite:///:memory:"
           TEST_DATABASE_URL: "sqlite:///:memory:"
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
