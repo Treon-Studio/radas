@@ -3,7 +3,7 @@ packages:
   - 'packages/*'
   - '!**/test/**'
 allowBuilds:
-  electron: set this to true or false
-  esbuild: set this to true or false
-  protobufjs: set this to true or false
-  re2: set this to true or false
+  esbuild: true
+  protobufjs: true
+  re2: true
+  electron: false
