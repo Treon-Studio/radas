@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 var CloneCmd = &cobra.Command{
@@ -20,7 +20,7 @@ var CloneCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		repoURL := args[0]
-		
+
 		// Determine the directory name (same as git clone behavior)
 		baseName := repoURL
 		if strings.HasSuffix(baseName, ".git") {
@@ -30,14 +30,14 @@ var CloneCmd = &cobra.Command{
 
 		cloneCmd := exec.Command("git", "clone", repoURL)
 		cloneCmd.Stderr = os.Stderr
-		
+
 		spin := utils.NewSpinner("🛸 Bip bop! Lagi nyedot kode-kode sakti dari " + repoURL + "...")
 		spin.Start()
-		
+
 		err := cloneCmd.Run()
-		
+
 		spin.Stop()
-		
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "😵 Bip bop! Waduh nyedotnya gagal ngab: %v\n", err)
 			os.Exit(1)

@@ -23,6 +23,15 @@ var Cmd = &cobra.Command{
 	Use:     "test",
 	Aliases: []string{"tests"},
 	Short:   "List, run, and score the control-plane test cases for a project",
+
+	Example: `  # List registered test cases
+  radas test list
+
+  # Run one test case and show the result
+  radas test run tc-12
+
+  # Print the flakiness score report
+  radas test score`,
 	Long: `The test command group manages the test cases registered on the RADAS control
 plane (.tftest.hcl assertions, policy assertions, idempotency checks): listing
 (GET /api/tests), queueing runs (POST /api/tests/<id>/run), and computing the
@@ -93,6 +102,8 @@ func listTestCases(ctx context.Context, cmd *cobra.Command) ([]TestCase, error) 
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List the test cases registered on the control plane for the selected project.`,
+	Example: `  radas test list`,
 	Aliases: []string{"ls", "cases"},
 	Short:   "List the test cases registered on the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -120,9 +131,11 @@ var listCmd = &cobra.Command{
 }
 
 var showCmd = &cobra.Command{
-	Use:   "show <test-id>",
-	Short: "Show a registered test case from the control-plane registry",
-	Args:  cobra.ExactArgs(1),
+	Use:     "show <test-id>",
+	Long:    `Print one test case's definition and latest result.`,
+	Example: `  radas test show tc-12`,
+	Short:   "Show a registered test case from the control-plane registry",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		testID := args[0]
 
@@ -151,9 +164,11 @@ var showCmd = &cobra.Command{
 }
 
 var runCmd = &cobra.Command{
-	Use:   "run <test-id>",
-	Short: "Queue a control-plane run of a registered test case",
-	Args:  cobra.ExactArgs(1),
+	Use:     "run <test-id>",
+	Long:    `Queue a test-case run on the control plane and report its outcome.`,
+	Example: `  radas test run tc-12`,
+	Short:   "Queue a control-plane run of a registered test case",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		testID := args[0]
 
@@ -194,18 +209,24 @@ var runCmd = &cobra.Command{
 }
 
 var idempotencyCmd = &cobra.Command{
-	Use:   "idempotency <playbook-path>",
-	Short: "Execute dual-pass Ansible run to ensure zero changed tasks on second execution",
-	Args:  cobra.ExactArgs(1),
+	Use: "idempotency <playbook-path>",
+	Long: `Evaluate pre-collected idempotency results.
+
+NOT YET AVAILABLE as an executor: the endpoint evaluates results collected elsewhere.`,
+	Example: `  radas test idempotency ./playbook.yml`,
+	Short:   "Execute dual-pass Ansible run to ensure zero changed tasks on second execution",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("test idempotency is not available: the control-plane endpoint POST /api/test-cases/ansible-idempotency evaluates pre-collected pass results for a server-side stack (stack + pass counts), it does not execute a local playbook; nothing was executed")
 	},
 }
 
 var scoreCmd = &cobra.Command{
-	Use:   "score <stack-id>",
-	Short: "Calculate the security & compliance score the control plane computes for a stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "score <stack-id>",
+	Long:    `Print the flakiness/quality score report for a stack's test cases.`,
+	Example: `  radas test score prod-net`,
+	Short:   "Calculate the security & compliance score the control plane computes for a stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 

@@ -2,9 +2,9 @@ package git
 
 import (
 	"fmt"
+	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
-	"github.com/spf13/cobra"
 )
 
 var CommitCmd = &cobra.Command{

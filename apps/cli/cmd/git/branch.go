@@ -2,13 +2,13 @@ package git
 
 import (
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/raizora/radas/v4/constants"
+	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/spf13/cobra"
-	"github.com/raizora/radas/v4/constants"
 )
 
 var CreateBranchCmd = &cobra.Command{

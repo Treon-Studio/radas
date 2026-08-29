@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/AlecAivazis/survey/v2"
-	"gopkg.in/yaml.v3"
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/config"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // dbDriver describes a selectable database driver in config init.
@@ -89,10 +89,15 @@ func LoadRadasConfig(out interface{}) error {
 }
 
 var ConfigSetCmd = &cobra.Command{
-	Use:   "set",
-	Short: "Set value in radas.yml (not implemented)",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Config set is not implemented yet.")
+	Use:   "set <key> <value>",
+	Short: "Set a value in radas.yml",
+	Long: `Set a key/value pair in radas.yml.
+
+NOT YET AVAILABLE: writing radas.yml from the CLI is not implemented.
+Edit the file directly for now.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return fmt.Errorf("config set is not yet available: writing radas.yml from the CLI is not implemented; edit the file directly for now")
 	},
 }
 
@@ -548,4 +553,3 @@ func init() {
 	ConfigCmd.AddCommand(ConfigSetCmd)
 	ConfigCmd.AddCommand(ConfigInitCmd)
 }
-

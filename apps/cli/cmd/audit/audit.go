@@ -27,6 +27,13 @@ var Cmd = &cobra.Command{
 	Use:     "audit",
 	Aliases: []string{"logs", "events"},
 	Short:   "Query audit trails, export logs, and generate compliance evidence",
+
+	Example: `  # List recent audit events for the selected project
+  radas audit list
+
+  # Export to CSV and print the live compliance report
+  radas audit export -f csv
+  radas audit evidence`,
 	Long: `The audit command group queries the project-scoped audit log served by the
 RADAS control plane (GET /api/audit-log), exports it via the real export
 endpoint, and prints the live compliance report (GET /api/compliance/report).`,
@@ -83,6 +90,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List audit events for the selected project. The project context always travels on the request.`,
+	Example: `  radas audit list`,
 	Aliases: []string{"ls", "search"},
 	Short:   "List audit events for the selected project, with optional filters",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -142,8 +151,10 @@ var listCmd = &cobra.Command{
 }
 
 var exportCmd = &cobra.Command{
-	Use:   "export",
-	Short: "Export audit logs to CSV or JSONL via the control-plane export endpoint",
+	Use:     "export",
+	Long:    `Export audit logs to CSV or JSONL via the control-plane export endpoint (-f csv|jsonl).`,
+	Example: `  radas audit export -f csv`,
+	Short:   "Export audit logs to CSV or JSONL via the control-plane export endpoint",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		format, _ := cmd.Flags().GetString("format")
 		outFile, _ := cmd.Flags().GetString("out")
@@ -182,8 +193,10 @@ var exportCmd = &cobra.Command{
 }
 
 var evidenceCmd = &cobra.Command{
-	Use:   "evidence",
-	Short: "Print the live compliance report for the selected project",
+	Use:     "evidence",
+	Long:    `Print the live compliance report for the selected project.`,
+	Example: `  radas audit evidence`,
+	Short:   "Print the live compliance report for the selected project",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

@@ -56,7 +56,7 @@ func TestCostEstimateFailsExplicitlyWithoutServerCall(t *testing.T) {
 	if hit {
 		t.Error("cost estimate must not call the server")
 	}
-	if !strings.Contains(out, "not available") || !strings.Contains(out, "prod-vpc") {
+	if !strings.Contains(out, "not yet available") || !strings.Contains(out, "prod-vpc") {
 		t.Errorf("expected an explicit unavailability error naming the stack, got:\n%s", out)
 	}
 	for _, fake := range []string{"+$48.50", "$312.00", "Budget Status", "Monthly Delta"} {

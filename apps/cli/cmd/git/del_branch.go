@@ -6,16 +6,16 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/constants"
 	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 var (
 	flagOriginOnly bool
-	flagAllType bool
-	flagAllOrigin bool
+	flagAllType    bool
+	flagAllOrigin  bool
 )
 
 var DelBranchCmd = &cobra.Command{
@@ -76,12 +76,12 @@ func deleteLocalBranch(branch string) {
 func deleteOriginBranch(branch string) {
 	spin := utils.NewSpinner("🔥 Bip bop! Lagi bakar hangus branch origin/" + branch + "...")
 	spin.Start()
-	
+
 	cmd := exec.Command("git", "push", "origin", "--delete", branch)
 	output, err := cmd.CombinedOutput()
-	
+
 	spin.Stop()
-	
+
 	if err != nil {
 		outStr := string(output)
 		if strings.Contains(outStr, "remote ref does not exist") {

@@ -23,6 +23,12 @@ var Cmd = &cobra.Command{
 	Use:     "secret",
 	Aliases: []string{"secrets"},
 	Short:   "Scan the workspace for exposed secrets (local, real matches only)",
+
+	Example: `  # Scan local config files for credential-looking assignments
+  radas secret scan ./infra
+
+  # Rotate / encrypt / decrypt are stubs until KMS is wired
+  radas secret rotate`,
 	Long: `The secret command group scans local tfvars, env, and YAML/JSON config files
 for credential-looking assignments and reports the real match count. Key
 rotation and at-rest encryption are control-plane capabilities that are not

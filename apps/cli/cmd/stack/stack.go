@@ -24,6 +24,15 @@ var Cmd = &cobra.Command{
 	Use:     "stack",
 	Aliases: []string{"stacks"},
 	Short:   "Manage and orchestrate OpenTofu and Ansible infrastructure stacks",
+
+	Example: `  # List all managed stacks
+  radas stack list
+
+  # Queue a speculative plan for a stack
+  radas stack plan prod-net
+
+  # Queue an apply run
+  radas stack apply prod-net`,
 	Long: `The stack command group provides CLI operations for infrastructure stacks:
 listing managed stacks, queueing speculative plans and applies, and
 inspecting stack state, drift, and run timelines.`,
@@ -81,6 +90,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List every stack the control plane manages, with status, provider, and last-run information.`,
+	Example: `  radas stack list`,
 	Aliases: []string{"ls"},
 	Short:   "List all managed infrastructure stacks",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -115,9 +126,11 @@ var listCmd = &cobra.Command{
 }
 
 var planCmd = &cobra.Command{
-	Use:   "plan <stack-id>",
-	Short: "Queue a speculative OpenTofu plan run for a stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "plan <stack-id>",
+	Long:    `Queue a speculative OpenTofu plan run. The run is queued and picked up by a worker; use "radas stack status <stack-id>" to follow it.`,
+	Example: `  radas stack plan prod-net`,
+	Short:   "Queue a speculative OpenTofu plan run for a stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -137,9 +150,11 @@ var planCmd = &cobra.Command{
 }
 
 var applyCmd = &cobra.Command{
-	Use:   "apply <stack-id>",
-	Short: "Queue an apply run for a stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "apply <stack-id>",
+	Long:    `Queue an OpenTofu apply run for a stack. Guarded by lock admission; a conflicting run returns the visible conflict state.`,
+	Example: `  radas stack apply prod-net`,
+	Short:   "Queue an apply run for a stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -159,9 +174,11 @@ var applyCmd = &cobra.Command{
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status <stack-id>",
-	Short: "Inspect stack state, health, and drift detection status",
-	Args:  cobra.ExactArgs(1),
+	Use:     "status <stack-id>",
+	Long:    `Show a stack's current status, including lock state and the most recent run outcome.`,
+	Example: `  radas stack status prod-net`,
+	Short:   "Inspect stack state, health, and drift detection status",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

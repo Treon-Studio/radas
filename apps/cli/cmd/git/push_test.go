@@ -21,11 +21,11 @@ func getBranchName(cmdOutput string, err error) (string, error) {
 }
 
 func TestGetBranchName(t *testing.T) {
-	tests := []struct{
-		name string
-		output string
-		err error
-		want string
+	tests := []struct {
+		name    string
+		output  string
+		err     error
+		want    string
 		wantErr bool
 	}{
 		{"normal", "main\n", nil, "main", false},
@@ -44,7 +44,6 @@ func TestGetBranchName(t *testing.T) {
 		})
 	}
 }
-
 
 func TestPushCmdArgs(t *testing.T) {
 	branch := "main"
@@ -69,4 +68,3 @@ func TestPushCmd_Error(t *testing.T) {
 		t.Error("expected error for non-existent command")
 	}
 }
-

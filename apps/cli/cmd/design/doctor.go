@@ -1,8 +1,8 @@
 package design
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/raizora/radas/v4/internal/checker"
+	"github.com/spf13/cobra"
 )
 
 // DoctorCmd is the command to check Design tools

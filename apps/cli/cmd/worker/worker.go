@@ -24,6 +24,12 @@ var Cmd = &cobra.Command{
 	Use:     "worker",
 	Aliases: []string{"daemon", "runners"},
 	Short:   "Inspect worker daemon pool, queue statuses, and drain nodes",
+
+	Example: `  # List registered worker daemons
+  radas worker list
+
+  # Show the pending execution queue
+  radas worker status`,
 	Long: `The worker command group allows monitoring registered worker daemons and
 the execution queue served by the RADAS control plane.`,
 }
@@ -71,6 +77,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List worker daemons registered in the execution pool, with heartbeat and current-execution information.`,
+	Example: `  radas worker list`,
 	Aliases: []string{"ls"},
 	Short:   "List registered worker daemons in the execution pool",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -110,9 +118,13 @@ var listCmd = &cobra.Command{
 }
 
 var drainCmd = &cobra.Command{
-	Use:   "drain <node-id>",
-	Short: "Mark a worker as draining so it completes running jobs without accepting new claims",
-	Args:  cobra.ExactArgs(1),
+	Use: "drain <node-id>",
+	Long: `Mark a worker as draining.
+
+NOT YET AVAILABLE: the control plane has no drain route yet.`,
+	Example: `  radas worker drain worker-7`,
+	Short:   "Mark a worker as draining so it completes running jobs without accepting new claims",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		nodeID := args[0]
 		return fmt.Errorf("worker drain for '%s' is not available: the control plane does not expose a drain route yet (worker registration and enable/disable live under /api/admin/workers), so the node state was not changed", nodeID)
@@ -120,8 +132,10 @@ var drainCmd = &cobra.Command{
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show the pending execution queue served by the control plane",
+	Use:     "status",
+	Long:    `Show the pending execution queue served by the control plane.`,
+	Example: `  radas worker status`,
+	Short:   "Show the pending execution queue served by the control plane",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

@@ -24,6 +24,15 @@ var Cmd = &cobra.Command{
 	Use:     "state",
 	Aliases: []string{"tfstate"},
 	Short:   "Inspect remote OpenTofu state, release stuck locks, and render resource graphs",
+
+	Example: `  # Pull remote state for a stack
+  radas state pull prod-net
+
+  # Release a stuck state lock
+  radas state unlock prod-net
+
+  # Render the resource graph
+  radas state graph prod-net`,
 	Long: `The state command group inspects the remote PostgreSQL-backed state the
 control plane manages (GET /api/cloud/stacks/<name>/state), releases stuck
 locks through the real lock route (DELETE /api/cloud/stacks/<name>/state/lock),
@@ -83,9 +92,11 @@ func fetchState(ctx context.Context, cmd *cobra.Command, stackID string) (*state
 }
 
 var pullCmd = &cobra.Command{
-	Use:   "pull <stack-id>",
-	Short: "Inspect the remote state summary the control plane holds for a stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "pull <stack-id>",
+	Long:    `Pull the remote OpenTofu state for a stack and print it.`,
+	Example: `  radas state pull prod-net`,
+	Short:   "Inspect the remote state summary the control plane holds for a stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
@@ -124,9 +135,11 @@ var pullCmd = &cobra.Command{
 }
 
 var unlockCmd = &cobra.Command{
-	Use:   "unlock <stack-id>",
-	Short: "Release a stuck state lock through the control-plane lock route",
-	Args:  cobra.ExactArgs(1),
+	Use:     "unlock <stack-id>",
+	Long:    `Release a stuck remote-state lock held by a dead worker, by exact lease id.`,
+	Example: `  radas state unlock prod-net`,
+	Short:   "Release a stuck state lock through the control-plane lock route",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 		lockID, _ := cmd.Flags().GetString("lock-id")
@@ -175,9 +188,11 @@ var unlockCmd = &cobra.Command{
 }
 
 var graphCmd = &cobra.Command{
-	Use:   "graph <stack-id>",
-	Short: "Render a local resource view from the stack's real remote state",
-	Args:  cobra.ExactArgs(1),
+	Use:     "graph <stack-id>",
+	Long:    `Render the stack's resource graph from remote state.`,
+	Example: `  radas state graph prod-net`,
+	Short:   "Render a local resource view from the stack's real remote state",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 

@@ -3,10 +3,10 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
 	"strings"
-	"github.com/spf13/cobra"
 
 	"github.com/raizora/radas/v4/internal/netgate"
 	"github.com/raizora/radas/v4/internal/utils"
@@ -56,14 +56,14 @@ var JustPushCmd = &cobra.Command{
 
 		pushCmd := exec.Command("git", "push", "origin", branch)
 		pushCmd.Stderr = os.Stderr
-		
+
 		spin := utils.NewSpinner("🚀 Bip bop! Menembakkan kodemu ke orbit origin/" + branch + "...")
 		spin.Start()
-		
+
 		err := pushCmd.Run()
-		
+
 		spin.Stop()
-		
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "😵 Bip bop! Waduh roketnya meledak pas push ngab: %v\n", err)
 			os.Exit(1)
