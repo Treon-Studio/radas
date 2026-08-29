@@ -21,7 +21,7 @@ Security notes
 """
 from functools import wraps
 from flask import request, jsonify
-from typing import Any, Optional, Callable
+from typing import Any, Callable, List, Optional
 import re
 
 
