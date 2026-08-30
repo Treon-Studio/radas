@@ -19,6 +19,7 @@ type Item = { to: string; label: string; icon: typeof Home };
 const SECTIONS = (t: ReturnType<typeof useT>) => ({
   overview: [
     { to: "/dashboard", label: t("nav.homeDashboard"), icon: Home },
+    { to: "/office", label: "AI Office", icon: Robot },
   ] as Item[],
   services: [
     { to: "/projects/$projectId/services/", label: "Services", icon: Services },

@@ -41,12 +41,14 @@
     "embla-carousel-react": "^8.3.0",
     "framer-motion": "^11.11.0",
     "js-yaml": "^5.2.1",
+    "pixi.js": "^8.20.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.13.0",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
