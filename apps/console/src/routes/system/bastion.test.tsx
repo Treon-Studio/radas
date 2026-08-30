@@ -121,7 +121,7 @@ describe("BastionPage", () => {
 
     await waitFor(() => expect(screen.getByText(/Server error/)).toBeInTheDocument());
     failing = false;
-    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "TRY AGAIN" }));
     await waitFor(() => expect(screen.getByLabelText("Bastion host")).toHaveValue("bastion.example.com"));
   });
 

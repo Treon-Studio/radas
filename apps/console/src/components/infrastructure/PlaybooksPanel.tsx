@@ -12,6 +12,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { YamlEditor } from "@/components/ui/yaml-editor";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { MascotLoading } from "@/components/common/MascotLoading";
+import { MascotState } from "@/components/common/MascotState";
 
 
 type Playbook = {
@@ -198,13 +200,24 @@ export function PlaybooksPanel() {
             </thead>
             <tbody>
               {showInitialLoading && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-[var(--color-muted-foreground)]">Loading…</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted-foreground)]">
+                    <MascotLoading label="LOADING ANSIBLE PLAYBOOKS..." sublabel="Fetching playbook configurations..." />
+                  </td>
+                </tr>
               )}
               {!showInitialLoading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-[var(--color-muted-foreground)]">
-                  <FileCode className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  No playbooks found. Click <span className="text-[var(--color-foreground)]">New Playbook</span> or upload a YAML file.
-                </td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted-foreground)]">
+                    <MascotState
+                      type="empty_playbooks"
+                      title="NO PLAYBOOKS FOUND"
+                      description="Create your first Ansible playbook or upload a YAML file to automate server tasks."
+                      actionLabel="NEW PLAYBOOK"
+                      onAction={() => setShowCreate(true)}
+                    />
+                  </td>
+                </tr>
               )}
               {paged.map((p) => (
                 <tr key={p.id} className="border-b hover:bg-[var(--color-accent)]/40">

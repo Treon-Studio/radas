@@ -126,7 +126,7 @@ describe("AuditPage", () => {
     renderPage(makeClient());
 
     await waitFor(() => expect(screen.getByText(/Server error/)).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "TRY AGAIN" })).toBeInTheDocument();
   });
 
   it("prunes with a POST, Idempotency-Key and tenant header, then refetches", async () => {

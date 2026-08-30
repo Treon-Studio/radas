@@ -11,6 +11,7 @@ import { ENTITY_STATES } from "@/lib/ontology";
 import { api } from "@/lib/api";
 import { getCurrentProjectId } from "@/lib/project";
 import { QueryStateView } from "@/components/system/QueryStateView";
+import { MascotState } from "@/components/common/MascotState";
 import { cn } from "@/lib/utils";
 
 /**
@@ -239,9 +240,14 @@ export function GlobalSearch() {
                     forbiddenMessage="Your role does not have permission to search this project."
                   />
                   {!search.error && !hasResults && !search.isFetching && !search.isPending && (
-                    <p className="px-4 py-6 text-sm text-center text-[var(--color-muted-foreground)]">
-                      No results for “{debouncedQuery}”
-                    </p>
+                    <div className="py-4">
+                      <MascotState
+                        type="empty_search"
+                        size="sm"
+                        title="NO RESULTS FOUND"
+                        description={`We couldn't find any resources matching "${debouncedQuery}".`}
+                      />
+                    </div>
                   )}
 
                   {stacks.length > 0 && (

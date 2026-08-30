@@ -219,8 +219,10 @@ describe("GlobalSearch", () => {
     renderSearch(makeClient());
     await openAndType("zz");
 
-    await waitFor(() => expect(screen.getByText(/No results for/)).toBeInTheDocument());
-    expect(screen.getByText(/No results for/).textContent).toContain("zz");
+    await waitFor(() => expect(screen.getByText("NO RESULTS FOUND")).toBeInTheDocument());
+    expect(
+      screen.getByText(/We couldn't find any resources matching "zz"/),
+    ).toBeInTheDocument();
   });
 
   it("shows the error state with a retry affordance on server failure", async () => {
@@ -230,7 +232,7 @@ describe("GlobalSearch", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.getByText(/Server error: backend exploded/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "TRY AGAIN" })).toBeInTheDocument();
   });
 
   it("opens with Ctrl/Cmd+K, closes on Escape, and opens from the header button", async () => {

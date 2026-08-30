@@ -8,12 +8,20 @@ export type MascotStateType =
   | "empty_search"
   | "empty_inbox"
   | "empty_database"
+  | "empty_stacks"
+  | "empty_playbooks"
+  | "empty_secrets"
+  | "empty_audit"
+  | "empty_webhooks"
   | "error_404"
   | "error_500"
   | "error_connection"
   | "error_access_denied"
   | "error_timeout"
-  | "error_crash";
+  | "error_crash"
+  | "error_budget_exceeded"
+  | "success_deployment"
+  | "building_pipeline";
 
 interface MascotStateProps {
   type: MascotStateType;
