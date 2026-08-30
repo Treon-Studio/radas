@@ -51,7 +51,8 @@
       "preload.js",
       "ontology/**/*",
       "tray_favicon.png",
-      "tray_favicon@2x.png"
+      "tray_favicon@2x.png",
+      "app_icon.png"
     ],
     "extraResources": [
       {

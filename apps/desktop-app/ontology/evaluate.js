@@ -3,8 +3,7 @@
 //
 // Grammar:
 //   and        := comparison (&& comparison)*
-//   comparison := operand (==|!=|>=|<=|>|<) operand
-//   operand    := path | literal
+//   comparison := path (==|!=|>=|<=|>|<) (literal | path)
 //   path       := dotted identifier resolved against the status payload
 //                 (unknown paths throw)
 //   literal    := integer, float, or double-quoted string
@@ -32,7 +31,7 @@ function tokenize(input) {
 function resolvePath(status, path) {
   let cur = status;
   for (const part of path.split(".")) {
-    if (cur == null || typeof cur !== "object" || !(part in cur)) {
+    if (cur == null || typeof cur !== "object" || !Object.hasOwn(cur, part)) {
       throw new Error(`unknown status path: ${path}`);
     }
     cur = cur[part];

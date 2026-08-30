@@ -8,7 +8,7 @@
 // evaluator; evaluateAlerts treats a per-rule evaluation error as "did not
 // fire" so one unresolvable rule can never take down the whole alert batch.
 
-const { evaluateAlert, evaluateAll } = require("./evaluate");
+const { evaluateAlert } = require("./evaluate");
 
 const SEVERITY_ORDER = { critical: 0, warning: 1, info: 2 };
 
