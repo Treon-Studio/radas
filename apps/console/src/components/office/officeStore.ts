@@ -3,6 +3,13 @@
 
 import { create } from "zustand";
 
+export type ToolKind =
+  | "Read" | "Edit" | "Write" | "Bash" | "WebFetch" | "WebSearch"
+  | "Grep" | "Glob" | "TodoWrite" | "MCP";
+
+export type StationKind =
+  | "shelf" | "terminal" | "web" | "board" | "mailbox" | "mcp" | "desk";
+
 export interface Agent {
   id: string;
   name: string;
@@ -34,16 +41,21 @@ interface OfficeStore {
   fullscreenAgentId: string | null;
   ideOpen: boolean;
   officeTheme: string;
+  /** per-agent terminal feed lines (mockEvents pushes, DeskScreen shows) */
+  feed: Record<string, string[]>;
   setOfficeTheme: (t: string) => void;
   setFullscreenAgentId: (id: string | null) => void;
   toggleIde: () => void;
-  // munder-difflin's full store fields referenced by OfficeFloor — stubbed.
+  // munder-difflin's full store fields referenced by OfficeFloor + mockEvents
   select: (id: string | null) => void;
   requestCommandCenterTab: (agentId: string, tab: string) => void;
+  updateAgent: (id: string, patch: Partial<Agent>) => void;
+  pushFeed: (id: string, line: string) => void;
 }
 
 // Mock cast so the office renders without a real agent harness.
 const MOCK_AGENTS: Agent[] = [
+  // prettier-ignore
   {
     id: "michael",
     name: "Michael Scott",
@@ -52,8 +64,9 @@ const MOCK_AGENTS: Agent[] = [
     description: "World's Best Boss",
     project: "radas",
     status: "idle",
-    action: "Managing",
+    action: "awaiting",
     progress: 0,
+    isGod: true,
   },
   {
     id: "dwight",
@@ -62,9 +75,10 @@ const MOCK_AGENTS: Agent[] = [
     accent: "mint",
     description: "Assistant TO the Regional Manager",
     project: "radas",
-    status: "working",
-    action: "crunching data",
-    progress: 42,
+    status: "thinking",
+    action: "heading to shelf",
+    currentStation: "shelf",
+    progress: 2,
   },
   {
     id: "jim",
@@ -73,14 +87,30 @@ const MOCK_AGENTS: Agent[] = [
     accent: "sky",
     description: "Sales",
     project: "radas",
-    status: "thinking",
-    action: "thinking",
-    progress: 10,
+    status: "working",
+    action: "running tests",
+    carrying: "Bash",
+    currentStation: "terminal",
+    progress: 5,
+  },
+  {
+    id: "pam",
+    name: "Pam Beesly",
+    character: "pam",
+    accent: "lemon",
+    description: "Receptionist, artist",
+    project: "radas",
+    status: "working",
+    action: "reading SPEC.md",
+    carrying: "Read",
+    currentStation: "shelf",
+    progress: 3,
   },
 ];
 
 export const useStore = create<OfficeStore>((set) => ({
   agents: MOCK_AGENTS,
+  feed: {},
   selectedId: null,
   fullscreenAgentId: null,
   ideOpen: false,
@@ -90,4 +120,10 @@ export const useStore = create<OfficeStore>((set) => ({
   toggleIde: () => set((s) => ({ ideOpen: !s.ideOpen })),
   select: (id) => set({ selectedId: id }),
   requestCommandCenterTab: () => {},
+  updateAgent: (id, patch) =>
+    set((s) => ({
+      agents: s.agents.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    })),
+  pushFeed: (id, line) =>
+    set((s) => ({ feed: { ...s.feed, [id]: [...(s.feed[id] ?? []), line] } })),
 }));
