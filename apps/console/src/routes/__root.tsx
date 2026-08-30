@@ -4,8 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/app-shell/Header";
 import { getActiveSection, SidebarNav } from "@/components/app-shell/NavSections";
 import { getToken, api } from "@/lib/api";
-import { isDesktopApp } from "@/lib/desktopBridge";
-import { initFaviconTabListener } from "@/lib/interactiveFavicon";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -40,8 +38,6 @@ export function isPublicPath(path: string): boolean {
  * mounting the router. Mirrors RootLayout's effect exactly.
  */
 export function resolveRootRedirect({ path, token, onboardingStatus }: RootRedirectInput): string | null {
-  if (isDesktopApp() && (path === "/" || path === "/dashboard")) {
-  }
   if (!token) {
     return isPublicPath(path) ? null : "/login";
   }
@@ -59,7 +55,6 @@ function RootLayout() {
 
   useEffect(() => {
     setReady(true);
-    initFaviconTabListener();
   }, []);
 
   // Check onboarding status for authenticated users
