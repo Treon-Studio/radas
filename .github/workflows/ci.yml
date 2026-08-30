@@ -121,10 +121,13 @@ jobs:
 
   # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
   # of scripts/run-cross-client-contracts.sh: the pytest server reference
-  # contract, the console TypeScript client fixture leg (typecheck + vitest +
-  # build), and the Go CLI (vet + tests) / worker tests. The live-server legs
+  # contract (which also runs the domain-ontology schema/loader/parity tests),
+  # the console TypeScript client fixture leg (typecheck + vitest + build),
+  # and the Go CLI (vet + tests) / worker tests. The live-server legs
   # (Go client + direct HTTP, TypeScript real HTTP) stay env-gated for
-  # self-hosted/manual runs via RUN_FULL_CONTRACT=1 (mode b).
+  # self-hosted/manual runs via RUN_FULL_CONTRACT=1 (mode b). A final step
+  # runs the desktop pet's Node ontology alert tests, which no other job
+  # covers.
   cross-client-contracts:
     name: Cross-Client Contract Parity
     runs-on: ubuntu-latest
@@ -187,3 +190,10 @@ jobs:
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
           GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: bash scripts/run-cross-client-contracts.sh
+
+      # Domain ontology (contracts/domain-ontology.json): the desktop pet's
+      # alert-DSL evaluator and alert-binding tests are plain Node and not
+      # covered by the bash gate above, so run them here (no extra deps).
+      - name: Desktop ontology tests (Node)
+        working-directory: apps/desktop-app
+        run: node --test ontology/*.test.js

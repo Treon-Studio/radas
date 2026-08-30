@@ -7,6 +7,7 @@
 # client legs:
 #
 #   * server reference (pytest):   apps/server/tests/test_cli_server_integration.py
+#                                  + tests/test_ontology_{schema,loader,parity}.py
 #   * TypeScript console client:   apps/console/src/test/cross-client-fixtures.test.ts
 #     (always-on fixture leg + env-gated real-HTTP leg)
 #   * Go client + direct HTTP:     apps/cli/internal/integration/cross_client_test.go
@@ -81,7 +82,10 @@ if [[ ! -x "$SERVER_DIR/.venv/bin/pytest" ]]; then
     exit 1
 fi
 cd "$SERVER_DIR"
-.venv/bin/pytest -q tests/test_cli_server_integration.py
+# Gate 1 also runs the domain-ontology tests (contracts/domain-ontology.json):
+# schema validation, the loader, and the parity gate against the server's real
+# state machines (see docs/architecture/domain-ontology.md).
+.venv/bin/pytest -q tests/test_cli_server_integration.py tests/test_ontology_schema.py tests/test_ontology_loader.py tests/test_ontology_parity.py
 
 # --- gate 2: [console] typecheck + vitest + build ---------------------------
 echo "==> [console] contract fixtures test + typecheck + build"
