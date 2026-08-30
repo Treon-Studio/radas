@@ -347,6 +347,28 @@ def api_worker_execution_finish(execution_id):
             status = data.get('status')
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
+
+            # Server-side provider execution: when the worker does not supply
+            # a result (empty dict), the server invokes the runtime provider
+            # itself via execute_claimed. This makes the mock provider path
+            # work end-to-end without any worker-side provider invocation.
+            # A worker that supplies its own result bypasses this path.
+            worker_result = data.get('result') if isinstance(data.get('result'), dict) else {}
+            if status == 'SUCCESS' and not worker_result:
+                try:
+                    from services.service_operation_runner import execute_claimed
+                    execute_claimed(execution_id, worker_id)
+                    # execute_claimed calls finish_operation internally, so
+                    # the operation is already terminal. Return the result.
+                    done_row = pg.query_one("SELECT status, instance_id FROM service_operations WHERE id = %s", (execution_id,))
+                    update_worker_heartbeat(worker_id, current_execution_id=None)
+                    return jsonify({'success': True, 'operation': {'id': execution_id, 'status': done_row.get('status') if done_row else 'succeeded'}})
+                except Exception as exec_err:
+                    current_app.logger.error("Server-side execute_claimed failed for %s: %s", execution_id, exec_err)
+                    # Fall through to finish_operation with the failure.
+                    status = 'FAILED'
+                    data['error'] = str(exec_err)
+
             from services.service_operation_runner import finish_operation
             done, applied = finish_operation(
                 execution_id, worker_id, success=status == 'SUCCESS', canceled=status == 'CANCELED',

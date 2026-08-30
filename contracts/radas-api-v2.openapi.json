@@ -5625,6 +5625,34 @@
         ]
       }
     },
+    "/api/v2/cost/breakdown/by-env": {
+      "get": {
+        "operationId": "get_cost_breakdown_by_env",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Per-environment cost breakdown (UC 414).",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
+    "/api/v2/cost/breakdown/by-tag": {
+      "get": {
+        "operationId": "get_cost_breakdown_by_tag",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Per-tag cost breakdown (UC 358/31). The ``tag`` query param is the tag key (e.g. ``owner``, ``environment``).",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
     "/api/v2/cost/forecast": {
       "get": {
         "operationId": "get_cost_forecast",
@@ -5676,6 +5704,20 @@
           }
         },
         "summary": "Proxy of v1 api_cost_rollup.",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
+    "/api/v2/cost/rollup/org": {
+      "get": {
+        "operationId": "get_cost_rollup_org",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Org-level budget + spend rollup across child projects (UC 553).",
         "tags": [
           "Cost Aggregator Api"
         ]

@@ -23,7 +23,7 @@ def err(exc): return error_response("SERVICE_PLAN_ERROR", str(exc), 422)
 def plan(project_id, service_id):
     try:
         instance, revision = load(project_id, service_id)
-        registry = runtime_registry.build_default_registry()
+        registry = runtime_registry.registry_from_environment()
         result = registry.invoke(instance["runtime_id"], "plan", str(instance["id"]), revision.get("spec") or {})
         return success_response({"plan": result.to_dict()}) if result.success else error_response("RUNTIME_PLAN_FAILED", result.error.get("message", "plan failed"), 422, details=result.error.get("details", {}))
     except Exception as exc: return err(exc)
@@ -37,7 +37,7 @@ def apply_plan(project_id, service_id):
         instance, revision = load(project_id, service_id)
         fingerprint = str(body.get("plan_fingerprint") or "").strip()
         if not fingerprint: return error_response("SERVICE_PLAN_ERROR", "plan_fingerprint is required", 422)
-        registry = runtime_registry.build_default_registry()
+        registry = runtime_registry.registry_from_environment()
         result = registry.invoke(instance["runtime_id"], "apply_plan", str(instance["id"]), revision.get("spec") or {}, fingerprint, idempotency_key=key)
         if not result.success: return error_response("RUNTIME_APPLY_FAILED", result.error.get("message", "apply failed"), 422, details=result.error.get("details", {}))
         op = service_operations.create_operation(project_id, "service.apply_plan", key, {"plan_fingerprint": fingerprint, "desired_revision_id": revision["id"]}, instance_id=service_id, requested_by=actor(), actor_id=actor(), initial_status="queued")

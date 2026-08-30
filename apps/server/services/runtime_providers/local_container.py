@@ -179,6 +179,7 @@ class LocalContainerProvider:
             "destroy": active,
             "logs": active,
             "status": active,
+            "rollback": active,
             "healthcheck": False,
             "public_endpoint": False,
             "plan": False,
@@ -421,6 +422,19 @@ class LocalContainerProvider:
         if gate:
             return gate
         return self._lifecycle("destroy", operation_id, idempotency_key, instance, ["rm", "-f"], "destroyed", timeout)
+
+    def rollback(self, operation_id: str, spec: dict[str, Any], *, idempotency_key: str | None = None, timeout: float | None = None) -> ProviderResult:
+        """Best-effort rollback: destroy the current container, then redeploy from the spec."""
+        gate = self._gate("rollback", operation_id, idempotency_key)
+        if gate:
+            return gate
+        # Destroy the existing container first (ignore failures — it may already be gone).
+        try:
+            self._lifecycle("rollback", operation_id, idempotency_key, spec, ["rm", "-f"], "destroyed", timeout)
+        except Exception:
+            pass
+        # Redeploy from the provided spec (the previous revision's spec).
+        return self.deploy(operation_id, spec, idempotency_key=idempotency_key, timeout=timeout)
 
     def status(self, instance: dict[str, Any], *, timeout: float | None = None) -> ProviderResult:
         gate = self._gate("status")
