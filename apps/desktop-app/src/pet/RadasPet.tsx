@@ -20,6 +20,16 @@ import {
 
 export type MoveDirection = "idle" | "left" | "right" | "up" | "down";
 
+// A firing ontology alert rule. The main process evaluates the domain
+// ontology's alert rules against live server status and returns them
+// severity-sorted (critical > warning > info).
+interface RadasAlert {
+  id: string;
+  severity: string;
+  route: string;
+  title: string;
+}
+
 export function RadasPet() {
   const [mood, setMood] = useState<PetMood>("idle");
   const [direction, setDirection] = useState<MoveDirection>("idle");
@@ -30,8 +40,8 @@ export function RadasPet() {
   const [showBubble, setShowBubble] = useState(false);
   const [radasStatus, setRadasStatus] = useState<{
     authenticated: boolean;
-    workers?: { total: number; online: number };
-    approvalsPending?: number;
+    status?: { workers: { total: number; online: number }; approvals: { pending: number } };
+    alerts?: RadasAlert[];
     error?: boolean;
   } | null>(null);
 
@@ -53,9 +63,16 @@ export function RadasPet() {
     }, duration);
   };
 
-  // Autonomous Flight & Waypoint State
+  // Autonomous Flight & Natural Bézier Trajectory State
   const currentPos = useRef<{ x: number; y: number }>({ x: 600, y: 400 });
   const targetPos = useRef<{ x: number; y: number }>({ x: 600, y: 400 });
+  const flightP0 = useRef<{ x: number; y: number }>({ x: 600, y: 400 });
+  const flightP1 = useRef<{ x: number; y: number }>({ x: 600, y: 400 });
+  const flightPctrl = useRef<{ x: number; y: number }>({ x: 600, y: 400 });
+  const flightStartTime = useRef<number>(0);
+  const flightDuration = useRef<number>(3000);
+  const bankAngle = useRef<number>(0);
+
   const workArea = useRef<{ x: number; y: number; width: number; height: number }>({
     x: 0,
     y: 0,
@@ -88,9 +105,10 @@ export function RadasPet() {
     }
   }, []);
 
-  // 1b. Poll RADAS status (workers, pending approvals) from the main process.
-  // The main process reads the CLI credential store and polls the control
-  // plane; the renderer only sees aggregate counts.
+  // 1b. Poll RADAS status from the main process. The main process reads the
+  // CLI credential store, polls the control plane, evaluates the domain
+  // ontology's alert rules, and returns {status, alerts}; the renderer only
+  // sees aggregate counts and severity-sorted firing rules — never tokens.
   useEffect(() => {
     const desktop = (window as any).radasDesktop;
     if (!desktop?.getRadasStatus) return;
@@ -117,35 +135,55 @@ export function RadasPet() {
         if (Array.isArray(pos)) {
           currentPos.current = { x: pos[0], y: pos[1] };
           targetPos.current = { x: pos[0], y: pos[1] };
+          flightP0.current = { x: pos[0], y: pos[1] };
+          flightP1.current = { x: pos[0], y: pos[1] };
         }
       }).catch(() => {});
     }
   }, []);
 
-  // Pick next patrol waypoint across screen
-  const pickNextWaypoint = () => {
+  // Pick next natural curved flight waypoint across screen
+  const pickNextWaypoint = (now: number) => {
     const wa = workArea.current;
     const minX = wa.x + 30;
     const maxX = Math.max(minX + 200, wa.x + wa.width - 210);
     const minY = wa.y + 40;
     const maxY = Math.max(minY + 200, wa.y + wa.height - 200);
 
-    // Pick dynamic coordinates (sweeping from left edge to right edge, top to bottom)
+    const startX = currentPos.current.x;
+    const startY = currentPos.current.y;
+
+    // Pick dynamic coordinates
     const nextX = minX + Math.random() * (maxX - minX);
     const nextY = minY + Math.random() * (maxY - minY);
 
+    const dist = Math.hypot(nextX - startX, nextY - startY);
+    if (dist < 40) return;
+
+    flightP0.current = { x: startX, y: startY };
+    flightP1.current = { x: nextX, y: nextY };
     targetPos.current = { x: nextX, y: nextY };
+
+    // Create organic apex control point with perpendicular arc
+    const midX = (startX + nextX) / 2;
+    const midY = (startY + nextY) / 2;
+    const perpFactor = (Math.random() * 0.3 + 0.15) * (Math.random() > 0.5 ? 1 : -1);
+    const perpX = -(nextY - startY) * perpFactor;
+    const perpY = (nextX - startX) * perpFactor;
+
+    flightPctrl.current = {
+      x: Math.max(minX, Math.min(maxX, midX + perpX)),
+      y: Math.max(minY, Math.min(maxY, midY + perpY)),
+    };
+
+    flightStartTime.current = now;
+    flightDuration.current = Math.max(2200, Math.min(5500, (dist / 140) * 1000));
     isMovingToTarget.current = true;
   };
 
-  // Autonomous Roaming Animation Loop (Smooth 60 FPS gliding across the entire screen)
+  // Autonomous Roaming Animation Loop with Natural Bézier Trajectory & Organic Hovering
   useEffect(() => {
-    let lastTime = performance.now();
-
     const loop = (time: number) => {
-      const dt = Math.min((time - lastTime) / 1000, 0.1);
-      lastTime = time;
-
       if (
         autoPatrolEnabled &&
         !isDragging.current &&
@@ -153,51 +191,72 @@ export function RadasPet() {
         time > pauseUntil.current
       ) {
         if (!isMovingToTarget.current) {
-          pickNextWaypoint();
+          pickNextWaypoint(time);
         } else {
-          const dx = targetPos.current.x - currentPos.current.x;
-          const dy = targetPos.current.y - currentPos.current.y;
-          const dist = Math.hypot(dx, dy);
+          const elapsed = time - flightStartTime.current;
+          const u = Math.min(1, Math.max(0, elapsed / flightDuration.current));
 
-          if (dist < 6) {
-            // Reached waypoint: hover in place, look around, deliver status message
+          // Smooth cubic ease-in-out S-curve
+          const s = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+
+          const p0 = flightP0.current;
+          const p1 = flightP1.current;
+          const pc = flightPctrl.current;
+
+          // Quadratic Bézier curve position
+          const oneMinusS = 1 - s;
+          const curveX = oneMinusS * oneMinusS * p0.x + 2 * oneMinusS * s * pc.x + s * s * p1.x;
+          const curveY = oneMinusS * oneMinusS * p0.y + 2 * oneMinusS * s * pc.y + s * s * p1.y;
+
+          // Gentle harmonic hover drone bobbing
+          const hoverY = Math.sin(time / 450) * 4.5;
+          const hoverX = Math.cos(time / 700) * 2.0;
+
+          currentPos.current.x = curveX + hoverX;
+          currentPos.current.y = curveY + hoverY;
+
+          // Instantaneous tangent velocity vector
+          const vx = 2 * oneMinusS * (pc.x - p0.x) + 2 * s * (p1.x - pc.x);
+          const vy = 2 * oneMinusS * (pc.y - p0.y) + 2 * s * (p1.y - pc.y);
+
+          // Dynamic banking tilt
+          bankAngle.current = Math.max(-12, Math.min(12, vx * 0.04));
+
+          // Set 4-way direction pose based on velocity vector
+          if (Math.abs(vx) > Math.abs(vy) * 0.8) {
+            if (vx > 5) setDirection("right");
+            else if (vx < -5) setDirection("left");
+          } else {
+            if (vy < -5) setDirection("up");
+            else if (vy > 5) setDirection("down");
+          }
+
+          // Move the Electron Pet Window at 60 FPS
+          const desktop = (window as any).radasDesktop;
+          if (desktop) {
+            desktop.setPetPosition(currentPos.current.x, currentPos.current.y);
+          }
+
+          if (u >= 1) {
+            // Reached destination smoothly: hover, deliver update, rest
             isMovingToTarget.current = false;
             setDirection("idle");
-            pauseUntil.current = time + 3500 + Math.random() * 3000;
-            // Cycle usecase message
+            pauseUntil.current = time + 3000 + Math.random() * 2500;
             setCaseIdx((prev) => (prev + 1) % PET_500_USE_CASES.length);
-            // Show bubble on waypoint arrival
             triggerBubble(2800);
-            // Quick playful wink
             setMood("wink");
             setTimeout(() => {
               setMood((prev) => (prev === "wink" ? "idle" : prev));
             }, 900);
-          } else {
-            // Smooth patrol cruising speed (~110 px/sec)
-            const speed = 110;
-            const step = Math.min(speed * dt, dist);
-            const moveX = (dx / dist) * step;
-            const moveY = (dy / dist) * step;
-
-            currentPos.current.x += moveX;
-            currentPos.current.y += moveY;
-
-            // Set flight animation pose based on moving vector
-            if (Math.abs(dx) > Math.abs(dy)) {
-              if (dx > 2) setDirection("right");
-              else if (dx < -2) setDirection("left");
-            } else {
-              if (dy < -2) setDirection("up");
-              else if (dy > 2) setDirection("down");
-            }
-
-            // Move the Electron Pet Window across macOS desktop
-            const desktop = (window as any).radasDesktop;
-            if (desktop) {
-              desktop.setPetPosition(currentPos.current.x, currentPos.current.y);
-            }
           }
+        }
+      } else if (!isDragging.current && mood !== "sleepy") {
+        // Idle gentle hover float in place
+        const hoverY = Math.sin(time / 500) * 3.0;
+        const hoverX = Math.cos(time / 800) * 1.5;
+        const desktop = (window as any).radasDesktop;
+        if (desktop && (Math.abs(hoverY) > 0.1 || Math.abs(hoverX) > 0.1)) {
+          desktop.setPetPosition(currentPos.current.x + hoverX, currentPos.current.y + hoverY);
         }
       }
 
@@ -373,21 +432,20 @@ export function RadasPet() {
   // Resolve active prompt matching real-time device conditions or cycling 500 cases
   const deviceUseCase = matchDeviceConditionUseCase(deviceInfo, caseIdx);
 
-  // RADAS status takes priority over local telemetry and the static 500 cases:
-  // pending approvals and offline workers are actionable events the user can
-  // click through to the console for.
+  // Ontology-driven alerts take priority over local telemetry and the static
+  // 500 cases: alerts are actionable events the user can click through to the
+  // console for. The list is already severity-sorted, so the first firing
+  // rule wins; its title, mood, and click-through route all come from the
+  // rule itself (contracts/domain-ontology.json). Mood mapping:
+  // critical -> surprised, warning/info -> thinking.
   let radasAlert: { text: string; mood: PetMood; route: string } | null = null;
-  if (radasStatus?.authenticated) {
-    const w = radasStatus.workers;
-    if (w && w.total > 0 && w.online === 0) {
-      radasAlert = { text: "All workers offline!", mood: "surprised", route: "/system/workers" };
-    } else if (radasStatus.approvalsPending && radasStatus.approvalsPending > 0) {
-      radasAlert = {
-        text: `${radasStatus.approvalsPending} approval${radasStatus.approvalsPending > 1 ? "s" : ""} waiting`,
-        mood: "thinking",
-        route: "/approvals",
-      };
-    }
+  const firingAlert = radasStatus?.alerts?.[0];
+  if (firingAlert) {
+    radasAlert = {
+      text: firingAlert.title,
+      mood: firingAlert.severity === "critical" ? "surprised" : "thinking",
+      route: firingAlert.route,
+    };
   }
 
   const currentUseCase = radasAlert
@@ -417,18 +475,19 @@ export function RadasPet() {
     currentSprite = HARO_WINK_URI;
   }
 
-  // 4-Way Directional & Mood Transform
+  // 4-Way Directional, Aerodynamic Banking & Mood Transform
   let mascotTransform = "scaleX(1) rotate(0deg)";
+  const bank = Math.round(bankAngle.current);
   if (effectiveMood === "sleepy") {
     mascotTransform = "scale(0.95) translateY(4px) rotate(4deg)";
   } else if (direction === "left") {
-    mascotTransform = "scaleX(-1) rotate(-8deg) translateX(-2px)";
+    mascotTransform = `scaleX(-1) rotate(${-(bank || -6)}deg) translateX(-2px)`;
   } else if (direction === "right") {
-    mascotTransform = "scaleX(1) rotate(-8deg) translateX(2px)";
+    mascotTransform = `scaleX(1) rotate(${bank || 6}deg) translateX(2px)`;
   } else if (direction === "up") {
-    mascotTransform = "scale(1.08) translateY(-4px)";
+    mascotTransform = "scale(1.06) translateY(-4px)";
   } else if (direction === "down") {
-    mascotTransform = "scale(0.95) translateY(4px)";
+    mascotTransform = "scale(0.96) translateY(4px)";
   }
 
   const glowColor =

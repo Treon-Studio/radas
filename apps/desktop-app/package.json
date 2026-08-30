@@ -49,6 +49,7 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "ontology/**/*",
       "tray_favicon.png",
       "tray_favicon@2x.png"
     ],

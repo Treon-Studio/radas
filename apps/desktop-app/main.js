@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } = require
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const { buildStatusPayload, evaluateAlerts, orderAlerts } = require("./ontology/alerts");
 
 app.name = "RADAS";
 app.setName("RADAS");
@@ -20,9 +21,9 @@ function resolveConsoleUrl() {
   if (consoleUrl) return consoleUrl;
   try {
     const bundled = path.join(process.resourcesPath || "", "console", "index.html");
-    if (fs.existsSync(bundled)) return "file://" + bundled;
+    if (fs.existsSync(bundled)) return "file://" + bundled + "#/office";
   } catch {}
-  return "http://localhost:8080";
+  return "http://localhost:8080/office";
 }
 
 // --- single-instance lock --------------------------------------------------
@@ -284,7 +285,12 @@ function createWindows() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
+  const appIconPath = path.join(__dirname, "app_icon.png");
+
   if (app.dock) {
+    if (fs.existsSync(appIconPath)) {
+      app.dock.setIcon(appIconPath);
+    }
     app.dock.show();
   }
 
@@ -300,6 +306,7 @@ function createWindows() {
     resizable: false,
     hasShadow: false,
     show: true,
+    icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -328,6 +335,7 @@ function createWindows() {
     height: 860,
     show: true,
     frame: false,
+    icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -391,13 +399,11 @@ function createWindows() {
   let lastSetPos = 0;
   ipcMain.on("set-pet-position", (event, { x, y }) => {
     if (!petWindow) return;
-    // Throttle: ~10 Hz (100ms). The renderer sends every animation frame
-    // (~60 Hz); setPosition is an IPC round-trip + window move — 10 Hz is
-    // smooth enough visually and cuts IPC traffic 6×.
+    // 60 FPS smooth window updates (~16ms)
     const now = Date.now();
-    if (now - lastSetPos < 100) return;
+    if (now - lastSetPos < 16) return;
     lastSetPos = now;
-    petWindow.setPosition(Math.round(x), Math.round(y));
+    petWindow.setPosition(Math.round(x), Math.round(y), false);
   });
 
   let prevCpuTimes = os.cpus().map((c) => c.times);
@@ -499,21 +505,24 @@ function createWindows() {
     return getAuthStatus();
   });
 
-  // Phase 3: RADAS status polling — returns aggregate counts only.
-  let radasStatusTimer = null;
+  // Phase 3: RADAS status polling — aggregate counts evaluated against the
+  // domain ontology's alert rules (fetched live from /api/ontology/alerts;
+  // same Bearer token, no extra secrets). Rules evaluate here in the main
+  // process; the renderer only sees {status, alerts} — never tokens.
   let cachedStatus = null;
   ipcMain.handle("get-radas-status", async () => {
     if (cachedStatus) return cachedStatus;
     const c = readCredentials();
     if (!c || !c.access_token) {
-      return { authenticated: false, workers: { total: 0, online: 0 }, approvalsPending: 0 };
+      return { authenticated: false, workers: { total: 0, online: 0 }, approvalsPending: 0, alerts: [] };
     }
     const base = c.api_url || consoleUrl;
     const headers = { Authorization: `Bearer ${c.access_token}` };
     try {
-      const [workersRes, approvalsRes] = await Promise.allSettled([
+      const [workersRes, approvalsRes, alertsRes] = await Promise.allSettled([
         fetch(`${base}/api/admin/workers`, { headers }),
         fetch(`${base}/api/approvals?status=pending`, { headers }),
+        fetch(`${base}/api/ontology/alerts`, { headers }),
       ]);
       let workers = { total: 0, online: 0 };
       let approvalsPending = 0;
@@ -527,11 +536,25 @@ function createWindows() {
         const list = data.approvals || data.data?.approvals || [];
         approvalsPending = list.length;
       }
-      cachedStatus = { authenticated: true, workers, approvalsPending };
+      // Ontology rules; empty when the endpoint is unavailable, in which
+      // case no alerts fire and the pet falls back to its idle rotation.
+      let rules = {};
+      if (alertsRes.status === "fulfilled" && alertsRes.value.ok) {
+        const data = await alertsRes.value.json();
+        rules = data.alerts || data.data?.alerts || {};
+      }
+      const status = buildStatusPayload({ workers, approvals: { pending: approvalsPending } });
+      const alerts = orderAlerts(evaluateAlerts(rules, status)).map(([id, rule]) => ({
+        id,
+        severity: rule.severity,
+        route: rule.route,
+        title: rule.title,
+      }));
+      cachedStatus = { authenticated: true, status, alerts };
       setTimeout(() => { cachedStatus = null; }, 30000);
       return cachedStatus;
     } catch {
-      return { authenticated: true, workers: { total: 0, online: 0 }, approvalsPending: 0, error: true };
+      return { authenticated: true, status: buildStatusPayload(), alerts: [], error: true };
     }
   });
 }
