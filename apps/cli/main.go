@@ -125,6 +125,7 @@ When run with no arguments in a terminal, it launches the TUI dashboard.`,
 	rootCmd.AddCommand(git.DeprecatedAlias(git.DelBranchCmd))
 	rootCmd.AddCommand(git.DeprecatedAlias(git.CloneCmd))
 	rootCmd.AddCommand(rootcmd.GotoCmd)
+	rootCmd.AddCommand(rootcmd.OpenCmd)
 
 	rootCmd.AddCommand(rootcmd.DoctorCmd)
 	rootCmd.AddCommand(scan.ScanCmd)

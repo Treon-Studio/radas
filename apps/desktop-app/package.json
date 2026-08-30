@@ -48,8 +48,16 @@
     "files": [
       "dist/**/*",
       "main.js",
+      "preload.js",
       "tray_favicon.png",
       "tray_favicon@2x.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../console/dist",
+        "to": "console",
+        "filter": ["**/*"]
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",

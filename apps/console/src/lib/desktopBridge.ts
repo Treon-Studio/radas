@@ -1,40 +1,59 @@
 /**
- * RADAS Desktop App Bridge (IPC Communication with Electron / Tauri Desktop Wrapper)
+ * RADAS Desktop App Bridge (IPC Communication with Electron / Tauri Desktop Wrapper).
+ *
+ * Uses the preload-exposed `window.radasDesktop` API when available (contextIsolation:
+ * true). Falls back to the legacy `window.require("electron")` path for backward
+ * compatibility when the console runs in a browser or an older desktop wrapper that
+ * hasn't migrated to the preload bridge yet.
  */
 
+/** Type of the preload-exposed bridge (only a subset is used here). */
+interface RadasDesktopBridge {
+  windowMinimize?: () => void;
+  windowMaximize?: () => void;
+  windowClose?: () => void;
+}
+
+function bridge(): RadasDesktopBridge | null {
+  if (typeof window === "undefined") return null;
+  const b = (window as unknown as { radasDesktop?: RadasDesktopBridge }).radasDesktop;
+  if (b) return b;
+  // Legacy fallback: raw electron require (nodeIntegration: true, pre-preload era).
+  try {
+    if ((window as any).require) {
+      const { ipcRenderer } = (window as any).require("electron");
+      return {
+        windowMinimize: () => ipcRenderer.send("window-minimize"),
+        windowMaximize: () => ipcRenderer.send("window-maximize"),
+        windowClose: () => ipcRenderer.send("window-close"),
+      };
+    }
+  } catch {
+    // ignore — not in an Electron context
+  }
+  return null;
+}
+
 export function isDesktopApp(): boolean {
-  return typeof window !== "undefined" && (!!(window as any).require || !!(window as any).__TAURI__);
+  if (typeof window === "undefined") return false;
+  return !!(
+    (window as any).radasDesktop ||
+    (window as any).__TAURI__ ||
+    (window as any).require ||
+    (typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent)) ||
+    window.location.search.includes("desktop=1") ||
+    window.localStorage.getItem("radas_desktop_mode") === "true"
+  );
 }
 
 export function minimizeWindow() {
-  if (typeof window !== "undefined" && (window as any).require) {
-    try {
-      const { ipcRenderer } = (window as any).require("electron");
-      ipcRenderer.send("window-minimize");
-    } catch (e) {
-      console.log("minimizeWindow error", e);
-    }
-  }
+  bridge()?.windowMinimize?.();
 }
 
 export function maximizeWindow() {
-  if (typeof window !== "undefined" && (window as any).require) {
-    try {
-      const { ipcRenderer } = (window as any).require("electron");
-      ipcRenderer.send("window-maximize");
-    } catch (e) {
-      console.log("maximizeWindow error", e);
-    }
-  }
+  bridge()?.windowMaximize?.();
 }
 
 export function closeWindow() {
-  if (typeof window !== "undefined" && (window as any).require) {
-    try {
-      const { ipcRenderer } = (window as any).require("electron");
-      ipcRenderer.send("window-close");
-    } catch (e) {
-      console.log("closeWindow error", e);
-    }
-  }
+  bridge()?.windowClose?.();
 }
