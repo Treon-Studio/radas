@@ -335,5 +335,36 @@
             "source": "apps/server/services/runtime_provider.py"
         }
     },
-    "alerts": {}
+    "alerts": {
+        "workers.all_offline": {
+            "when": "workers.total > 0 && workers.online == 0",
+            "severity": "critical",
+            "route": "/system/workers",
+            "title": "All workers offline!"
+        },
+        "workers.partial_offline": {
+            "when": "workers.online > 0 && workers.online < workers.total",
+            "severity": "warning",
+            "route": "/system/workers",
+            "title": "Some workers offline"
+        },
+        "approvals.pending": {
+            "when": "approvals.pending > 0",
+            "severity": "info",
+            "route": "/approvals",
+            "title": "Approvals waiting"
+        },
+        "budget.threshold": {
+            "when": "budget.usage_pct >= budget.alert_at_pct",
+            "severity": "warning",
+            "route": "/cloud/cost",
+            "title": "Budget threshold reached"
+        },
+        "budget.unavailable": {
+            "when": "budget.spend_status == \"unavailable\"",
+            "severity": "warning",
+            "route": "/cloud/cost",
+            "title": "Cost store unavailable"
+        }
+    }
 }

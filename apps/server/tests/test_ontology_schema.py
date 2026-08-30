@@ -63,3 +63,32 @@ def test_instance_states_match_planned_set():
     assert "draft" in inst["states"]
     assert "running" in inst["states"]
     assert "destroyed" in inst["states"]
+
+
+def test_alert_rules_have_required_fields():
+    data = _load()
+    assert len(data["alerts"]) >= 5, "ontology must ship at least five alert rules"
+    for rule_id, rule in data["alerts"].items():
+        assert rule["when"], f"alert {rule_id} missing when"
+        assert rule["severity"] in ("critical", "warning", "info"), f"alert {rule_id} bad severity"
+        assert rule["route"].startswith("/"), f"alert {rule_id} route must be absolute"
+        assert rule["title"], f"alert {rule_id} missing title"
+
+
+def test_alert_when_uses_only_supported_syntax():
+    import re
+    data = _load()
+    # The expression subset is field paths, ==/!=-style comparisons (==, >, >=,
+    # <, <=), integer/float literals, double-quoted string literals, and &&.
+    # String literals are part of the DSL the pet evaluator implements
+    # (apps/desktop-app/ontology/evaluate.js tokenizer accepts "[^"]*"), so the
+    # schema gate must accept them too.
+    token_re = re.compile(
+        r"[A-Za-z_][A-Za-z0-9_.]*|\"[^\"]*\"|==|>=|<=|>|<|&&|\d+(?:\.\d+)?"
+    )
+    for rule_id, rule in data["alerts"].items():
+        expr = rule["when"]
+        remainder = token_re.sub("", expr).replace(" ", "")
+        assert remainder == "", (
+            f"alert {rule_id} uses unsupported syntax: {remainder!r} in {expr!r}"
+        )
