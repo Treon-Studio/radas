@@ -16,14 +16,16 @@ let lastInjectedUsername = "";
 
 // Resolve the console source: a bundled static build wins (offline-first —
 // electron-builder copies ../console/dist to resources/console via
-// extraResources), then CONSOLE_URL, then the dev default.
+// extraResources), then CONSOLE_URL, then the dev default. The AI Office
+// scene (/office) is the desktop app's landing page.
 function resolveConsoleUrl() {
-  if (consoleUrl) return consoleUrl;
+  const officePath = "/office";
+  if (consoleUrl) return consoleUrl.endsWith(officePath) ? consoleUrl : consoleUrl.replace(/\/+$/, "") + officePath;
   try {
     const bundled = path.join(process.resourcesPath || "", "console", "index.html");
-    if (fs.existsSync(bundled)) return "file://" + bundled;
+    if (fs.existsSync(bundled)) return "file://" + bundled + "#" + officePath;
   } catch {}
-  return "http://localhost:8080";
+  return "http://localhost:8080" + officePath;
 }
 
 // --- single-instance lock --------------------------------------------------
