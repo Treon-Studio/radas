@@ -17,6 +17,7 @@ import {
   PetMood,
   PetUseCase,
 } from "./pet500UseCases";
+import { CONCEPT_BINDINGS } from "./useCaseAnnotations";
 
 export type MoveDirection = "idle" | "left" | "right" | "up" | "down";
 
@@ -435,14 +436,24 @@ export function RadasPet() {
   // Ontology-driven alerts take priority over local telemetry and the static
   // 500 cases: alerts are actionable events the user can click through to the
   // console for. The list is already severity-sorted, so the first firing
-  // rule wins; its title, mood, and click-through route all come from the
-  // rule itself (contracts/domain-ontology.json). Mood mapping:
+  // rule wins. Mood and click-through route come from the rule itself
+  // (contracts/domain-ontology.json); the bubble text prefers a use case bound
+  // to the alert via CONCEPT_BINDINGS (useCaseAnnotations.ts) so the pet speaks
+  // about the real concept, falling back to the rule's generic title when the
+  // alert is unbound or the bound index is out of range. Mood mapping:
   // critical -> surprised, warning/info -> thinking.
   let radasAlert: { text: string; mood: PetMood; route: string } | null = null;
   const firingAlert = radasStatus?.alerts?.[0];
   if (firingAlert) {
+    const bound = CONCEPT_BINDINGS[firingAlert.id];
+    const boundIdx =
+      bound && bound.length > 0
+        ? bound[Math.floor(Math.random() * bound.length)]
+        : undefined;
+    const boundText =
+      boundIdx !== undefined ? PET_500_USE_CASES[boundIdx]?.text : undefined;
     radasAlert = {
-      text: firingAlert.title,
+      text: boundText ?? firingAlert.title,
       mood: firingAlert.severity === "critical" ? "surprised" : "thinking",
       route: firingAlert.route,
     };
