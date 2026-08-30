@@ -155,6 +155,39 @@ def test_finops_breakdown_by_env(finops_client):
     assert isinstance(result, dict)
 
 
+def test_finops_org_rollup_member_wellformed(finops_client):
+    """UC 553: an org owner gets a well-formed rollup whose per-project spend
+    actually flows through the ``actual_spend`` key (the rollup service reads
+    that key; a "spend" key silently computed zero totals)."""
+    from services.budget_service import save_budget
+    _seed_estimates(PROJECT)  # 100 + 200 + 300 = 600 estimated spend
+    save_budget(PROJECT, 500.0, "USD", 80.0)
+    r = finops_client.get(f"/api/cost/rollup/org?org_id={ORG}", headers=_auth(finops_client))
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["org_id"] == ORG
+    assert body["project_count"] == 1
+    assert body["total_budget"] == 500.0
+    assert body["total_spend"] == 600.0
+    assert body["utilization_percent"] == 120.0
+    assert [p["project_id"] for p in body["over_budget_projects"]] == [PROJECT]
+    assert body["over_budget_projects"][0]["overage"] == 100.0
+
+
+def test_finops_org_rollup_foreign_org_denied(finops_client):
+    """UC 553: an authenticated user requesting an org it has no membership in
+    gets the exact denial shape a non-member gets — the response for a real
+    foreign org is identical to the response for a nonexistent org id, so org
+    existence is never leaked through this endpoint."""
+    _seed_org_project("org-finops-foreign", "proj-finops-foreign", "foreign-owner")
+    headers = _auth(finops_client)
+    foreign = finops_client.get("/api/cost/rollup/org?org_id=org-finops-foreign", headers=headers)
+    missing = finops_client.get("/api/cost/rollup/org?org_id=org-finops-nonexistent", headers=headers)
+    assert foreign.status_code == 403
+    assert missing.status_code == foreign.status_code
+    assert foreign.get_json() == missing.get_json()
+
+
 def test_finops_rollup_multi_project(finops_client, data_dir, monkeypatch):
     """Row 33: multi-project cost rollup through the API."""
     # rollup iterates cloud_provisioning.PROJECTS_DIR, which is bound at import

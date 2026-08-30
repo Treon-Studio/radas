@@ -348,13 +348,32 @@ def api_worker_execution_finish(execution_id):
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
 
-            # Server-side provider execution: when the worker does not supply
-            # a result (empty dict), the server invokes the runtime provider
-            # itself via execute_claimed. This makes the mock provider path
-            # work end-to-end without any worker-side provider invocation.
-            # A worker that supplies its own result bypasses this path.
-            worker_result = data.get('result') if isinstance(data.get('result'), dict) else {}
-            if status == 'SUCCESS' and not worker_result:
+            # Server-side provider execution: only when the worker supplies
+            # NO result key at all AND the operation's runtime is registered
+            # in the server's execution-plane registry. Go workers send an
+            # explicit (possibly empty) ``result`` on success — an empty dict
+            # is the worker's own success and must finish as-is, never be
+            # re-executed server-side. A runtime the server cannot execute
+            # (not registered) likewise falls through to the worker's finish.
+            should_server_execute = False
+            if status == 'SUCCESS' and 'result' not in data:
+                try:
+                    from services.service_operation_runner import default_registry
+                    runtime_id = ""
+                    if service_operation.get('instance_id'):
+                        inst = pg.query_one(
+                            "SELECT runtime_id FROM service_instances WHERE id = %s",
+                            (service_operation.get('instance_id'),),
+                        )
+                        runtime_id = str((inst or {}).get('runtime_id') or "")
+                    should_server_execute = bool(runtime_id) and default_registry().get(runtime_id) is not None
+                except Exception as reg_err:
+                    current_app.logger.warning(
+                        "Runtime registry check failed for %s; skipping server-side execution: %s",
+                        execution_id, reg_err,
+                    )
+                    should_server_execute = False
+            if should_server_execute:
                 try:
                     from services.service_operation_runner import execute_claimed
                     execute_claimed(execution_id, worker_id)

@@ -351,7 +351,7 @@
         "approvals.pending": {
             "when": "approvals.pending > 0",
             "severity": "info",
-            "route": "/approvals",
+            "route": "/cloud/stacks",
             "title": "Approvals waiting"
         },
         "budget.threshold": {

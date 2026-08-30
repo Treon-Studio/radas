@@ -157,3 +157,58 @@ def test_full_service_deploy_lifecycle(catalog_client):
     assert final_status in ("destroyed", "stopped", "running"), (
         f"instance should be terminal after destroy, got {final_status}"
     )
+
+
+def test_worker_finish_explicit_empty_result_completes_without_reexecution(catalog_client, workers_env):
+    """A Go worker sends ``result: {}`` on success. That explicit result — even
+    empty — must complete the operation with the worker's own success WITHOUT
+    re-invoking the provider server-side (the pre-gate behavior re-executed on
+    any falsy result and could silently flip SUCCESS to FAILED for runtimes
+    the server cannot execute)."""
+    client = catalog_client
+
+    # 1. Create + deploy a service instance on the mock runtime.
+    created = client.post(
+        f"/api/projects/{PROJECT}/services",
+        json=_deploy_payload("e2e-empty-result-svc"),
+        headers={**_auth(client), "Idempotency-Key": "e2e-empty-result-deploy-1"},
+    )
+    assert created.status_code == 202, f"deploy must be accepted, got {created.status_code}"
+    operation = created.get_json()["operation"]
+    service_id = operation.get("instance_id")
+    assert service_id
+
+    # 2. A registered worker claims the operation.
+    worker_id, worker_token = workers_env.create_worker("e2e-empty-result-worker")
+    from services.service_operation_runner import claim_next_operation
+    claimed = claim_next_operation(worker_id, project_id=PROJECT)
+    assert claimed is not None, "the queued operation must be claimable"
+    operation_id = claimed["operation_id"]
+
+    # 3. The worker finishes with an explicit empty result dict.
+    finish = client.post(
+        f"/api/worker/executions/{operation_id}/finish",
+        json={"status": "SUCCESS", "result": {}, "leaseToken": claimed["lease_token"]},
+        headers={"Authorization": f"Bearer {worker_token}"},
+    )
+    assert finish.status_code == 200, finish.get_json()
+    body = finish.get_json()
+    assert body["operation"]["status"] == "succeeded"
+
+    # 4. The worker's own (empty) result was applied — the provider was NOT
+    #    invoked server-side. The server-executed path (see
+    #    test_full_service_deploy_lifecycle) stores the mock provider's deploy
+    #    payload (provider_ref + endpoint summary); here neither may appear.
+    from storage import pg
+    op_row = pg.query_one("SELECT provider_result FROM service_operations WHERE id = %s", (operation_id,))
+    assert op_row is not None
+    assert op_row["provider_result"] == {}
+    inst_row = pg.query_one(
+        "SELECT endpoint_summary, provider_ref, status FROM service_instances WHERE id = %s",
+        (service_id,),
+    )
+    assert not inst_row["endpoint_summary"], (
+        f"provider endpoint must stay unset without server-side execution, got {inst_row['endpoint_summary']}"
+    )
+    assert not inst_row["provider_ref"]
+    assert inst_row["status"] in ("running", "provisioning")

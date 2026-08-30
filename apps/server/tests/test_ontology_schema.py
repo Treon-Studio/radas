@@ -78,13 +78,13 @@ def test_alert_rules_have_required_fields():
 def test_alert_when_uses_only_supported_syntax():
     import re
     data = _load()
-    # The expression subset is field paths, ==/!=-style comparisons (==, >, >=,
-    # <, <=), integer/float literals, double-quoted string literals, and &&.
+    # The expression subset is field paths, comparison operators (==, !=, >,
+    # >=, <, <=), integer/float literals, double-quoted string literals, and &&.
     # String literals are part of the DSL the pet evaluator implements
     # (apps/desktop-app/ontology/evaluate.js tokenizer accepts "[^"]*"), so the
     # schema gate must accept them too.
     token_re = re.compile(
-        r"[A-Za-z_][A-Za-z0-9_.]*|\"[^\"]*\"|==|>=|<=|>|<|&&|\d+(?:\.\d+)?"
+        r"[A-Za-z_][A-Za-z0-9_.]*|\"[^\"]*\"|==|!=|>=|<=|>|<|&&|\d+(?:\.\d+)?"
     )
     for rule_id, rule in data["alerts"].items():
         expr = rule["when"]

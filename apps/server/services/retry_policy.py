@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 RETRY_INTERVAL_SECONDS = 3600  # hourly sweep
 WINDOW_SECONDS = 24 * 3600
-SWEEP_LOCK_PREFIX = "radas.retry_sweep"
 
 
 def _store_path() -> Path:
@@ -94,33 +93,22 @@ def _chain_depth(execution_id: str, project_id: str, depth: int = 0) -> int:
 def sweep_once() -> Dict[str, int]:
     """Re-queue failed executions per retry policy (backoff aware).
 
-    Acquires a project-scoped advisory transaction lock per project so
-    concurrent backend processes (multi-worker WSGI / replicas) cannot
-    double-retry the same execution. The ``.retrying`` marker uses atomic
-    ``O_CREAT|O_EXCL`` creation to close the TOCTOU window.
+    Cross-process safety comes from the atomic ``.retrying`` markers
+    (``O_CREAT|O_EXCL``): only one process can create a given execution's
+    marker, so concurrent backend processes (multi-worker WSGI / replicas)
+    can never double-retry the same execution. The sweep hard-depends on
+    PostgreSQL being up — projects are skipped on PG failure until the next
+    sweep.
     """
     now = time.time()
     retried = {"retried": 0, "skipped_backoff": 0}
     try:
         from services.execution_retry import retry_execution
         from utils.project_paths import get_project_executions_dir
-        from storage import pg
 
         for project_id, project_policy in load().items():
             policies = {"": project_policy}
             policies.update(project_policy.get("stacks") or {})
-
-            # Per-project advisory lock: prevents two processes from
-            # scanning the same project's failed executions concurrently.
-            try:
-                with pg.transaction() as conn:
-                    conn.execute(
-                        "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                        (SWEEP_LOCK_PREFIX + ":" + project_id,),
-                    )
-            except Exception as lock_err:
-                logger.warning("[retry_policy] advisory lock failed for %s: %s", project_id, lock_err)
-                continue
 
             for stack_name, pol in policies.items():
                 max_retries = int(pol.get("max_retries") or 0)

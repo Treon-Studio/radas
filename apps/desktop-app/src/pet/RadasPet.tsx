@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   HARO_IDLE_URI,
   HARO_SLEEPY_URI,
@@ -444,16 +444,23 @@ export function RadasPet() {
   // critical -> surprised, warning/info -> thinking.
   let radasAlert: { text: string; mood: PetMood; route: string } | null = null;
   const firingAlert = radasStatus?.alerts?.[0];
-  if (firingAlert) {
+  // The bound-use-case pick is memoized per firing alert id: Math.random()
+  // must not run inline in render, or every hover/position re-render would
+  // re-randomize a bubble the user is currently reading. The pick only
+  // re-randomizes when a different alert fires.
+  const boundUseCaseText = useMemo(() => {
+    if (!firingAlert) return undefined;
     const bound = CONCEPT_BINDINGS[firingAlert.id];
     const boundIdx =
       bound && bound.length > 0
         ? bound[Math.floor(Math.random() * bound.length)]
         : undefined;
-    const boundText =
-      boundIdx !== undefined ? PET_500_USE_CASES[boundIdx]?.text : undefined;
+    return boundIdx !== undefined ? PET_500_USE_CASES[boundIdx]?.text : undefined;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally keyed on the firing alert id only
+  }, [firingAlert?.id]);
+  if (firingAlert) {
     radasAlert = {
-      text: boundText ?? firingAlert.title,
+      text: boundUseCaseText ?? firingAlert.title,
       mood: firingAlert.severity === "critical" ? "surprised" : "thinking",
       route: firingAlert.route,
     };
