@@ -40,3 +40,26 @@ def test_every_entity_has_states_and_relations():
                 assert to_state in entity["states"], (
                     f"entity {name}: transition target {to_state} not in states"
                 )
+
+
+def test_relations_reference_declared_entities():
+    data = _load()
+    for name, entity in data["entities"].items():
+        for rel, target in entity["relations"].items():
+            assert target in data["entities"], (
+                f"entity {name} relation {rel} points at undeclared entity {target}"
+            )
+
+
+def test_service_operation_states_match_planned_set():
+    data = _load()
+    op = data["entities"]["ServiceOperation"]
+    assert set(op["states"]) == {"pending", "queued", "running", "succeeded", "failed", "canceled"}
+
+
+def test_instance_states_match_planned_set():
+    data = _load()
+    inst = data["entities"]["ServiceInstance"]
+    assert "draft" in inst["states"]
+    assert "running" in inst["states"]
+    assert "destroyed" in inst["states"]
