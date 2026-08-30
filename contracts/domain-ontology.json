@@ -1,0 +1,52 @@
+{
+    "ontology_version": 1,
+    "entities": {
+        "Execution": {
+            "description": "Legacy OpenTofu/Ansible run tracked in project JSON files and the durable queue.",
+            "states": [
+                "QUEUED",
+                "RUNNING",
+                "CANCELING",
+                "SUCCESS",
+                "FAILED",
+                "CANCELED"
+            ],
+            "final_states": [
+                "SUCCESS",
+                "FAILED",
+                "CANCELED"
+            ],
+            "transitions": {
+                "QUEUED": [
+                    "RUNNING",
+                    "CANCELED"
+                ],
+                "RUNNING": [
+                    "SUCCESS",
+                    "FAILED",
+                    "CANCELING"
+                ],
+                "CANCELING": [
+                    "CANCELED",
+                    "FAILED"
+                ],
+                "CANCELED": [],
+                "SUCCESS": [],
+                "FAILED": []
+            },
+            "relations": {
+                "runs_on": "Worker",
+                "belongs_to": "Project",
+                "targets": "Stack"
+            },
+            "events": [
+                "execution.queued",
+                "execution.started",
+                "execution.finished",
+                "execution.recovered"
+            ],
+            "source": "apps/server/storage/executions_store.py:38-45"
+        }
+    },
+    "alerts": {}
+}
