@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ontology from "../../../../contracts/domain-ontology.json";
-import { ENTITY_STATES, isFinalState } from "../lib/ontology";
+import { ENTITY_STATES, alertRuleTitle, isFinalState } from "../lib/ontology";
 
 /**
  * Gate for the generated console ontology types (apps/console/src/lib/ontology.ts,
@@ -31,6 +31,10 @@ describe("generated ontology types", () => {
     expect(isFinalState("Execution", "SUCCESS")).toBe(true);
     expect(isFinalState("Execution", "RUNNING")).toBe(false);
     expect(isFinalState("ServiceOperation", "canceled")).toBe(true);
+  });
+
+  it("exposes alert rule titles from the contract", () => {
+    expect(alertRuleTitle("workers.all_offline")).toBe("All workers offline!");
   });
 
   it("non-final and unknown states are never final", () => {

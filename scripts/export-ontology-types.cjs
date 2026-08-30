@@ -14,8 +14,10 @@
  *
  * Emits:
  *   - ENTITY_STATES: Record<string, string[]>        (entity name -> all states)
- *   - ENTITY_FINAL_STATES: Record<string, string[]>  (module-private)
+ *   - ENTITY_FINAL_STATES: Record<string, string[]>  (entity name -> terminal states)
  *   - isFinalState(entity, state): boolean
+ *   - ALERT_TITLES: Record<string, string>           (alert id -> title)
+ *   - alertRuleTitle(id): string | undefined
  */
 
 const fs = require("node:fs");
@@ -44,25 +46,45 @@ const list = (values) => `[${(values ?? []).map(q).join(", ")}]`;
 const states = names.map((name) => `  ${q(name)}: ${list(entities[name].states)},`);
 const finalStates = names.map((name) => `  ${q(name)}: ${list(entities[name].final_states)},`);
 
+const alerts = ontology.alerts ?? {};
+for (const [id, alert] of Object.entries(alerts)) {
+  if (typeof alert.title !== "string" || alert.title.length === 0) {
+    throw new Error(`alert ${JSON.stringify(id)} is missing a non-empty title in the ontology contract`);
+  }
+}
+const alertTitles = Object.keys(alerts)
+  .sort()
+  .map((id) => `  ${q(id)}: ${q(alerts[id].title)},`)
+  .join("\n");
+
 const out = `// GENERATED — do not edit; run \`node scripts/export-ontology-types.cjs\`.
 // Source of truth: contracts/domain-ontology.json (ontology_version: ${ontology.ontology_version}).
 //
-// Entity state machines, verbatim from the domain contract (state-name casing
-// is intentionally preserved: lowercase for service operations/instances,
-// UPPERCASE for legacy executions). Console code imports these instead of
-// hardcoding status lists in badge components.
+// Entity state machines and alert titles, verbatim from the domain contract
+// (state-name casing is intentionally preserved: lowercase for service
+// operations/instances, UPPERCASE for legacy executions). Console code imports
+// these instead of hardcoding status lists in badge components.
 
 export const ENTITY_STATES: Record<string, string[]> = {
 ${states.join("\n")}
 };
 
-const ENTITY_FINAL_STATES: Record<string, string[]> = {
+export const ENTITY_FINAL_STATES: Record<string, string[]> = {
 ${finalStates.join("\n")}
 };
 
 /** True when \`state\` is a terminal state of \`entity\` per the ontology. */
 export function isFinalState(entity: string, state: string): boolean {
   return (ENTITY_FINAL_STATES[entity] ?? []).includes(state);
+}
+
+const ALERT_TITLES: Record<string, string> = {
+${alertTitles}
+};
+
+/** Alert rule title for \`id\`, verbatim from the ontology contract. */
+export function alertRuleTitle(id: string): string | undefined {
+  return ALERT_TITLES[id];
 }
 `;
 
