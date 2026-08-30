@@ -21,9 +21,9 @@ function resolveConsoleUrl() {
   if (consoleUrl) return consoleUrl;
   try {
     const bundled = path.join(process.resourcesPath || "", "console", "index.html");
-    if (fs.existsSync(bundled)) return "file://" + bundled + "#/office";
+    if (fs.existsSync(bundled)) return "file://" + bundled;
   } catch {}
-  return "http://localhost:8080/office";
+  return "http://localhost:8080";
 }
 
 // --- single-instance lock --------------------------------------------------
@@ -275,6 +275,104 @@ function createTray() {
   ]);
 
   tray.setContextMenu(contextMenu);
+}
+
+// --- application menu -------------------------------------------------------
+
+function setupApplicationMenu() {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: "RADAS",
+            submenu: [
+              { label: "About RADAS", role: "about" },
+              { type: "separator" },
+              {
+                label: "Open Console",
+                accelerator: "CmdOrCtrl+O",
+                click: () => {
+                  if (consoleWindow) {
+                    consoleWindow.show();
+                    consoleWindow.focus();
+                  }
+                },
+              },
+              {
+                label: "Show Pet Avatar",
+                accelerator: "CmdOrCtrl+P",
+                click: () => {
+                  if (petWindow) {
+                    petWindow.show();
+                    petWindow.focus();
+                  }
+                },
+              },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide", label: "Hide RADAS" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              {
+                label: "Quit RADAS",
+                accelerator: "CmdOrCtrl+Q",
+                click: () => {
+                  app.isQuitting = true;
+                  app.quit();
+                },
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" },
+        { role: "zoom" },
+        ...(isMac
+          ? [
+              { type: "separator" },
+              { role: "front", label: "Bring All to Front" },
+              { type: "separator" },
+              { role: "window" },
+            ]
+          : [{ role: "close" }]),
+      ],
+    },
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 }
 
 // --- windows ----------------------------------------------------------------
@@ -572,6 +670,7 @@ app.whenReady().then(() => {
   });
 
   createTray();
+  setupApplicationMenu();
   createWindows();
 
   // Cold-start deep link (Windows/Linux: the URL is in process.argv).

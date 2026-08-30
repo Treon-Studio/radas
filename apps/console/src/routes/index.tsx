@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   RiCheckLine as Check,
@@ -11,10 +11,18 @@ import { RadasLogo } from "@/components/common/RadasLogo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getToken } from "@/lib/api";
+import { isDesktopApp } from "@/lib/desktopBridge";
+import { bindMascotSpeech } from "@/lib/interactiveFavicon";
 import { TextScramble } from "@/components/landing/TextScramble";
 import { PxlCloudIcon, PxlCpuIcon, PxlSparklesIcon, PxlShieldIcon } from "@/components/ui/pxl-icons";
 
-export const Route = createFileRoute("/")({ component: WebLandingPage });
+export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    if (isDesktopApp()) {
+    }
+  },
+  component: WebLandingPage,
+});
 
 const faqs = [
   {
@@ -47,7 +55,10 @@ function FAQItem({ faq }: { faq: typeof faqs[0] }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Card className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-5 mb-5 transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50 group">
+    <Card
+      {...bindMascotSpeech(`FAQ: "${faq.question.slice(0, 35)}..."`)}
+      className="pxl-corner-md pxl-card-shadow border border-dashed border-[#D1D1D1] bg-[#FAFAFA] p-5 mb-5 transition-all duration-300 hover:bg-white hover:border-[#107A4D]/50 group"
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full text-left flex items-center justify-between font-mono text-sm font-bold text-[#2A2A2A] transition-colors cursor-pointer"
@@ -83,8 +94,12 @@ function WebLandingPage() {
   const [cardPill, setCardPill] = useState(2);
 
   useEffect(() => {
+    if (isDesktopApp()) {
+      const token = getToken();
+      navigate({ to: token ? "/dashboard" : "/login", replace: true });
+    }
     setIsAuth(!!getToken());
-  }, []);
+  }, [navigate]);
 
   const installCommands = {
     go: "go install github.com/raizora/radas/apps/cli@latest",
@@ -146,12 +161,19 @@ function WebLandingPage() {
               {/* Minimal CTA Actions */}
               <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
                 <Link to="/login">
-                  <Button className="pxl-corner-md pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-sm px-7 py-3">
+                  <Button
+                    {...bindMascotSpeech("Let's launch into your cloud workspace! 🚀")}
+                    className="pxl-corner-md pxl-btn-shadow bg-[#107A4D] text-white hover:bg-[#0e6640] font-bold font-pixel-grid text-sm px-7 py-3"
+                  >
                     Open Console <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
                 <a href="https://github.com/raizora/radas" target="_blank" rel="noreferrer">
-                  <Button variant="outline" className="pxl-corner-md border-[#2A2A2A] bg-white text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3 shadow-sm">
+                  <Button
+                    {...bindMascotSpeech("Explore our open-source codebase on GitHub! 💻")}
+                    variant="outline"
+                    className="pxl-corner-md border-[#2A2A2A] bg-white text-[#2A2A2A] hover:bg-[#EBE8E2] font-mono text-sm px-6 py-3 shadow-sm"
+                  >
                     <Github className="h-4 w-4 mr-2" /> View Source
                   </Button>
                 </a>
@@ -178,7 +200,10 @@ function WebLandingPage() {
           <section id="capabilities" className="relative w-full bg-[#F1EFEB] py-16 sm:py-28 text-[#2A2A2A] overflow-hidden">
             <div className="max-w-7xl mx-auto px-6 sm:px-12 space-y-24 sm:space-y-36">
               {/* SHOWCASE 1: Level up your GitOps (Craft Image Left, Text Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+              <div
+                {...bindMascotSpeech("Declarative OpenTofu & Ansible GitOps! ⚡")}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center cursor-pointer"
+              >
                 {/* Left: Borderless Transparent Pixel Art Illustration */}
                 <div className="lg:col-span-7 flex justify-center">
                   <div className="relative max-w-lg w-full transition-transform duration-300 hover:scale-105">
@@ -206,7 +231,10 @@ function WebLandingPage() {
               </div>
 
               {/* SHOWCASE 2: Adopt Reusable Modules (Text Left, Craft Image Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+              <div
+                {...bindMascotSpeech("Copy & paste reusable cloud infra modules! 📦")}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center cursor-pointer"
+              >
                 {/* Left: Copy & Title */}
                 <div className="lg:col-span-5 space-y-4 order-2 lg:order-1">
                   <div className="text-xs uppercase tracking-widest font-mono text-[#CC9100] font-bold">
@@ -234,7 +262,10 @@ function WebLandingPage() {
               </div>
 
               {/* SHOWCASE 3: FinOps Guardrails & Mission Control (Craft Image Left, Text Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+              <div
+                {...bindMascotSpeech("Real-time cloud pricing & budget anomaly alerts! 💰")}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center cursor-pointer"
+              >
                 {/* Left: Borderless Transparent Pixel Art Illustration */}
                 <div className="lg:col-span-7 flex justify-center">
                   <div className="relative max-w-lg w-full transition-transform duration-300 hover:scale-105">
