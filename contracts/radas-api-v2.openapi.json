@@ -5711,6 +5711,7 @@
     },
     "/api/v2/cost/rollup/org": {
       "get": {
+        "description": "Financial rollups are org-scoped secrets, so this route applies the same\nowner/admin gate as the org management routes (``_require_org_owner``).\nA member without the owner/admin role and a user with no membership in\nthe org receive the identical 403 shape, so the response never leaks\nwhether the org exists.",
         "operationId": "get_cost_rollup_org",
         "responses": {
           "default": {
