@@ -135,6 +135,7 @@ OPTIONAL_BLUEPRINT_MODULES: tuple[str, ...] = (
     "api.branch_mapping_routes",
     "api.user_invite_routes",
     "api.google_oauth_routes",
+    "api.ontology_routes",
 )
 
 #: Minimum route surface that must exist after a full production-style

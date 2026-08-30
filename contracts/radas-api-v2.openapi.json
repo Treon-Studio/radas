@@ -9325,6 +9325,34 @@
         ]
       }
     },
+    "/api/v2/ontology": {
+      "get": {
+        "operationId": "get_ontology",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 get_ontology.",
+        "tags": [
+          "Ontology Api"
+        ]
+      }
+    },
+    "/api/v2/ontology/alerts": {
+      "get": {
+        "operationId": "get_ontology_alerts",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 get_ontology_alerts.",
+        "tags": [
+          "Ontology Api"
+        ]
+      }
+    },
     "/api/v2/orgs": {
       "get": {
         "operationId": "get_orgs",
@@ -16705,6 +16733,10 @@
     {
       "description": "Onboarding Api (auto-documented proxy of legacy /api/*).",
       "name": "Onboarding Api"
+    },
+    {
+      "description": "Ontology Api (auto-documented proxy of legacy /api/*).",
+      "name": "Ontology Api"
     },
     {
       "description": "Org Api (auto-documented proxy of legacy /api/*).",
