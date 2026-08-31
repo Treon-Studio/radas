@@ -1019,3 +1019,142 @@ button:not(:disabled):active { transform: scale(0.97); }
   background-size: 16px 16px;
 }
 
+/* =====================================================================
+ * Cursors_v2 Light Pixel Art Cursor Pack (True 32-bit RGBA & Hotspots)
+ * ===================================================================== */
+* {
+  cursor: url("/cursors/Arrow1.png") 0 0, auto;
+}
+
+html,
+body {
+  cursor: url("/cursors/Arrow1.png") 0 0, auto;
+}
+
+a,
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+[role="option"],
+[role="switch"],
+[role="checkbox"],
+[role="radio"],
+summary,
+select,
+input[type="checkbox"],
+input[type="radio"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="file"],
+label,
+label *,
+.cursor-pointer {
+  cursor: url("/cursors/Hand1.png") 7 0, pointer;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="search"],
+input[type="url"],
+input[type="tel"],
+textarea,
+[contenteditable="true"],
+.cursor-text {
+  cursor: url("/cursors/Text1.png") 6 17, text;
+}
+
+:disabled,
+[disabled],
+[aria-disabled="true"],
+.disabled,
+[data-disabled],
+.cursor-not-allowed {
+  cursor: url("/cursors/Not_Allowed_Thick.png") 18 18, not-allowed;
+}
+
+.cursor-wait,
+[aria-busy="true"],
+[data-loading="true"] {
+  cursor: url("/cursors/Hourglass_With_Cursor.png") 0 0, wait;
+}
+
+.cursor-grab {
+  cursor: url("/cursors/Hand_Drag1.png") 12 12, grab;
+}
+
+.cursor-grabbing {
+  cursor: url("/cursors/Hand_Drag2.png") 12 12, grabbing;
+}
+
+.cursor-help {
+  cursor: url("/cursors/Arrow4.png") 0 0, help;
+}
+
+.cursor-move {
+  cursor: url("/cursors/Move.png") 17 17, move;
+}
+
+.cursor-col-resize {
+  cursor: url("/cursors/Horizontal_Resize.png") 17 6, col-resize;
+}
+
+.cursor-row-resize {
+  cursor: url("/cursors/Vertical_Resize.png") 6 17, row-resize;
+}
+
+.cursor-n-resize {
+  cursor: url("/cursors/Vertical_Resize.png") 6 17, n-resize;
+}
+
+.cursor-e-resize {
+  cursor: url("/cursors/Horizontal_Resize.png") 17 6, e-resize;
+}
+
+.cursor-s-resize {
+  cursor: url("/cursors/Vertical_Resize.png") 6 17, s-resize;
+}
+
+.cursor-w-resize {
+  cursor: url("/cursors/Horizontal_Resize.png") 17 6, w-resize;
+}
+
+.cursor-ne-resize {
+  cursor: url("/cursors/Diagonal_Right_Resize.png") 12 12, ne-resize;
+}
+
+.cursor-nw-resize {
+  cursor: url("/cursors/Diagonal_Left_Resize.png") 12 12, nw-resize;
+}
+
+.cursor-se-resize {
+  cursor: url("/cursors/Diagonal_Left_Resize.png") 12 12, se-resize;
+}
+
+.cursor-sw-resize {
+  cursor: url("/cursors/Diagonal_Right_Resize.png") 12 12, sw-resize;
+}
+
+.cursor-nwse-resize {
+  cursor: url("/cursors/Diagonal_Left_Resize.png") 12 12, nwse-resize;
+}
+
+.cursor-nesw-resize {
+  cursor: url("/cursors/Diagonal_Right_Resize.png") 12 12, nesw-resize;
+}
+
+.cursor-zoom-in {
+  cursor: url("/cursors/Zoom_In.png") 18 18, zoom-in;
+}
+
+.cursor-zoom-out {
+  cursor: url("/cursors/Zoom_Out.png") 18 18, zoom-out;
+}
+
+
+
+
+

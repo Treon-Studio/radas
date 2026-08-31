@@ -7,6 +7,7 @@
 # client legs:
 #
 #   * server reference (pytest):   apps/server/tests/test_cli_server_integration.py
+#                                  + tests/test_ontology_{schema,loader,parity}.py
 #   * TypeScript console client:   apps/console/src/test/cross-client-fixtures.test.ts
 #     (always-on fixture leg + env-gated real-HTTP leg)
 #   * Go client + direct HTTP:     apps/cli/internal/integration/cross_client_test.go
@@ -18,8 +19,9 @@
 #
 #   (a) Default (always on): the offline-safe gate —
 #         1. [server]  pytest reference contract (real blueprints, isolated
-#                      test DB via TEST_DATABASE_URL; sqlite:///:memory: works,
-#                      default postgresql://localhost/radas_test)
+#                      test DB via TEST_DATABASE_URL; requires a running
+#                      PostgreSQL — the CI job provisions a postgres:16
+#                      service container)
 #         2. [console] typecheck + full vitest run (the fixture leg asserts the
 #                      console client against the contract; the real-HTTP leg
 #                      skips) + production build
@@ -80,7 +82,10 @@ if [[ ! -x "$SERVER_DIR/.venv/bin/pytest" ]]; then
     exit 1
 fi
 cd "$SERVER_DIR"
-.venv/bin/pytest -q tests/test_cli_server_integration.py
+# Gate 1 also runs the domain-ontology tests (contracts/domain-ontology.json):
+# schema validation, the loader, and the parity gate against the server's real
+# state machines (see docs/architecture/domain-ontology.md).
+.venv/bin/pytest -q tests/test_cli_server_integration.py tests/test_ontology_schema.py tests/test_ontology_loader.py tests/test_ontology_parity.py
 
 # --- gate 2: [console] typecheck + vitest + build ---------------------------
 echo "==> [console] contract fixtures test + typecheck + build"
@@ -97,7 +102,10 @@ pnpm build
 echo "==> [cli] go vet + go test (live-server contract tests skip unless configured)"
 cd "$CLI_DIR"
 go vet ./...
-go test ./...
+# Unset DB env vars so the CLI's DSN() unit tests (TestDSN/no_env) see a clean
+# environment — the cross-client job sets DATABASE_URL for the server pytest
+# leg, and Go's os.Getenv reads it directly.
+env -u DATABASE_URL -u DB_URL -u SUPABASE_DB_URL go test ./...
 
 # --- gate 4: [worker] go test -----------------------------------------------
 echo "==> [worker] go test"

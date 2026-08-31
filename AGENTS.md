@@ -20,6 +20,10 @@ the repo is in active transition and `main` is behind this branch.
   (served snapshot, byte-pinned by a test), `contracts/cli-route-manifest.json`
   (route parity gate), `contracts/cross-client-fixtures.json` (Go/TS parity),
   `contracts/radas-api-v2-violations-baseline.json` (tighten-only ratchet).
+- **Domain ontology:** `contracts/domain-ontology.json` is authoritative for
+  entity states/transitions/alert semantics; parity-gated by
+  `apps/server/tests/test_ontology_parity.py` (see
+  `docs/architecture/domain-ontology.md`).
 - **Evidence & verification docs:** `docs/architecture/roadmap-evidence-matrix.md`,
   `docs/architecture/e2e-flow-matrix.md`, `docs/verification/`. Trust these
   over `ARCHITECTURE.md`.

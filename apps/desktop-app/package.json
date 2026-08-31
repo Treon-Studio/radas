@@ -4,28 +4,38 @@
   "author": "RADAS Team",
   "version": "1.0.0",
   "private": true,
-  "description": "RADAS Desktop App Wrapper with Codédex-style 8-bit Pet Companion Widget",
+  "description": "RADAS Desktop App Wrapper with Cod\u00e9dex-style 8-bit Pet Companion Widget",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "console:build": "pnpm --filter @radas/console build",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"electron .\"",
-    "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux",
-    "dist:win": "electron-builder --win",
+    "electron:dev": "pnpm cth:build && concurrently \"vite\" \"electron .\"",
+    "cth:build": "node cth/esbuild.mjs",
+    "native:rebuild": "electron-rebuild --force --build-from-source --which-module better-sqlite3,node-pty",
+    "postinstall": "electron-rebuild --force --build-from-source --which-module better-sqlite3,node-pty",
+    "dist": "pnpm console:build && pnpm cth:build && electron-builder",
+    "dist:mac": "pnpm console:build && pnpm cth:build && electron-builder --mac",
+    "dist:linux": "pnpm console:build && pnpm cth:build && electron-builder --linux",
+    "dist:win": "pnpm console:build && pnpm cth:build && electron-builder --win",
+    "test:boot": "node --test test/boot-contract.test.cjs",
+    "test:sqlite-electron": "node test/electron-sqlite-smoke.cjs",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@remixicon/react": "^4.6.0",
+    "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
+    "node-pty": "^1.1.0",
+    "posthog-node": "^5.51.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
@@ -34,6 +44,7 @@
     "concurrently": "^9.1.2",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
@@ -48,19 +59,38 @@
     "files": [
       "dist/**/*",
       "main.js",
+      "preload.js",
+      "ontology/**/*",
       "tray_favicon.png",
-      "tray_favicon@2x.png"
+      "tray_favicon@2x.png",
+      "app_icon.png",
+      "dist-cth/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../console/dist",
+        "to": "console",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ]
     },
@@ -68,11 +98,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -80,11 +114,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }

@@ -25,6 +25,16 @@ var Cmd = &cobra.Command{
 	Use:     "flags",
 	Aliases: []string{"flag"},
 	Short:   "Manage feature flags, percentage rollouts, and kill-switches",
+
+	Example: `  # List all feature flags with rollout status
+  radas flags list
+
+  # Inspect one flag
+  radas flags get block_apply
+
+  # Toggle and kill-switch
+  radas flags set block_apply true
+  radas flags kill block_apply`,
 	Long: `The flags command group allows querying, toggling, and triggering emergency
 kill-switches for feature flags across environments and projects.`,
 }
@@ -70,6 +80,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List every registered feature flag with its enabled state, rollout percentage, and kill-switch status.`,
+	Example: `  radas flags list`,
 	Aliases: []string{"ls"},
 	Short:   "List all registered feature flags",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -104,9 +116,11 @@ var listCmd = &cobra.Command{
 }
 
 var getCmd = &cobra.Command{
-	Use:   "get <key>",
-	Short: "Get details for a specific feature flag",
-	Args:  cobra.ExactArgs(1),
+	Use:     "get <key>",
+	Long:    `Print one feature flag's full definition, including environment overrides and user lists.`,
+	Example: `  radas flags get block_apply`,
+	Short:   "Get details for a specific feature flag",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -142,9 +156,11 @@ var getCmd = &cobra.Command{
 }
 
 var setCmd = &cobra.Command{
-	Use:   "set <key> <true|false>",
-	Short: "Toggle or set the value of a feature flag",
-	Args:  cobra.ExactArgs(2),
+	Use:     "set <key> <true|false>",
+	Long:    `Set a flag's enabled value. The value must be literally true or false.`,
+	Example: `  radas flags set block_apply true`,
+	Short:   "Toggle or set the value of a feature flag",
+	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		valStr := args[1]
@@ -174,9 +190,11 @@ var setCmd = &cobra.Command{
 }
 
 var killCmd = &cobra.Command{
-	Use:   "kill <key>",
-	Short: "Trigger an immediate emergency kill-switch circuit breaker on a flag",
-	Args:  cobra.ExactArgs(1),
+	Use:     "kill <key>",
+	Long:    `Activate a flag's kill-switch, disabling it everywhere regardless of rollout percentage.`,
+	Example: `  radas flags kill block_apply`,
+	Short:   "Trigger an immediate emergency kill-switch circuit breaker on a flag",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

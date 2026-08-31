@@ -26,6 +26,15 @@ var Cmd = &cobra.Command{
 	Use:     "org",
 	Aliases: []string{"orgs", "organization"},
 	Short:   "Manage multi-tenant organizations and switch active context",
+
+	Example: `  # List organizations you belong to
+  radas org list
+
+  # Switch the active org selector
+  radas org switch acme
+
+  # View org-wide guardrail rules
+  radas org rules`,
 	Long: `The org command group enables listing organizational memberships from the
 control plane and switching the active org context. The switch is a local
 CLI selector change; the server validates organization access per request.`,
@@ -71,6 +80,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List organizations the authenticated user belongs to, marking the currently active one.`,
+	Example: `  radas org list`,
 	Aliases: []string{"ls"},
 	Short:   "List organizations accessible to the current user",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -109,9 +120,11 @@ var listCmd = &cobra.Command{
 }
 
 var switchCmd = &cobra.Command{
-	Use:   "switch <org-id-or-slug>",
-	Short: "Switch the active organization selector used by subsequent commands",
-	Args:  cobra.ExactArgs(1),
+	Use:     "switch <org-id-or-slug>",
+	Long:    `Switch the active organization selector persisted for subsequent commands (same resolution chain as --org-id).`,
+	Example: `  radas org switch acme`,
+	Short:   "Switch the active organization selector used by subsequent commands",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		orgTarget := args[0]
 
@@ -127,7 +140,11 @@ var switchCmd = &cobra.Command{
 }
 
 var rulesCmd = &cobra.Command{
-	Use:     "rules [org-id]",
+	Use: "rules [org-id]",
+	Long: `View org-wide best-practice guardrails.
+
+NOT YET AVAILABLE: the control plane has no org-rules route yet.`,
+	Example: `  radas org rules`,
 	Aliases: []string{"standards", "policies"},
 	Short:   "View organization-wide standard best-practice guardrails and rules",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -136,8 +153,12 @@ var rulesCmd = &cobra.Command{
 }
 
 var setRulesCmd = &cobra.Command{
-	Use:   "set-rules [org-id]",
-	Short: "Configure standard best practice rules and enforcement mode for an organization",
+	Use: "set-rules [org-id]",
+	Long: `Set org-wide guardrails.
+
+NOT YET AVAILABLE: the control plane has no org-rules route yet.`,
+	Example: `  radas org set-rules`,
+	Short:   "Configure standard best practice rules and enforcement mode for an organization",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("org set-rules is not available: the control plane does not expose an organization rules API yet (no POST /api/orgs/<org_id>/rules route), so no rules were changed")
 	},

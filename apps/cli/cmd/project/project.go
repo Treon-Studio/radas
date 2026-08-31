@@ -28,6 +28,12 @@ var Cmd = &cobra.Command{
 	Use:     "project",
 	Aliases: []string{"projects"},
 	Short:   "List accessible projects and select the active project context",
+
+	Example: `  # List projects in the active org
+  radas project list
+
+  # Select the active project for subsequent commands
+  radas project use proj-123`,
 	Long: `The project command group lists projects served by the RADAS control plane
 and selects the active project for subsequent commands. The selection is a
 local identifier only: the server remains the authorization authority for
@@ -91,6 +97,8 @@ func listProjects(ctx context.Context, cmd *cobra.Command) ([]ProjectInfo, error
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List projects in the active organization. The selection made here feeds the standard project context for all project-scoped commands.`,
+	Example: `  radas project list`,
 	Aliases: []string{"ls"},
 	Short:   "List projects accessible to the authenticated user",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -126,9 +134,11 @@ var listCmd = &cobra.Command{
 }
 
 var useCmd = &cobra.Command{
-	Use:   "use <project-id>",
-	Short: "Select the active project for subsequent commands",
-	Args:  cobra.ExactArgs(1),
+	Use:     "use <project-id>",
+	Long:    `Persist the active project selector used by every project-scoped command (equivalent to the --project-id flag / RADAS_PROJECT_ID).`,
+	Example: `  radas project use proj-123`,
+	Short:   "Select the active project for subsequent commands",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := args[0]
 

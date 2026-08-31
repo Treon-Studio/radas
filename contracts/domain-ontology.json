@@ -1,0 +1,370 @@
+{
+    "ontology_version": 1,
+    "entities": {
+        "Execution": {
+            "description": "Legacy OpenTofu/Ansible run tracked in project JSON files and the durable queue.",
+            "states": [
+                "QUEUED",
+                "RUNNING",
+                "CANCELING",
+                "SUCCESS",
+                "FAILED",
+                "CANCELED"
+            ],
+            "final_states": [
+                "SUCCESS",
+                "FAILED",
+                "CANCELED"
+            ],
+            "transitions": {
+                "QUEUED": [
+                    "RUNNING",
+                    "CANCELED"
+                ],
+                "RUNNING": [
+                    "SUCCESS",
+                    "FAILED",
+                    "CANCELING"
+                ],
+                "CANCELING": [
+                    "CANCELED",
+                    "FAILED"
+                ],
+                "CANCELED": [],
+                "SUCCESS": [],
+                "FAILED": []
+            },
+            "relations": {
+                "runs_on": "Worker",
+                "belongs_to": "Project",
+                "targets": "Stack"
+            },
+            "events": [
+                "execution.queued",
+                "execution.started",
+                "execution.finished",
+                "execution.recovered"
+            ],
+            "source": "apps/server/storage/executions_store.py:38-45"
+        },
+        "ServiceOperation": {
+            "description": "Tenant-scoped, idempotent operation on a service instance (deploy/update/stop/...).",
+            "states": [
+                "pending",
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled"
+            ],
+            "final_states": [
+                "succeeded",
+                "failed",
+                "canceled"
+            ],
+            "transitions": {
+                "pending": [
+                    "pending",
+                    "queued",
+                    "running",
+                    "failed",
+                    "canceled"
+                ],
+                "queued": [
+                    "queued",
+                    "running",
+                    "failed",
+                    "canceled"
+                ],
+                "running": [
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "canceled"
+                ],
+                "succeeded": [
+                    "succeeded"
+                ],
+                "failed": [
+                    "failed"
+                ],
+                "canceled": [
+                    "canceled"
+                ]
+            },
+            "relations": {
+                "operates_on": "ServiceInstance",
+                "belongs_to": "Project",
+                "claimed_by": "Worker"
+            },
+            "events": [
+                "operation.queued",
+                "operation.claimed",
+                "operation.finished",
+                "operation.canceled"
+            ],
+            "source": "apps/server/services/service_operations.py:48-56"
+        },
+        "ServiceInstance": {
+            "description": "Provider-neutral service instance with immutable revisions.",
+            "states": [
+                "draft",
+                "provisioning",
+                "running",
+                "degraded",
+                "stopped",
+                "updating",
+                "destroying",
+                "destroyed",
+                "failed"
+            ],
+            "final_states": [],
+            "transitions": {
+                "draft": [
+                    "draft",
+                    "provisioning",
+                    "destroying",
+                    "failed"
+                ],
+                "provisioning": [
+                    "provisioning",
+                    "running",
+                    "degraded",
+                    "failed",
+                    "destroying"
+                ],
+                "running": [
+                    "running",
+                    "degraded",
+                    "stopped",
+                    "updating",
+                    "destroying",
+                    "failed"
+                ],
+                "degraded": [
+                    "degraded",
+                    "running",
+                    "stopped",
+                    "updating",
+                    "destroying",
+                    "failed"
+                ],
+                "stopped": [
+                    "stopped",
+                    "provisioning",
+                    "running",
+                    "updating",
+                    "destroying",
+                    "destroyed",
+                    "failed"
+                ],
+                "updating": [
+                    "updating",
+                    "running",
+                    "degraded",
+                    "failed",
+                    "destroying"
+                ],
+                "destroying": [
+                    "destroying",
+                    "destroyed",
+                    "failed"
+                ],
+                "destroyed": [
+                    "destroyed",
+                    "draft",
+                    "provisioning"
+                ],
+                "failed": [
+                    "failed",
+                    "draft",
+                    "provisioning",
+                    "running",
+                    "updating",
+                    "destroying"
+                ]
+            },
+            "relations": {
+                "belongs_to": "Project",
+                "defined_by": "ServiceDefinition",
+                "runs_on": "RuntimeProvider"
+            },
+            "events": [
+                "instance.created",
+                "instance.state_changed",
+                "instance.observed"
+            ],
+            "source": "apps/server/services/service_instances.py:27-44"
+        },
+        "Worker": {
+            "description": "Registered execution daemon polling /api/worker/claim.",
+            "states": [
+                "online",
+                "offline",
+                "draining"
+            ],
+            "final_states": [],
+            "transitions": {
+                "online": [
+                    "online",
+                    "offline",
+                    "draining"
+                ],
+                "offline": [
+                    "offline",
+                    "online"
+                ],
+                "draining": [
+                    "draining",
+                    "offline"
+                ]
+            },
+            "relations": {
+                "claims": "ServiceOperation",
+                "executes": "Execution"
+            },
+            "events": [
+                "worker.registered",
+                "worker.heartbeat",
+                "worker.offline"
+            ],
+            "source": "apps/server/services/worker_registry.py"
+        },
+        "Approval": {
+            "description": "Infrastructure change request awaiting a decision.",
+            "states": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired"
+            ],
+            "final_states": [
+                "approved",
+                "rejected",
+                "expired"
+            ],
+            "transitions": {
+                "pending": [
+                    "approved",
+                    "rejected",
+                    "expired"
+                ],
+                "approved": [],
+                "rejected": [],
+                "expired": []
+            },
+            "relations": {
+                "belongs_to": "Project",
+                "gates": "Execution"
+            },
+            "events": [
+                "approval.requested",
+                "approval.decided",
+                "approval.expired"
+            ],
+            "source": "apps/server/services/approval_service.py"
+        },
+        "Budget": {
+            "description": "Per-project spend threshold with alerting.",
+            "states": [
+                "ok",
+                "alerting",
+                "unavailable"
+            ],
+            "final_states": [],
+            "transitions": {
+                "ok": [
+                    "ok",
+                    "alerting",
+                    "unavailable"
+                ],
+                "alerting": [
+                    "alerting",
+                    "ok",
+                    "unavailable"
+                ],
+                "unavailable": [
+                    "unavailable",
+                    "ok",
+                    "alerting"
+                ]
+            },
+            "relations": {
+                "belongs_to": "Project"
+            },
+            "events": [
+                "budget.alert",
+                "budget.recovered"
+            ],
+            "source": "apps/server/services/budget_service.py"
+        },
+        "Project": {
+            "description": "Tenant-owned project container grouping stacks, services, and runs. Declared in Phase 1 to close the relation graph; state machine pending transcription.",
+            "states": [],
+            "final_states": [],
+            "transitions": {},
+            "relations": {},
+            "events": [],
+            "source": "apps/server/storage/project_admission.py"
+        },
+        "Stack": {
+            "description": "OpenTofu/Ansible stack within a project. Declared in Phase 1 to close the relation graph; state machine pending transcription.",
+            "states": [],
+            "final_states": [],
+            "transitions": {},
+            "relations": {},
+            "events": [],
+            "source": "apps/server/services/stack_lifecycle.py"
+        },
+        "ServiceDefinition": {
+            "description": "Declarative template from which service instances are created. Declared in Phase 1 to close the relation graph; state machine pending transcription.",
+            "states": [],
+            "final_states": [],
+            "transitions": {},
+            "relations": {},
+            "events": [],
+            "source": "apps/server/services/service_instances.py"
+        },
+        "RuntimeProvider": {
+            "description": "External platform a service instance runs on. Declared in Phase 1 to close the relation graph; state machine pending transcription.",
+            "states": [],
+            "final_states": [],
+            "transitions": {},
+            "relations": {},
+            "events": [],
+            "source": "apps/server/services/runtime_provider.py"
+        }
+    },
+    "alerts": {
+        "workers.all_offline": {
+            "when": "workers.total > 0 && workers.online == 0",
+            "severity": "critical",
+            "route": "/system/workers",
+            "title": "All workers offline!"
+        },
+        "workers.partial_offline": {
+            "when": "workers.online > 0 && workers.online < workers.total",
+            "severity": "warning",
+            "route": "/system/workers",
+            "title": "Some workers offline"
+        },
+        "approvals.pending": {
+            "when": "approvals.pending > 0",
+            "severity": "info",
+            "route": "/cloud/stacks",
+            "title": "Approvals waiting"
+        },
+        "budget.threshold": {
+            "when": "budget.usage_pct >= budget.alert_at_pct",
+            "severity": "warning",
+            "route": "/cloud/cost",
+            "title": "Budget threshold reached"
+        },
+        "budget.unavailable": {
+            "when": "budget.spend_status == \"unavailable\"",
+            "severity": "warning",
+            "route": "/cloud/cost",
+            "title": "Cost store unavailable"
+        }
+    }
+}

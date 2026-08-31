@@ -23,6 +23,13 @@ var Cmd = &cobra.Command{
 	Use:     "approval",
 	Aliases: []string{"approve", "approvals"},
 	Short:   "Review, approve, and reject infrastructure change requests",
+
+	Example: `  # List pending approvals
+  radas approval list --status pending
+
+  # Approve or reject a change request
+  radas approval approve ap-41
+  radas approval reject ap-42`,
 	Long: `The approval command group enables multi-party quorum reviews and approval TTL
 tracking against the control plane. Approve/reject decisions are recorded
 server-side; the control plane does not persist decision comments or rejection
@@ -73,6 +80,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List approval requests, optionally filtered by --status (pending/approved/rejected).`,
+	Example: `  radas approval list --status pending`,
 	Aliases: []string{"ls"},
 	Short:   "List approval requests, optionally filtered by status",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -110,9 +119,11 @@ var listCmd = &cobra.Command{
 }
 
 var approveCmd = &cobra.Command{
-	Use:   "approve <approval-id>",
-	Short: "Approve a pending change request",
-	Args:  cobra.ExactArgs(1),
+	Use:     "approve <approval-id>",
+	Long:    `Approve a pending infrastructure change request.`,
+	Example: `  radas approval approve ap-41`,
+	Short:   "Approve a pending change request",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apprID := args[0]
 
@@ -137,9 +148,11 @@ var approveCmd = &cobra.Command{
 }
 
 var rejectCmd = &cobra.Command{
-	Use:   "reject <approval-id>",
-	Short: "Reject a pending change request",
-	Args:  cobra.ExactArgs(1),
+	Use:     "reject <approval-id>",
+	Long:    `Reject a pending infrastructure change request.`,
+	Example: `  radas approval reject ap-42`,
+	Short:   "Reject a pending change request",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apprID := args[0]
 
@@ -164,8 +177,12 @@ var rejectCmd = &cobra.Command{
 }
 
 var historyCmd = &cobra.Command{
-	Use:   "history",
-	Short: "View audit trail of recent approval and rejection decisions",
+	Use: "history",
+	Long: `Show approval decision history.
+
+NOT YET AVAILABLE: the control plane has no approval-history route yet.`,
+	Example: `  radas approval history`,
+	Short:   "View audit trail of recent approval and rejection decisions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("approval history is not available: the control plane has no approval-decision-history route; nothing was fetched")
 	},

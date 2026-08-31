@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { MascotLoading } from "@/components/common/MascotLoading";
+import { MascotState } from "@/components/common/MascotState";
 
 export const Route = createFileRoute("/infrastructure/deployment")({
   component: DeploymentPage,
@@ -372,10 +374,24 @@ function DeploymentPage() {
             </thead>
             <tbody>
               {executionsQ.isLoading && (
-                <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-muted-foreground)]">{t("common.loading")}</td></tr>
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--color-muted-foreground)]">
+                    <MascotLoading label="LOADING DEPLOYMENT RUNS..." sublabel="Fetching execution records..." />
+                  </td>
+                </tr>
               )}
               {!executionsQ.isLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-muted-foreground)]">{t("deployment.noRuns")}</td></tr>
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--color-muted-foreground)]">
+                    <MascotState
+                      type="empty_deployments"
+                      title="NO DEPLOYMENT RUNS YET"
+                      description="Launch your first playbook or automation run to see execution history."
+                      actionLabel="LAUNCH RUN"
+                      onAction={() => setShowLaunch(true)}
+                    />
+                  </td>
+                </tr>
               )}
               {pageItems.map(e => {
                 const id = e.id || e.execution_id || "";

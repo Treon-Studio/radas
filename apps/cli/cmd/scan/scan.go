@@ -15,6 +15,20 @@ import (
 var ScanCmd = &cobra.Command{
 	Use:   "scan <subcommand>",
 	Short: "Security and quality scans (secrets, vuln)",
+	Long: `Run security and quality scanners against a project path.
+
+scan secrets runs gitleaks and emits SARIF 2.1.0 by default (pipe into
+GitHub Code Scanning); scan vuln runs govulncheck plus pnpm/npm audit.
+For local credential-looking assignments in tfvars/env files, prefer
+"radas secret scan".`,
+	Example: `  # Scan working tree for committed secrets (SARIF output)
+  radas scan secrets
+
+  # Human-readable table, staged files only
+  radas scan secrets --format=table --staged
+
+  # Dependency vulnerability scan
+  radas scan vuln .`,
 }
 
 var ScanSecretsCmd = &cobra.Command{
@@ -53,16 +67,16 @@ func runScanSecrets(cmd *cobra.Command, args []string) {
 	}
 
 	s := scan.NewGitleaksScanner()
-	
+
 	spin := utils.NewSpinner("Scanning for secrets (gitleaks)...")
 	spin.Start()
-	
+
 	findings, scanErr := s.Scan(absDir, scan.ScanOptions{
 		Staged: scanStaged,
 		All:    scanAll,
 		Config: scanConfig,
 	})
-	
+
 	spin.Stop()
 
 	switch scanFormat {

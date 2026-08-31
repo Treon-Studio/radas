@@ -31,7 +31,7 @@ def test_retry_execution_preserves_stack_run_params_and_chain(monkeypatch, tmp_p
     assert created["data"]["retry_of"] == execution
 
 
-def test_retry_policy_uses_stack_policy_and_is_idempotent(monkeypatch, tmp_path):
+def test_retry_policy_uses_stack_policy_and_is_idempotent(monkeypatch, tmp_path, pg_db):
     from services import retry_policy
 
     policy = {"project-retry": {"stacks": {"network-prod": {"max_retries": 1, "backoff_seconds": 0}}}}
@@ -55,3 +55,36 @@ def test_retry_policy_uses_stack_policy_and_is_idempotent(monkeypatch, tmp_path)
     assert first["retried"] == 1
     assert second["retried"] == 0
     assert calls == [("failed",)]
+
+
+def test_sweep_applies_per_stack_policy_not_just_last(monkeypatch, tmp_path, pg_db):
+    """Two stacks under one project: stack A retried, stack B (max_retries=0) skipped."""
+    from services import retry_policy
+
+    policy = {"proj-ms": {"stacks": {
+        "stack-a": {"max_retries": 3, "backoff_seconds": 0},
+        "stack-b": {"max_retries": 0, "backoff_seconds": 0},
+    }}}
+    monkeypatch.setattr(retry_policy, "load", lambda: policy)
+    monkeypatch.setattr(retry_policy, "_store_path", lambda: tmp_path / "retry.json")
+    monkeypatch.setattr("utils.project_paths.get_project_executions_dir", lambda _: tmp_path)
+
+    # Stack A: FAILED, should be retried.
+    (tmp_path / "exec-a.json").write_text(json.dumps({
+        "id": "exec-a", "status": "FAILED", "finishedAt": 1,
+        "runParams": {"stack_name": "stack-a"},
+    }))
+    # Stack B: FAILED, should NOT be retried (max_retries=0).
+    (tmp_path / "exec-b.json").write_text(json.dumps({
+        "id": "exec-b", "status": "FAILED", "finishedAt": 1,
+        "runParams": {"stack_name": "stack-b"},
+    }))
+
+    calls = []
+    monkeypatch.setattr(retry_policy, "_chain_depth", lambda *args: 0)
+    monkeypatch.setattr("services.execution_retry.retry_execution", lambda *args, **kwargs: calls.append(args) or "new")
+    monkeypatch.setattr(retry_policy.time, "time", lambda: 100)
+
+    result = retry_policy.sweep_once()
+    assert result["retried"] == 1, f"only stack-a should be retried, got {result}"
+    assert calls == [("exec-a",)], f"retry_execution should only be called for exec-a, got {calls}"

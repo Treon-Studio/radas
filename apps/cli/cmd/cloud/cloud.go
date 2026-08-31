@@ -25,6 +25,15 @@ var Cmd = &cobra.Command{
 	Use:     "cloud",
 	Aliases: []string{"byoc", "provider"},
 	Short:   "Discover cloud resources, probe credentials, and import existing infrastructure",
+
+	Example: `  # Probe provider credentials (stub until wired)
+  radas cloud probe hetzner
+
+  # Import existing infrastructure into a stack
+  radas cloud import --stack legacy-net
+
+  # Diff imported resources against a stack
+  radas cloud diff prod-net`,
 	Long: `The cloud command group enables Bring-Your-Own-Cloud (BYOC) account adoption.
 Credential validation and resource inventory run server-side against a
 registered BYOC account; this CLI does not fabricate probe or inventory
@@ -62,9 +71,13 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 }
 
 var probeCmd = &cobra.Command{
-	Use:   "probe <provider>",
-	Short: "Probe connection and IAM credentials for a cloud provider (aws, gcp, azure, bytedc, cloudflare, kubernetes)",
-	Args:  cobra.ExactArgs(1),
+	Use: "probe <provider>",
+	Long: `Probe provider credentials.
+
+NOT YET AVAILABLE: no probe endpoint exists on the control plane yet.`,
+	Example: `  radas cloud probe hetzner`,
+	Short:   "Probe connection and IAM credentials for a cloud provider (aws, gcp, azure, bytedc, cloudflare, kubernetes)",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		provider := args[0]
 		return fmt.Errorf("cloud probe for '%s' is not available: the control plane validates credentials server-side for registered BYOC accounts only, and no provider probe endpoint is exposed yet; register the account in the RADAS console so validation happens there", provider)
@@ -72,7 +85,11 @@ var probeCmd = &cobra.Command{
 }
 
 var inventoryCmd = &cobra.Command{
-	Use:     "inventory",
+	Use: "inventory",
+	Long: `Import existing cloud inventory.
+
+NOT YET AVAILABLE: inventory import is not wired to a route yet.`,
+	Example: `  radas cloud inventory`,
 	Aliases: []string{"inv"},
 	Short:   "List discovered cloud resources and check management status",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -81,9 +98,11 @@ var inventoryCmd = &cobra.Command{
 }
 
 var importCmd = &cobra.Command{
-	Use:   "import <resource-type> <tf-address> <cloud-id>",
-	Short: "Generate OpenTofu import block and CLI command for an unmanaged cloud resource",
-	Args:  cobra.ExactArgs(3),
+	Use:     "import <resource-type> <tf-address> <cloud-id>",
+	Long:    `Import one existing cloud resource into a stack's state by resource type, Terraform address, and cloud id.`,
+	Example: `  radas cloud import hetzner_server hcloud_server.web srv-42`,
+	Short:   "Generate OpenTofu import block and CLI command for an unmanaged cloud resource",
+	Args:    cobra.ExactArgs(3),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		resType := args[0]
 		tfAddr := args[1]
@@ -103,9 +122,11 @@ var importCmd = &cobra.Command{
 }
 
 var diffCmd = &cobra.Command{
-	Use:   "diff <stack-id>",
-	Short: "Show the server-side drift status of a stack's real-world cloud inventory",
-	Args:  cobra.ExactArgs(1),
+	Use:     "diff <stack-id>",
+	Long:    `Diff imported resources against a stack's current state.`,
+	Example: `  radas cloud diff prod-net`,
+	Short:   "Show the server-side drift status of a stack's real-world cloud inventory",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 		spin := utils.NewSpinner(fmt.Sprintf("🔍 Fetching drift status for stack '%s' from RADAS API...", stackID))

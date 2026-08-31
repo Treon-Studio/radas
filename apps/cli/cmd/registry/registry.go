@@ -24,6 +24,12 @@ var Cmd = &cobra.Command{
 	Use:     "registry",
 	Aliases: []string{"reg"},
 	Short:   "Discover, adopt, and publish reusable OpenTofu modules and Ansible roles",
+
+	Example: `  # List reusable modules and roles
+  radas registry list
+
+  # Install a module into a stack
+  radas registry install tofu/vpc --stack prod-net`,
 	Long: `The registry command group provides shadcn-style code adoption for OpenTofu
 blocks and Ansible roles. The catalog and installs are served by the RADAS
 control plane; installs target a stack directory on the server.`,
@@ -70,6 +76,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List reusable OpenTofu modules and Ansible roles available in the registry.`,
+	Example: `  radas registry list`,
 	Aliases: []string{"ls"},
 	Short:   "List available OpenTofu modules and Ansible roles",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -101,9 +109,11 @@ var listCmd = &cobra.Command{
 }
 
 var installCmd = &cobra.Command{
-	Use:   "install <type/slug>",
-	Short: "Install a module or role from the registry into a stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "install <type/slug>",
+	Long:    `Install a registry module or role into a stack (--stack is required).`,
+	Example: `  radas registry install tofu/vpc --stack prod-net`,
+	Short:   "Install a module or role from the registry into a stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := args[0]
 		stack, _ := cmd.Flags().GetString("stack")
@@ -142,8 +152,12 @@ var installCmd = &cobra.Command{
 }
 
 var publishCmd = &cobra.Command{
-	Use:   "publish [dir]",
-	Short: "Publish a reusable module or role from a local directory to the private registry",
+	Use: "publish [dir]",
+	Long: `Publish a local module directory to the private org registry.
+
+NOT YET AVAILABLE: publishing currently happens server-side from managed stacks only.`,
+	Example: `  radas registry publish ./modules/vpc`,
+	Short:   "Publish a reusable module or role from a local directory to the private registry",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("registry publish is not available: the control plane publishes bundles from server-side stacks (POST /api/registry/publish with stack, name, and file_patterns), not from local directories; nothing was published")
 	},

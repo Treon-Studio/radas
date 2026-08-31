@@ -23,6 +23,12 @@ var Cmd = &cobra.Command{
 	Use:     "policy",
 	Aliases: []string{"guard", "guardrails"},
 	Short:   "Inspect policy violations recorded by the control plane",
+
+	Example: `  # List recorded policy violations
+  radas policy violations
+
+  # Run an on-demand check (stub until the eval route exists)
+  radas policy check prod-net`,
 	Long: `The policy command group reports the policy violations the control plane
 recorded during stack runs (UC547). Policy evaluation and exemptions are
 server-side concerns; the CLI never fabricates rule results.`,
@@ -70,8 +76,12 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 }
 
 var checkCmd = &cobra.Command{
-	Use:   "check [stack-id]",
-	Short: "Run policy-as-code checks on a stack or local plan",
+	Use: "check [stack-id]",
+	Long: `Run an on-demand policy check for a stack.
+
+NOT YET AVAILABLE: the control plane has no on-demand evaluation route yet.`,
+	Example: `  radas policy check prod-net`,
+	Short:   "Run policy-as-code checks on a stack or local plan",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("policy check is not available: policy evaluation happens server-side during stack runs and the control plane has no on-demand evaluation endpoint; nothing was evaluated")
 	},
@@ -79,6 +89,8 @@ var checkCmd = &cobra.Command{
 
 var violationsCmd = &cobra.Command{
 	Use:     "violations",
+	Long:    `List policy violations recorded by the control plane.`,
+	Example: `  radas policy violations`,
 	Aliases: []string{"viols"},
 	Short:   "List policy violations recorded across stacks",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -124,9 +136,13 @@ var violationsCmd = &cobra.Command{
 }
 
 var exemptCmd = &cobra.Command{
-	Use:   "exempt <rule-id> <stack-id>",
-	Short: "Request or grant a temporary policy exemption with justification and TTL",
-	Args:  cobra.ExactArgs(2),
+	Use: "exempt <rule-id> <stack-id>",
+	Long: `Create a policy exemption for a rule/stack pair.
+
+NOT YET AVAILABLE: the control plane has no exemption endpoint yet.`,
+	Example: `  radas policy exempt rule-1 prod-net`,
+	Short:   "Request or grant a temporary policy exemption with justification and TTL",
+	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("policy exempt is not available: the control plane has no policy exemption endpoint (POST /api/policies/exemptions is not registered), so no exemption was created")
 	},

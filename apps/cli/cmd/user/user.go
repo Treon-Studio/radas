@@ -24,6 +24,15 @@ var Cmd = &cobra.Command{
 	Use:     "user",
 	Aliases: []string{"users", "members"},
 	Short:   "Manage team members, roles, invitations, and session revocations",
+
+	Example: `  # List team members and roles
+  radas user list
+
+  # Invite a teammate with a role
+  radas user invite dev@team.io --role developer
+
+  # Soft-disable an account
+  radas user deactivate user-9`,
 	Long: `The user command group allows listing organization members, sending role-scoped
 invitations, deactivating accounts, and revoking active user sessions.`,
 }
@@ -80,6 +89,8 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 
 var listCmd = &cobra.Command{
 	Use:     "list",
+	Long:    `List organization team members with their assigned RBAC roles.`,
+	Example: `  radas user list`,
 	Aliases: []string{"ls"},
 	Short:   "List organization team members and roles",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -119,9 +130,11 @@ var listCmd = &cobra.Command{
 }
 
 var inviteCmd = &cobra.Command{
-	Use:   "invite <email>",
-	Short: "Create an invitation with pre-assigned RBAC roles",
-	Args:  cobra.ExactArgs(1),
+	Use:     "invite <email>",
+	Long:    `Create an invitation for an email address with pre-assigned RBAC roles.`,
+	Example: `  radas user invite dev@team.io --role developer`,
+	Short:   "Create an invitation with pre-assigned RBAC roles",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email := args[0]
 		role, _ := cmd.Flags().GetString("role")
@@ -159,9 +172,11 @@ var inviteCmd = &cobra.Command{
 }
 
 var deactivateCmd = &cobra.Command{
-	Use:   "deactivate <user-id>",
-	Short: "Soft-disable a user account (is_active=false) without deleting audit trail",
-	Args:  cobra.ExactArgs(1),
+	Use:     "deactivate <user-id>",
+	Long:    `Soft-disable a user account without deleting the audit trail.`,
+	Example: `  radas user deactivate user-9`,
+	Short:   "Soft-disable a user account (is_active=false) without deleting audit trail",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		userID := args[0]
 
@@ -188,9 +203,13 @@ var deactivateCmd = &cobra.Command{
 }
 
 var revokeCmd = &cobra.Command{
-	Use:   "revoke-sessions <user-id>",
-	Short: "Revoke all active tokens and JWT sessions for a user",
-	Args:  cobra.ExactArgs(1),
+	Use: "revoke-sessions <user-id>",
+	Long: `Revoke all active sessions/tokens for a user.
+
+NOT YET AVAILABLE: the control plane has no per-user revocation route yet.`,
+	Example: `  radas user revoke-sessions user-9`,
+	Short:   "Revoke all active tokens and JWT sessions for a user",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("user revoke-sessions is not available: the control plane only offers POST /api/auth/revoke-all-sessions for the *current* user's sessions; there is no per-user revocation route, so nothing was revoked")
 	},

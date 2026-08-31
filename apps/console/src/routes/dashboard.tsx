@@ -37,6 +37,8 @@ import { NewProjectDialog } from "@/components/project/NewProjectDialog";
 import { useT } from "@/lib/i18n";
 import { api, getStoredUser } from "@/lib/api";
 import { qk } from "@/lib/query";
+import { MascotLoading } from "@/components/common/MascotLoading";
+import { MascotState } from "@/components/common/MascotState";
 
 export const Route = createFileRoute("/dashboard")({ component: Dashboard });
 
@@ -256,15 +258,18 @@ export function Dashboard() {
             </div>
 
             {loading ? (
-              <div className="border-2 border-[var(--color-border)] pxl-card-shadow pxl-corner-md bg-[var(--color-card)] p-12 text-center text-xs text-[var(--color-muted-foreground)] font-mono">
-                Loading projects…
+              <div className="border-2 border-[var(--color-border)] pxl-card-shadow pxl-corner-md bg-[var(--color-card)] p-8">
+                <MascotLoading label="LOADING PROJECTS..." sublabel="Fetching organization workspaces..." />
               </div>
             ) : activeProjects.length === 0 ? (
-              <div className="border-2 border-dashed border-[var(--color-border)] pxl-corner-md bg-[var(--color-card)] p-12 text-center space-y-4">
-                <p className="text-sm text-[var(--color-muted-foreground)]">No active projects in organization {activeOrgName}.</p>
-                <Button size="sm" className="pxl-corner-sm pxl-btn-shadow" onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Create project
-                </Button>
+              <div className="border-2 border-dashed border-[var(--color-border)] pxl-corner-md bg-[var(--color-card)] p-8">
+                <MascotState
+                  type="empty_projects"
+                  title="NO ACTIVE PROJECTS"
+                  description={`No active projects in organization ${activeOrgName}. Get started by creating your first workspace.`}
+                  actionLabel="CREATE PROJECT"
+                  onAction={() => setCreateOpen(true)}
+                />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

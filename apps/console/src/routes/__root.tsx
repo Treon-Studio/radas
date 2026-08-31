@@ -29,7 +29,8 @@ export function isPublicPath(path: string): boolean {
     path.startsWith("/login") ||
     path.startsWith("/forgot-password") ||
     path.startsWith("/reset-password") ||
-    path.startsWith("/onboarding")
+    path.startsWith("/onboarding") ||
+    path.startsWith("/office")
   );
 }
 

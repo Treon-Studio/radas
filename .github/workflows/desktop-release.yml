@@ -60,6 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd apps/desktop-app
+          pnpm cth:build
           npx electron-builder --${{ matrix.target }}
 
       - name: Upload Release Binaries to GitHub Releases

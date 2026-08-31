@@ -5,13 +5,25 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.RADAS_APP_VERSION || "dev"),
+  },
   plugins: [
-    TanStackRouterVite({ routesDirectory: "src/routes", generatedRouteTree: "src/routeTree.gen.ts" }),
+    TanStackRouterVite({
+      routesDirectory: "src/routes",
+      generatedRouteTree: "src/routeTree.gen.ts",
+      routeFileIgnorePattern: "\\.test\\.",
+      autoCodeSplitting: true,
+    }),
     react(),
     tailwindcss(),
   ],
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      "@office": path.resolve(__dirname, "src/office-app"),
+      "@shared": path.resolve(__dirname, "src/office-app/shared"),
+    },
   },
   server: {
     port: 8080,
@@ -23,5 +35,10 @@ export default defineConfig({
         secure: false,
       },
     },
+  },
+  build: {
+    // The office floor intentionally bundles Monaco and its language workers;
+    // keep Vite's warning threshold above the measured 5.8 MB office chunk.
+    chunkSizeWarningLimit: 7000,
   },
 });

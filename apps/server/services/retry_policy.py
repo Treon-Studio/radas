@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -90,58 +91,72 @@ def _chain_depth(execution_id: str, project_id: str, depth: int = 0) -> int:
 
 
 def sweep_once() -> Dict[str, int]:
-    """Re-queue failed executions per retry policy (backoff aware)."""
+    """Re-queue failed executions per retry policy (backoff aware).
+
+    Cross-process safety comes from the atomic ``.retrying`` markers
+    (``O_CREAT|O_EXCL``): only one process can create a given execution's
+    marker, so concurrent backend processes (multi-worker WSGI / replicas)
+    can never double-retry the same execution. The sweep hard-depends on
+    PostgreSQL being up — projects are skipped on PG failure until the next
+    sweep.
+    """
     now = time.time()
     retried = {"retried": 0, "skipped_backoff": 0}
     try:
-        from services.execution_history import list_executions
         from services.execution_retry import retry_execution
         from utils.project_paths import get_project_executions_dir
-        import glob as _glob
+
         for project_id, project_policy in load().items():
             policies = {"": project_policy}
             policies.update(project_policy.get("stacks") or {})
+
             for stack_name, pol in policies.items():
                 max_retries = int(pol.get("max_retries") or 0)
                 if max_retries <= 0:
                     continue
-            backoff = int(pol.get("backoff_seconds") or 0)
-            ed = get_project_executions_dir(project_id)
-            if not ed.exists():
-                continue
-            for f in ed.glob("*.json"):
-                try:
-                    rec = json.loads(f.read_text(encoding="utf-8"))
-                except Exception:
+                backoff = int(pol.get("backoff_seconds") or 0)
+                ed = get_project_executions_dir(project_id)
+                if not ed.exists():
                     continue
-                if str(rec.get("status", "")).upper() != "FAILED":
-                    continue
-                record_stack = str((rec.get("runParams") or {}).get("stack_name") or "")
-                if stack_name and record_stack != stack_name:
-                    continue
-                finished = rec.get("finishedAt") or rec.get("statusUpdatedAt") or rec.get("createdAt") or 0
-                if now - float(finished) > WINDOW_SECONDS:
-                    continue
-                depth = _chain_depth(rec.get("id"), project_id)
-                if depth >= max_retries:
-                    continue
-                wait = backoff * (depth + 1)
-                if now - float(finished) < wait:
-                    retried["skipped_backoff"] += 1
-                    continue
-                try:
-                    marker = ed / f"{rec.get('id')}.retrying"
-                    if marker.exists():
-                        continue
-                    marker.write_text(str(now), encoding="utf-8")
+                for f in ed.glob("*.json"):
                     try:
-                        retry_execution(rec.get("id"), project_id=project_id)
-                        retried["retried"] += 1
+                        rec = json.loads(f.read_text(encoding="utf-8"))
                     except Exception:
-                        marker.unlink(missing_ok=True)
-                        raise
-                except Exception:
-                    pass
+                        continue
+                    if str(rec.get("status", "")).upper() != "FAILED":
+                        continue
+                    record_stack = str((rec.get("runParams") or {}).get("stack_name") or "")
+                    if stack_name and record_stack != stack_name:
+                        continue
+                    finished = rec.get("finishedAt") or rec.get("statusUpdatedAt") or rec.get("createdAt") or 0
+                    if now - float(finished) > WINDOW_SECONDS:
+                        continue
+                    depth = _chain_depth(rec.get("id"), project_id)
+                    if depth >= max_retries:
+                        continue
+                    wait = backoff * (depth + 1)
+                    if now - float(finished) < wait:
+                        retried["skipped_backoff"] += 1
+                        continue
+                    try:
+                        # Atomic creation: O_CREAT|O_EXCL — if the file
+                        # already exists this raises FileExistsError,
+                        # closing the TOCTOU window that the previous
+                        # exists()-then-write_text() pattern had.
+                        marker = ed / f"{rec.get('id')}.retrying"
+                        fd = os.open(str(marker), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                        os.write(fd, str(now).encode("utf-8"))
+                        os.close(fd)
+                        try:
+                            retry_execution(rec.get("id"), project_id=project_id)
+                            retried["retried"] += 1
+                        except Exception:
+                            marker.unlink(missing_ok=True)
+                            raise
+                    except FileExistsError:
+                        continue
+                    except Exception:
+                        pass
     except Exception as e:
         logger.error(f"[retry_policy] sweep error: {e}")
     return retried

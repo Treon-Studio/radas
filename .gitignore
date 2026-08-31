@@ -64,6 +64,9 @@ dist-ssr/
 .react-router
 .wrangler
 go.sum*
+# Go module checksums are required for reproducible CI builds.
+!apps/cli/go.sum
+!apps/worker/go.sum
 
 # Vite & Vitest config
 vite.config.*

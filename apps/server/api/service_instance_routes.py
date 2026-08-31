@@ -182,7 +182,8 @@ def _context(project_id: str, data: Mapping[str, Any] | None = None) -> tuple[st
 def _runtime() -> runtime_registry.RuntimeProviderRegistry:
     global _RUNTIME_REGISTRY
     if _RUNTIME_REGISTRY is None:
-        _RUNTIME_REGISTRY = runtime_registry.build_default_registry()
+        from services.runtime_registry import registry_from_environment
+        _RUNTIME_REGISTRY = registry_from_environment()
     return _RUNTIME_REGISTRY
 
 

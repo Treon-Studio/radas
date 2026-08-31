@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/raizora/radas/v4/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 var nFlag int
@@ -44,7 +44,7 @@ var ListBranchCmd = &cobra.Command{
 			// Strip prefix characters like '*' (current branch) or '+' (checked out in worktree)
 			cleanBranch := strings.TrimLeft(line, "*+ ")
 			cleanBranch = strings.TrimSpace(cleanBranch)
-			
+
 			if isCurrent {
 				current = cleanBranch
 			}
@@ -52,17 +52,17 @@ var ListBranchCmd = &cobra.Command{
 		}
 
 		type branchInfo struct {
-			Name      string
-			LastUsed  string
-			Current   bool
-			Origin    string
-			SizeMB    string // Size in MB, string for display
+			Name     string
+			LastUsed string
+			Current  bool
+			Origin   string
+			SizeMB   string // Size in MB, string for display
 		}
 		var infos []branchInfo
-		
+
 		spin := utils.NewSpinner("🌳 Bip bop! Menyelami ranting-ranting branch dan ngitung berat dosanya...")
 		spin.Start()
-		
+
 		for _, branch := range branches {
 			var logOut bytes.Buffer
 			logCmd := exec.Command("git", "log", "-1", "--format=%ci", branch)
@@ -113,7 +113,7 @@ var ListBranchCmd = &cobra.Command{
 			}
 			infos = append(infos, branchInfo{Name: branch, LastUsed: lastUsed, Current: branch == current, Origin: originName, SizeMB: sizeMB})
 		}
-		
+
 		spin.Stop()
 
 		// Sort by lastUsed desc (most recent first)

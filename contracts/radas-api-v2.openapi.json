@@ -5625,6 +5625,34 @@
         ]
       }
     },
+    "/api/v2/cost/breakdown/by-env": {
+      "get": {
+        "operationId": "get_cost_breakdown_by_env",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Per-environment cost breakdown (UC 414).",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
+    "/api/v2/cost/breakdown/by-tag": {
+      "get": {
+        "operationId": "get_cost_breakdown_by_tag",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Per-tag cost breakdown (UC 358/31). The ``tag`` query param is the tag key (e.g. ``owner``, ``environment``).",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
     "/api/v2/cost/forecast": {
       "get": {
         "operationId": "get_cost_forecast",
@@ -5676,6 +5704,21 @@
           }
         },
         "summary": "Proxy of v1 api_cost_rollup.",
+        "tags": [
+          "Cost Aggregator Api"
+        ]
+      }
+    },
+    "/api/v2/cost/rollup/org": {
+      "get": {
+        "description": "Financial rollups are org-scoped secrets, so this route applies the same\nowner/admin gate as the org management routes (``_require_org_owner``).\nA member without the owner/admin role and a user with no membership in\nthe org receive the identical 403 shape, so the response never leaks\nwhether the org exists.",
+        "operationId": "get_cost_rollup_org",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Org-level budget + spend rollup across child projects (UC 553).",
         "tags": [
           "Cost Aggregator Api"
         ]
@@ -9322,6 +9365,34 @@
         "summary": "Get onboarding status for the current user.",
         "tags": [
           "Onboarding Api"
+        ]
+      }
+    },
+    "/api/v2/ontology": {
+      "get": {
+        "operationId": "get_ontology",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 get_ontology.",
+        "tags": [
+          "Ontology Api"
+        ]
+      }
+    },
+    "/api/v2/ontology/alerts": {
+      "get": {
+        "operationId": "get_ontology_alerts",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 get_ontology_alerts.",
+        "tags": [
+          "Ontology Api"
         ]
       }
     },
@@ -16705,6 +16776,10 @@
     {
       "description": "Onboarding Api (auto-documented proxy of legacy /api/*).",
       "name": "Onboarding Api"
+    },
+    {
+      "description": "Ontology Api (auto-documented proxy of legacy /api/*).",
+      "name": "Ontology Api"
     },
     {
       "description": "Org Api (auto-documented proxy of legacy /api/*).",

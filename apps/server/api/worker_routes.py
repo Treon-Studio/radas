@@ -347,6 +347,47 @@ def api_worker_execution_finish(execution_id):
             status = data.get('status')
             if status not in ['SUCCESS', 'FAILED', 'CANCELED']:
                 return jsonify({'success': False, 'error': 'Status must be SUCCESS, FAILED or CANCELED'}), 400
+
+            # Server-side provider execution: only when the worker supplies
+            # NO result key at all AND the operation's runtime is registered
+            # in the server's execution-plane registry. Go workers send an
+            # explicit (possibly empty) ``result`` on success — an empty dict
+            # is the worker's own success and must finish as-is, never be
+            # re-executed server-side. A runtime the server cannot execute
+            # (not registered) likewise falls through to the worker's finish.
+            should_server_execute = False
+            if status == 'SUCCESS' and 'result' not in data:
+                try:
+                    from services.service_operation_runner import default_registry
+                    runtime_id = ""
+                    if service_operation.get('instance_id'):
+                        inst = pg.query_one(
+                            "SELECT runtime_id FROM service_instances WHERE id = %s",
+                            (service_operation.get('instance_id'),),
+                        )
+                        runtime_id = str((inst or {}).get('runtime_id') or "")
+                    should_server_execute = bool(runtime_id) and default_registry().get(runtime_id) is not None
+                except Exception as reg_err:
+                    current_app.logger.warning(
+                        "Runtime registry check failed for %s; skipping server-side execution: %s",
+                        execution_id, reg_err,
+                    )
+                    should_server_execute = False
+            if should_server_execute:
+                try:
+                    from services.service_operation_runner import execute_claimed
+                    execute_claimed(execution_id, worker_id)
+                    # execute_claimed calls finish_operation internally, so
+                    # the operation is already terminal. Return the result.
+                    done_row = pg.query_one("SELECT status, instance_id FROM service_operations WHERE id = %s", (execution_id,))
+                    update_worker_heartbeat(worker_id, current_execution_id=None)
+                    return jsonify({'success': True, 'operation': {'id': execution_id, 'status': done_row.get('status') if done_row else 'succeeded'}})
+                except Exception as exec_err:
+                    current_app.logger.error("Server-side execute_claimed failed for %s: %s", execution_id, exec_err)
+                    # Fall through to finish_operation with the failure.
+                    status = 'FAILED'
+                    data['error'] = str(exec_err)
+
             from services.service_operation_runner import finish_operation
             done, applied = finish_operation(
                 execution_id, worker_id, success=status == 'SUCCESS', canceled=status == 'CANCELED',

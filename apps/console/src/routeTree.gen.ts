@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OfficeRouteImport } from './routes/office'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as OrgsRouteImport } from './routes/orgs'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -88,6 +89,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfficeRoute = OfficeRouteImport.update({
+  id: '/office',
+  path: '/office',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -385,6 +391,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/office': typeof OfficeRoute
   '/onboarding': typeof OnboardingRoute
   '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
@@ -447,6 +454,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/office': typeof OfficeRoute
   '/onboarding': typeof OnboardingRoute
   '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
@@ -510,6 +518,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/office': typeof OfficeRoute
   '/onboarding': typeof OnboardingRoute
   '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
@@ -574,6 +583,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/login'
+    | '/office'
     | '/onboarding'
     | '/orgs'
     | '/profile'
@@ -636,6 +646,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/login'
+    | '/office'
     | '/onboarding'
     | '/orgs'
     | '/profile'
@@ -698,6 +709,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/login'
+    | '/office'
     | '/onboarding'
     | '/orgs'
     | '/profile'
@@ -761,6 +773,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
+  OfficeRoute: typeof OfficeRoute
   OnboardingRoute: typeof OnboardingRoute
   OrgsRoute: typeof OrgsRoute
   ProfileRoute: typeof ProfileRoute
@@ -833,6 +846,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/office': {
+      id: '/office'
+      path: '/office'
+      fullPath: '/office'
+      preLoaderRoute: typeof OfficeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -1283,6 +1303,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
+  OfficeRoute: OfficeRoute,
   OnboardingRoute: OnboardingRoute,
   OrgsRoute: OrgsRoute,
   ProfileRoute: ProfileRoute,

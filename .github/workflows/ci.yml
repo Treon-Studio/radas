@@ -21,8 +21,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -67,6 +65,29 @@ jobs:
     name: Test Flask Server API
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: radas
+          POSTGRES_PASSWORD: radas
+          POSTGRES_DB: radas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radas -d radas_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
+      INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
+      GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -85,11 +106,6 @@ jobs:
 
       - name: Run Python API tests
         working-directory: apps/server
-        env:
-          TEST_DATABASE_URL: "sqlite:///:memory:"
-          JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
-          INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
-          GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: pytest tests/
 
       # Task 6.1: contract surface checks alongside the API tests. The full
@@ -105,22 +121,39 @@ jobs:
 
   # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
   # of scripts/run-cross-client-contracts.sh: the pytest server reference
-  # contract, the console TypeScript client fixture leg (typecheck + vitest +
-  # build), and the Go CLI (vet + tests) / worker tests. The live-server legs
+  # contract (which also runs the domain-ontology schema/loader/parity tests),
+  # the console TypeScript client fixture leg (typecheck + vitest + build),
+  # and the Go CLI (vet + tests) / worker tests. The live-server legs
   # (Go client + direct HTTP, TypeScript real HTTP) stay env-gated for
-  # self-hosted/manual runs via RUN_FULL_CONTRACT=1 (mode b).
+  # self-hosted/manual runs via RUN_FULL_CONTRACT=1 (mode b). A final step
+  # runs the desktop pet's Node ontology alert tests, which no other job
+  # covers.
   cross-client-contracts:
     name: Cross-Client Contract Parity
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: radas
+          POSTGRES_PASSWORD: radas
+          POSTGRES_DB: radas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radas -d radas_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -151,8 +184,16 @@ jobs:
 
       - name: Run cross-client contract gate (mode a)
         env:
-          TEST_DATABASE_URL: "sqlite:///:memory:"
+          DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+          TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
           JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
           INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
           GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: bash scripts/run-cross-client-contracts.sh
+
+      # Domain ontology (contracts/domain-ontology.json): the desktop pet's
+      # alert-DSL evaluator and alert-binding tests are plain Node and not
+      # covered by the bash gate above, so run them here (no extra deps).
+      - name: Desktop ontology tests (Node)
+        working-directory: apps/desktop-app
+        run: node --test ontology/*.test.js

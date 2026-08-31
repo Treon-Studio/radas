@@ -3008,6 +3008,20 @@ def start_recovery_task():
                         )
                 except Exception as lock_e:
                     app.logger.warning(f"Lock lease cleanup failed: {lock_e}")
+                # PG-based queue recovery (UC477): requeue executions stuck in
+                # running_executions back to queued_executions. Runs before
+                # the file-based recovery so the durable queue is consistent
+                # before the JSON sweep terminalizes timed-out runs.
+                try:
+                    from services.worker_recovery import recover_interrupted_queue
+                    queue_result = recover_interrupted_queue()
+                    if queue_result.get("recovered_count"):
+                        app.logger.info(
+                            "[recovery] Requeued %d interrupted execution(s) from the durable queue",
+                            queue_result["recovered_count"],
+                        )
+                except Exception as qe:
+                    app.logger.warning(f"Queue recovery failed: {qe}")
                 server_recover_stuck_executions(
                     max_age_minutes=30,
                     grace_period_minutes=5,

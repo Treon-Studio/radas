@@ -7,9 +7,11 @@ import {
   RiPlayLine as RunIcon,
   RiShieldKeyholeLine as SecretIcon,
 } from "@remixicon/react";
+import { ENTITY_STATES } from "@/lib/ontology";
 import { api } from "@/lib/api";
 import { getCurrentProjectId } from "@/lib/project";
 import { QueryStateView } from "@/components/system/QueryStateView";
+import { MascotState } from "@/components/common/MascotState";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,7 +26,10 @@ import { cn } from "@/lib/utils";
  *
  * Behaviour: Cmd/Ctrl+K toggles, Escape closes, 300 ms debounce, minimum query
  * length of 2, 20-result limit, AbortController signal forwarded through
- * api() for cancellation, per-project cache keys.
+ * api() for cancellation, per-project cache keys. A trailing `:statename`
+ * token that names any ontology entity state (`web :failed`) filters runs and
+ * stacks client-side by status and is stripped from the server query — see
+ * parseStateToken below.
  */
 
 export const SEARCH_MIN_QUERY_LENGTH = 2;
@@ -38,6 +43,8 @@ type StackHit = {
   provider?: string | null;
   env?: string | null;
   description?: string;
+  // Present on some backends; consumed by :state token filtering below.
+  status?: string;
 };
 type RunHit = {
   type: "run";
@@ -78,6 +85,31 @@ export function projectSecretMeta(secret: SecretHit): { stack: string; projectId
   };
 }
 
+/**
+ * Every state across all ontology entities, lowercased. Derived from
+ * contracts/domain-ontology.json via the generated lib/ontology.ts — the
+ * token set is never hardcoded per entity here.
+ */
+const KNOWN_STATES: ReadonlySet<string> = new Set(
+  Object.values(ENTITY_STATES).flatMap((states) => states.map((s) => s.toLowerCase())),
+);
+
+/**
+ * Concept-aware `:state` token: a trailing `:statename` that matches any
+ * entity state in the ontology (case-insensitively, e.g. `web :failed`)
+ * splits into the bare search term plus an active state filter. Tokens that
+ * name no entity state stay literal so ordinary text containing a colon is
+ * untouched.
+ */
+export function parseStateToken(query: string): { term: string; state: string | null } {
+  const trimmed = query.trim();
+  const match = /:(\S+)$/.exec(trimmed);
+  if (!match) return { term: trimmed, state: null };
+  const token = (match[1] ?? "").toLowerCase();
+  if (!token || !KNOWN_STATES.has(token)) return { term: trimmed, state: null };
+  return { term: trimmed.slice(0, match.index).trim(), state: token };
+}
+
 export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -116,10 +148,15 @@ export function GlobalSearch() {
   const projectId = getCurrentProjectId();
   const queryReady = debouncedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 
+  // Concept-aware search: a trailing :state token never reaches the server —
+  // the bare term is queried and runs/stacks are filtered by status below.
+  // The cache key stays the full query so token variants don't collide.
+  const { term: searchQuery, state: stateToken } = parseStateToken(debouncedQuery);
+
   const search = useQuery({
     queryKey: ["global-search", projectId ?? "none", debouncedQuery, SEARCH_RESULT_LIMIT],
     queryFn: ({ signal }) => {
-      const params = new URLSearchParams({ q: debouncedQuery, limit: String(SEARCH_RESULT_LIMIT) });
+      const params = new URLSearchParams({ q: searchQuery, limit: String(SEARCH_RESULT_LIMIT) });
       // api() attaches Authorization + X-Project-Id and forwards `signal`
       // through RequestInit so TanStack Query can cancel superseded requests.
       return api<SearchResponse>("GET", `/api/search?${params.toString()}`, undefined, { signal });
@@ -127,11 +164,15 @@ export function GlobalSearch() {
     enabled: open && queryReady,
   });
 
+  // With an active :state token, hits without a usable status are dropped:
+  // only rows that actually match the state (case-insensitively) survive.
   const stacks = (search.data?.stacks ?? [])
     .filter((s) => typeof s?.name === "string" && s.name)
+    .filter((s) => !stateToken || s.status?.toLowerCase() === stateToken)
     .slice(0, SEARCH_RESULT_LIMIT);
   const runs = (search.data?.runs ?? [])
     .filter((r) => r && (typeof r.id === "string" || typeof r.stack === "string"))
+    .filter((r) => !stateToken || r.status?.toLowerCase() === stateToken)
     .slice(0, SEARCH_RESULT_LIMIT);
   const secrets = (search.data?.secrets ?? [])
     .map(projectSecretMeta)
@@ -199,9 +240,14 @@ export function GlobalSearch() {
                     forbiddenMessage="Your role does not have permission to search this project."
                   />
                   {!search.error && !hasResults && !search.isFetching && !search.isPending && (
-                    <p className="px-4 py-6 text-sm text-center text-[var(--color-muted-foreground)]">
-                      No results for “{debouncedQuery}”
-                    </p>
+                    <div className="py-4">
+                      <MascotState
+                        type="empty_search"
+                        size="sm"
+                        title="NO RESULTS FOUND"
+                        description={`We couldn't find any resources matching "${debouncedQuery}".`}
+                      />
+                    </div>
                   )}
 
                   {stacks.length > 0 && (

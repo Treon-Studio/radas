@@ -1,161 +1,53 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } = require("electron");
-const path = require("path");
+// RADAS Desktop — main entry.
+//
+// The full munder-difflin main process (bundled to dist-cth/main.cjs) IS the
+// app: it owns the office floor window, the agent harness (hive, node-pty
+// PTYs running the claude CLI), the durable sqlite db, and the cth preload
+// bridge. Its primary window loads the RADAS console at /office
+// (CONSOLE_URL env overrides the dev default http://localhost:8080).
+//
+// The legacy RADAS main.js (pet window + console window + radasDesktop
+// bridge) is preserved as main-radas-legacy.js.
 
-app.name = "RADAS";
+const { app, protocol } = require("electron");
+const fs = require("node:fs");
+const path = require("node:path");
+
 app.setName("RADAS");
-
-let petWindow = null;
-let consoleWindow = null;
-let tray = null;
-
-function createTray() {
-  const iconPath = path.join(__dirname, "tray_favicon.png");
-  let icon = nativeImage.createFromPath(iconPath);
-
-  if (process.platform === "darwin") {
-    icon.setTemplateImage(true);
+const configuredUserData = process.env.RADAS_USER_DATA_DIR?.trim();
+const legacyUserData = path.join(app.getPath("appData"), "munder-difflin");
+const radasUserData = path.join(app.getPath("appData"), "RADAS");
+const radasHasState = ["harness.db", "config.json", "Local Storage"].some((name) =>
+  fs.existsSync(path.join(radasUserData, name)),
+);
+if (configuredUserData) {
+  app.setPath("userData", configuredUserData);
+} else {
+  // RADAS is the canonical app-data directory. Migrate the legacy directory
+  // once so existing auth/session data survives without keeping the old name
+  // as the active storage location.
+  if (!radasHasState && fs.existsSync(legacyUserData)) {
+    try {
+      fs.cpSync(legacyUserData, radasUserData, { recursive: true });
+    } catch (error) {
+      console.error("[userData] legacy migration failed:", error);
+    }
   }
-
-  tray = new Tray(icon);
-  tray.setToolTip("RADAS Desktop Companion & AI Gateway");
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: "RADAS Desktop Companion", enabled: false },
-    { type: "separator" },
-    {
-      label: "Show Pet Avatar",
-      click: () => {
-        if (petWindow) {
-          petWindow.show();
-          petWindow.focus();
-        }
-      },
-    },
-    {
-      label: "Open RADAS Console",
-      click: () => {
-        if (consoleWindow) {
-          consoleWindow.show();
-          consoleWindow.focus();
-        }
-      },
-    },
-    { type: "separator" },
-    {
-      label: "Quit RADAS Desktop",
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-
-  tray.setContextMenu(contextMenu);
+  app.setPath("userData", radasUserData);
 }
 
-function createWindows() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-  // Show dock icon explicitly on macOS
-  if (app.dock) {
-    app.dock.show();
-  }
-
-  // 1. Floating Desktop Pet Window (Always-on-top, visible across all workspaces)
-  petWindow = new BrowserWindow({
-    width: 90,
-    height: 95,
-    x: Math.max(10, screenWidth - 110),
-    y: Math.max(10, screenHeight - 140),
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    resizable: false,
-    hasShadow: false,
-    show: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+// Must be registered before app.ready. The handler itself is installed by the
+// bundled main process once Electron is ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "radas-console",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
     },
-  });
+  },
+]);
 
-  // Level floating ensures it floats over all desktop windows on macOS
-  petWindow.setAlwaysOnTop(true, "floating", 1);
-  if (petWindow.setVisibleOnAllWorkspaces) {
-    petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  }
-
-  const fs = require("fs");
-  const distPath = path.join(__dirname, "dist", "index.html");
-  if (fs.existsSync(distPath)) {
-    petWindow.loadFile(distPath);
-  } else {
-    petWindow.loadURL("http://localhost:20130");
-  }
-
-  petWindow.show();
-  petWindow.focus();
-
-  // 2. RADAS Console Window (Main app window)
-  consoleWindow = new BrowserWindow({
-    width: 1380,
-    height: 860,
-    show: true, // Show main console window on boot
-    frame: false,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  const consoleUrl = process.env.CONSOLE_URL || "http://localhost:8080";
-  consoleWindow.loadURL(consoleUrl);
-
-  // IPC Event: Move Pet Window across desktop screen
-  ipcMain.on("move-pet-window", (event, { deltaX, deltaY }) => {
-    if (!petWindow) return;
-    const [currentX, currentY] = petWindow.getPosition();
-    petWindow.setPosition(currentX + deltaX, currentY + deltaY);
-  });
-
-  // IPC Event: Toggle Console Window from Pet click
-  ipcMain.on("toggle-console", () => {
-    if (!consoleWindow) return;
-    if (consoleWindow.isVisible()) {
-      consoleWindow.hide();
-    } else {
-      consoleWindow.show();
-      consoleWindow.focus();
-    }
-  });
-
-  // IPC Event: Window controls
-  ipcMain.on("window-minimize", () => consoleWindow?.minimize());
-  ipcMain.on("window-maximize", () => {
-    if (consoleWindow?.isMaximized()) {
-      consoleWindow.unmaximize();
-    } else {
-      consoleWindow?.maximize();
-    }
-  });
-  ipcMain.on("window-close", () => consoleWindow?.hide());
-}
-
-app.whenReady().then(() => {
-  createTray();
-  createWindows();
-
-  app.on("activate", () => {
-    if (petWindow) {
-      petWindow.show();
-      petWindow.focus();
-    } else {
-      createWindows();
-    }
-  });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+require("./dist-cth/main.cjs");

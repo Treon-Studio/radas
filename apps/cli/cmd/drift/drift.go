@@ -23,6 +23,12 @@ var Cmd = &cobra.Command{
 	Use:     "drift",
 	Aliases: []string{"drifts"},
 	Short:   "Detect and remediate out-of-band infrastructure state drift",
+
+	Example: `  # Queue a drift scan for a stack
+  radas drift scan prod-net
+
+  # Schedule recurring drift checks
+  radas drift schedule prod-net --cron "0 3 * * *"`,
 	Long: `The drift command group queues control-plane drift checks for managed stacks
 (POST /api/cloud/stacks/<stack>/drift-check), inspects drift results, manages
 the per-stack audit schedule, and reconciles by queueing an apply run.`,
@@ -59,9 +65,11 @@ func doAPI(ctx context.Context, c *client.Client, method, path string, body, res
 }
 
 var scanCmd = &cobra.Command{
-	Use:   "scan <stack-id>",
-	Short: "Queue a read-only drift check for a stack on the control plane",
-	Args:  cobra.ExactArgs(1),
+	Use:     "scan <stack-id>",
+	Long:    `Queue a drift check for a stack; the report appears in the console and via drift remediate.`,
+	Example: `  radas drift scan prod-net`,
+	Short:   "Queue a read-only drift check for a stack on the control plane",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
@@ -89,9 +97,11 @@ var scanCmd = &cobra.Command{
 }
 
 var remediateCmd = &cobra.Command{
-	Use:   "remediate <stack-id>",
-	Short: "Reconcile drift by queueing an apply run for the stack",
-	Args:  cobra.ExactArgs(1),
+	Use:     "remediate <stack-id>",
+	Long:    `Queue a remediation run that converges the stack back to its desired state.`,
+	Example: `  radas drift remediate prod-net`,
+	Short:   "Reconcile drift by queueing an apply run for the stack",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 
@@ -117,9 +127,11 @@ var remediateCmd = &cobra.Command{
 }
 
 var scheduleCmd = &cobra.Command{
-	Use:   "schedule <stack-id> [cron-expression]",
-	Short: "Show or set the recurring background drift audit schedule for a stack",
-	Args:  cobra.RangeArgs(1, 2),
+	Use:     "schedule <stack-id> [cron-expression]",
+	Long:    `Show or set a recurring drift-check schedule (cron expression) for a stack.`,
+	Example: `  radas drift schedule prod-net --cron "0 3 * * *"`,
+	Short:   "Show or set the recurring background drift audit schedule for a stack",
+	Args:    cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stackID := args[0]
 

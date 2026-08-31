@@ -219,8 +219,10 @@ describe("GlobalSearch", () => {
     renderSearch(makeClient());
     await openAndType("zz");
 
-    await waitFor(() => expect(screen.getByText(/No results for/)).toBeInTheDocument());
-    expect(screen.getByText(/No results for/).textContent).toContain("zz");
+    await waitFor(() => expect(screen.getByText("NO RESULTS FOUND")).toBeInTheDocument());
+    expect(
+      screen.getByText(/We couldn't find any resources matching "zz"/),
+    ).toBeInTheDocument();
   });
 
   it("shows the error state with a retry affordance on server failure", async () => {
@@ -230,7 +232,7 @@ describe("GlobalSearch", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.getByText(/Server error: backend exploded/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "TRY AGAIN" })).toBeInTheDocument();
   });
 
   it("opens with Ctrl/Cmd+K, closes on Escape, and opens from the header button", async () => {
@@ -248,6 +250,60 @@ describe("GlobalSearch", () => {
 
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(screen.getByRole("dialog", { name: "Global search" })).toBeInTheDocument();
+  });
+
+  it("filters runs and stacks by a trailing :state token and searches without the token", async () => {
+    const calls = installFetch(() =>
+      jsonResponse(
+        searchResponse({
+          query: "web",
+          total_matches: 5,
+          stacks: [
+            { type: "stack", project_id: "p1", name: "web-failed", status: "failed" },
+            { type: "stack", project_id: "p1", name: "web-running", status: "running" },
+            // No status field: filtered out while a state token is active.
+            { type: "stack", project_id: "p1", name: "web-missing" },
+          ],
+          runs: [
+            // UPPERCASE on purpose: state matching is case-insensitive.
+            { type: "run", project_id: "p1", id: "run-1", stack: "web-failed", status: "FAILED" },
+            { type: "run", project_id: "p1", id: "run-2", stack: "web-running", status: "running" },
+            { type: "run", project_id: "p1", id: "run-3", stack: "web-missing" },
+          ],
+        }),
+      ),
+    );
+    renderSearch(makeClient());
+    await openAndType("web :failed");
+
+    await waitFor(() => expect(screen.getByText("web-failed")).toBeInTheDocument());
+    expect(screen.getByText("run-1")).toBeInTheDocument();
+    // Running and status-less hits are filtered out on both entity types.
+    expect(screen.queryByText("web-running")).not.toBeInTheDocument();
+    expect(screen.queryByText("web-missing")).not.toBeInTheDocument();
+    expect(screen.queryByText("run-2")).not.toBeInTheDocument();
+    expect(screen.queryByText("run-3")).not.toBeInTheDocument();
+    // The token never reaches the server: the query is the bare term.
+    const searchCall = calls.find((c) => c.path.startsWith("/api/search"));
+    expect(searchCall).toBeDefined();
+    expect(new URL(`http://x${searchCall?.path}`).searchParams.get("q")).toBe("web");
+  });
+
+  it("keeps unknown :tokens literal instead of treating them as a state filter", async () => {
+    const calls = installFetch(() =>
+      jsonResponse(
+        searchResponse({
+          total_matches: 1,
+          stacks: [{ type: "stack", project_id: "p1", name: "web-core" }],
+        }),
+      ),
+    );
+    renderSearch(makeClient());
+    await openAndType("web :bogus");
+
+    await waitFor(() => expect(screen.getByText("web-core")).toBeInTheDocument());
+    const searchCall = calls.find((c) => c.path.startsWith("/api/search"));
+    expect(new URL(`http://x${searchCall?.path}`).searchParams.get("q")).toBe("web :bogus");
   });
 
   it("sends Bearer + X-Project-Id headers and an AbortSignal for cancellation", async () => {
