@@ -40,6 +40,7 @@ import {
   type TerminalAutomationBlock
 } from './terminalAutomation';
 import { sanitizeTerminalSelection } from './terminalSelection';
+import { useStore } from '@office/store/store';
 import '@xterm/xterm/css/xterm.css';
 
 export interface TerminalEntry {
@@ -927,19 +928,7 @@ function resolvePathCandidate(ptyId: string, raw: string): string | null {
   return `${cwd}/${p.replace(/^\.\//, '')}`;
 }
 
-// The store is loaded lazily via dynamic import (resolved once, cached): a
-// static import would drag zustand/react into the node --test transpile of the
-// pure automation helpers that share this file's import graph.
-interface MdStoreShape {
-  getState: () => {
-    agents: Array<{ ptyId?: string; cwd: string }>;
-    openFileInIde: (absPath: string) => void;
-  };
-}
-let storeApi: MdStoreShape | null = null;
-void import('@office/store/store')
-  .then((m) => { storeApi = (m as unknown as { useStore: MdStoreShape }).useStore; })
-  .catch(() => { /* store unavailable (tests) — link provider stays inert */ });
+const storeApi = useStore;
 
 /** Act on a verified path. `reveal` also takes any directory that reaches here:
  *  the IDE needs a file. A miss is silent by design — the token is agent output

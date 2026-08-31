@@ -9,7 +9,12 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(process.env.RADAS_APP_VERSION || "dev"),
   },
   plugins: [
-    TanStackRouterVite({ routesDirectory: "src/routes", generatedRouteTree: "src/routeTree.gen.ts" }),
+    TanStackRouterVite({
+      routesDirectory: "src/routes",
+      generatedRouteTree: "src/routeTree.gen.ts",
+      routeFileIgnorePattern: "\\.test\\.",
+      autoCodeSplitting: true,
+    }),
     react(),
     tailwindcss(),
   ],
@@ -30,5 +35,10 @@ export default defineConfig({
         secure: false,
       },
     },
+  },
+  build: {
+    // The office floor intentionally bundles Monaco and its language workers;
+    // keep Vite's warning threshold above the measured 5.8 MB office chunk.
+    chunkSizeWarningLimit: 7000,
   },
 });
