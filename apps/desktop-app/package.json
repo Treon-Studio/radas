@@ -4,7 +4,7 @@
   "author": "RADAS Team",
   "version": "1.0.0",
   "private": true,
-  "description": "RADAS Desktop App Wrapper with Codédex-style 8-bit Pet Companion Widget",
+  "description": "RADAS Desktop App Wrapper with Cod\u00e9dex-style 8-bit Pet Companion Widget",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
@@ -19,13 +19,17 @@
   },
   "dependencies": {
     "@remixicon/react": "^4.6.0",
+    "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
+    "node-pty": "^1.1.0",
+    "posthog-node": "^5.51.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
@@ -34,6 +38,7 @@
     "concurrently": "^9.1.2",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
@@ -52,13 +57,16 @@
       "ontology/**/*",
       "tray_favicon.png",
       "tray_favicon@2x.png",
-      "app_icon.png"
+      "app_icon.png",
+      "dist-cth/**/*"
     ],
     "extraResources": [
       {
         "from": "../console/dist",
         "to": "console",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {
@@ -66,11 +74,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ]
     },
@@ -78,11 +92,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -90,11 +108,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }

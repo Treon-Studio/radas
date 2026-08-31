@@ -1,3 +1,11 @@
+// CTH service layer — the full munder-difflin main process (hive, agent
+// PTY spawning, durable db, git, triggers). Registers every ipcMain handler
+// the console office page talks to via the cth preload bridge. Runs with
+// CTH_NO_WINDOWS so munder's own floor window is skipped; RADAS owns the
+// windows here.
+process.env.CTH_NO_WINDOWS = "1";
+require("./dist-cth/main.cjs");
+
 const { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } = require("electron");
 const path = require("path");
 const os = require("os");
@@ -14,18 +22,13 @@ let consoleUrl = process.env.CONSOLE_URL || "";
 let credWatcher = null;
 let lastInjectedUsername = "";
 
-// Resolve the console source: a bundled static build wins (offline-first —
-// electron-builder copies ../console/dist to resources/console via
-// extraResources), then CONSOLE_URL, then the dev default. The AI Office
-// scene (/office) is the desktop app's landing page.
+// Resolve the console source: The AI Office scene (/office) is the
+// desktop app's primary landing page.
 function resolveConsoleUrl() {
-  const officePath = "/office";
-  if (consoleUrl) return consoleUrl.endsWith(officePath) ? consoleUrl : consoleUrl.replace(/\/+$/, "") + officePath;
-  try {
-    const bundled = path.join(process.resourcesPath || "", "console", "index.html");
-    if (fs.existsSync(bundled)) return "file://" + bundled + "#" + officePath;
-  } catch {}
-  return "http://localhost:8080" + officePath;
+  if (consoleUrl) {
+    return consoleUrl.endsWith("/office") ? consoleUrl : consoleUrl.replace(/\/+$/, "") + "/office";
+  }
+  return "http://localhost:8080/office";
 }
 
 // --- single-instance lock --------------------------------------------------
@@ -419,8 +422,16 @@ function createWindows() {
     petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
 
+  const isDev = !app.isPackaged || process.env.NODE_ENV === "development" || process.argv.includes("--dev");
   const distPath = path.join(__dirname, "dist", "index.html");
-  if (fs.existsSync(distPath)) {
+
+  if (isDev) {
+    petWindow.loadURL("http://localhost:20130").catch(() => {
+      if (fs.existsSync(distPath)) {
+        petWindow.loadFile(distPath);
+      }
+    });
+  } else if (fs.existsSync(distPath)) {
     petWindow.loadFile(distPath);
   } else {
     petWindow.loadURL("http://localhost:20130");
@@ -439,7 +450,8 @@ function createWindows() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: PRELOAD_PATH,
+      sandbox: false,
+      preload: path.join(__dirname, "dist-cth", "console-preload.cjs"),
     },
   });
 

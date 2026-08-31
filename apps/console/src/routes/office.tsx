@@ -1,7 +1,7 @@
 // AI Office — the full munder-difflin app (office floor + agent panels)
-// vendored into the console. The Electron harness behind window.cth is
-// shimmed (degraded) in browser mode; the desktop app will expose the real
-// bridge via its preload in a later phase.
+// vendored into the console. In the desktop app, window.cth is the REAL
+// harness bridge (hive/pty/db via the cth main process); in a plain browser
+// tab it degrades through the cthShim.
 import "@/components/office/cthShim";
 import "@/office-app/design/global.css";
 import "@/office-app/i18n";

@@ -245,6 +245,30 @@ export function buildCthShim(): CthApi {
         // sync listener registration — must return an unsubscribe function
         return () => noop;
       }
+      if (prop === "getConfig") {
+        // App.tsx dereferences config fields immediately after the await
+        // (freeflowEnabled, tvShowOffices, webhookTriggers, ...), so the shim
+        // resolves a real default HarnessConfig instead of null.
+        return () =>
+          Promise.resolve({
+            onboardingComplete: true,
+            audience: "technical",
+            harnessHome: null,
+            registeredRepos: [],
+            autoMode: false,
+            defaultCommand: "claude",
+            semanticMemory: false,
+            embeddingModel: "minilm",
+            webhookTriggers: [],
+            notifications: false,
+            freeflowEnabled: false,
+            groqApiKey: "",
+            tvShowOffices: false,
+            officeTheme: "office",
+            telemetryEnabled: false,
+          });
+      }
+
       if (COMMANDS.has(prop)) {
         // degrade to a resolved null; consumers handle falsy results
         return (..._args: unknown[]) => Promise.resolve(null);
