@@ -17,13 +17,16 @@ app.setName("RADAS");
 const configuredUserData = process.env.RADAS_USER_DATA_DIR?.trim();
 const legacyUserData = path.join(app.getPath("appData"), "munder-difflin");
 const radasUserData = path.join(app.getPath("appData"), "RADAS");
+const radasHasState = ["harness.db", "config.json", "Local Storage"].some((name) =>
+  fs.existsSync(path.join(radasUserData, name)),
+);
 if (configuredUserData) {
   app.setPath("userData", configuredUserData);
 } else {
   // RADAS is the canonical app-data directory. Migrate the legacy directory
   // once so existing auth/session data survives without keeping the old name
   // as the active storage location.
-  if (!fs.existsSync(radasUserData) && fs.existsSync(legacyUserData)) {
+  if (!radasHasState && fs.existsSync(legacyUserData)) {
     try {
       fs.cpSync(legacyUserData, radasUserData, { recursive: true });
     } catch (error) {

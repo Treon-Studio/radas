@@ -19,6 +19,7 @@ test('configures Electron before loading the bundled main process', () => {
   assert.match(main, /process\.env\.RADAS_USER_DATA_DIR/)
   assert.match(main, /join\(app\.getPath\("appData"\), "munder-difflin"\)/)
   assert.match(main, /cpSync\(legacyUserData, radasUserData/)
+  assert.match(main, /radasHasState/)
   assert.match(main, /app\.setPath\("userData", radasUserData\)/)
   assert.doesNotMatch(main, /app\.setPath\("userData", legacyUserData\)/)
 })
