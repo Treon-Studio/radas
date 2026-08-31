@@ -13353,6 +13353,7 @@ function createPetWindow() {
     width: 180,
     height: 160,
     transparent: true,
+    backgroundColor: "#00000000",
     frame: false,
     alwaysOnTop: true,
     resizable: false,

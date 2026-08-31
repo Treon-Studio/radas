@@ -82,11 +82,15 @@
   -webkit-app-region: no-drag;
 }
 
-body {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
-  background-color: transparent;
+  background-color: transparent !important;
+}
+
+body {
   user-select: none;
   overflow: hidden;
 }
-

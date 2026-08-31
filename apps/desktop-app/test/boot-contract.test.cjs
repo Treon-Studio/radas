@@ -84,6 +84,7 @@ test('registers updater IPC in development without starting packaged polling', (
 
 test('boots the RADAS pet companion and tray alongside the console', () => {
   const main = read('cth/main/index.ts')
+  const css = read('src/index.css')
 
   assert.match(main, /Tray/)
   assert.match(main, /new Tray/)
@@ -91,4 +92,6 @@ test('boots the RADAS pet companion and tray alongside the console', () => {
   assert.match(main, /RADAS Pet/)
   assert.match(main, /createPetWindow\(\)/)
   assert.match(main, /title: isFloor \? 'RADAS — Floor' : 'RADAS'/)
+  assert.match(main, /backgroundColor: '#00000000'/)
+  assert.match(css, /html,\s*body,\s*#root[\s\S]*background-color:\s*transparent/)
 })
