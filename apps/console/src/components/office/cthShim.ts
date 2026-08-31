@@ -216,8 +216,31 @@ const COMMANDS = new Set([
 
 export function buildCthShim(): CthApi {
   const noop = () => {};
+
+  // Static string properties on the real bridge (read WITHOUT calling).
+  const STATIC: Record<string, string> = {
+    platform: "browser",
+    arch: "unknown",
+    version: "0.0.0-cth-shim",
+  };
+
+  // sendSync-backed reads: the real preload returns the value immediately
+  // (the store builds its roster at module load — an async answer would
+  // arrive too late). null = "nothing to read"; every call site uses
+  // optional-call + null-coalesce, so null degrades cleanly.
+  const SYNC_NULL = new Set(["rosterReadSync", "harnessHomeSync", "readClipboardSync"]);
+
   return new Proxy({} as CthApi, {
     get(_t, prop: string) {
+      if (prop in STATIC) return STATIC[prop];
+
+      if (SYNC_NULL.has(prop)) return null;
+
+      if (prop === "pathForFile") {
+        // sync string pass-through — used to build asset/img URLs
+        return (f: unknown) => String(f ?? "");
+      }
+
       if (SUBSCRIPTIONS.has(prop)) {
         // sync listener registration — must return an unsubscribe function
         return () => noop;
