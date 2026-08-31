@@ -9,6 +9,12 @@
 
 export type CthApi = Record<string, (...args: unknown[]) => unknown>;
 
+declare global {
+  interface Window {
+    cth?: CthApi;
+  }
+}
+
 const SUBSCRIPTIONS = new Set([
   "onApprovalRequest",
   "onAutoCompact",
@@ -220,7 +226,24 @@ export function buildCthShim(): CthApi {
         // degrade to a resolved null; consumers handle falsy results
         return (..._args: unknown[]) => Promise.resolve(null);
       }
-      return undefined;
+      // Unknown keys degrade too: a callable that resolves null (covers
+      // preload methods missed by the extracted key list) and exposes a
+      // .then that is itself callable-thenable, so `await` and `.then`
+      // chains both work without crashing.
+      const permissive = () => Promise.resolve(null);
+      return new Proxy(permissive as object, {
+        get(t2, p2: string) {
+          if (p2 === "then") return (res: (v: unknown) => unknown) => res(null);
+          return undefined;
+        },
+      });
     },
   });
+}
+
+// Self-install: the console has no real preload bridge, so the shim is the
+// whole window.cth surface. Guarded so a real bridge (desktop preload port)
+// always wins.
+if (typeof window !== "undefined" && !window.cth) {
+  window.cth = buildCthShim();
 }
