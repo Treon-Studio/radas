@@ -28,10 +28,34 @@ License: MIT (retain upstream attribution when source is copied).
 | API key/JWT gateway auth | `api/auth`, endpoint settings | Partial: RADAS JWT/API-token auth plus org-scoped gateway endpoint keys (`radas_epk_*`, SHA-256 hashed); upstream REQUIRE_API_KEY config mode not mirrored |
 | Dashboard/provider management | `src/app/dashboard`, provider pages | Partial: RADAS `/system/ai` |
 | RTK filters | `open-sse/rtk` | Partial: RADAS-native port of the upstream filter families with the same auto-detect order (git-log, git-diff per-hunk caps, git-status summary incl. porcelain, build-output run collapse, grep per-file caps, find dir grouping, tree/ls caps, read-numbered, dedup-log, smart-truncate); Headroom/Ponytail/Pxpipe and `/v1/compress` still missing |
-| Proxy pools/tunnel/Tailscale | `proxy-pools`, `tunnel` APIs | Partial: org-scoped egress proxy pools (http/https URLs encrypted at rest, sticky round-robin rotation across active pools, CRUD + `/test` egress health check, proxy-bound gateway instances used by every upstream call). Tunnel/Tailscale and the MITM traffic-capture layer are not ported: they capture local CLI traffic on the operator machine, a deployment model the server-side RADAS gateway replaces |
+| Proxy pools/tunnel/Tailscale | `proxy-pools`, `tunnel` APIs | Partial: org-scoped egress proxy pools (http/https URLs encrypted at rest, sticky round-robin rotation across active pools, CRUD + `/test` egress health check, proxy-bound gateway instances used by every upstream call). Tunnel/Tailscale and the MITM traffic-capture layer: **not applicable (deployment model)** - they intercept the operator machine's local CLI traffic, which the server-side RADAS gateway replaces with direct, org-authenticated egress (see Scope decisions below) |
 | CLI tool integrations | `cli/`, CLI-tools pages | Missing for RADAS CLI/desktop |
 | SQLite persistence | `src/lib/db` | Intentionally not copied; RADAS PostgreSQL is source of truth |
 
 A status of “Partial” is not treated as completion. Each missing capability
 must be assigned an implementation issue and an integration test before the
 module can claim parity.
+
+## Scope decisions (not applicable — deployment model)
+
+The remaining upstream surface was reviewed and classified as out of scope
+rather than unfinished. These decisions can be revisited if RADAS ever ships a
+local, operator-machine agent; today the gateway is a server-side,
+multi-tenant service:
+
+1. **MITM traffic capture / tunnel / Tailscale** (`mitm/`, `tunnel`,
+   `proxy-pools` local daemons): upstream intercepts the operator's local CLI
+   traffic at `localhost:20128`. RADAS's gateway is reached directly by clients
+   over authenticated org egress, so there is no local traffic to intercept -
+   the org-scoped proxy pools implemented here cover the legitimate egress
+   control part.
+2. **Automatic OAuth token extraction from the operator machine**: upstream
+   reads the operator's local CLI session files (Cursor cookies, Codex/Grok
+   CLI configs, Kiro AWS OIDC state, ...). A server must not read
+   operator-local files; `POST /ai/oauth/{provider}/import-token` (encrypted)
+   is the deliberate replacement.
+
+Not included in either list: the ~468 auto-mirrored path parameters recorded
+in `contracts/radas-api-v2-violations-baseline.json` are a RADAS contract
+workstream (explicit v2 schemas per domain), not an upstream 9Router
+capability.
