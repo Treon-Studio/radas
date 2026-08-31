@@ -21,6 +21,10 @@ type ProviderConfig struct {
 	BaseURL string `yaml:"base_url"`
 }
 
+// GatewayProviderName is the reserved provider entry that routes CLI AI traffic
+// through the RADAS 9Router gateway instead of a direct provider.
+const GatewayProviderName = "radas-gateway"
+
 func ParseConfig(data []byte) (*AIConfig, error) {
 	var cfg AIConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {

@@ -25,7 +25,11 @@ def app():
         @app.before_request
         def set_context():
             request.user_id = "test-user-id"
-            request.user = {"user_id": "test-user-id", "username": "tester", "org_id": "e6f5f35d-26bb-4665-a6a3-59c73ef8c6b3"}
+            user = {"user_id": "test-user-id", "username": "tester", "roles": [], "org_id": "e6f5f35d-26bb-4665-a6a3-59c73ef8c6b3"}
+            request.user = user
+            # Mirror the post-middleware state require_auth normally produces so
+            # the real membership/role checks in _org_access are exercised.
+            request.current_user = user
 
         return app
 
@@ -37,27 +41,28 @@ def client(app):
 
 def test_rtk_compression_diff():
     from api.ai_router_routes import _compress_rtk
-    large_diff = "diff --git a/main.go b/main.go\n" + "\n".join([f"+ line {i}" for i in range(100)])
+    large_diff = "diff --git a/main.go b/main.go\n" + "\n".join([f"+ line {i}" for i in range(150)])
     messages = [{"role": "user", "content": large_diff}]
-    
+
     compressed, saved = _compress_rtk(messages)
     assert saved > 0
-    assert "RTK compressed" in compressed[0]["content"]
+    assert "hunk lines truncated (RTK)" in compressed[0]["content"]
 
 
 def test_rtk_compression_logs():
     from api.ai_router_routes import _compress_rtk
-    large_log = "Traceback (most recent call last):\n" + "\n".join([f"  File 'app.py', line {i}, in <module>" for i in range(80)])
+    large_log = "\n".join(["request failed: connection reset by peer" for _ in range(120)])
     messages = [{"role": "user", "content": large_log}]
-    
+
     compressed, saved = _compress_rtk(messages)
     assert saved > 0
-    assert "RTK compressed" in compressed[0]["content"]
+    assert "duplicate lines" in compressed[0]["content"]
 
 
 def test_ai_router_endpoints(client, pg_db):
     # Seed org row for FK constraint
     pg.execute("INSERT INTO orgs (id, name, created_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", ("e6f5f35d-26bb-4665-a6a3-59c73ef8c6b3", "Test Org", 1700000000.0))
+    pg.execute("INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", ("e6f5f35d-26bb-4665-a6a3-59c73ef8c6b3", "test-user-id", "owner", 1700000000.0))
 
     # Test models listing
     res = client.get("/api/v1/models")

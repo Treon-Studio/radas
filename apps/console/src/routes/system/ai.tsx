@@ -29,6 +29,7 @@ const TABS = [
   { id: "providers", label: "Provider Vault", icon: Key },
   { id: "combos", label: "Model Combos & Fallback", icon: GitBranch },
   { id: "rtk", label: "RTK Token Saver", icon: Zap },
+  { id: "playground", label: "Playground", icon: Sliders },
   { id: "analytics", label: "Usage & Telemetry", icon: BarChart3 },
 ] as const;
 
@@ -61,13 +62,21 @@ type UsageSummary = {
   efficiency_percentage: number;
 };
 
-function AIRouterPage() {
+export function AIRouterPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("providers");
   const [newProvOpen, setNewProvOpen] = useState(false);
   const [provName, setProvName] = useState("");
   const [provKey, setProvKey] = useState("");
   const [provUrl, setProvUrl] = useState("");
+  const [newRouteOpen, setNewRouteOpen] = useState(false);
+  const [routeAlias, setRouteAlias] = useState("");
+  const [routePrimary, setRoutePrimary] = useState("");
+  const [routeFallbacks, setRouteFallbacks] = useState("");
+  const [playgroundPrompt, setPlaygroundPrompt] = useState("");
+  const [playgroundModel, setPlaygroundModel] = useState("gpt-4o-mini");
+  const [playgroundResult, setPlaygroundResult] = useState<string>("");
+  const [playgroundBusy, setPlaygroundBusy] = useState(false);
 
   const activeOrgId = typeof window !== "undefined" ? localStorage.getItem("active_org_id") || "default" : "default";
 
@@ -112,25 +121,80 @@ function AIRouterPage() {
     onError: (err: Error) => toast.error(err.message || "Failed to save provider"),
   });
 
-  const providers = providersQ.data ?? [
-    { id: "1", provider_name: "openai", base_url: "https://api.openai.com/v1", is_active: true, rate_limit_per_min: 120, updated_at: Date.now() },
-    { id: "2", provider_name: "anthropic", base_url: "https://api.anthropic.com/v1", is_active: true, rate_limit_per_min: 60, updated_at: Date.now() },
-    { id: "3", provider_name: "google", base_url: "https://generativelanguage.googleapis.com", is_active: true, rate_limit_per_min: 90, updated_at: Date.now() },
-    { id: "4", provider_name: "deepseek", base_url: "https://api.deepseek.com/v1", is_active: true, rate_limit_per_min: 100, updated_at: Date.now() },
-  ];
+  const setProviderActiveM = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      return api("PATCH", `/api/orgs/${activeOrgId}/ai/providers/${id}`, { is_active });
+    },
+    onSuccess: () => {
+      toast.success("Provider updated");
+      queryClient.invalidateQueries({ queryKey: ["org_ai_providers"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update provider"),
+  });
 
-  const routes = routesQ.data ?? [
-    { id: "r1", alias_name: "smart-coder", primary_model: "deepseek-coder", fallback_models: ["claude-3-5-sonnet", "gpt-4o-mini"], rtk_compression_enabled: true, caveman_mode: false },
-    { id: "r2", alias_name: "fast-chat", primary_model: "gpt-4o-mini", fallback_models: ["gemini-1.5-flash", "deepseek-chat"], rtk_compression_enabled: true, caveman_mode: false },
-  ];
+  const deleteProviderM = useMutation({
+    mutationFn: async (id: string) => api("DELETE", `/api/orgs/${activeOrgId}/ai/providers/${id}`),
+    onSuccess: () => {
+      toast.success("Provider removed");
+      queryClient.invalidateQueries({ queryKey: ["org_ai_providers"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete provider"),
+  });
 
+  const addRouteM = useMutation({
+    mutationFn: async (payload: { alias_name: string; primary_model: string; fallback_models: string[] }) => {
+      return api("POST", `/api/orgs/${activeOrgId}/ai/routes`, payload);
+    },
+    onSuccess: () => {
+      toast.success("Model combo saved");
+      setNewRouteOpen(false);
+      setRouteAlias("");
+      setRoutePrimary("");
+      setRouteFallbacks("");
+      queryClient.invalidateQueries({ queryKey: ["org_ai_routes"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to save combo"),
+  });
+
+  const deleteRouteM = useMutation({
+    mutationFn: async (id: string) => api("DELETE", `/api/orgs/${activeOrgId}/ai/routes/${id}`),
+    onSuccess: () => {
+      toast.success("Model combo removed");
+      queryClient.invalidateQueries({ queryKey: ["org_ai_routes"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete combo"),
+  });
+
+  const runPlayground = async () => {
+    setPlaygroundBusy(true);
+    setPlaygroundResult("");
+    try {
+      const result = await api<{ choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } }>(
+        "POST",
+        "/api/v1/chat/completions",
+        { model: playgroundModel, messages: [{ role: "user", content: playgroundPrompt }] }
+      );
+      if (result.error) {
+        setPlaygroundResult(`Error: ${result.error.message}`);
+      } else {
+        setPlaygroundResult(result.choices?.[0]?.message?.content || "(empty response)");
+      }
+    } catch (err) {
+      setPlaygroundResult(`Error: ${(err as Error).message}`);
+    } finally {
+      setPlaygroundBusy(false);
+    }
+  };
+
+  const providers = providersQ.data ?? [];
+  const routes = routesQ.data ?? [];
   const summary = usageQ.data?.summary ?? {
-    total_requests: 142,
-    total_prompt_tokens: 184500,
-    total_completion_tokens: 42100,
-    total_tokens_saved_rtk: 64200,
-    fallbacks_triggered: 3,
-    efficiency_percentage: 26,
+    total_requests: 0,
+    total_prompt_tokens: 0,
+    total_completion_tokens: 0,
+    total_tokens_saved_rtk: 0,
+    fallbacks_triggered: 0,
+    efficiency_percentage: 0,
   };
 
   return (
@@ -156,6 +220,9 @@ function AIRouterPage() {
           </Badge>
           <Button size="sm" onClick={() => setNewProvOpen(true)} className="pxl-corner-sm pxl-btn-shadow">
             <Plus className="h-4 w-4 mr-1" /> Add Provider
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setNewRouteOpen(true)} className="pxl-corner-sm">
+            <Plus className="h-4 w-4 mr-1" /> Add Combo
           </Button>
         </div>
       </div>
@@ -219,7 +286,13 @@ function AIRouterPage() {
       {activeTab === "providers" && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {providers.map((p) => (
+            {providersQ.isLoading ? (
+              <div className="text-xs text-[var(--color-muted-foreground)]">Loading providers…</div>
+            ) : providersQ.isError ? (
+              <div className="text-xs text-red-500">Unable to load providers: {(providersQ.error as Error).message}</div>
+            ) : providers.length === 0 ? (
+              <div className="text-xs text-[var(--color-muted-foreground)] border-2 border-dashed border-[var(--color-border)] p-6 text-center">No providers configured for this organization.</div>
+            ) : providers.map((p) => (
               <Card key={p.id} className="pxl-corner-md pxl-card-shadow border-2 border-[var(--color-border)]">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -246,6 +319,14 @@ function AIRouterPage() {
                     <span className="text-[var(--color-muted-foreground)]">Multi-Account Fallback:</span>
                     <span className="text-emerald-500">Enabled</span>
                   </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" variant="outline" onClick={() => setProviderActiveM.mutate({ id: p.id, is_active: !p.is_active })} disabled={setProviderActiveM.isPending}>
+                      {p.is_active ? "Disable" : "Enable"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteProviderM.mutate(p.id)} disabled={deleteProviderM.isPending}>
+                      Delete
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -267,7 +348,7 @@ function AIRouterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {routes.map((r) => (
+              {routesQ.isLoading ? <div className="text-xs text-[var(--color-muted-foreground)]">Loading routes…</div> : routesQ.isError ? <div className="text-xs text-red-500">Unable to load routes: {(routesQ.error as Error).message}</div> : routes.length === 0 ? <div className="text-xs text-[var(--color-muted-foreground)]">No model combos configured.</div> : routes.map((r) => (
                 <div key={r.id} className="p-4 pxl-corner-sm border-2 border-[var(--color-border)] bg-[var(--color-card)]/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -293,6 +374,9 @@ function AIRouterPage() {
                         </span>
                       </span>
                     ))}
+                    <Button size="sm" variant="ghost" className="text-red-500 ml-auto" onClick={() => deleteRouteM.mutate(r.id)} disabled={deleteRouteM.isPending}>
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -338,6 +422,42 @@ function AIRouterPage() {
         </Card>
       )}
 
+      {/* TAB CONTENT: Playground */}
+      {activeTab === "playground" && (
+        <Card className="pxl-corner-md pxl-card-shadow">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sliders className="h-4 w-4 text-[var(--color-primary)]" />
+              Gateway Playground
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Sends a real request through the organization gateway. Requests consume configured paid providers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-1">
+                <label className="block text-[var(--color-muted-foreground)] mb-1">Model / Alias</label>
+                <Input value={playgroundModel} onChange={(e) => setPlaygroundModel(e.target.value)} placeholder="gpt-4o-mini or alias" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[var(--color-muted-foreground)] mb-1">Prompt</label>
+                <Input value={playgroundPrompt} onChange={(e) => setPlaygroundPrompt(e.target.value)} placeholder="Hello 9Router" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={runPlayground} disabled={!playgroundPrompt || playgroundBusy} className="pxl-corner-sm pxl-btn-shadow">
+                {playgroundBusy ? "Sending…" : "Send Request"}
+              </Button>
+              <span className="text-[10px] text-amber-500">Warning: this performs a live provider request.</span>
+            </div>
+            {playgroundResult && (
+              <pre className="whitespace-pre-wrap p-3 border-2 border-[var(--color-border)] pxl-corner-sm bg-[var(--color-muted)]/40 max-h-64 overflow-auto">{playgroundResult}</pre>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* TAB CONTENT: Usage Analytics */}
       {activeTab === "analytics" && (
         <Card className="pxl-corner-md pxl-card-shadow">
@@ -361,7 +481,7 @@ function AIRouterPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]/50">
-                  {usageQ.data?.records?.slice(0, 5).map((r: any, idx: number) => (
+                  {usageQ.isLoading ? null : usageQ.isError ? null : usageQ.data?.records?.slice(0, 5).map((r: any, idx: number) => (
                     <tr key={idx} className="hover:bg-[var(--color-muted)]/50">
                       <td className="p-2.5 uppercase font-bold">{r.provider_used}</td>
                       <td className="p-2.5">{r.model_used}</td>
@@ -376,21 +496,59 @@ function AIRouterPage() {
                         )}
                       </td>
                     </tr>
-                  )) ?? (
-                    <tr>
-                      <td className="p-2.5 uppercase font-bold">DeepSeek</td>
-                      <td className="p-2.5">deepseek-coder</td>
-                      <td className="p-2.5">1,240</td>
-                      <td className="p-2.5">380</td>
-                      <td className="p-2.5 text-emerald-500 font-bold">+410</td>
-                      <td className="p-2.5"><Badge variant="default" className="pxl-corner-sm text-[10px]">Direct</Badge></td>
-                    </tr>
+                  ))}
+                  {!usageQ.isLoading && !usageQ.isError && (usageQ.data?.records?.length ?? 0) === 0 && (
+                    <tr><td colSpan={6} className="p-6 text-center text-[var(--color-muted-foreground)]">No usage recorded yet.</td></tr>
                   )}
+                  {usageQ.isError && <tr><td colSpan={6} className="p-6 text-center text-red-500">Unable to load usage telemetry.</td></tr>}
+                  {usageQ.isLoading && <tr><td colSpan={6} className="p-6 text-center text-[var(--color-muted-foreground)]">Loading usage…</td></tr>}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Add Combo Modal Dialog */}
+      {newRouteOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[var(--color-card)] pxl-corner-md border-2 border-[var(--color-border)] pxl-card-shadow p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-[var(--color-primary)]" /> Add Model Combo
+              </h2>
+              <Button size="sm" variant="ghost" onClick={() => setNewRouteOpen(false)}><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Alias</label>
+                <Input placeholder="e.g. smart-coder" value={routeAlias} onChange={(e) => setRouteAlias(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Primary Model</label>
+                <Input placeholder="e.g. deepseek-coder" value={routePrimary} onChange={(e) => setRoutePrimary(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--color-muted-foreground)] mb-1">Fallbacks (comma separated, optional)</label>
+                <Input placeholder="claude-3-5-sonnet, gpt-4o-mini" value={routeFallbacks} onChange={(e) => setRouteFallbacks(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setNewRouteOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => addRouteM.mutate({
+                  alias_name: routeAlias,
+                  primary_model: routePrimary,
+                  fallback_models: routeFallbacks.split(",").map((s) => s.trim()).filter(Boolean),
+                })}
+                disabled={!routeAlias || !routePrimary || addRouteM.isPending}
+                className="pxl-corner-sm pxl-btn-shadow"
+              >
+                Save Combo
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Provider Modal Dialog */}
