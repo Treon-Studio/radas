@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, Notification, powerMonitor, powerSaveBlocker, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, net, Notification, powerMonitor, powerSaveBlocker, protocol, screen, shell, Tray } from 'electron';
 import { spawn } from 'node:child_process';
 import {
   rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
@@ -7,7 +7,7 @@ import {
 } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname, isAbsolute } from 'node:path';
-import { homedir } from 'node:os';
+import { cpus, freemem, homedir, loadavg, totalmem, uptime } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
@@ -103,6 +103,8 @@ const { resolveConsoleAsset, startupDiagnosticHtml } = require('./console-assets
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 const isPackagedRuntime = app.isPackaged && !process.defaultApp;
 let bundledConsoleProtocolInstalled = false;
+let petWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 async function installBundledConsoleProtocol(): Promise<void> {
   if (!isPackagedRuntime || bundledConsoleProtocolInstalled) return;
@@ -117,6 +119,117 @@ async function installBundledConsoleProtocol(): Promise<void> {
     return net.fetch(pathToFileURL(asset.filePath).toString());
   });
   bundledConsoleProtocolInstalled = true;
+}
+
+function showMainWindow(route?: string): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  mainWindow.focus();
+  if (route) {
+    const target = process.env.CONSOLE_URL?.replace(/\/+$/, '') ||
+      (isPackagedRuntime ? 'radas-console://app' : 'http://localhost:8080');
+    void mainWindow.loadURL(`${target}${route.startsWith('/') ? route : `/${route}`}`);
+  }
+}
+
+function createTray(): void {
+  if (tray) return;
+  const iconPath = join(app.getAppPath(), 'tray_favicon.png');
+  const icon = nativeImage.createFromPath(iconPath);
+  if (process.platform === 'darwin') icon.setTemplateImage(true);
+  tray = new Tray(icon);
+  tray.setToolTip('RADAS Desktop Companion');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'RADAS Desktop Companion', enabled: false },
+    { type: 'separator' },
+    { label: 'Show Pet Avatar', click: () => { petWindow?.show(); petWindow?.focus(); } },
+    { label: 'Open RADAS Console', click: () => showMainWindow('/office') },
+    { type: 'separator' },
+    { label: 'Quit RADAS', click: () => { allowQuit = true; app.quit(); } }
+  ]));
+}
+
+function registerPetBridge(): void {
+  ipcMain.handle('get-screen-work-area', () => screen.getPrimaryDisplay());
+  ipcMain.handle('get-pet-position', () => petWindow?.getPosition() ?? [0, 0]);
+  ipcMain.on('set-pet-position', (_event, position: { x?: number; y?: number }) => {
+    if (!petWindow || typeof position?.x !== 'number' || typeof position?.y !== 'number') return;
+    petWindow.setPosition(Math.round(position.x), Math.round(position.y), false);
+  });
+  ipcMain.on('move-pet-window', (_event, delta: { deltaX?: number; deltaY?: number }) => {
+    if (!petWindow) return;
+    const [x, y] = petWindow.getPosition();
+    petWindow.setPosition(x + Math.round(delta?.deltaX ?? 0), y + Math.round(delta?.deltaY ?? 0));
+  });
+  ipcMain.on('toggle-console', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isVisible()) mainWindow.hide(); else showMainWindow('/office');
+  });
+  ipcMain.on('open-console-at', (_event, payload: { route?: string }) => showMainWindow(payload?.route || '/office'));
+  ipcMain.handle('get-device-status', () => {
+    const processorList = cpus();
+    const memoryTotal = totalmem();
+    const memoryFree = freemem();
+    return {
+      platform: process.platform,
+      arch: process.arch,
+      cpuModel: processorList[0]?.model || 'RADAS CPU',
+      cpuCores: processorList.length,
+      cpuUsagePct: 0,
+      memUsagePct: Math.round((1 - memoryFree / memoryTotal) * 100),
+      memFreeGB: +(memoryFree / 1024 ** 3).toFixed(1),
+      memTotalGB: +(memoryTotal / 1024 ** 3).toFixed(1),
+      loadAvg1m: +(loadavg()[0] || 0).toFixed(2),
+      uptimeHours: Math.floor(uptime() / 3600),
+      idleSeconds: powerMonitor.getSystemIdleTime(),
+      currentHour: new Date().getHours(),
+      currentDay: new Date().getDay()
+    };
+  });
+  ipcMain.handle('get-radas-status', () => {
+    const agents = Object.values(hive.registry().agents);
+    const online = agents.filter((agent) => !agent.archived && agent.status !== 'offline').length;
+    return {
+      authenticated: Boolean(readConfig().harnessHome),
+      status: { workers: { total: agents.length, online }, approvals: { pending: 0 } },
+      alerts: []
+    };
+  });
+  ipcMain.handle('get-auth-status', () => ({ authenticated: Boolean(readConfig().harnessHome), username: null }));
+}
+
+function createPetWindow(): void {
+  if (petWindow && !petWindow.isDestroyed()) return;
+  const iconPath = join(app.getAppPath(), 'app_icon.png');
+  petWindow = new BrowserWindow({
+    width: 180,
+    height: 160,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    hasShadow: false,
+    show: false,
+    title: 'RADAS Pet',
+    icon: iconPath,
+    webPreferences: {
+      preload: join(app.getAppPath(), 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  petWindow.setAlwaysOnTop(true, 'floating', 1);
+  if (petWindow.setVisibleOnAllWorkspaces) petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  petWindow.once('ready-to-show', () => petWindow?.show());
+  petWindow.on('closed', () => { petWindow = null; });
+  if (isPackagedRuntime) {
+    void petWindow.loadFile(join(app.getAppPath(), 'dist', 'index.html'));
+  } else {
+    void petWindow.loadURL('http://localhost:20130').catch(() => {
+      void petWindow?.loadFile(join(app.getAppPath(), 'dist', 'index.html'));
+    });
+  }
 }
 
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
@@ -2254,7 +2367,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     ...(geom && geom.x !== undefined && geom.y !== undefined ? { x: geom.x, y: geom.y } : {}),
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
-    title: isFloor ? 'Munder Difflin — Floor' : 'Munder Difflin',
+    title: isFloor ? 'RADAS — Floor' : 'RADAS',
     backgroundColor: '#FFF8E7',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -5275,11 +5388,10 @@ app.whenReady().then(async () => {
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
   try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
-  // Auto-update from GitHub releases (packaged builds only; gated on the
-  // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
-  // never restarts on its own. Falls back to a notify-only releases/latest
-  // check where native updating isn't possible (win-portable, dev-ish builds).
-  if (isPackagedRuntime) initAutoUpdater(() => liveWebContents());
+  // Register updater IPC in every runtime; initAutoUpdater itself stops before
+  // network polling in dev. Packaged builds download in the background and only
+  // restart after explicit user action.
+  initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
   // Survive sleep/lock. macOS freezes libuv timers during true system sleep, so a
@@ -5293,8 +5405,11 @@ app.whenReady().then(async () => {
   powerMonitor.on('lock-screen', () => { lastSuspendAt = Date.now(); console.log('[power] lock-screen'); });
   // Multi-window floors (opt-in): install the menu carrying "New Floor". When
   // off, the app keeps Electron's default menu — zero behavior change.
-  if (readConfig().multiWindow) installAppMenu();
-  createWindow();
+      if (readConfig().multiWindow) installAppMenu();
+      registerPetBridge();
+      createTray();
+      createWindow();
+      createPetWindow();
   // Auto-start the Slack webhook server when configured. Best-effort: a tunnel
   // failure (offline) is logged, not fatal. The tunnel URL is ephemeral and
   // changes per restart, so the user re-pastes it via Settings → Start.

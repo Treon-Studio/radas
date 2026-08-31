@@ -5,6 +5,9 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.RADAS_APP_VERSION || "dev"),
+  },
   plugins: [
     TanStackRouterVite({ routesDirectory: "src/routes", generatedRouteTree: "src/routeTree.gen.ts" }),
     react(),

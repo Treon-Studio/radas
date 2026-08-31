@@ -13250,6 +13250,8 @@ var { resolveConsoleAsset, startupDiagnosticHtml } = require_console_assets();
 var isDev = !!process.env.ELECTRON_RENDERER_URL;
 var isPackagedRuntime = import_electron10.app.isPackaged && !process.defaultApp;
 var bundledConsoleProtocolInstalled = false;
+var petWindow = null;
+var tray = null;
 async function installBundledConsoleProtocol() {
   if (!isPackagedRuntime || bundledConsoleProtocolInstalled) return;
   const consoleRoot = (0, import_node_path20.resolve)(process.resourcesPath, "console");
@@ -13263,6 +13265,121 @@ async function installBundledConsoleProtocol() {
     return import_electron10.net.fetch((0, import_node_url.pathToFileURL)(asset.filePath).toString());
   });
   bundledConsoleProtocolInstalled = true;
+}
+function showMainWindow(route) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  mainWindow.focus();
+  if (route) {
+    const target = process.env.CONSOLE_URL?.replace(/\/+$/, "") || (isPackagedRuntime ? "radas-console://app" : "http://localhost:8080");
+    void mainWindow.loadURL(`${target}${route.startsWith("/") ? route : `/${route}`}`);
+  }
+}
+function createTray() {
+  if (tray) return;
+  const iconPath = (0, import_node_path20.join)(import_electron10.app.getAppPath(), "tray_favicon.png");
+  const icon = import_electron10.nativeImage.createFromPath(iconPath);
+  if (process.platform === "darwin") icon.setTemplateImage(true);
+  tray = new import_electron10.Tray(icon);
+  tray.setToolTip("RADAS Desktop Companion");
+  tray.setContextMenu(import_electron10.Menu.buildFromTemplate([
+    { label: "RADAS Desktop Companion", enabled: false },
+    { type: "separator" },
+    { label: "Show Pet Avatar", click: () => {
+      petWindow?.show();
+      petWindow?.focus();
+    } },
+    { label: "Open RADAS Console", click: () => showMainWindow("/office") },
+    { type: "separator" },
+    { label: "Quit RADAS", click: () => {
+      allowQuit = true;
+      import_electron10.app.quit();
+    } }
+  ]));
+}
+function registerPetBridge() {
+  import_electron10.ipcMain.handle("get-screen-work-area", () => import_electron10.screen.getPrimaryDisplay());
+  import_electron10.ipcMain.handle("get-pet-position", () => petWindow?.getPosition() ?? [0, 0]);
+  import_electron10.ipcMain.on("set-pet-position", (_event, position) => {
+    if (!petWindow || typeof position?.x !== "number" || typeof position?.y !== "number") return;
+    petWindow.setPosition(Math.round(position.x), Math.round(position.y), false);
+  });
+  import_electron10.ipcMain.on("move-pet-window", (_event, delta) => {
+    if (!petWindow) return;
+    const [x, y] = petWindow.getPosition();
+    petWindow.setPosition(x + Math.round(delta?.deltaX ?? 0), y + Math.round(delta?.deltaY ?? 0));
+  });
+  import_electron10.ipcMain.on("toggle-console", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isVisible()) mainWindow.hide();
+    else showMainWindow("/office");
+  });
+  import_electron10.ipcMain.on("open-console-at", (_event, payload) => showMainWindow(payload?.route || "/office"));
+  import_electron10.ipcMain.handle("get-device-status", () => {
+    const processorList = (0, import_node_os6.cpus)();
+    const memoryTotal = (0, import_node_os6.totalmem)();
+    const memoryFree = (0, import_node_os6.freemem)();
+    return {
+      platform: process.platform,
+      arch: process.arch,
+      cpuModel: processorList[0]?.model || "RADAS CPU",
+      cpuCores: processorList.length,
+      cpuUsagePct: 0,
+      memUsagePct: Math.round((1 - memoryFree / memoryTotal) * 100),
+      memFreeGB: +(memoryFree / 1024 ** 3).toFixed(1),
+      memTotalGB: +(memoryTotal / 1024 ** 3).toFixed(1),
+      loadAvg1m: +((0, import_node_os6.loadavg)()[0] || 0).toFixed(2),
+      uptimeHours: Math.floor((0, import_node_os6.uptime)() / 3600),
+      idleSeconds: import_electron10.powerMonitor.getSystemIdleTime(),
+      currentHour: (/* @__PURE__ */ new Date()).getHours(),
+      currentDay: (/* @__PURE__ */ new Date()).getDay()
+    };
+  });
+  import_electron10.ipcMain.handle("get-radas-status", () => {
+    const agents = Object.values(hive.registry().agents);
+    const online = agents.filter((agent) => !agent.archived && agent.status !== "offline").length;
+    return {
+      authenticated: Boolean(readConfig().harnessHome),
+      status: { workers: { total: agents.length, online }, approvals: { pending: 0 } },
+      alerts: []
+    };
+  });
+  import_electron10.ipcMain.handle("get-auth-status", () => ({ authenticated: Boolean(readConfig().harnessHome), username: null }));
+}
+function createPetWindow() {
+  if (petWindow && !petWindow.isDestroyed()) return;
+  const iconPath = (0, import_node_path20.join)(import_electron10.app.getAppPath(), "app_icon.png");
+  petWindow = new import_electron10.BrowserWindow({
+    width: 180,
+    height: 160,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    hasShadow: false,
+    show: false,
+    title: "RADAS Pet",
+    icon: iconPath,
+    webPreferences: {
+      preload: (0, import_node_path20.join)(import_electron10.app.getAppPath(), "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  petWindow.setAlwaysOnTop(true, "floating", 1);
+  if (petWindow.setVisibleOnAllWorkspaces) petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  petWindow.once("ready-to-show", () => petWindow?.show());
+  petWindow.on("closed", () => {
+    petWindow = null;
+  });
+  if (isPackagedRuntime) {
+    void petWindow.loadFile((0, import_node_path20.join)(import_electron10.app.getAppPath(), "dist", "index.html"));
+  } else {
+    void petWindow.loadURL("http://localhost:20130").catch(() => {
+      void petWindow?.loadFile((0, import_node_path20.join)(import_electron10.app.getAppPath(), "dist", "index.html"));
+    });
+  }
 }
 process.on("uncaughtException", (err) => {
   console.error("[main] uncaughtException (kept alive):", err);
@@ -14828,7 +14945,7 @@ function createWindow(opts = {}) {
     ...geom && geom.x !== void 0 && geom.y !== void 0 ? { x: geom.x, y: geom.y } : {},
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
-    title: isFloor ? "Munder Difflin \u2014 Floor" : "Munder Difflin",
+    title: isFloor ? "RADAS \u2014 Floor" : "RADAS",
     backgroundColor: "#FFF8E7",
     titleBarStyle: "hiddenInset",
     show: false,
@@ -17193,7 +17310,7 @@ import_electron10.app.whenReady().then(async () => {
   } catch (e) {
     console.error("[db] open failed:", e);
   }
-  if (isPackagedRuntime) initAutoUpdater(() => liveWebContents());
+  initAutoUpdater(() => liveWebContents());
   bootstrapHiveServices();
   import_electron10.powerMonitor.on("resume", () => onSystemResume("resume"));
   import_electron10.powerMonitor.on("unlock-screen", () => onSystemResume("unlock-screen"));
@@ -17206,7 +17323,10 @@ import_electron10.app.whenReady().then(async () => {
     console.log("[power] lock-screen");
   });
   if (readConfig().multiWindow) installAppMenu();
+  registerPetBridge();
+  createTray();
   createWindow();
+  createPetWindow();
   const slackCfg = readConfig();
   if (slackCfg.slackEnabled && slackCfg.slackSigningSecret) {
     void startSlackServer().then((r) => {

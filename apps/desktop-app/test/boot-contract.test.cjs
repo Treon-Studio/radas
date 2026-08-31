@@ -70,3 +70,23 @@ test('window boot supports packaged console assets and a visible failure page', 
   assert.match(main, /app\.isPackaged && !process\.defaultApp/)
   assert.match(main, /childElementCount/)
 })
+
+test('registers updater IPC in development without starting packaged polling', () => {
+  const main = read('cth/main/index.ts')
+  const updater = read('cth/main/updater.ts')
+
+  assert.doesNotMatch(main, /if \(isPackagedRuntime\) initAutoUpdater/)
+  assert.match(main, /initAutoUpdater\(\(\) => liveWebContents\(\)\)/)
+  assert.match(updater, /if \(!app\.isPackaged\) return;/)
+})
+
+test('boots the RADAS pet companion and tray alongside the console', () => {
+  const main = read('cth/main/index.ts')
+
+  assert.match(main, /Tray/)
+  assert.match(main, /new Tray/)
+  assert.match(main, /function createPetWindow/)
+  assert.match(main, /RADAS Pet/)
+  assert.match(main, /createPetWindow\(\)/)
+  assert.match(main, /title: isFloor \? 'RADAS — Floor' : 'RADAS'/)
+})
