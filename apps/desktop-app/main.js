@@ -10,14 +10,22 @@
 // bridge) is preserved as main-radas-legacy.js.
 
 const { app, protocol } = require("electron");
+const fs = require("node:fs");
+const path = require("node:path");
 
 app.setName("RADAS");
 const defaultUserData = app.getPath("userData");
 const configuredUserData = process.env.RADAS_USER_DATA_DIR?.trim();
+const legacyUserData = path.join(app.getPath("appData"), "munder-difflin");
+const radasUserData = path.join(app.getPath("appData"), "RADAS");
 if (configuredUserData) {
   app.setPath("userData", configuredUserData);
-} else if (!defaultUserData.endsWith("-cth")) {
-  app.setPath("userData", `${defaultUserData}-cth`);
+} else if (fs.existsSync(legacyUserData)) {
+  // Preserve the existing Electron origin storage (including auth tokens and
+  // refresh tokens) created by the original RADAS desktop build.
+  app.setPath("userData", legacyUserData);
+} else if (defaultUserData !== radasUserData) {
+  app.setPath("userData", radasUserData);
 }
 
 // Must be registered before app.ready. The handler itself is installed by the
