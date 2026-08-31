@@ -7,12 +7,11 @@ retaining SQLite through `better-sqlite3` for durable harness state.
 
 ## Root Cause
 
-`better-sqlite3@13` ships platform prebuilds compiled for the workspace Node
-runtime. Electron 34 uses a different native-module ABI. Although
-`@electron/rebuild` creates an Electron-compatible addon under
-`build/Release`, the package's default resolver prefers the incompatible
-platform prebuild when it remains present. Loading that binary can block the
-Electron main process during `new Database(...)`.
+`better-sqlite3@13` requires Node 22 or newer, while Electron 34 embeds Node
+20.19 with native-module ABI 132. Rebuilding v13 against Electron's headers
+produces an ABI-132 file, but the addon can still crash during native module
+registration because its supported Node runtime floor is not met. Version
+12.11.1 supports Node 20 and Electron's ABI-specific rebuild flow.
 
 Several bootstrap details make the failure harder to recover from:
 
@@ -32,15 +31,15 @@ rejected by the single-instance lock.
 
 ### SQLite native binding
 
-SQLite remains the durable storage engine. Installation will run a repository
+SQLite remains the durable storage engine. The desktop package pins
+`better-sqlite3` to the compatible v12 major. Installation runs a repository
 owned native rebuild command after dependency lifecycle scripts, targeting the
 installed Electron version and rebuilding both `better-sqlite3` and `node-pty`.
 
-When running under Electron, `PersistStore` will explicitly select
-`better-sqlite3/build/Release/better_sqlite3.node`. Plain Node tests keep the
-package's normal resolver and platform prebuild. This removes dependence on
-renaming or deleting files inside `node_modules` while ensuring Electron never
-selects a Node-ABI prebuild.
+When running under Electron, `PersistStore` explicitly selects
+`better-sqlite3/build/Release/better_sqlite3.node`. This removes dependence on
+renaming or deleting files inside `node_modules` and ensures the desktop main
+process uses the addon produced by `@electron/rebuild`.
 
 ### Bootstrap ordering and single instance
 

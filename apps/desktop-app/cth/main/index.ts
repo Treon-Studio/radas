@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerMonitor, powerSaveBlocker, screen, shell, Notification } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, Notification, powerMonitor, powerSaveBlocker, protocol, screen, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import {
   rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
@@ -8,6 +8,7 @@ import {
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand, isSafeCommandName } from './shellEnv';
@@ -91,7 +92,32 @@ import {
   withCodexRemoteArgs
 } from '../shared/codexRemote';
 
+const { resolveConsoleAsset, startupDiagnosticHtml } = require('./console-assets.cjs') as {
+  resolveConsoleAsset: (
+    consoleRoot: string,
+    requestUrl: string
+  ) => { status: number; filePath?: string };
+  startupDiagnosticHtml: (isPackaged: boolean) => string;
+};
+
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
+const isPackagedRuntime = app.isPackaged && !process.defaultApp;
+let bundledConsoleProtocolInstalled = false;
+
+async function installBundledConsoleProtocol(): Promise<void> {
+  if (!isPackagedRuntime || bundledConsoleProtocolInstalled) return;
+  const consoleRoot = resolve(process.resourcesPath, 'console');
+  await protocol.handle('radas-console', (request) => {
+    const asset = resolveConsoleAsset(consoleRoot, request.url);
+    if (!asset.filePath) {
+      return new Response(asset.status === 403 ? 'Forbidden' : 'Not found', {
+        status: asset.status
+      });
+    }
+    return net.fetch(pathToFileURL(asset.filePath).toString());
+  });
+  bundledConsoleProtocolInstalled = true;
+}
 
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
 // multi-agent supervisor — a single stray throw (e.g. node-pty's ConPTY console
@@ -2214,18 +2240,14 @@ ipcMain.handle('hire:openFile', async () => {
  * while the app keeps running.
  */
 function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
-  process._rawDebug('[cw] 1: enter');
   const isFloor = opts.floor === true;
 
   // Primary restores saved geometry; floors cascade off the focused window.
-  process._rawDebug('[cw] 2: before getKv');
   let saved: WindowBounds | null = null;
   if (!isFloor) { try { saved = clampBounds(persist.getKv('window.bounds')); } catch { saved = null; } }
-  process._rawDebug('[cw] 3: after getKv');
   const cascade = isFloor ? floorCascade() : null;
   const geom = cascade ?? saved;
 
-  process._rawDebug('[cw] 4: before BrowserWindow ctor');
   const win = new BrowserWindow({
     width: geom?.width ?? DEFAULT_WIN.width,
     height: geom?.height ?? DEFAULT_WIN.height,
@@ -2237,7 +2259,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     titleBarStyle: 'hiddenInset',
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../..', 'preload.js'),
+      preload: join(__dirname, '..', 'preload.js'),
       // Keep Chromium's OS renderer sandbox active; privileged work stays behind
       // the narrow contextBridge/IPC surface owned by the main process.
       sandbox: false,
@@ -2311,7 +2333,40 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
   }
 
 
-  win.once('ready-to-show', () => win.show());
+  const showWindow = (): void => {
+    if (!win.isDestroyed() && !win.isVisible()) win.show();
+  };
+  let rendererProbe: NodeJS.Timeout | null = null;
+  let showingStartupDiagnostics = false;
+  const showStartupDiagnostics = async (): Promise<void> => {
+    if (win.isDestroyed() || showingStartupDiagnostics) return;
+    showingStartupDiagnostics = true;
+    if (rendererProbe) clearTimeout(rendererProbe);
+    console.error('[window] console failed to mount; showing startup diagnostics');
+    try {
+      const html = startupDiagnosticHtml(isPackagedRuntime);
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    } catch {
+      // BrowserWindow still becomes visible so startup never looks like a hang.
+    }
+    showWindow();
+  };
+  const verifyRendererMounted = (): void => {
+    if (rendererProbe) clearTimeout(rendererProbe);
+    rendererProbe = setTimeout(async () => {
+      if (win.isDestroyed() || showingStartupDiagnostics) return;
+      let mounted = false;
+      try {
+        mounted = await wc.executeJavaScript(
+          "Boolean(document.getElementById('root')?.childElementCount)"
+        );
+      } catch {
+        // Navigation or renderer failure is handled by the diagnostic page.
+      }
+      if (!mounted) await showStartupDiagnostics();
+    }, 8_000);
+  };
+  win.once('ready-to-show', showWindow);
 
   // Never opens a window; hands the URL to the OS browser instead.
   //
@@ -2368,17 +2423,19 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
   // CTH port: the primary window loads the RADAS console (/office is the
   // desktop landing). CONSOLE_URL overrides for a hosted console; in dev the
   // console dev server runs on :8080.
-  const consoleBase = process.env.CONSOLE_URL || 'http://localhost:8080';
-  win.loadURL(consoleBase.replace(/\/+$/, '') + '/office').catch(() => {
-    // Console dev server not up — fall back to munder's own renderer.
-    if (isDev && process.env.ELECTRON_RENDERER_URL) {
-      win.loadURL(process.env.ELECTRON_RENDERER_URL).catch(() => {});
-    } else {
-      win.loadFile(join(__dirname, '../renderer/index.html')).catch(() => {});
-    }
-  });
+  const configuredConsole = process.env.CONSOLE_URL?.replace(/\/+$/, '');
+  const consoleUrl = configuredConsole
+    ? `${configuredConsole}/office`
+    : isPackagedRuntime
+      ? 'radas-console://app/office'
+      : 'http://localhost:8080/office';
+  void win.loadURL(consoleUrl).then(() => {
+    showWindow();
+    verifyRendererMounted();
+  }).catch(showStartupDiagnostics);
 
   win.on('closed', () => {
+    if (rendererProbe) clearTimeout(rendererProbe);
     allWindows.delete(win);
     // A closed floor must not leave its terminals running headless. (Natural
     // onExit teardown — archive + worktree cleanup — still runs per PTY.)
@@ -3151,8 +3208,7 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   if (typeof patch?.orchestratorMaySpawn === 'boolean') hive.setOrchestratorMaySpawn(patch.orchestratorMaySpawn);
   if (!hiveWasEnabled && hive.enabled()) {
     console.log('[hive] harnessHome configured — bootstrapping hive services');
-    try {   process._rawDebug('[checkpoint] chk7: after bootstrapHiveServices');
-bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
+    try { bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
   }
   return next;
 });
@@ -5183,21 +5239,23 @@ function onSystemResume(reason: string): void {
   }, 15_000);
 }
 
-app.whenReady().then(() => {
-  process._rawDebug('[checkpoint] whenReady start');
+app.whenReady().then(async () => {
+  try {
+    await installBundledConsoleProtocol();
+  } catch {
+    console.error('[window] bundled console protocol failed to initialize');
+  }
   // Realtime Michael mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session
   // opens the mic permission gate by persisting realtimeVoiceEnabled=true and
   // closes it on disconnect — but a hard crash/reload mid-session skips that
   // teardown, leaving the flag stuck true so the gate would boot PRE-OPEN with no
   // live session. Force it closed at startup (a real session re-opens it via
   // setMicGate(true)); macOS TCC stays a second gate regardless.
-    process._rawDebug('[checkpoint] chk1: realtime voice');
-if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
+  if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
 
   // Anonymous product analytics (PostHog) — the full contract lives in
   // TELEMETRY.md. No-op unless a build-time key was injected (official releases
   // only), and gated on DO_NOT_TRACK + the telemetryEnabled config (opt-out).
-  process._rawDebug('[checkpoint] chk2: before analytics.init');
   analytics.init({
     stateDir: app.getPath('userData'),
     appVersion: app.getVersion(),
@@ -5205,27 +5263,23 @@ if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false
   });
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
-    process._rawDebug('[checkpoint] chk3: before hire-link');
-const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
+  const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
 
   // Hand every spawned agent the path to the Slack reply discovery file via the
   // inherited env (pty merges process.env). The path is stable whether or not the
   // server is running; the FILE only exists while it is, so the helper degrades
   // to "endpoint not running" cleanly. NO secret is in the env — only the path.
-    process._rawDebug('[checkpoint] chk4: before slack env');
-process.env.MD_SLACK_REPLY_CONFIG = slackReplyConfigPath();
+  process.env.MD_SLACK_REPLY_CONFIG = slackReplyConfigPath();
   // Open the durable store first — createWindow() reads the saved window bounds.
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
-    process._rawDebug('[checkpoint] chk5: after persist.open');
-try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
+  try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
   // Auto-update from GitHub releases (packaged builds only; gated on the
   // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
   // never restarts on its own. Falls back to a notify-only releases/latest
   // check where native updating isn't possible (win-portable, dev-ish builds).
-    process._rawDebug('[checkpoint] chk6: after initAutoUpdater');
-if (app.isPackaged) initAutoUpdater(() => liveWebContents()); // dev: skip — updater network check hangs on flaky networks
+  if (isPackagedRuntime) initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
   // Survive sleep/lock. macOS freezes libuv timers during true system sleep, so a

@@ -17,7 +17,19 @@
  */
 import Database from 'better-sqlite3';
 import { app } from 'electron';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+
+/**
+ * better-sqlite3's default resolver prefers its platform prebuild. That file is
+ * built for the workspace Node ABI, not Electron's ABI. @electron/rebuild puts
+ * the correct addon here; select it explicitly in Electron so a later install
+ * cannot silently switch the main process back to the Node prebuild.
+ */
+function electronNativeBinding(): string | undefined {
+  if (!process.versions.electron) return undefined;
+  const packageJson = require.resolve('better-sqlite3/package.json');
+  return join(dirname(packageJson), 'build', 'Release', 'better_sqlite3.node');
+}
 
 /** A captured user prompt, as returned to the renderer (camelCase columns). */
 export interface CommandHistoryRow {
@@ -79,7 +91,8 @@ export class PersistStore {
   open(): void {
     if (this.db) return;
     const path = this.dbPath ?? join(app.getPath('userData'), 'harness.db');
-    const db = new Database(path);
+    const nativeBinding = electronNativeBinding();
+    const db = nativeBinding ? new Database(path, { nativeBinding }) : new Database(path);
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.pragma('busy_timeout = 5000');

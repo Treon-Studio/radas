@@ -4,9 +4,9 @@
 
 **Goal:** Make RADAS start as one visible Electron instance while retaining SQLite through an Electron-compatible `better-sqlite3` addon.
 
-**Architecture:** The thin CommonJS entry owns pre-bundle Electron initialization. A postinstall rebuild creates Electron-native addons, and `PersistStore` explicitly selects that addon only inside Electron. The CTH builder and BrowserWindow resolve paths from stable file locations, while failed console navigation produces a visible diagnostic surface.
+**Architecture:** The thin CommonJS entry owns pre-bundle Electron initialization. The desktop pins the Node-20-compatible `better-sqlite3` v12 major; a postinstall rebuild creates Electron-native addons, and `PersistStore` explicitly selects that addon inside Electron. The CTH builder and BrowserWindow resolve paths from stable file locations, while failed console navigation produces a visible diagnostic surface.
 
-**Tech Stack:** Electron 34, TypeScript 5.7, esbuild, `better-sqlite3` 13, `@electron/rebuild` 4, Node test runner.
+**Tech Stack:** Electron 34, TypeScript 5.7, esbuild, `better-sqlite3` 12.11.1, `@electron/rebuild` 4, Node test runner.
 
 ## Global Constraints
 
@@ -76,7 +76,8 @@ package script.
 
 - [ ] **Step 1: Add the native rebuild lifecycle**
 
-Add these scripts:
+Pin `better-sqlite3` to `^12.11.1`, whose engine range includes Electron 34's
+embedded Node 20 runtime, and add these scripts:
 
 ```json
 "native:rebuild": "electron-rebuild --force --build-from-source --which-module better-sqlite3,node-pty",

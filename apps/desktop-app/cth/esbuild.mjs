@@ -1,4 +1,9 @@
 import * as esbuild from "esbuild";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const cthDir = dirname(fileURLToPath(import.meta.url));
+const desktopDir = dirname(cthDir);
 
 const pkg = (await import("../package.json", { with: { type: "json" } })).default;
 const define = {
@@ -19,25 +24,27 @@ const external = [
 ];
 
 await esbuild.build({
-  entryPoints: ["cth/cth-entry.ts"],
+  absWorkingDir: desktopDir,
+  entryPoints: [join(cthDir, "cth-entry.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
-  outfile: "dist-cth/main.cjs",
+  outfile: join(desktopDir, "dist-cth/main.cjs"),
   external,
-  sourcemap: "inline",
+  sourcemap: false,
   target: "node20",
   define,
 });
 
 await esbuild.build({
-  entryPoints: ["cth/preload/index.ts"],
+  absWorkingDir: desktopDir,
+  entryPoints: [join(cthDir, "preload/index.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
-  outfile: "dist-cth/preload.cjs",
+  outfile: join(desktopDir, "dist-cth/preload.cjs"),
   external,
-  sourcemap: "inline",
+  sourcemap: false,
   target: "node20",
   define,
 });

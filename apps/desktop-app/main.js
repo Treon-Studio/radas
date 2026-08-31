@@ -9,4 +9,29 @@
 // The legacy RADAS main.js (pet window + console window + radasDesktop
 // bridge) is preserved as main-radas-legacy.js.
 
+const { app, protocol } = require("electron");
+
+app.setName("RADAS");
+const defaultUserData = app.getPath("userData");
+const configuredUserData = process.env.RADAS_USER_DATA_DIR?.trim();
+if (configuredUserData) {
+  app.setPath("userData", configuredUserData);
+} else if (!defaultUserData.endsWith("-cth")) {
+  app.setPath("userData", `${defaultUserData}-cth`);
+}
+
+// Must be registered before app.ready. The handler itself is installed by the
+// bundled main process once Electron is ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "radas-console",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
 require("./dist-cth/main.cjs");
