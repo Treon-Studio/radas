@@ -2214,14 +2214,18 @@ ipcMain.handle('hire:openFile', async () => {
  * while the app keeps running.
  */
 function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
+  process._rawDebug('[cw] 1: enter');
   const isFloor = opts.floor === true;
 
   // Primary restores saved geometry; floors cascade off the focused window.
+  process._rawDebug('[cw] 2: before getKv');
   let saved: WindowBounds | null = null;
   if (!isFloor) { try { saved = clampBounds(persist.getKv('window.bounds')); } catch { saved = null; } }
+  process._rawDebug('[cw] 3: after getKv');
   const cascade = isFloor ? floorCascade() : null;
   const geom = cascade ?? saved;
 
+  process._rawDebug('[cw] 4: before BrowserWindow ctor');
   const win = new BrowserWindow({
     width: geom?.width ?? DEFAULT_WIN.width,
     height: geom?.height ?? DEFAULT_WIN.height,
@@ -2233,10 +2237,10 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     titleBarStyle: 'hiddenInset',
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../..', 'dist-cth/preload.cjs'),
+      preload: join(__dirname, '../..', 'preload.js'),
       // Keep Chromium's OS renderer sandbox active; privileged work stays behind
       // the narrow contextBridge/IPC surface owned by the main process.
-      sandbox: true,
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
       // The renderer runs the hive's heartbeat loops (inbox nudge, message
@@ -3147,7 +3151,8 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   if (typeof patch?.orchestratorMaySpawn === 'boolean') hive.setOrchestratorMaySpawn(patch.orchestratorMaySpawn);
   if (!hiveWasEnabled && hive.enabled()) {
     console.log('[hive] harnessHome configured — bootstrapping hive services');
-    try { bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
+    try {   process._rawDebug('[checkpoint] chk7: after bootstrapHiveServices');
+bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
   }
   return next;
 });
@@ -5213,12 +5218,14 @@ process.env.MD_SLACK_REPLY_CONFIG = slackReplyConfigPath();
   // Open the durable store first — createWindow() reads the saved window bounds.
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
-  try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
+    process._rawDebug('[checkpoint] chk5: after persist.open');
+try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
   // Auto-update from GitHub releases (packaged builds only; gated on the
   // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
   // never restarts on its own. Falls back to a notify-only releases/latest
   // check where native updating isn't possible (win-portable, dev-ish builds).
-  initAutoUpdater(() => liveWebContents());
+    process._rawDebug('[checkpoint] chk6: after initAutoUpdater');
+if (app.isPackaged) initAutoUpdater(() => liveWebContents()); // dev: skip — updater network check hangs on flaky networks
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
   // Survive sleep/lock. macOS freezes libuv timers during true system sleep, so a

@@ -1,0 +1,746 @@
+{
+ "trackMessageSent": {
+  "t": "invoke",
+  "c": "analytics:messageSent"
+ },
+ "spawnPty": {
+  "t": "invoke",
+  "c": "pty:spawn"
+ },
+ "writePty": {
+  "t": "invoke",
+  "c": "pty:write"
+ },
+ "resizePty": {
+  "t": "invoke",
+  "c": "pty:resize"
+ },
+ "redrawPty": {
+  "t": "invoke",
+  "c": "pty:redraw"
+ },
+ "killPty": {
+  "t": "invoke",
+  "c": "pty:kill"
+ },
+ "listPtys": {
+  "t": "invoke",
+  "c": "pty:list"
+ },
+ "resolveSessionCwd": {
+  "t": "invoke",
+  "c": "session:resolveCwd"
+ },
+ "chooseFolder": {
+  "t": "invoke",
+  "c": "dialog:chooseFolder"
+ },
+ "openTerminalAt": {
+  "t": "invoke",
+  "c": "terminal:openAtFolder"
+ },
+ "copyToClipboard": {
+  "t": "invoke",
+  "c": "app:copyToClipboard"
+ },
+ "readClipboard": {
+  "t": "invoke",
+  "c": "app:readClipboard"
+ },
+ "readClipboardSync": {
+  "t": "sendSync",
+  "c": "app:readClipboardSync"
+ },
+ "getConfig": {
+  "t": "invoke",
+  "c": "config:get"
+ },
+ "updateConfig": {
+  "t": "invoke",
+  "c": "config:update"
+ },
+ "setAgentTokenCap": {
+  "t": "invoke",
+  "c": "config:setAgentTokenCap"
+ },
+ "ensureHarnessHome": {
+  "t": "invoke",
+  "c": "config:ensureHome"
+ },
+ "changeHome": {
+  "t": "invoke",
+  "c": "config:changeHome"
+ },
+ "listDir": {
+  "t": "invoke",
+  "c": "fs:listDir"
+ },
+ "readFile": {
+  "t": "invoke",
+  "c": "fs:readFile"
+ },
+ "readBinary": {
+  "t": "invoke",
+  "c": "fs:readBinary"
+ },
+ "writeFile": {
+  "t": "invoke",
+  "c": "fs:writeFile"
+ },
+ "statAbs": {
+  "t": "invoke",
+  "c": "fs:statAbs"
+ },
+ "revealPath": {
+  "t": "invoke",
+  "c": "fs:revealPath"
+ },
+ "gitIsRepo": {
+  "t": "invoke",
+  "c": "git:isRepo"
+ },
+ "gitMainRepo": {
+  "t": "invoke",
+  "c": "git:mainRepo"
+ },
+ "gitBranch": {
+  "t": "invoke",
+  "c": "git:branch"
+ },
+ "gitStatus": {
+  "t": "invoke",
+  "c": "git:status"
+ },
+ "gitLog": {
+  "t": "invoke",
+  "c": "git:log"
+ },
+ "gitBranches": {
+  "t": "invoke",
+  "c": "git:branches"
+ },
+ "gitAheadBehind": {
+  "t": "invoke",
+  "c": "git:aheadBehind"
+ },
+ "gitDiff": {
+  "t": "invoke",
+  "c": "git:diff"
+ },
+ "gitLogGraph": {
+  "t": "invoke",
+  "c": "git:logGraph"
+ },
+ "gitCommitFiles": {
+  "t": "invoke",
+  "c": "git:commitFiles"
+ },
+ "gitShowFile": {
+  "t": "invoke",
+  "c": "git:showFile"
+ },
+ "gitCompareRefs": {
+  "t": "invoke",
+  "c": "git:compareRefs"
+ },
+ "gitWorktrees": {
+  "t": "invoke",
+  "c": "git:worktrees"
+ },
+ "gitCheckout": {
+  "t": "invoke",
+  "c": "git:checkout"
+ },
+ "hiveRegistry": {
+  "t": "invoke",
+  "c": "hive:registry"
+ },
+ "hivePatchAgentRole": {
+  "t": "invoke",
+  "c": "hive:patchAgentRole"
+ },
+ "hiveRenameAgent": {
+  "t": "invoke",
+  "c": "hive:renameAgent"
+ },
+ "hiveSetAgentHold": {
+  "t": "invoke",
+  "c": "hive:setAgentHold"
+ },
+ "hiveBoard": {
+  "t": "invoke",
+  "c": "hive:board"
+ },
+ "hiveTasks": {
+  "t": "invoke",
+  "c": "hive:tasks"
+ },
+ "hiveLog": {
+  "t": "invoke",
+  "c": "hive:log"
+ },
+ "hiveMemory": {
+  "t": "invoke",
+  "c": "hive:memory"
+ },
+ "hiveInbox": {
+  "t": "invoke",
+  "c": "hive:inbox"
+ },
+ "hiveMessages": {
+  "t": "invoke",
+  "c": "hive:messages"
+ },
+ "hiveAgentDirectory": {
+  "t": "invoke",
+  "c": "hive:agentDirectory"
+ },
+ "listWorkers": {
+  "t": "invoke",
+  "c": "workers:list"
+ },
+ "stopWorker": {
+  "t": "invoke",
+  "c": "workers:stop"
+ },
+ "memoryStatus": {
+  "t": "invoke",
+  "c": "hive:memoryStatus"
+ },
+ "toolsStatus": {
+  "t": "invoke",
+  "c": "tools:status"
+ },
+ "heroPayload": {
+  "t": "invoke",
+  "c": "hero:payload"
+ },
+ "skillsLocal": {
+  "t": "invoke",
+  "c": "skills:local"
+ },
+ "skillsCatalog": {
+  "t": "invoke",
+  "c": "skills:catalog"
+ },
+ "skillsInstall": {
+  "t": "invoke",
+  "c": "skills:install"
+ },
+ "skillsUninstall": {
+  "t": "invoke",
+  "c": "skills:uninstall"
+ },
+ "skillsReveal": {
+  "t": "invoke",
+  "c": "skills:reveal"
+ },
+ "searchMemory": {
+  "t": "invoke",
+  "c": "hive:searchMemory"
+ },
+ "memoryWakeUp": {
+  "t": "invoke",
+  "c": "hive:memoryWakeUp"
+ },
+ "mineNow": {
+  "t": "invoke",
+  "c": "hive:mineNow"
+ },
+ "reflectNow": {
+  "t": "invoke",
+  "c": "memory:reflectNow"
+ },
+ "kgStatus": {
+  "t": "invoke",
+  "c": "kg:status"
+ },
+ "kgList": {
+  "t": "invoke",
+  "c": "kg:list"
+ },
+ "kgSearch": {
+  "t": "invoke",
+  "c": "kg:search"
+ },
+ "kgGet": {
+  "t": "invoke",
+  "c": "kg:get"
+ },
+ "kgRemove": {
+  "t": "invoke",
+  "c": "kg:remove"
+ },
+ "kgAddFiles": {
+  "t": "invoke",
+  "c": "kg:addFiles"
+ },
+ "kgIngestFiles": {
+  "t": "invoke",
+  "c": "kg:ingestFiles"
+ },
+ "attachFiles": {
+  "t": "invoke",
+  "c": "dialog:attachFiles"
+ },
+ "saveClipboardImage": {
+  "t": "invoke",
+  "c": "clipboard:saveImage"
+ },
+ "historyAdd": {
+  "t": "invoke",
+  "c": "history:add"
+ },
+ "historyList": {
+  "t": "invoke",
+  "c": "history:list"
+ },
+ "historySearch": {
+  "t": "invoke",
+  "c": "history:search"
+ },
+ "hiveSend": {
+  "t": "invoke",
+  "c": "hive:send"
+ },
+ "onHiveHookEvent": {
+  "t": "on",
+  "c": "hive:hookEvent"
+ },
+ "onHiveContextUpdate": {
+  "t": "on",
+  "c": "hive:contextUpdate"
+ },
+ "onHiveMessage": {
+  "t": "on",
+  "c": "hive:message"
+ },
+ "onHiveEnqueue": {
+  "t": "on",
+  "c": "hive:enqueueToAgent"
+ },
+ "onHiveAgentSpawned": {
+  "t": "on",
+  "c": "hive:agentSpawned"
+ },
+ "onHiveAgentArchived": {
+  "t": "on",
+  "c": "hive:agentArchived"
+ },
+ "onHiveTerminalHandoff": {
+  "t": "on",
+  "c": "hive:terminalHandoff"
+ },
+ "onHireImport": {
+  "t": "on",
+  "c": "hire:import"
+ },
+ "onHireError": {
+  "t": "on",
+  "c": "hire:error"
+ },
+ "drainPendingHires": {
+  "t": "invoke",
+  "c": "hire:drainPending"
+ },
+ "importHireFiles": {
+  "t": "invoke",
+  "c": "hire:openFile"
+ },
+ "onConfigChanged": {
+  "t": "on",
+  "c": "config:changed"
+ },
+ "onCloseRequested": {
+  "t": "on",
+  "c": "app:closeRequested"
+ },
+ "confirmClose": {
+  "t": "invoke",
+  "c": "app:confirmClose"
+ },
+ "cancelClose": {
+  "t": "invoke",
+  "c": "app:cancelClose"
+ },
+ "onPowerResume": {
+  "t": "on",
+  "c": "power:resume"
+ },
+ "newFloor": {
+  "t": "invoke",
+  "c": "window:newFloor"
+ },
+ "startClosingTime": {
+  "t": "invoke",
+  "c": "app:startClosingTime"
+ },
+ "cancelClosingTime": {
+  "t": "invoke",
+  "c": "app:cancelClosingTime"
+ },
+ "onClosingTime": {
+  "t": "on",
+  "c": "app:closingTime"
+ },
+ "resetAll": {
+  "t": "invoke",
+  "c": "app:resetAll"
+ },
+ "agentUsage": {
+  "t": "invoke",
+  "c": "hive:agentUsage"
+ },
+ "agentContext": {
+  "t": "invoke",
+  "c": "hive:agentContext"
+ },
+ "telemetryUsage": {
+  "t": "invoke",
+  "c": "telemetry:usage"
+ },
+ "telemetrySpans": {
+  "t": "invoke",
+  "c": "telemetry:spans"
+ },
+ "telemetrySnapshot": {
+  "t": "invoke",
+  "c": "telemetry:snapshot"
+ },
+ "onTelemetryEvent": {
+  "t": "on",
+  "c": "telemetry:event"
+ },
+ "onBreakerState": {
+  "t": "on",
+  "c": "control:breakerState"
+ },
+ "setBreakerState": {
+  "t": "invoke",
+  "c": "control:setBreakerState"
+ },
+ "controlPause": {
+  "t": "invoke",
+  "c": "control:pause"
+ },
+ "controlAutoDelivery": {
+  "t": "invoke",
+  "c": "control:autoDelivery"
+ },
+ "controlResume": {
+  "t": "invoke",
+  "c": "control:resume"
+ },
+ "controlGateTool": {
+  "t": "invoke",
+  "c": "control:gateTool"
+ },
+ "controlSteer": {
+  "t": "invoke",
+  "c": "control:steer"
+ },
+ "controlHalt": {
+  "t": "invoke",
+  "c": "control:halt"
+ },
+ "controlSnapshot": {
+  "t": "invoke",
+  "c": "control:snapshot"
+ },
+ "onApprovalRequest": {
+  "t": "on",
+  "c": "control:approvalRequest"
+ },
+ "hiveAddTask": {
+  "t": "invoke",
+  "c": "hive:addTask"
+ },
+ "hivePatchTask": {
+  "t": "invoke",
+  "c": "hive:patchTask"
+ },
+ "hiveDeleteTask": {
+  "t": "invoke",
+  "c": "hive:deleteTask"
+ },
+ "listMissions": {
+  "t": "invoke",
+  "c": "missions:list"
+ },
+ "saveMissions": {
+  "t": "invoke",
+  "c": "missions:save"
+ },
+ "onMissionsUpdated": {
+  "t": "on",
+  "c": "missions:updated"
+ },
+ "onAutoCompact": {
+  "t": "on",
+  "c": "mission:autoCompact"
+ },
+ "textSearch": {
+  "t": "invoke",
+  "c": "hive:textSearch"
+ },
+ "githubIssues": {
+  "t": "invoke",
+  "c": "github:issues"
+ },
+ "githubCIRuns": {
+  "t": "invoke",
+  "c": "github:ciRuns"
+ },
+ "setNotifications": {
+  "t": "invoke",
+  "c": "app:setNotifications"
+ },
+ "openExternal": {
+  "t": "invoke",
+  "c": "app:openExternal"
+ },
+ "setLoginItem": {
+  "t": "invoke",
+  "c": "app:setLoginItem"
+ },
+ "hiveSetArchived": {
+  "t": "invoke",
+  "c": "hive:setArchived"
+ },
+ "onSlackMessage": {
+  "t": "on",
+  "c": "slack:incomingMessage"
+ },
+ "slackStart": {
+  "t": "invoke",
+  "c": "slack:start"
+ },
+ "slackStop": {
+  "t": "invoke",
+  "c": "slack:stop"
+ },
+ "slackStatus": {
+  "t": "invoke",
+  "c": "slack:status"
+ },
+ "slackReply": {
+  "t": "invoke",
+  "c": "slack:reply"
+ },
+ "slackReplyScriptPath": {
+  "t": "invoke",
+  "c": "slack:replyScriptPath"
+ },
+ "slackSetConfig": {
+  "t": "invoke",
+  "c": "slack:setConfig"
+ },
+ "webhookStart": {
+  "t": "invoke",
+  "c": "webhook:start"
+ },
+ "webhookStop": {
+  "t": "invoke",
+  "c": "webhook:stop"
+ },
+ "webhookStatus": {
+  "t": "invoke",
+  "c": "webhook:status"
+ },
+ "webhookGenerateSecret": {
+  "t": "invoke",
+  "c": "webhook:generateSecret"
+ },
+ "webhookSetConfig": {
+  "t": "invoke",
+  "c": "webhook:setConfig"
+ },
+ "getContextTrigger": {
+  "t": "invoke",
+  "c": "triggers:getContext"
+ },
+ "setContextTrigger": {
+  "t": "invoke",
+  "c": "triggers:setContext"
+ },
+ "onContextTrigger": {
+  "t": "on",
+  "c": "trigger:context"
+ },
+ "listWebhooks": {
+  "t": "invoke",
+  "c": "webhooks:list"
+ },
+ "saveWebhooks": {
+  "t": "invoke",
+  "c": "webhooks:save"
+ },
+ "deleteWebhook": {
+  "t": "invoke",
+  "c": "webhooks:delete"
+ },
+ "generateWebhookSecret": {
+  "t": "invoke",
+  "c": "webhooks:generateSecret"
+ },
+ "webhooksStatus": {
+  "t": "invoke",
+  "c": "webhooks:status"
+ },
+ "getOrgTrigger": {
+  "t": "invoke",
+  "c": "org:getTrigger"
+ },
+ "setOrgTrigger": {
+  "t": "invoke",
+  "c": "org:setTrigger"
+ },
+ "listTriggerHistory": {
+  "t": "invoke",
+  "c": "triggerHistory:list"
+ },
+ "decideTriggerHistory": {
+  "t": "invoke",
+  "c": "triggerHistory:decide"
+ },
+ "clearTriggerHistory": {
+  "t": "invoke",
+  "c": "triggerHistory:clear"
+ },
+ "onTriggerHistoryUpdated": {
+  "t": "on",
+  "c": "triggerHistory:updated"
+ },
+ "freeflowSetConfig": {
+  "t": "invoke",
+  "c": "freeflow:setConfig"
+ },
+ "freeflowTranscribe": {
+  "t": "invoke",
+  "c": "freeflow:transcribe"
+ },
+ "integrationsList": {
+  "t": "invoke",
+  "c": "integrations:list"
+ },
+ "integrationsTemplates": {
+  "t": "invoke",
+  "c": "integrations:templates"
+ },
+ "integrationsUpsert": {
+  "t": "invoke",
+  "c": "integrations:upsert"
+ },
+ "integrationsSetSecret": {
+  "t": "invoke",
+  "c": "integrations:setSecret"
+ },
+ "integrationsRemove": {
+  "t": "invoke",
+  "c": "integrations:remove"
+ },
+ "integrationsTest": {
+  "t": "invoke",
+  "c": "integrations:test"
+ },
+ "providerKeySet": {
+  "t": "invoke",
+  "c": "providerKey:set"
+ },
+ "providerKeyHas": {
+  "t": "invoke",
+  "c": "providerKey:has"
+ },
+ "providerKeyClear": {
+  "t": "invoke",
+  "c": "providerKey:clear"
+ },
+ "realtimeHasOpenAiKey": {
+  "t": "invoke",
+  "c": "realtime:hasKey"
+ },
+ "realtimeMintToken": {
+  "t": "invoke",
+  "c": "realtime:mintToken"
+ },
+ "realtimeAction": {
+  "t": "invoke",
+  "c": "realtime:action"
+ },
+ "realtimeActionConfirm": {
+  "t": "invoke",
+  "c": "realtime:action:confirm"
+ },
+ "realtimeActionCancel": {
+  "t": "invoke",
+  "c": "realtime:action:cancel"
+ },
+ "onRealtimeCompletion": {
+  "t": "on",
+  "c": "realtime:completion"
+ },
+ "realtimeSetSessionLive": {
+  "t": "invoke",
+  "c": "realtime:setSessionLive"
+ },
+ "realtimeDrainCompletions": {
+  "t": "invoke",
+  "c": "realtime:drainCompletions"
+ },
+ "realtimeWaitFor": {
+  "t": "invoke",
+  "c": "realtime:waitFor"
+ },
+ "onRealtimeFloorDelta": {
+  "t": "on",
+  "c": "realtime:floorDelta"
+ },
+ "onRealtimeEnqueue": {
+  "t": "on",
+  "c": "realtime:enqueue"
+ },
+ "appInfo": {
+  "t": "invoke",
+  "c": "app:info"
+ },
+ "rosterReadSync": {
+  "t": "sendSync",
+  "c": "roster:readSync"
+ },
+ "harnessHomeSync": {
+  "t": "sendSync",
+  "c": "config:homeSync"
+ },
+ "rosterWrite": {
+  "t": "invoke",
+  "c": "roster:write"
+ },
+ "onUpdateStatus": {
+  "t": "on",
+  "c": "update:status"
+ },
+ "updateCurrent": {
+  "t": "invoke",
+  "c": "update:current"
+ },
+ "updateRestartAndInstall": {
+  "t": "invoke",
+  "c": "update:restartAndInstall"
+ },
+ "updateCheckNow": {
+  "t": "invoke",
+  "c": "update:checkNow"
+ },
+ "updateDownload": {
+  "t": "invoke",
+  "c": "update:download"
+ },
+ "updateOpenRelease": {
+  "t": "invoke",
+  "c": "update:openRelease"
+ },
+ "updateSimulate": {
+  "t": "invoke",
+  "c": "update:simulate"
+ }
+}

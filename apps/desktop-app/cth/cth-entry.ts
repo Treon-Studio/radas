@@ -3,10 +3,11 @@
 // service layer of the RADAS desktop app, WITHOUT munder's own windows:
 // the RADAS console window (loading the console's /office route) is the UI,
 // talking to these services through the cth preload bridge (window.cth).
-//
-// Set CTH_NO_WINDOWS before importing: index.ts checks it around its window
-// creation call sites (its renderer is served by the console build instead).
 
-
+// Fresh userData for the cth services — the default munder-difflin dir may
+// hold stale locks from a disk-full crash (better-sqlite3 opening its db
+// there hung uninterruptibly).
+import { app } from "electron";
+app.setPath("userData", app.getPath("userData") + "-cth");
 
 import "./main/index";

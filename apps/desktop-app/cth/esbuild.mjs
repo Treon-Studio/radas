@@ -42,16 +42,4 @@ await esbuild.build({
   define,
 });
 
-await esbuild.build({
-  entryPoints: ["cth/console-preload.ts"],
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  outfile: "dist-cth/console-preload.cjs",
-  external,
-  sourcemap: "inline",
-  target: "node20",
-  define,
-});
-
 console.log("cth bundles built");
