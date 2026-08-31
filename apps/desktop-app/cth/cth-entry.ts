@@ -7,6 +7,6 @@
 // Set CTH_NO_WINDOWS before importing: index.ts checks it around its window
 // creation call sites (its renderer is served by the console build instead).
 
-process.env.CTH_NO_WINDOWS = "1";
+
 
 import "./main/index";

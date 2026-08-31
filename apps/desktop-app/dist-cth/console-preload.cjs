@@ -3,7 +3,7 @@
 // cth/preload/index.ts
 var import_electron = require("electron");
 var api = {
-  version: __APP_VERSION__,
+  version: "1.0.0",
   // ─── Analytics ───────────────────────────────────────────────────────────
   /** Count ONE human-sent message (TELEMETRY.md → `message_sent`). Carries a
    *  surface name and nothing else — no text, no length, no agent id — and main

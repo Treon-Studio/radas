@@ -2233,7 +2233,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     titleBarStyle: 'hiddenInset',
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../..', 'dist-cth/preload.cjs'),
       // Keep Chromium's OS renderer sandbox active; privileged work stays behind
       // the narrow contextBridge/IPC surface owned by the main process.
       sandbox: true,
@@ -2361,11 +2361,18 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     if (details.isMainFrame) rendererReadyForHires = false;
   });
 
-  if (isDev && process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  // CTH port: the primary window loads the RADAS console (/office is the
+  // desktop landing). CONSOLE_URL overrides for a hosted console; in dev the
+  // console dev server runs on :8080.
+  const consoleBase = process.env.CONSOLE_URL || 'http://localhost:8080';
+  win.loadURL(consoleBase.replace(/\/+$/, '') + '/office').catch(() => {
+    // Console dev server not up — fall back to munder's own renderer.
+    if (isDev && process.env.ELECTRON_RENDERER_URL) {
+      win.loadURL(process.env.ELECTRON_RENDERER_URL).catch(() => {});
+    } else {
+      win.loadFile(join(__dirname, '../renderer/index.html')).catch(() => {});
+    }
+  });
 
   win.on('closed', () => {
     allWindows.delete(win);
@@ -5172,17 +5179,20 @@ function onSystemResume(reason: string): void {
 }
 
 app.whenReady().then(() => {
+  process._rawDebug('[checkpoint] whenReady start');
   // Realtime Michael mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session
   // opens the mic permission gate by persisting realtimeVoiceEnabled=true and
   // closes it on disconnect — but a hard crash/reload mid-session skips that
   // teardown, leaving the flag stuck true so the gate would boot PRE-OPEN with no
   // live session. Force it closed at startup (a real session re-opens it via
   // setMicGate(true)); macOS TCC stays a second gate regardless.
-  if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
+    process._rawDebug('[checkpoint] chk1: realtime voice');
+if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
 
   // Anonymous product analytics (PostHog) — the full contract lives in
   // TELEMETRY.md. No-op unless a build-time key was injected (official releases
   // only), and gated on DO_NOT_TRACK + the telemetryEnabled config (opt-out).
+  process._rawDebug('[checkpoint] chk2: before analytics.init');
   analytics.init({
     stateDir: app.getPath('userData'),
     appVersion: app.getVersion(),
@@ -5190,14 +5200,16 @@ app.whenReady().then(() => {
   });
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
-  const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
+    process._rawDebug('[checkpoint] chk3: before hire-link');
+const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
 
   // Hand every spawned agent the path to the Slack reply discovery file via the
   // inherited env (pty merges process.env). The path is stable whether or not the
   // server is running; the FILE only exists while it is, so the helper degrades
   // to "endpoint not running" cleanly. NO secret is in the env — only the path.
-  process.env.MD_SLACK_REPLY_CONFIG = slackReplyConfigPath();
+    process._rawDebug('[checkpoint] chk4: before slack env');
+process.env.MD_SLACK_REPLY_CONFIG = slackReplyConfigPath();
   // Open the durable store first — createWindow() reads the saved window bounds.
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
@@ -5221,7 +5233,7 @@ app.whenReady().then(() => {
   // Multi-window floors (opt-in): install the menu carrying "New Floor". When
   // off, the app keeps Electron's default menu — zero behavior change.
   if (readConfig().multiWindow) installAppMenu();
-  if (!process.env.CTH_NO_WINDOWS) createWindow();
+  createWindow();
   // Auto-start the Slack webhook server when configured. Best-effort: a tunnel
   // failure (offline) is logged, not fatal. The tunnel URL is ephemeral and
   // changes per restart, so the user re-pastes it via Settings → Start.
@@ -5242,7 +5254,7 @@ app.whenReady().then(() => {
     });
   }
   app.on('activate', () => {
-    if (!process.env.CTH_NO_WINDOWS && BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 

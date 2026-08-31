@@ -1,5 +1,13 @@
 import * as esbuild from "esbuild";
 
+const pkg = (await import("../package.json", { with: { type: "json" } })).default;
+const define = {
+  __APP_VERSION__: JSON.stringify(pkg.version),
+  __POSTHOG_KEY__: JSON.stringify(process.env.POSTHOG_KEY ?? ""),
+  __POSTHOG_HOST__: JSON.stringify(process.env.POSTHOG_HOST ?? "https://us.i.posthog.com"),
+  __MD_SHELL_FENCE__: JSON.stringify(""),
+};
+
 const external = [
   "electron",
   "better-sqlite3",
@@ -19,6 +27,7 @@ await esbuild.build({
   external,
   sourcemap: "inline",
   target: "node20",
+  define,
 });
 
 await esbuild.build({
@@ -30,6 +39,7 @@ await esbuild.build({
   external,
   sourcemap: "inline",
   target: "node20",
+  define,
 });
 
 await esbuild.build({
@@ -41,6 +51,7 @@ await esbuild.build({
   external,
   sourcemap: "inline",
   target: "node20",
+  define,
 });
 
 console.log("cth bundles built");
