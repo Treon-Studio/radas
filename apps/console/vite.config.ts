@@ -11,7 +11,11 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      "@office": path.resolve(__dirname, "src/office-app"),
+      "@shared": path.resolve(__dirname, "src/office-app/shared"),
+    },
   },
   server: {
     port: 8080,

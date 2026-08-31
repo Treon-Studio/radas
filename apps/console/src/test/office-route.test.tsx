@@ -1,39 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * Office route smoke test — verifies the /office route file mounts the
- * vendored OfficeFloor scene and the office shims stay importable. The
- * PixiJS scene itself needs a real WebGL canvas (jsdom can't run it), so
- * OfficeFloor is stubbed here; the vendored modules are asserted importable
- * via their pure modules (themeRegistry, cast, cafeteriaLines).
+ * /office route smoke test — verifies the route mounts the vendored
+ * munder-difflin App (mocked here: the full panel tree drags in
+ * monaco-editor, which jsdom cannot resolve) and that the pure vendored
+ * modules (themes, cast, cafeteria lines) import cleanly.
  */
 
-vi.mock("@/components/office/OfficeFloor", () => ({
-  OfficeFloor: () => <div data-testid="office-floor-stub" />,
+vi.mock("@office/App", () => ({
+  App: () => <div data-testid="office-app-stub" />,
 }));
 
 import { Route } from "../routes/office";
-import { THEMES } from "../components/office/themeRegistry";
-import { DEFAULT_CHARACTER, OFFICE_CAST } from "../components/office/cast";
-import { pickSoloLine } from "../components/office/cafeteriaLines";
+import { THEMES } from "@office/scene/office/themeRegistry";
+import { DEFAULT_CHARACTER, OFFICE_CAST } from "@office/scene/office/cast";
+import { pickSoloLine } from "@office/scene/office/cafeteriaLines";
 
 describe("office route", () => {
-  it("mounts the OfficeFloor component", () => {
-    // TanStack file-route instance: the component rides on options; the
-    // path itself is pinned by the generated routeTree (regen-checked by
-    // the build) and asserted indirectly by the office entry in NavSections.
+  it("mounts the office App component", () => {
     expect(Route.options?.component).toBeDefined();
   });
 });
 
 describe("office vendored modules", () => {
-  it("ships office themes with tilesets", () => {
+  it("ships themes with maps/tilesets", () => {
     expect(Object.keys(THEMES).length).toBeGreaterThan(0);
     expect(THEMES.office).toBeDefined();
+    expect(THEMES.brooklyn99).toBeDefined();
   });
 
-  it("defines the default character among the cast", () => {
-    expect(OFFICE_CAST.map((m) => m.name)).toContain(DEFAULT_CHARACTER);
+  it("defines the cast with the default character", () => {
+    expect(OFFICE_CAST.map((m: { name: string }) => m.name)).toContain(DEFAULT_CHARACTER);
     expect(OFFICE_CAST.length).toBeGreaterThan(1);
   });
 

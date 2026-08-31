@@ -22,6 +22,15 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@office/*": [
+        "./src/office-app/*"
+      ],
+      "@office/brand/*": [
+        "./src/office-app/brand/*"
+      ],
+      "@shared/*": [
+        "./src/office-app/shared/*"
       ]
     },
     "types": [
@@ -31,6 +40,9 @@
   "include": [
     "src",
     "vite.config.ts"
+  ],
+  "exclude": [
+    "src/office-app",
+    "node_modules"
   ]
-
 }

@@ -1,31 +1,226 @@
-// window.cth shim — the munder-difflin scene talks to the agent harness
-// through a preload-exposed `window.cth` bridge (hiveTasks / onHiveMessage).
-// The console has no such bridge; without this shim OfficeFloor crashes on
-// `window.cth.onHiveMessage` (undefined). Every consumer here handles a null
-// result gracefully, so the shim degrades the scene to "no live hive" — the
-// demo event path (cth:demo-handoff) still drives the animation.
+// Full window.cth bridge shim — covers the entire munder-difflin preload
+// API surface (193 methods, extracted from src/preload/index.ts). The
+// console has no Electron harness behind it, so every method degrades:
+//   - on<Verb> subscriptions return a no-op unsubscribe (sync)
+//   - command/query methods resolve null (all renderer call sites handle
+//     null/falsy results gracefully)
+// When the desktop app ports the real main-process harness, this shim is
+// replaced by the real preload bridge.
 
-interface CthBridge {
-  hiveTasks: () => Promise<null>;
-  onHiveMessage: (listener: (event: { from: string; targets: string[]; act: string; needsHuman: boolean }) => void) => () => void;
-  [key: string]: unknown;
-}
+export type CthApi = Record<string, (...args: unknown[]) => unknown>;
 
-declare global {
-  interface Window {
-    cth?: CthBridge;
-  }
-}
+const SUBSCRIPTIONS = new Set([
+  "onApprovalRequest",
+  "onAutoCompact",
+  "onBreakerState",
+  "onCloseRequested",
+  "onClosingTime",
+  "onConfigChanged",
+  "onContextTrigger",
+  "onHireError",
+  "onHireImport",
+  "onHiveAgentArchived",
+  "onHiveAgentSpawned",
+  "onHiveContextUpdate",
+  "onHiveEnqueue",
+  "onHiveHookEvent",
+  "onHiveMessage",
+  "onHiveTerminalHandoff",
+  "onMissionsUpdated",
+  "onPowerResume",
+  "onPtyData",
+  "onPtyExit",
+  "onPtyRelaunch",
+  "onRealtimeCompletion",
+  "onRealtimeEnqueue",
+  "onRealtimeFloorDelta",
+  "onSlackMessage",
+  "onTelemetryEvent",
+  "onTriggerHistoryUpdated",
+  "onUpdateStatus",
+]);
 
-export function installCthShim(): void {
-  if (typeof window === "undefined" || window.cth) return;
-  window.cth = {
-    hiveTasks: async () => null,
-    onHiveMessage: () => {
-      // no live hive — return a no-op unsubscribe
-      return () => {};
+const COMMANDS = new Set([
+  "agentContext",
+  "agentUsage",
+  "appInfo",
+  "arch",
+  "attachFiles",
+  "cancelClose",
+  "cancelClosingTime",
+  "changeHome",
+  "chooseFolder",
+  "clearTriggerHistory",
+  "confirmClose",
+  "controlAutoDelivery",
+  "controlGateTool",
+  "controlHalt",
+  "controlPause",
+  "controlResume",
+  "controlSnapshot",
+  "controlSteer",
+  "copyToClipboard",
+  "decideTriggerHistory",
+  "deleteWebhook",
+  "drainPendingHires",
+  "ensureHarnessHome",
+  "freeflowSetConfig",
+  "freeflowTranscribe",
+  "generateWebhookSecret",
+  "getConfig",
+  "getContextTrigger",
+  "getOrgTrigger",
+  "gitAheadBehind",
+  "gitBranch",
+  "gitBranches",
+  "gitCheckout",
+  "gitCommitFiles",
+  "gitCompareRefs",
+  "gitDiff",
+  "gitIsRepo",
+  "gitLog",
+  "gitLogGraph",
+  "gitMainRepo",
+  "gitShowFile",
+  "gitStatus",
+  "gitWorktrees",
+  "githubCIRuns",
+  "githubIssues",
+  "harnessHomeSync",
+  "heroPayload",
+  "historyAdd",
+  "historyList",
+  "historySearch",
+  "hiveAddTask",
+  "hiveAgentDirectory",
+  "hiveBoard",
+  "hiveDeleteTask",
+  "hiveInbox",
+  "hiveLog",
+  "hiveMemory",
+  "hiveMessages",
+  "hivePatchAgentRole",
+  "hivePatchTask",
+  "hiveRegistry",
+  "hiveRenameAgent",
+  "hiveSend",
+  "hiveSetAgentHold",
+  "hiveSetArchived",
+  "hiveTasks",
+  "importHireFiles",
+  "integrationsList",
+  "integrationsRemove",
+  "integrationsSetSecret",
+  "integrationsTemplates",
+  "integrationsTest",
+  "integrationsUpsert",
+  "kgAddFiles",
+  "kgGet",
+  "kgIngestFiles",
+  "kgList",
+  "kgRemove",
+  "kgSearch",
+  "kgStatus",
+  "killPty",
+  "listDir",
+  "listMissions",
+  "listPtys",
+  "listTriggerHistory",
+  "listWebhooks",
+  "listWorkers",
+  "memoryStatus",
+  "memoryWakeUp",
+  "mineNow",
+  "newFloor",
+  "openExternal",
+  "openTerminalAt",
+  "pathForFile",
+  "platform",
+  "providerKeyClear",
+  "providerKeyHas",
+  "providerKeySet",
+  "readBinary",
+  "readClipboard",
+  "readClipboardSync",
+  "readFile",
+  "realtimeAction",
+  "realtimeActionCancel",
+  "realtimeActionConfirm",
+  "realtimeDrainCompletions",
+  "realtimeHasOpenAiKey",
+  "realtimeMintToken",
+  "realtimeSetSessionLive",
+  "realtimeWaitFor",
+  "redrawPty",
+  "reflectNow",
+  "resetAll",
+  "resizePty",
+  "resolveSessionCwd",
+  "revealPath",
+  "rosterReadSync",
+  "rosterWrite",
+  "saveClipboardImage",
+  "saveMissions",
+  "saveWebhooks",
+  "searchMemory",
+  "setAgentTokenCap",
+  "setBreakerState",
+  "setContextTrigger",
+  "setLoginItem",
+  "setNotifications",
+  "setOrgTrigger",
+  "skillsCatalog",
+  "skillsInstall",
+  "skillsLocal",
+  "skillsReveal",
+  "skillsUninstall",
+  "slackReply",
+  "slackReplyScriptPath",
+  "slackSetConfig",
+  "slackStart",
+  "slackStatus",
+  "slackStop",
+  "spawnPty",
+  "startClosingTime",
+  "statAbs",
+  "stopWorker",
+  "telemetrySnapshot",
+  "telemetrySpans",
+  "telemetryUsage",
+  "textSearch",
+  "toolsStatus",
+  "trackMessageSent",
+  "updateCheckNow",
+  "updateConfig",
+  "updateCurrent",
+  "updateDownload",
+  "updateOpenRelease",
+  "updateRestartAndInstall",
+  "updateSimulate",
+  "version",
+  "webhookGenerateSecret",
+  "webhookSetConfig",
+  "webhookStart",
+  "webhookStatus",
+  "webhookStop",
+  "webhooksStatus",
+  "writeFile",
+  "writePty",
+]);
+
+export function buildCthShim(): CthApi {
+  const noop = () => {};
+  return new Proxy({} as CthApi, {
+    get(_t, prop: string) {
+      if (SUBSCRIPTIONS.has(prop)) {
+        // sync listener registration — must return an unsubscribe function
+        return () => noop;
+      }
+      if (COMMANDS.has(prop)) {
+        // degrade to a resolved null; consumers handle falsy results
+        return (..._args: unknown[]) => Promise.resolve(null);
+      }
+      return undefined;
     },
-  };
+  });
 }
-
-installCthShim();
