@@ -1,7 +1,7 @@
 // @ts-nocheck — vendored from chaitanyagiri/munder-difflin (upstream has its own typecheck)
 /**
  * Default MCP server catalog (Workstream 3). A dependency-free, importable-by-both
- * (main + renderer) registry of the MCP servers Munder Difflin can wire into each
+ * (main + renderer) registry of the MCP servers RADAS can wire into each
  * agent's per-session `settings.json`. Keep it free of electron/UI/node imports.
  *
  * Tiers gate consent:

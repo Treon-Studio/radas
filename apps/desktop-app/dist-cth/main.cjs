@@ -1480,8 +1480,8 @@ var CODEX_COMMAND_GROUPS = [
   {
     title: "APPROVALS & PERMISSIONS",
     items: [
-      { cmd: "codex --dangerously-bypass-approvals-and-sandbox", kind: "cli", desc: "Skip ALL approval prompts AND drop the OS sandbox (full filesystem access). Munder Difflin no longer uses this for auto mode; it keeps the sandbox and adds the hive agent folder via --add-dir." },
-      { cmd: "codex -a never -s workspace-write", kind: "cli", desc: "Never prompt for approval (-a never) but keep the sandbox scoped to the project workspace (-s workspace-write). What Munder Difflin uses for auto mode; the hive agent folder is added with --add-dir <dir>." },
+      { cmd: "codex --dangerously-bypass-approvals-and-sandbox", kind: "cli", desc: "Skip ALL approval prompts AND drop the OS sandbox (full filesystem access). RADAS no longer uses this for auto mode; it keeps the sandbox and adds the hive agent folder via --add-dir." },
+      { cmd: "codex -a never -s workspace-write", kind: "cli", desc: "Never prompt for approval (-a never) but keep the sandbox scoped to the project workspace (-s workspace-write). What RADAS uses for auto mode; the hive agent folder is added with --add-dir <dir>." },
       { cmd: "codex -a untrusted", kind: "cli", desc: "Only run trusted commands without asking; escalate to the user for anything else." },
       { cmd: "codex -s danger-full-access", kind: "cli", desc: "Remove all sandbox restrictions (fine-grained flag \u2014 pair with -a for full control)." }
     ]
@@ -1490,7 +1490,7 @@ var CODEX_COMMAND_GROUPS = [
     title: "AUTOMATION (HEADLESS)",
     items: [
       { cmd: 'codex -p "your prompt"', kind: "cli", desc: "Non-interactive print mode: run one prompt and exit.", usage: 'codex -p "summarise this file"' },
-      { cmd: "CODEX_NON_INTERACTIVE=1 codex", kind: "cli", desc: "Suppress all interactive installer / first-run prompts. Set automatically by Munder Difflin in auto mode." }
+      { cmd: "CODEX_NON_INTERACTIVE=1 codex", kind: "cli", desc: "Suppress all interactive installer / first-run prompts. Set automatically by RADAS in auto mode." }
     ]
   },
   {
@@ -1638,14 +1638,14 @@ var AGENT_PROVIDER_PRESETS = [
     defaultCommand: "kimi",
     commandGroups: [],
     // Kimi --auto handles every approval and does not stop to ask questions,
-    // matching Munder Difflin's autonomous Claude/Codex default.
+    // matching RADAS's autonomous Claude/Codex default.
     autoModeFlag: "--auto",
     autoFlag: "--auto",
     supportsModel: true,
     modelFlag: "--model",
     hiveAware: false,
     // Kimi's interactive TUI has no positional initial-prompt form. It supports
-    // lifecycle hooks, but Munder Difflin does not yet install a Kimi hook bridge,
+    // lifecycle hooks, but RADAS does not yet install a Kimi hook bridge,
     // so mail must bounce rather than being delivered with no drain path.
     canReceiveInbox: false
   },
@@ -2655,7 +2655,7 @@ var DEFAULT_DROP_HTML = `<style>
 
   <section class="page p1">
     <div class="content center">
-      <p class="kicker">Munder Difflin</p>
+      <p class="kicker">RADAS</p>
       <h1 class="big">0.4.4</h1>
       <p class="lede" style="font-size:clamp(1.05rem,2.1vw,1.3rem);margin-top:.5em">
         The release where Windows finally joined the floor \u2014 and the first run
@@ -3102,7 +3102,7 @@ async function runDownload() {
     return { ok: false, error: message };
   }
 }
-var SIMULATED_NOTES = `# Munder Difflin v9.9.9
+var SIMULATED_NOTES = `# RADAS v9.9.9
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** \u2014
 messaging, routing, and remembering, coordinated by your clone, Michael, who you talk to.
@@ -4707,7 +4707,7 @@ _Append durable facts, decisions, and context below._
     const kgCli = kgCliPath || (process.platform === "win32" ? "%KG_CLI%" : "$KG_CLI");
     const knowledgeLine = knowledgeGraph ? `Enterprise knowledge: this organisation has a private Knowledge Graph of its own documents, policies, and business context. When a task needs that context \u2014 company-specific facts, house style, internal processes \u2014 query it instead of guessing: run \`"${hiveNode}" "${kgCli}" search "<query>"\` for ranked passages, \`"${hiveNode}" "${kgCli}" list\` to see what is available, and \`"${hiveNode}" "${kgCli}" get <id>\` for a full document. (That first path is the harness's bundled Node \u2014 use it instead of bare \`node\`, which may not be on your PATH.)` : "";
     const rt = this.runtimeInfo();
-    const runtimeLine = rt ? `RUNNING BUILD: Munder Difflin v${rt.version}, ${rt.packaged ? "packaged app" : "local dev build"}${rt.appPath ? `, from ${rt.appPath}` : ""}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.` : "";
+    const runtimeLine = rt ? `RUNNING BUILD: RADAS v${rt.version}, ${rt.packaged ? "packaged app" : "local dev build"}${rt.appPath ? `, from ${rt.appPath}` : ""}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.` : "";
     const spawnQueueLine = meta.isGod && this.orchestratorMaySpawn() ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot("spawn-requests")}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\`, \`provider\`, \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above \u2014 a worker is a fresh spend every time.` : "";
     const godLine = meta.isGod ? `You are the GOD / ORCHESTRATOR of this hive \u2014 your job is to ORCHESTRATE, not to implement: maintain live situational awareness and delegate the work. (1) AWARENESS \u2014 always know what is going on: keep an accurate picture of every agent (active vs archived/idle), the task board, and all in-flight work; drain your inbox continually and triage every other agent's requests, answering clarifications so the team runs autonomously. (2) DELEGATE \u2014 decompose work and fan it out to the hive agents via their inboxes (route messages and assign owners; do not do their jobs); do NOT take on grunt implementation yourself. Stay aware of who is already on the floor and delegate OPPORTUNISTICALLY: BEFORE you spawn anything, CHECK THE LIVE ROSTER (active agents in registry.json + their state in fleet.json) and prefer routing to an EXISTING agent that fits \u2014 above all when the request names one ("ask Pam to\u2026", "have Jim\u2026"), route to that agent instead of reflexively creating a new one. Reuse an idle or already-running agent whose role matches; only spawn a fresh agent when no existing one is a sensible fit, and say that you checked. One capable owner beats a duplicate. (3) OWN ONLY THE IMPORTANT, high-leverage things \u2014 task decomposition, dispatch decisions, sign-offs, conflict resolution, branch integration, and final QA \u2014 and remain the sole scribe of board.md. You are otherwise fully autonomous \u2014 there is NO separate approval queue. For the genuinely critical (destructive actions, spending real money, scope changes, unresolvable conflicts), ask the human directly in your own session and let the tool-permission prompt gate the action; the human approves natively, including remotely from their phone via /remote-control. Keep the team unblocked. When you DISPATCH a task, write it as a 4-part contract so the agent can run autonomously: (1) OBJECTIVE \u2014 the concrete goal; (2) OUTPUT \u2014 the expected deliverable/format; (3) TOOLS \u2014 what to use or avoid, and any references to read instead of re-deriving; (4) BOUNDARIES \u2014 scope limits + the definition of done. Pass references (file paths, message ids, board sections), not pasted content \u2014 keep dispatches short. MONITOR the floor by reading ${inRoot("fleet.json")} (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog) and ${inRoot("registry.json")} \u2014 note that running 'claude agents' will NOT list your hive's sibling agents. A full Claude Code command reference is at ${inRoot("COMMANDS.md")} (slash commands act ONLY on your own session; CLI commands run in your shell and can target the fleet). You periodically receive scheduler / "Heartbeat" standup requests \u2014 on each, review every agent via fleet.json, re-engage anyone stalled, over-budget, or breaker-armed, and keep board.md and tasks.json accurate. In tasks.json, ALWAYS set each task's "assignee" to the worker's agent id the moment you dispatch it, and NEVER clear it on status changes \u2014 a done card must still say who did the work (the human reads the board by who-did-what). HUMAN FEEDBACK is first-class in the ledger: when a task can only proceed with the human's input \u2014 a QUESTION to answer OR an ACTION only the human can perform (create an account, approve a purchase, provide credentials/screenshots, test on their device) \u2014 set its status to "blocked" and append the concrete ask to the card's "humanQA" array (push {"q":"...","askedAt":"<iso>"}; phrase actions as clear to-dos; keep every past entry \u2014 the history documents the card's decisions). WRITE THE ASK SHORT AND IN MARKDOWN. The human reads it on a CARD, not in a terminal, so an ask longer than a short paragraph plus its options (roughly 700 characters) is a report, not a question \u2014 cut the narrative, keep the decision. Open with ONE **bold** sentence saying exactly what you need from them; put paths, commands, values and identifiers in \`backticks\`; give each option or step its own "-" bullet or "1." number; leave a blank line between paragraphs (a single newline is a line break, so each option stays on its own line). When the ask originates in another agent's report, REWRITE it into that shape \u2014 never paste the report body in as the question, and never make the human read the investigation to find the decision. The harness surfaces open questions on the office floor's ASK ME board; the human's answer lands in the same entry ("a") AND arrives as an inbox message to you \u2014 read it, act on it, and unblock the card so work continues. Do NOT park human questions in separate files (no HumanQuestion.md) and never sit waiting on the human in your own session. Steward the token budget.` : meta.isAssistant ? `You are ${godNameForPrompt}'s PREP ASSISTANT. You will be handed short, possibly vague instructions (each begins with "ENRICH TASK:"). For each one: (1) figure out which project it concerns and cd into the most relevant repo \u2014 you start in ${godNameForPrompt}'s home directory; (2) gather concrete context READ-ONLY (exact file paths, current state, relevant code, conventions, active branch, gotchas) \u2014 NEVER modify, create, or delete files; (3) rewrite the instruction into ONE clear, self-contained prompt that ${godNameForPrompt} can execute autonomously, preserving the user's original intent without inventing scope. Then deliver it: write ONE message JSON into your outbox with "to":"god", "act":"request", a short subject, and the finished prompt as the body. Do NOT perform the task yourself \u2014 your only output is the improved prompt sent to ${godNameForPrompt}.` : 'For anything ambiguous, cross-cutting, or needing sign-off, address a message to "god".';
     const guardrailsLine = 'Guardrails: a circuit breaker watches the floor \u2014 a "Circuit breaker: steer/constrain" message means you are looping or overspending, so STOP repeating, summarize what you tried, and follow it. Be token-frugal (a floor-wide or per-agent token budget can pause you). The shared plan has two parts: board.md (freeform; god is the sole scribe) and tasks.json (structured kanban \u2014 todo/doing/blocked/done).';
