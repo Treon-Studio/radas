@@ -9,8 +9,6 @@ allowBuilds:
   protobufjs: true
   re2: true
   electron: false
-  better-sqlite3: set this to true or false
-  node-pty: set this to true or false
 overrides:
   basic-ftp: "^5.3.1"
   protobufjs: "^7.6.1"
