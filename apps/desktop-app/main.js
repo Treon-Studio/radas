@@ -14,17 +14,22 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 app.setName("RADAS");
-const defaultUserData = app.getPath("userData");
 const configuredUserData = process.env.RADAS_USER_DATA_DIR?.trim();
 const legacyUserData = path.join(app.getPath("appData"), "munder-difflin");
 const radasUserData = path.join(app.getPath("appData"), "RADAS");
 if (configuredUserData) {
   app.setPath("userData", configuredUserData);
-} else if (fs.existsSync(legacyUserData)) {
-  // Preserve the existing Electron origin storage (including auth tokens and
-  // refresh tokens) created by the original RADAS desktop build.
-  app.setPath("userData", legacyUserData);
-} else if (defaultUserData !== radasUserData) {
+} else {
+  // RADAS is the canonical app-data directory. Migrate the legacy directory
+  // once so existing auth/session data survives without keeping the old name
+  // as the active storage location.
+  if (!fs.existsSync(radasUserData) && fs.existsSync(legacyUserData)) {
+    try {
+      fs.cpSync(legacyUserData, radasUserData, { recursive: true });
+    } catch (error) {
+      console.error("[userData] legacy migration failed:", error);
+    }
+  }
   app.setPath("userData", radasUserData);
 }
 

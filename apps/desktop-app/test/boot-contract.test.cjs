@@ -18,7 +18,9 @@ test('configures Electron before loading the bundled main process', () => {
   assert.ok(setPathAt < loadBundleAt, 'userData must be set before the CTH bundle loads')
   assert.match(main, /process\.env\.RADAS_USER_DATA_DIR/)
   assert.match(main, /join\(app\.getPath\("appData"\), "munder-difflin"\)/)
-  assert.doesNotMatch(main, /defaultUserData \+ `-cth`/)
+  assert.match(main, /cpSync\(legacyUserData, radasUserData/)
+  assert.match(main, /app\.setPath\("userData", radasUserData\)/)
+  assert.doesNotMatch(main, /app\.setPath\("userData", legacyUserData\)/)
 })
 
 test('rebuilds native dependencies for Electron after install', () => {
