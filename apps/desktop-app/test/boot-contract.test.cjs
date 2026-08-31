@@ -34,6 +34,8 @@ test('rebuilds native dependencies for Electron after install', () => {
   assert.match(pkg.scripts.postinstall, /--build-from-source/)
   assert.match(pkg.scripts.postinstall, /better-sqlite3/)
   assert.match(pkg.scripts.postinstall, /node-pty/)
+  assert.match(pkg.scripts['console:build'], /@radas\/console build/)
+  assert.match(pkg.scripts.dist, /console:build/)
   assert.match(pkg.scripts['electron:dev'], /cth:build/)
   assert.match(pkg.scripts.dist, /cth:build/)
   assert.match(pkg.scripts['dist:mac'], /cth:build/)
