@@ -92,13 +92,13 @@ radas/
 
 ## ⌨️ Local Development
 
-Prasyarat: Node 22+, pnpm 10, Python 3.14, Go 1.25+, PostgreSQL 15 (lokal)
+Prasyarat: Node 22+, pnpm 10, Python 3.12, Go 1.25+, PostgreSQL 15 (lokal)
 atau Neon (cloud).
 
 ```bash
 # 1. Dependencies
 pnpm install
-cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # 2. Database (Postgres lokal — atau set DATABASE_URL ke Neon)
 brew install postgresql@15 && brew services start postgresql@15
@@ -114,7 +114,7 @@ via `ADMIN_INITIAL_PASSWORD` di `ecosystem.config.cjs`).
 ### Test
 
 ```bash
-cd apps/opensible-server
+cd apps/server
 .venv/bin/python -m pytest tests/ -q      # memakai radas_test, schema reset per test
 ```
 
@@ -126,7 +126,7 @@ cd apps/opensible-server
 - Migrasi data lama (SQLite/JSON → PG):
 
 ```bash
-cd apps/opensible-server
+cd apps/server
 DATABASE_URL=postgres://… .venv/bin/python scripts/migrate_legacy.py --data-dir data
 ```
 
