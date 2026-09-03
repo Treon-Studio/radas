@@ -30,8 +30,8 @@ jobs:
       - name: Install dependencies
         working-directory: packages/sdk
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
-          echo "@treon-studio:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PACKAGES_TOKEN }}" > "$NPM_CONFIG_USERCONFIG"
+          echo "@treon-studio:registry=https://npm.pkg.github.com" >> "$NPM_CONFIG_USERCONFIG"
           pnpm install --no-frozen-lockfile
 
       - name: Generate types, typecheck, test
