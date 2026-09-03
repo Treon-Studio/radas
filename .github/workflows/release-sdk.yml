@@ -1,0 +1,64 @@
+name: Release Radas SDK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sdk/**'
+      - '.github/workflows/release-sdk.yml'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: packages/sdk
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@treon-studio:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          pnpm install --no-frozen-lockfile
+
+      - name: Generate types, typecheck, test
+        working-directory: packages/sdk
+        run: |
+          pnpm generate
+          pnpm typecheck
+          pnpm test
+
+      - name: Publish to GitHub Packages
+        working-directory: packages/sdk
+        run: |
+          npm version patch --no-git-tag-version
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/sdk/package.json
+          if git diff --cached --quiet; then
+            echo "No version changes"
+          else
+            git commit -m "chore(sdk): bump version after publish [skip ci]"
+            git push
+          fi

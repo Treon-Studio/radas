@@ -1,1 +1,2 @@
-export * from "./feature-flags";
+export * from "./client.js"
+export * from "./generated/schema.js"
