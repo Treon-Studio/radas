@@ -1,0 +1,8 @@
+# Single source of truth untuk versi toolchain.
+# Dipakai oleh: .github/workflows/*, Dockerfile, README.
+# Perubahan versi harus konsisten di semua tempat tersebut.
+go: "1.25.x"
+python: "3.12"
+node: "22"
+pnpm: "10"
+postgres: "15"

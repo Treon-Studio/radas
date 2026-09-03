@@ -31,6 +31,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck Console
+        working-directory: apps/console
+        run: pnpm typecheck
+
+      - name: Test Console
+        working-directory: apps/console
+        run: pnpm test
+
       - name: Build Console static bundle
         working-directory: apps/console
         run: pnpm build
