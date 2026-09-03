@@ -33,6 +33,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Dockerfiles expect a legacy layout (server/, worker/, IaC/ at the
+      # context root). Stage that layout instead of rewriting the Dockerfiles.
+      - name: Stage build context
+        run: |
+          mkdir -p /tmp/ctx
+          cp -r apps/server /tmp/ctx/server
+          rm -rf /tmp/ctx/server/.venv /tmp/ctx/server/__pycache__ /tmp/ctx/server/node_modules
+          cp -r apps/worker /tmp/ctx/worker
+          cp -r apps/server/IaC /tmp/ctx/IaC
+          cp apps/${{ matrix.name }}/Dockerfile /tmp/ctx/Dockerfile
+
+      - name: Console context (self-contained)
+        if: matrix.name == 'console'
+        run: |
+          rm -rf /tmp/ctx
+          mkdir -p /tmp/ctx
+          cp -r apps/console/* /tmp/ctx/
+          rm -rf /tmp/ctx/node_modules /tmp/ctx/dist
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
@@ -45,8 +64,8 @@ jobs:
       - name: Build and push (immutable tags)
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: /tmp/ctx
+          file: /tmp/ctx/Dockerfile
           push: true
           tags: |
             ghcr.io/treon-studio/radas-${{ matrix.name }}:${{ github.sha }}
