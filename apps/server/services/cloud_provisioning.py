@@ -197,6 +197,38 @@ _RUNS: Dict[str, Dict[str, Any]] = {}
 _RUN_LOCK = threading.Lock()
 
 
+class LegacyDefaultWorkspaceError(RuntimeError):
+    """Raised when a request-context caller would resolve the legacy default
+    workspace. The fallback is a tenant-escape hazard: it must not serve
+    authenticated traffic."""
+
+    def __init__(self, message: str = "Project context required") -> None:
+        super().__init__(message)
+        self.code = 403
+
+
+# Metric: every legacy fallback use, so the path can be monitored and retired.
+_legacy_default_workspace_uses = 0
+_metric_lock = threading.Lock()
+
+
+def _record_legacy_default_workspace_use() -> None:
+    global _legacy_default_workspace_uses
+    _metric_lock.acquire()
+    try:
+        _legacy_default_workspace_uses += 1
+    finally:
+        _metric_lock.release()
+
+
+def legacy_default_workspace_uses() -> int:
+    _metric_lock.acquire()
+    try:
+        return _legacy_default_workspace_uses
+    finally:
+        _metric_lock.release()
+
+
 def _get_project_id() -> Optional[str]:
     """Resolve current project id from header or query string."""
     try:
@@ -211,14 +243,25 @@ def _get_project_id() -> Optional[str]:
 
 def _project_stacks_root(project_id: Optional[str]) -> Path:
     """Per-project synced workspace root: data/projects/<id>/stacks/.
-    With no project id, falls back to DATA_DIR/cloud-provisioning/default so
-    stacks persist across container restarts (the in-image IaC/ dir does not).
+
+    With no project id, the caller must be outside a request context
+    (background job): the legacy default workspace is returned and counted
+    via the metric. Inside a request context the resolution is rejected —
+    serving requests from the shared default workspace is a tenant escape.
 
     DATA_DIR is re-read from the environment on each call so path helpers
     honor env changes (e.g. tests pointing DATA_DIR at a temp dir)."""
     data_dir = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
     if project_id:
         return data_dir / "projects" / project_id / "stacks"
+    try:
+        # Any live request context: callers must resolve a project first.
+        in_request = bool(request)
+    except RuntimeError:
+        in_request = False
+    if in_request:
+        raise LegacyDefaultWorkspaceError()
+    _record_legacy_default_workspace_use()
     return data_dir / "cloud-provisioning" / "default"
 
 
