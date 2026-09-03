@@ -43,6 +43,9 @@ jobs:
           cp -r apps/worker /tmp/ctx/worker
           cp -r apps/server/IaC /tmp/ctx/IaC
           cp apps/${{ matrix.name }}/Dockerfile /tmp/ctx/Dockerfile
+          # Keep only the Dockerfile: the server .dockerignore (written for the
+          # legacy context) would exclude IaC/ from the staged root.
+          rm -f /tmp/ctx/.dockerignore
 
       - name: Console context (self-contained)
         if: matrix.name == 'console'
