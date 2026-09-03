@@ -41,7 +41,8 @@ jobs:
           cp -r apps/server /tmp/ctx/server
           rm -rf /tmp/ctx/server/.venv /tmp/ctx/server/__pycache__ /tmp/ctx/server/node_modules
           cp -r apps/worker /tmp/ctx/worker
-          cp -r apps/server/IaC /tmp/ctx/IaC
+          # IaC tracked source; apps/server/IaC is an empty local mount point.
+          cp -r templates/opensible-iac /tmp/ctx/IaC
           cp apps/${{ matrix.name }}/Dockerfile /tmp/ctx/Dockerfile
           # Keep only the Dockerfile: the server .dockerignore (written for the
           # legacy context) would exclude IaC/ from the staged root.
