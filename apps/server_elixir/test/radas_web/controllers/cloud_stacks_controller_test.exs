@@ -505,6 +505,216 @@ defmodule RadasWeb.CloudStacksControllerTest do
     assert is_binary(body["execution_id"])
   end
 
+  test "providers catalog and schemas", %{conn: conn} do
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/providers", nil)
+    assert c.status == 200
+    providers = Jason.decode!(c.resp_body)["providers"]
+    ids = Enum.map(providers, & &1["id"])
+    assert "bytedc" in ids and "aws" in ids and "hetzner" in ids
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/bytedc/schema", nil)
+    assert c.status == 200
+    schema = Jason.decode!(c.resp_body)
+    assert schema["provider"] == "bytedc"
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/aws/schema", nil)
+    assert c.status == 200
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/notaprovider/schema", nil)
+    assert c.status == 404
+  end
+
+  test "drift get/put round trip", %{conn: conn} do
+    create_stack(conn, "drift-dev")
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/drift-dev/drift", nil)
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["enabled"] == false
+
+    c =
+      dispatch(conn, @endpoint, :put, "/api/v2/cloud/stacks/drift-dev/drift", %{"enabled" => true})
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["ok"] == true
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/drift-dev/drift", nil)
+    assert Jason.decode!(c.resp_body)["enabled"] == true
+
+    c =
+      dispatch(conn, @endpoint, :put, "/api/v2/cloud/stacks/drift-dev/drift", %{"enabled" => "yes"})
+
+    assert c.status == 200
+
+    c =
+      dispatch(conn, @endpoint, :put, "/api/v2/cloud/stacks/drift-dev/drift", %{"enabled" => 5})
+
+    assert c.status == 400
+  end
+
+  test "runs list/get/stream round trip", %{conn: conn} do
+    create_stack(conn, "runs-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/runs-dev/actions", %{"action" => "plan"})
+
+    assert c.status == 202
+    %{"run_id" => run_id} = Jason.decode!(c.resp_body)
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/runs-dev/runs", nil)
+    assert c.status == 200
+    runs = Jason.decode!(c.resp_body)["runs"]
+    assert length(runs) == 1
+    assert hd(runs)["run_id"] == run_id
+    assert hd(runs)["status"] == "queued"
+    assert hd(runs)["action"] == "plan"
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/runs-dev/runs/#{run_id}", nil)
+    assert c.status == 200
+    run = Jason.decode!(c.resp_body)
+    assert run["log"] =~ "waiting for a worker"
+
+    c =
+      dispatch(
+        conn,
+        @endpoint,
+        :get,
+        "/api/v2/cloud/stacks/runs-dev/runs/missing-id/runs/stream",
+        nil
+      )
+
+    assert c.status == 404
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/runs-dev/runs/#{run_id}/stream", nil)
+    assert c.status == 200
+  end
+
+  test "state inspect reports addresses from tfstate", %{conn: conn, data_dir: data_dir} do
+    create_stack(conn, "insp-dev")
+
+    state = %{
+      "serial" => 2,
+      "lineage" => "lin",
+      "terraform_version" => "1.9.0",
+      "resources" => [
+        %{
+          "module" => "module.vm",
+          "type" => "hcs_ecs_compute_instance",
+          "name" => "this",
+          "instances" => [%{"index_key" => 0}, %{"index_key" => "web"}]
+        }
+      ]
+    }
+
+    File.write!(
+      Path.join(stack_sd(data_dir, "insp-dev"), "terraform.tfstate"),
+      Jason.encode!(state)
+    )
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/insp-dev/state", nil)
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["state_present"] == true
+    assert body["resource_count"] == 2
+    assert body["resources"] == [
+             "module.vm.hcs_ecs_compute_instance.this[0]",
+             "module.vm.hcs_ecs_compute_instance.this[\"web\"]"
+           ]
+    assert body["serial"] == 2
+
+    # No state file → present false with the explanatory message.
+    create_stack(conn, "insp-empty")
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/insp-empty/state", nil)
+    body = Jason.decode!(c.resp_body)
+    assert body["state_present"] == false
+    assert body["resources"] == []
+  end
+
+  test "force-unlock records history + audit", %{conn: conn} do
+    create_stack(conn, "fu-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/fu-dev/force-unlock", %{})
+
+    assert c.status == 400
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/fu-dev/force-unlock", %{
+        "lock_id" => "abc123"
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["ok"] == true
+    assert body["lock_id"] == "abc123"
+    assert body["message"] =~ "successfully released"
+
+    meta = RadasAI.CloudStacks.load_meta(@project, "fu-dev")
+    assert [%{"lock_id" => "abc123", "success" => true}] = meta["unlock_history"]
+  end
+
+  test "state version get + rollback + audit + backend", %{conn: conn, data_dir: data_dir} do
+    create_stack(conn, "sv-dev")
+
+    File.write!(
+      Path.join(stack_sd(data_dir, "sv-dev"), "terraform.tfstate"),
+      ~s({"serial":9,"lineage":"l1","resources":[{"instances":[{}]}]})
+    )
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/sv-dev/state/versions", nil)
+
+    assert c.status == 201
+    %{"version" => entry} = Jason.decode!(c.resp_body)
+
+    c =
+      dispatch(
+        conn,
+        @endpoint,
+        :get,
+        "/api/v2/cloud/stacks/sv-dev/state/versions/#{entry["id"]}",
+        nil
+      )
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["id"] == entry["id"]
+    assert body["serial"] == 9
+    assert body["state"]["lineage"] == "l1"
+
+    # Rollback requires confirm == stack name.
+    c =
+      dispatch(
+        conn,
+        @endpoint,
+        :post,
+        "/api/v2/cloud/stacks/sv-dev/state/versions/#{entry["id"]}/rollback",
+        %{"confirm" => "wrong"}
+      )
+
+    assert c.status == 400
+
+    c =
+      dispatch(
+        conn,
+        @endpoint,
+        :post,
+        "/api/v2/cloud/stacks/sv-dev/state/versions/#{entry["id"]}/rollback",
+        %{"confirm" => "sv-dev"}
+      )
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["ok"] == true
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/sv-dev/state/audit", nil)
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["count"] > 0
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/sv-dev/state/backend", nil)
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["backend_type"] == "local"
+  end
+
   test "state overview reports state presence, lock and versions", %{conn: conn, data_dir: data_dir} do
     create_stack(conn, "ov-dev")
 

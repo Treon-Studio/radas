@@ -1,146 +1,67 @@
 defmodule RadasAI.CloudProviders do
   @moduledoc """
-  Port of `services/cloud_providers/__init__.py` + `base.py` — the provider
-  adapter registry contract. The **bytedc** adapter is fully ported (default
-  provider); the other 11 adapters expose catalog entries with a generic
-  tfvars fallback until individually ported (each has a bespoke schema).
+  Port of `services/cloud_providers/` — the provider adapter registry.
 
-  `sanitize_values/2` drops stale/foreign keys from platform_overrides so a
-  stack edited under a different provider schema can't produce invalid HCL.
+  The adapter definitions (catalog entries, per-provider tfvars order,
+  secret keys, platform_override whitelists and the wizard field schemas)
+  are exported verbatim from the Python adapters into
+  `priv/provider_schemas/providers.json` (same source tree, so the wizard
+  and rendering stay byte-compatible during the Strangler Fig cutover).
+  Rendering behavior ports `base.py::sanitize_values` +
+  `cloud_provisioning.py::_render_tfvars/_render_value/_hcl_quote`.
   """
 
-  @namespace_url <<0x6B, 0xA7, 0xB8, 0x11, 0x9D, 0xAD, 0x11, 0xD1, 0x80, 0xB4, 0x00, 0xC0, 0x4F, 0xD4, 0x30, 0xC8>>
+  # ---------------------------------------------------------------------------
+  # Registry (loaded from the exported adapter definitions)
+  # ---------------------------------------------------------------------------
 
-  @catalog [
-    {"aws", "AWS", "cloud"},
-    {"eks", "Amazon EKS", "cloud"},
-    {"gcp", "Google Cloud", "cloud"},
-    {"gke", "Google Kubernetes Engine", "kubernetes"},
-    {"azure", "Azure (coming soon)", "coming-soon"},
-    {"hetzner", "Hetzner Cloud", "cloud"},
-    {"cloudflare", "Cloudflare", "dns-cdn"},
-    {"bytedc", "ByteDC (HCS)", "cloud"},
-    {"kubernetes", "Kubernetes", "kubernetes"},
-    {"biznet", "Biznet Gio", "cloud"},
-    {"idcloudhost", "IDCloudHost", "cloud"},
-    {"bytedc-eks", "ByteDC Managed EKS", "kubernetes"}
-  ]
+  path = Path.join(:code.priv_dir(:radas), "provider_schemas/providers.json")
 
-  # bytedc TFVARS_ORDER (full port) — other providers use a sorted-keys
-  # fallback until their adapters are ported.
-  @bytedc_tfvars_order [
-    "env", "region", "project_name", "name_prefix",
-    "vpc_name", "vpc_cidr",
-    "public_subnet_cidr", "public_subnet_gw",
-    "app_subnet_cidr", "app_subnet_gw",
-    "data_subnet_cidr", "data_subnet_gw",
-    "admin_cidr", "web_cidr", "enable_web_ingress",
-    "existing_vpc_id",
-    "existing_public_subnet_id", "existing_app_subnet_id", "existing_data_subnet_id",
-    "existing_public_ipv4_subnet_id", "existing_app_ipv4_subnet_id", "existing_data_ipv4_subnet_id",
-    "existing_app_sg_id", "existing_data_sg_id",
-    "az", "image_id", "flavor_id", "vm_count",
-    "enable_elb", "enable_nat", "enable_dns", "domain_base",
-    "enable_platform", "platform_roles", "platform_subnets",
-    "platform_overrides", "platform_eip_roles",
-    "platform_eip_pool_type", "nat_eip_pool_type",
-    "existing_nat_gateway_id", "create_nat_in_existing_vpc", "manage_existing_nat_snat_rules", "nat_floating_ip_id",
-    "ssh_port", "extra_users", "ingress_rules",
-    "extra_vms"
-  ]
+  @raw (case File.read(path) do
+          {:ok, binary} -> Jason.decode!(binary)
+          _ -> %{"adapters" => %{}, "catalog" => [], "all_secret_keys" => [], "default_provider" => "bytedc"}
+        end)
 
-  @bytedc_secret_keys ["access_key", "secret_key", "ecs_admin_pass"]
-  @bytedc_platform_override_keys MapSet.new(["flavor_id", "image_id", "az", "az_zone", "eip_pool_type"])
+  @adapters @raw["adapters"]
+  @catalog @raw["catalog"]
+  @all_secret_keys @raw["all_secret_keys"]
+  @default_provider @raw["default_provider"]
 
-  defp adapter(provider) do
-    if provider == "bytedc" do
-      %{
-        "id" => "bytedc",
-        "label" => "ByteDC (HCS)",
-        "tfvars_order" => @bytedc_tfvars_order,
-        "secret_keys" => @bytedc_secret_keys,
-        "platform_override_keys" => @bytedc_platform_override_keys,
-        "full" => true
-      }
-    else
-      %{
-        "id" => provider,
-        "label" => provider_label(provider),
-        "tfvars_order" => [],
-        "secret_keys" => [],
-        "platform_override_keys" => MapSet.new([]),
-        "full" => false
-      }
-    end
-  end
+  defp adapter(provider), do: Map.get(@adapters, provider)
 
-  defp provider_label(provider) do
-    case Enum.find(@catalog, fn {id, _, _} -> id == provider end) do
-      {_, label, _cat} -> label
-      nil -> provider
-    end
-  end
+  @doc "Default provider id (Python default_provider)."
+  @spec default_provider() :: String.t()
+  def default_provider, do: @default_provider
 
-  @doc "Catalog entries for the wizard picker."
+  @doc "Catalog entries for the wizard picker (Python catalog())."
   @spec catalog() :: [map()]
-  def catalog do
-    Enum.map(@catalog, fn {id, label, category} ->
-      %{"id" => id, "label" => label, "enabled" => id == "bytedc", "category" => category}
-    end)
+  def catalog, do: @catalog
+
+  @doc "Per-provider wizard field schemas (Python schemas())."
+  @spec schemas() :: %{String.t() => map()}
+  def schemas do
+    Map.new(@adapters, fn {id, a} -> {id, a["schema"]} end)
   end
 
-  @doc "Whether a provider has a fully ported adapter (bytedc only, for now)."
-  @spec full_adapter?(String.t()) :: boolean()
-  def full_adapter?("bytedc"), do: true
-  def full_adapter?(_), do: false
+  @doc "One provider's wizard schema (Python adapter.schema)."
+  @spec schema(String.t()) :: map() | nil
+  def schema(provider), do: (adapter(provider) || %{})["schema"]
 
-  @doc "Whether a provider id is known to the catalog."
-  @spec known?(String.t()) :: boolean()
-  def known?(provider), do: Enum.any?(@catalog, fn {id, _, _} -> id == provider end)
-
-  @doc "Union of every provider's secret keys (Python _all_secret_keys)."
+  @doc "Union of every provider's secret keys (Python all_secret_keys)."
   @spec all_secret_keys() :: [String.t()]
-  def all_secret_keys do
-    @catalog
-    |> Enum.map(fn {id, _, _} -> id end)
-    |> Enum.flat_map(&secret_keys_for/1)
-    |> Enum.uniq()
-  end
+  def all_secret_keys, do: @all_secret_keys
 
   @doc "Provider's secret keys (never rendered into terraform.tfvars)."
   @spec secret_keys_for(String.t()) :: [String.t()]
-  def secret_keys_for(provider), do: adapter(provider)["secret_keys"]
+  def secret_keys_for(provider), do: (adapter(provider) || %{})["secret_keys"] || []
 
-  @doc "Sanitize values for a provider (platform_overrides key filtering)."
-  @spec sanitize_values(String.t(), map()) :: map()
-  def sanitize_values(provider, values) when is_map(values) do
-    adapter = adapter(provider)
-    po = values["platform_overrides"]
-    allowed = adapter["platform_override_keys"]
+  @doc "Whether a provider id has a full adapter (IaC + schema + rendering)."
+  @spec known?(String.t()) :: boolean()
+  def known?(provider), do: Map.has_key?(@adapters, provider)
 
-    if is_map(po) do
-      clean =
-        Enum.reduce(po, %{}, fn {role, override}, acc ->
-          if is_map(override) do
-            clean_override =
-              Enum.filter(override, fn {k, v} ->
-                MapSet.member?(allowed, to_string(k)) and v not in [nil, ""]
-              end)
-              |> Map.new()
-
-            Map.put(acc, role, clean_override)
-          else
-            acc
-          end
-        end)
-
-      Map.put(values, "platform_overrides", clean)
-    else
-      values
-    end
-  end
-
-  def sanitize_values(_, values), do: values
+  @doc "Whether the provider can build inventory from tfstate."
+  @spec builds_inventory?(String.t()) :: boolean()
+  def builds_inventory?(provider), do: (adapter(provider) || %{})["full_inventory"] == true
 
   # ---------------------------------------------------------------------------
   # bytedc reuse toggles (Python _NET_REUSE_KEYS / _apply_reuse_toggles /
@@ -203,23 +124,26 @@ defmodule RadasAI.CloudProviders do
             Enum.join(missing, ", ") <>
             ". Otherwise new subnets will be created inside the existing VPC and may collide with your CIDRs."
         else
-          if values["enable_elb"] do
-            missing_v4 =
-              Enum.filter(
-                ~w(existing_public_ipv4_subnet_id existing_app_ipv4_subnet_id),
-                &(String.trim(values[&1] || "") == "")
-              )
+          elb_check =
+            if values["enable_elb"] do
+              missing_v4 =
+                Enum.filter(
+                  ~w(existing_public_ipv4_subnet_id existing_app_ipv4_subnet_id),
+                  &(String.trim(values[&1] || "") == "")
+                )
 
-            if missing_v4 != [] do
-              "ELB is enabled while reusing an existing VPC — also fill: " <>
-                Enum.join(missing_v4, ", ") <>
-                " (neutron IPv4 subnet IDs from the ByteDC console)."
+              if missing_v4 != [] do
+                "ELB is enabled while reusing an existing VPC — also fill: " <>
+                  Enum.join(missing_v4, ", ") <>
+                  " (neutron IPv4 subnet IDs from the ByteDC console)."
+              else
+                nil
+              end
             else
-              nat_check(values)
+              nil
             end
-          else
-            nat_check(values)
-          end
+
+          elb_check || nat_check(values)
         end
       end
     end
@@ -239,8 +163,38 @@ defmodule RadasAI.CloudProviders do
   end
 
   # ---------------------------------------------------------------------------
-  # HCL rendering (Python _render_tfvars / _render_value / _hcl_quote)
+  # Values sanitizing + HCL rendering (base.py + cloud_provisioning.py ports)
   # ---------------------------------------------------------------------------
+
+  @doc "Sanitize values for a provider (platform_overrides key filtering)."
+  @spec sanitize_values(String.t(), map()) :: map()
+  def sanitize_values(provider, values) when is_map(values) do
+    allowed = MapSet.new((adapter(provider) || %{})["platform_override_keys"] || [])
+    po = values["platform_overrides"]
+
+    if is_map(po) do
+      clean =
+        Enum.reduce(po, %{}, fn {role, override}, acc ->
+          if is_map(override) do
+            clean_override =
+              Enum.filter(override, fn {k, v} ->
+                MapSet.member?(allowed, to_string(k)) and v not in [nil, ""]
+              end)
+              |> Map.new()
+
+            Map.put(acc, role, clean_override)
+          else
+            acc
+          end
+        end)
+
+      Map.put(values, "platform_overrides", clean)
+    else
+      values
+    end
+  end
+
+  def sanitize_values(_, values), do: values
 
   @doc """
   Render terraform.tfvars content for a provider — values filtered to the
@@ -248,9 +202,8 @@ defmodule RadasAI.CloudProviders do
   """
   @spec render_tfvars(String.t(), map()) :: String.t()
   def render_tfvars(provider, values) do
-    adapter = adapter(provider)
+    order = (adapter(provider) || %{})["tfvars_order"] || []
     values = sanitize_values(provider, values)
-    order = adapter["tfvars_order"]
 
     ordered_keys =
       if order != [] do

@@ -98,7 +98,7 @@ defmodule RadasAI.CloudStateTest do
 
     # Change state, then roll back.
     File.write!(Path.join(@stack_dir, "terraform.tfstate"), ~s({"serial":2,"resources":[]}))
-    {:ok, result} = CloudState.rollback_state(@stack_dir, @data_dir, entry["id"], actor: "a")
+    %{"ok" => true} = result = CloudState.rollback_state(@stack_dir, @data_dir, entry["id"], actor: "a")
     assert result["version_id"] == entry["id"]
 
     restored = File.read!(Path.join(@stack_dir, "terraform.tfstate"))
@@ -106,7 +106,8 @@ defmodule RadasAI.CloudStateTest do
   end
 
   test "rollback rejects invalid version ids" do
-    assert {:error, "Invalid version id"} = CloudState.rollback_state(@stack_dir, @data_dir, "../evil", actor: "a")
+    assert %{"ok" => false, "error" => "Invalid version id"} =
+             CloudState.rollback_state(@stack_dir, @data_dir, "../evil", actor: "a")
   end
 
   test "state versions are capped at 50" do

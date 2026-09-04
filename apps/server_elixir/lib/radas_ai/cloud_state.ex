@@ -323,16 +323,19 @@ defmodule RadasAI.CloudState do
     end
   end
 
-  @doc "Roll back the state file to a version; snapshots current state first."
-  @spec rollback_state(String.t(), String.t(), String.t(), keyword()) :: {:ok, map()} | {:error, String.t()}
+  @doc """
+  Roll back the state file to a version; snapshots current state first.
+  Returns the Python-shaped map ({"ok" => bool, ...}).
+  """
+  @spec rollback_state(String.t(), String.t(), String.t(), keyword()) :: map()
   def rollback_state(stack_dir, data_dir, version_id, opts \\ []) do
     unless Regex.match?(~r/^[A-Za-z0-9._-]+$/, version_id || "") do
-      {:error, "Invalid version id"}
+      %{"ok" => false, "error" => "Invalid version id"}
     else
       vfile = Path.join([versions_dir(data_dir), "#{version_id}.json"])
 
       unless File.exists?(vfile) do
-        {:error, "Version not found"}
+        %{"ok" => false, "error" => "Version not found"}
       else
         snapshot_state(stack_dir, data_dir, actor: Keyword.get(opts, :actor) || "system", reason: "pre-rollback")
         target = Path.join(stack_dir, "terraform.tfstate")
@@ -343,10 +346,10 @@ defmodule RadasAI.CloudState do
             File.write!(target, raw)
             summary = summarize_state(raw)
             append_audit(data_dir, "state.rollback", Keyword.get(opts, :actor) || "unknown", Map.merge(%{"version_id" => version_id}, summary))
-            {:ok, Map.merge(%{"version_id" => version_id}, summary)}
+            Map.merge(%{"ok" => true, "version_id" => version_id}, summary)
 
           _ ->
-            {:error, "Restore failed: version unreadable"}
+            %{"ok" => false, "error" => "Restore failed: version unreadable"}
         end
       end
     end

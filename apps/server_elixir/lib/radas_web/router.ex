@@ -59,6 +59,27 @@ defmodule RadasWeb.Router do
       delete "/:name/state/lock", CloudStacksController, :state_lock_release
       get "/:name/state/versions", CloudStacksController, :state_versions_list
       post "/:name/state/versions", CloudStacksController, :state_versions_snapshot
+      get "/:name/state/versions/:version_id", CloudStacksController, :state_version_get
+      post "/:name/state/versions/:version_id/rollback", CloudStacksController, :state_version_rollback
+      get "/:name/state/audit", CloudStacksController, :state_audit
+      get "/:name/state/backend", CloudStacksController, :state_backend_get
+      put "/:name/state/backend", CloudStacksController, :state_backend_put
+      get "/:name/drift", CloudStacksController, :drift_get
+      put "/:name/drift", CloudStacksController, :drift_set
+      get "/:name/runs", CloudStacksController, :runs_list
+      get "/:name/runs/:run_id", CloudStacksController, :run_get
+      get "/:name/runs/:run_id/stream", CloudStacksController, :run_stream
+      get "/:name/state", CloudStacksController, :state_inspect
+      post "/:name/force-unlock", CloudStacksController, :force_unlock
+    end
+
+    # Provider catalog + wizard schemas (Python list_providers / *_schema).
+    scope "/v2/cloud" do
+      pipe_through :v2_auth
+
+      get "/providers", CloudStacksController, :providers_list
+      get "/bytedc/schema", CloudStacksController, :bytedc_schema
+      get "/:provider/schema", CloudStacksController, :provider_schema
     end
 
     # SSO (env-gated; 503 when the provider is not configured).

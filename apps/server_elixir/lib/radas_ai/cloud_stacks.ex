@@ -291,6 +291,88 @@ defmodule RadasAI.CloudStacks do
     _ -> %{}
   end
 
+  @doc "Map an execution record onto the console run shape (Python _exec_to_run)."
+  @spec exec_to_run(map()) :: map()
+  def exec_to_run(exe) do
+    rp = exe["runParams"] || %{}
+    finished = trunc(exe["finishedAt"] || 0)
+
+    %{
+      "run_id" => exe["id"],
+      "execution_id" => exe["id"],
+      "stack" => rp["stack_name"],
+      "action" => rp["tofu_action"],
+      "status" => ui_status(exe["status"] || ""),
+      "returncode" => exe["returnCode"],
+      "worker_id" => exe["workerId"],
+      "started_at" => trunc(exe["startedAt"] || exe["createdAt"] || 0),
+      "finished_at" => if(finished == 0, do: nil, else: finished),
+      "triggered_by" => exe["triggeredBy"] || "",
+      "triggered_by_user_id" => exe["triggeredByUserId"] || ""
+    }
+  end
+
+  @doc "Latest-first TOFU_RUN runs for a stack (Python runs_list, cap 50)."
+  @spec stack_runs(String.t() | nil, String.t()) :: [map()]
+  def stack_runs(project_id, name) do
+    rows =
+      query_all!(
+        """
+        SELECT data FROM executions
+        WHERE project_id = $1 AND data->'runParams'->>'execution_type' = 'TOFU_RUN'
+          AND data->'runParams'->>'stack_name' = $2
+        ORDER BY created_at DESC LIMIT 50
+        """,
+        [project_id || "default", name]
+      )
+
+    Enum.map(rows, fn row ->
+      exe = row["data"]
+      exec_to_run(exe) |> Map.put("mtime", trunc(exe["createdAt"] || 0))
+    end)
+  rescue
+    _ -> []
+  end
+
+  @doc "One run detail with its log text (Python run_get)."
+  @spec run_detail(String.t() | nil, String.t(), String.t()) :: map() | nil
+  def run_detail(project_id, name, run_id) do
+    exe = RadasAI.Executions.get_execution(run_id, project_id || "default")
+    rp = (exe && exe["runParams"]) || nil
+
+    if exe == nil or rp == nil or rp["execution_type"] != "TOFU_RUN" or rp["stack_name"] != name do
+      nil
+    else
+      {log_text, _offset} =
+        case RadasAI.Executions.read_log_chunk(run_id, 0, 4 * 1024 * 1024, project_id || "default") do
+          {text, _, _, _} -> {text, nil}
+          _ -> {"", nil}
+        end
+
+      log_text =
+        if String.trim(to_string(exe["status"] || "")) |> String.downcase() == "queued" and log_text == "" do
+          "[waiting for a worker to claim this run…]\n"
+        else
+          log_text
+        end
+
+      exec_to_run(exe) |> Map.put("log", log_text || "")
+    end
+  end
+
+  @doc "UI status token (Python _status_to_ui)."
+  @spec ui_status(String.t()) :: String.t()
+  def ui_status(s) do
+    case to_string(s) do
+      "PENDING" -> "queued"
+      "RUNNING" -> "running"
+      "SUCCESS" -> "success"
+      "FAILED" -> "failed"
+      "CANCELED" -> "canceled"
+      other -> String.downcase(other)
+    end
+  end
+
   @doc "Full detail payload for GET one stack (Python stacks_get)."
   @spec stack_detail(String.t() | nil, String.t()) :: map()
   def stack_detail(project_id, name) do
@@ -409,17 +491,6 @@ defmodule RadasAI.CloudStacks do
     end
   rescue
     _ -> nil
-  end
-
-  defp ui_status(s) do
-    case to_string(s) do
-      "PENDING" -> "queued"
-      "RUNNING" -> "running"
-      "SUCCESS" -> "success"
-      "FAILED" -> "failed"
-      "CANCELED" -> "canceled"
-      other -> String.downcase(other)
-    end
   end
 
   defp regex_first(text, re) do

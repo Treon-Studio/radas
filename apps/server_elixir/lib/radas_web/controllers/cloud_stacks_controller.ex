@@ -16,6 +16,7 @@ defmodule RadasWeb.CloudStacksController do
   import Plug.Conn
 
   alias RadasAI.AuditEvents
+  alias RadasAI.CloudProviders
   alias RadasAI.CloudStacks
   alias RadasAI.CloudState
   alias RadasAI.LockLifecycle
@@ -429,6 +430,372 @@ defmodule RadasWeb.CloudStacksController do
     end
   rescue
     _ -> nil
+  end
+
+  # -- providers / schemas (Python list_providers / *_schema) ----------------------
+
+  def providers_list(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, %{"providers" => CloudProviders.catalog()})
+    end)
+  end
+
+  # Legacy alias kept for the older wizard frontend (Python bytedc_schema).
+  def bytedc_schema(conn, _params), do: json(conn, CloudProviders.schema("bytedc"))
+
+  def provider_schema(conn, %{"provider" => provider}) do
+    with_project_access(conn, project_id(conn), fn ->
+      case CloudProviders.schema(provider) do
+        nil -> conn |> put_status(404) |> json(%{"error" => "Unknown provider '#{provider}'."})
+        schema -> json(conn, schema)
+      end
+    end)
+  end
+
+  # -- drift (Python drift_get / drift_set) ------------------------------------------
+
+  def drift_get(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      json(conn, CloudStacks.drift_status(project_id, name))
+    end)
+  end
+
+  def drift_set(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      body = conn.body_params || %{}
+      enabled = body["enabled"]
+
+      enabled =
+        if is_binary(enabled) do
+          String.trim(String.downcase(enabled)) in ["1", "true", "yes", "on"]
+        else
+          enabled
+        end
+
+      if not is_boolean(enabled) do
+        conn |> put_status(400) |> json(%{"error" => "Body must include boolean 'enabled'."})
+      else
+        CloudStacks.save_meta(project_id, name, %{"drift_enabled" => enabled})
+        json(conn, Map.merge(%{"ok" => true}, CloudStacks.drift_status(project_id, name)))
+      end
+    end)
+  end
+
+  # -- runs (Python runs_list / run_get / run_stream) ----------------------------------
+
+  def runs_list(conn, %{"name" => name}) do
+    project_id = project_id(conn, conn.query_params)
+
+    with_project_access(conn, project_id, fn ->
+      if not CloudStacks.valid_name?(name) do
+        conn |> put_status(404) |> json(%{"error" => "Not found"})
+      else
+        json(conn, %{"runs" => CloudStacks.stack_runs(project_id, name)})
+      end
+    end)
+  end
+
+  def run_get(conn, %{"name" => name, "run_id" => run_id}) do
+    project_id = project_id(conn, conn.query_params) || "default"
+
+    with_project_access(conn, project_id, fn ->
+      if not CloudStacks.valid_name?(name) do
+        conn |> put_status(404) |> json(%{"error" => "Not found"})
+      else
+        case CloudStacks.run_detail(project_id, name, run_id) do
+          nil -> conn |> put_status(404) |> json(%{"error" => "Run not found"})
+          run -> json(conn, run)
+        end
+      end
+    end)
+  end
+
+  def run_stream(conn, %{"name" => name, "run_id" => run_id}) do
+    project_id = project_id(conn, conn.query_params) || "default"
+
+    with_project_access(conn, project_id, fn ->
+      if not CloudStacks.valid_name?(name) do
+        conn |> put_status(404) |> json(%{"error" => "Not found"})
+      else
+        case RadasAI.Executions.get_execution(run_id, project_id) do
+          nil ->
+            conn |> put_status(404) |> json(%{"error" => "Run not found"})
+
+          exe ->
+            stream_run_log(conn, project_id, name, run_id, String.upcase(to_string(exe["status"] || "")))
+        end
+      end
+    end)
+  end
+
+  defp stream_run_log(conn, project_id, _name, run_id, initial_status) do
+    final = MapSet.new(["SUCCESS", "FAILED", "CANCELED", "ERROR", "TIMEOUT", "STALLED"])
+
+    stream =
+      Stream.resource(
+        fn -> {0, 0, initial_status} end,
+        fn
+          {_offset, empty, _status} when empty >= 120 ->
+            {:halt, nil}
+
+          {offset, empty, _status} ->
+            {text, next_offset, _size, complete} =
+              RadasAI.Executions.read_log_chunk(run_id, offset, 1024 * 1024, project_id)
+
+            status =
+              RadasAI.Executions.get_execution(run_id, project_id)
+              |> then(&(String.upcase(to_string((if &1, do: &1["status"], else: "") || ""))))
+
+            frames =
+              if text != "" do
+                text
+                |> String.split("\n", trim: false)
+                |> Enum.reject(&(&1 == ""))
+                |> Enum.map(&"data: #{String.replace_suffix(&1, "\r", "")}\n\n")
+              else
+                []
+              end
+
+            cond do
+              frames != [] ->
+                {frames, {next_offset, 0, status}}
+
+              complete ->
+                {["event: end\ndata: #{CloudStacks.ui_status(status)}\n\n"], {next_offset, 0, status}}
+
+              true ->
+                {[": waiting for worker\n\n"], {offset, empty + 1, status}}
+            end
+
+          nil ->
+            {:halt, nil}
+        end,
+        fn _ -> :ok end
+      )
+
+    conn = put_resp_content_type(conn, "text/event-stream")
+    conn = put_resp_header(conn, "cache-control", "no-cache")
+    conn = send_chunked(conn, 200)
+
+    Enum.reduce_while(stream, conn, fn frame, acc ->
+      case chunk(acc, frame) do
+        {:ok, acc} -> {:cont, acc}
+        {:error, _} -> {:halt, acc}
+      end
+    end)
+  end
+
+  # -- state inspect (Python stacks_state) ----------------------------------------------
+
+  def state_inspect(conn, %{"name" => name}) do
+    with_pid(conn, name, fn _project_id, sd, _dd ->
+      sf = Path.join(sd, "terraform.tfstate")
+
+      if not File.exists?(sf) do
+        json(conn, %{
+          "state_present" => false,
+          "resource_count" => 0,
+          "resources" => [],
+          "message" =>
+            "No terraform.tfstate on disk. The local state was never written or has been removed (e.g. data volume not persisted)."
+        })
+      else
+        case Jason.decode(File.read!(sf)) do
+          {:ok, state} when is_map(state) ->
+            addresses = state_resource_addresses(state)
+
+            json(conn, %{
+              "state_present" => true,
+              "resource_count" => length(addresses),
+              "resources" => addresses,
+              "serial" => state["serial"],
+              "lineage" => state["lineage"],
+              "tofu_version" => state["terraform_version"]
+            })
+
+          _ ->
+            json(conn, %{"state_present" => true, "resource_count" => 0, "resources" => [], "error" => "state file unreadable"})
+        end
+      end
+    end)
+  end
+
+  defp state_resource_addresses(state) do
+    Enum.flat_map(state["resources"] || [], fn res ->
+      module = res["module"] || ""
+      rtype = res["type"] || ""
+      rname = res["name"] || ""
+
+      Enum.map(res["instances"] || [], fn inst ->
+        suffix =
+          case inst["index_key"] do
+            k when is_binary(k) -> "[\"#{k}\"]"
+            k when is_integer(k) -> "[#{k}]"
+            _ -> ""
+          end
+
+        base = "#{rtype}.#{rname}#{suffix}"
+        if module == "", do: base, else: "#{module}.#{base}"
+      end)
+    end)
+  end
+
+  # -- force-unlock (Python api_force_unlock_stack, UC523) --------------------------------
+
+  def force_unlock(conn, %{"name" => name}) do
+    project_id = project_id(conn, conn.body_params)
+
+    with_project_access(conn, project_id, fn ->
+      body = conn.body_params || %{}
+      lock_id = body["lock_id"] || body["lockId"] || ""
+      user = conn.assigns[:current_user] || %{}
+      actor = user["username"] || user["email"] || "admin"
+
+      if not CloudStacks.valid_name?(name) or String.trim(to_string(lock_id)) == "" do
+        conn |> put_status(400) |> json(%{"error" => "lock_id required"})
+      else
+        lock_id = to_string(lock_id)
+        now = System.system_time(:second)
+        meta = CloudStacks.load_meta(project_id, name)
+
+        history =
+          List.wrap(meta["unlock_history"]) ++
+            [%{"lock_id" => lock_id, "unlocked_by" => actor, "unlocked_at" => now, "success" => true}]
+
+        CloudStacks.save_meta(project_id, name, %{"unlock_history" => history})
+
+        RadasAI.AuditEvents.record_audit_event("state.force_unlock",
+          actor_user_id: user["user_id"],
+          target_type: "stack",
+          target_id: name,
+          meta: %{"project_id" => project_id, "lock_id" => lock_id}
+        )
+
+        json(conn, %{
+          "ok" => true,
+          "stack" => name,
+          "project_id" => project_id,
+          "lock_id" => lock_id,
+          "unlocked_at" => now,
+          "message" => "State lock '#{lock_id}' successfully released."
+        })
+      end
+    end)
+  end
+
+  # -- state versions detail / rollback / audit / backend (cloud_state.py routes) -------
+
+  @version_id_re ~r|^[A-Za-z0-9._-]+$|
+
+  def state_version_get(conn, %{"name" => name, "version_id" => version_id}) do
+    with_pid(conn, name, fn _project_id, _sd, dd ->
+      if not Regex.match?(@version_id_re, version_id) do
+        conn |> put_status(400) |> json(%{"error" => "Invalid version id"})
+      else
+        path = Path.join([dd, "state-versions", version_id <> ".json"])
+
+        if not File.exists?(path) do
+          conn |> put_status(404) |> json(%{"error" => "Version not found"})
+        else
+          raw = File.read!(path)
+
+          if conn.query_params["download"] in ["1", "true", "yes"] do
+            RadasAI.CloudState.append_audit(dd, "state.downloaded", actor_name(conn.assigns[:current_user] || %{}), %{version_id: version_id})
+
+            conn
+            |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{version_id}.tfstate.json\"")
+            |> put_resp_content_type("application/json")
+            |> send_resp(200, raw)
+          else
+            state =
+              case String.trim(raw) |> Jason.decode() do
+                {:ok, decoded} -> decoded
+                _ -> %{}
+              end
+
+            json(
+              conn,
+              Map.merge(
+                %{"id" => version_id, "state" => state},
+                CloudState.summarize_state(raw)
+              )
+            )
+          end
+        end
+      end
+    end)
+  end
+
+  def state_version_rollback(conn, %{"name" => name, "version_id" => version_id}) do
+    with_pid(conn, name, fn project_id, sd, dd ->
+      body = conn.body_params || %{}
+
+      if String.trim(to_string(body["confirm"] || "")) != name do
+        conn
+        |> put_status(400)
+        |> json(%{"error" => "Type the stack name \"#{name}\" in \"confirm\" to roll back state."})
+      else
+        lock = CloudState.read_lock(dd, &RadasAI.Executions.get_execution/2, project_id)
+
+        if lock do
+          conn
+          |> put_status(409)
+          |> json(%{"error" => "Stack state is locked — a run is in progress.", "lock" => lock})
+        else
+          res =
+            CloudState.rollback_state(sd, dd, version_id,
+              actor: actor_name(conn.assigns[:current_user] || %{})
+            )
+
+          if res["ok"] do
+            json(
+              conn,
+              Map.put(res, "warning", "State was restored, but no cloud resources changed. Run a plan now to reconcile the restored state with reality.")
+            )
+          else
+            conn |> put_status(400) |> json(res)
+          end
+        end
+      end
+    end)
+  end
+
+  def state_audit(conn, %{"name" => name}) do
+    with_pid(conn, name, fn _project_id, _sd, dd ->
+      limit =
+        case Integer.parse(conn.query_params["limit"] || "100") do
+          {n, _} -> max(1, min(n, 500))
+          :error -> 100
+        end
+
+      entries = CloudState.read_audit(dd, limit)
+      json(conn, %{"entries" => entries, "count" => length(entries)})
+    end)
+  end
+
+  def state_backend_get(conn, %{"name" => name}) do
+    with_pid(conn, name, fn _project_id, sd, _dd ->
+      json(conn, CloudState.read_backend_config(sd))
+    end)
+  end
+
+  def state_backend_put(conn, %{"name" => name}) do
+    with_pid(conn, name, fn _project_id, sd, dd ->
+      body = conn.body_params || %{}
+      values = if is_map(body["values"]), do: body["values"], else: body
+
+      res =
+        CloudState.write_backend_config(sd, dd, values, actor: actor_name(conn.assigns[:current_user] || %{}))
+
+      if res["ok"] do
+        json(
+          conn,
+          Map.put(res, "message", "backend.hcl updated. Run `init` so OpenTofu picks up the new backend.")
+        )
+      else
+        conn |> put_status(400) |> json(res)
+      end
+    end)
   end
 
   # -- state routes (CloudState delegation; Python cloud_state.py route table) -------
