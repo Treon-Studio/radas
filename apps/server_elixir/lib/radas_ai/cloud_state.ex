@@ -45,12 +45,16 @@ defmodule RadasAI.CloudState do
     :ok
   end
 
-  defp state_source(stack_dir) do
+  @doc "Local state file, if present (Python cloud_state._state_source)."
+  def state_source(stack_dir) do
     Enum.find(
       [Path.join(stack_dir, "terraform.tfstate"), Path.join(stack_dir, "terraform.tfstate.json")],
       &File.exists?/1
     )
   end
+
+  @doc "Version index cap (Python MAX_VERSIONS)."
+  def max_versions, do: @max_versions
 
   @doc "Summarize a terraform state blob: serial/lineage/resource_count/tofu_version."
   @spec summarize_state(String.t()) :: map()
@@ -173,8 +177,8 @@ defmodule RadasAI.CloudState do
     end
   end
 
-  @doc "Take the lock: {:ok, lock} or {:denied, existing_lock}."
-  @spec acquire_lock(String.t(), keyword()) :: {:ok, map()} | {:denied, map()}
+  @doc "Take the lock (Python acquire_lock): %{\"ok\" => bool, \"lock\" => lock}."
+  @spec acquire_lock(String.t(), keyword()) :: map()
   def acquire_lock(data_dir, opts) do
     :global.set_lock({__MODULE__, data_dir})
 
@@ -182,7 +186,7 @@ defmodule RadasAI.CloudState do
       existing = read_lock(data_dir, Keyword.get(opts, :get_execution), Keyword.get(opts, :project_id))
 
       if existing do
-        {:denied, existing}
+        %{"ok" => false, "lock" => existing}
       else
         lock = %{
           "id" => :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower),
@@ -195,28 +199,38 @@ defmodule RadasAI.CloudState do
         }
 
         write_json(lock_file(data_dir), lock)
-        append_audit(data_dir, "lock.acquired", Keyword.get(opts, :actor) || "unknown", %{"operation" => lock["operation"], "run_id" => lock["run_id"], "lock_id" => lock["id"], "note" => lock["note"]})
-        {:ok, lock}
+
+        append_audit(data_dir, "lock.acquired", Keyword.get(opts, :actor) || "unknown", %{
+          "operation" => lock["operation"],
+          "run_id" => lock["run_id"],
+          "lock_id" => lock["id"],
+          "note" => lock["note"]
+        })
+
+        %{"ok" => true, "lock" => lock}
       end
     after
       :global.del_lock({__MODULE__, data_dir})
     end
   end
 
-  @doc "Release the lock; refuses on id mismatch unless force: true."
-  @spec release_lock(String.t(), keyword()) :: {:ok, boolean()} | {:error, String.t()}
+  @doc """
+  Release the lock; refuses on id mismatch unless force: true. Returns the
+  Python-shaped result map ({"ok", "released"?, "previous"?/"error"?}).
+  """
+  @spec release_lock(String.t(), keyword()) :: map()
   def release_lock(data_dir, opts \\ []) do
     path = lock_file(data_dir)
 
     if not File.exists?(path) do
-      {:ok, false}
+      %{"ok" => true, "released" => false}
     else
       lock = read_json(path, %{}) || %{}
       requested_id = Keyword.get(opts, :lock_id)
       force = Keyword.get(opts, :force, false)
 
       if requested_id && lock["id"] && requested_id != lock["id"] && not force do
-        {:error, "Lock id mismatch - pass force to break the lock."}
+        %{"ok" => false, "error" => "Lock id mismatch — pass force to break the lock."}
       else
         File.rm(path)
 
@@ -232,7 +246,7 @@ defmodule RadasAI.CloudState do
           }
         )
 
-        {:ok, true}
+        %{"ok" => true, "released" => true, "previous" => lock}
       end
     end
   end

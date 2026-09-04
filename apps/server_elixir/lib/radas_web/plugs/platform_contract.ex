@@ -116,5 +116,8 @@ defmodule RadasWeb.Plugs.PlatformContract do
     end
   end
 
+  # Phoenix json/2 renders IO data (Jason.encode_to_iodata!) — flatten first.
+  defp decode(body) when is_list(body), do: decode(IO.iodata_to_binary(body))
+
   defp decode(_), do: nil
 end

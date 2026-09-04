@@ -86,6 +86,63 @@ defmodule RadasWeb.Plugs.OrgAccess do
     end
   end
 
+  @doc """
+  Port of `auth/middleware.py::require_project_access`: the user must be a
+  member of the org owning the resolved project. Internal callers bypass;
+  no project context allows; unknown non-legacy projects are rejected
+  (cross-tenant traversal guard). Returns :ok or {:error, status, body}
+  where body mirrors the Python jsonify payload (error + message).
+  """
+  @spec ensure_project_access(Plug.Conn.t(), String.t() | nil) ::
+          :ok | {:error, integer(), map()}
+  def ensure_project_access(conn, project_id) do
+    user = conn.assigns[:current_user] || %{}
+
+    cond do
+      user["user_id"] == "__internal__" or user["username"] == "internal" ->
+        :ok
+
+      project_id in [nil, ""] ->
+        # No project context — non-project-scoped request.
+        :ok
+
+      true ->
+        org_id = org_id_of_project(project_id)
+
+        cond do
+          org_id in [nil, ""] and project_id not in ["default", "legacy", "_template"] ->
+            {:error, 403,
+             %{
+               "error" => "Project not found or not tenant-bound",
+               "message" =>
+                 "The project you tried to access does not exist or is not bound to an organization."
+             }}
+
+          org_id in [nil, ""] ->
+            :ok
+
+          not is_member?(org_id, user["user_id"]) ->
+            {:error, 403,
+             %{
+               "error" => "Access denied",
+               "message" => "You are not a member of the organization that owns this project."
+             }}
+
+          true ->
+            :ok
+        end
+    end
+  end
+
+  defp org_id_of_project(project_id) do
+    case query_one!("SELECT org_id FROM projects WHERE id = $1", [project_id]) do
+      %{"org_id" => org_id} -> org_id
+      nil -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
   @doc "Apply the check result to a conn: continue or send the error."
   @spec apply_or_send(Plug.Conn.t(), :ok | {:error, integer(), String.t()}) :: Plug.Conn.t() | no_return()
   def apply_or_send(conn, :ok), do: conn

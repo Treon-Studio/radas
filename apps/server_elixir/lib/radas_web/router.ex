@@ -5,6 +5,13 @@ defmodule RadasWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # /api/v2/cloud/stacks — JWT auth like Python's @require_project_access
+  # (project/org membership is checked per-request in the controller).
+  pipeline :v2_auth do
+    plug :accepts, ["json"]
+    plug RadasWeb.Plugs.Auth
+  end
+
   # /api/v1 — 9Router gateway surface (endpoint key or JWT auth).
   pipeline :gateway do
     plug :accepts, ["json"]
@@ -32,6 +39,26 @@ defmodule RadasWeb.Router do
     # Public evaluate — the Go worker calls this with its registry token and
     # Python ships it without @require_auth (worker/console contract).
     post "/flags/evaluate", FlagsController, :evaluate
+
+    # Cloud stacks (Phase 7): stack CRUD + state routes over the shared
+    # DATA_DIR layout and stack_meta jsonb (coexistence with Flask).
+    # Python guards these with @require_project_access — JWT + org
+    # membership on the resolved project (enforced in the controller).
+    scope "/v2/cloud/stacks" do
+      pipe_through :v2_auth
+
+      get "/", CloudStacksController, :list
+      post "/", CloudStacksController, :create
+      get "/:name", CloudStacksController, :show
+      put "/:name", CloudStacksController, :update
+      delete "/:name", CloudStacksController, :delete
+      get "/:name/state/overview", CloudStacksController, :state_overview
+      get "/:name/state/lock", CloudStacksController, :state_lock_get
+      post "/:name/state/lock", CloudStacksController, :state_lock_acquire
+      delete "/:name/state/lock", CloudStacksController, :state_lock_release
+      get "/:name/state/versions", CloudStacksController, :state_versions_list
+      post "/:name/state/versions", CloudStacksController, :state_versions_snapshot
+    end
 
     # SSO (env-gated; 503 when the provider is not configured).
     get "/auth/google/begin", AuthController, :google_begin

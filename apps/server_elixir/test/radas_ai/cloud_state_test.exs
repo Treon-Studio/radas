@@ -37,23 +37,27 @@ defmodule RadasAI.CloudStateTest do
   # -- locks ------------------------------------------------------------------
 
   test "acquire takes the lock; second acquire is denied with the existing lock" do
-    {:ok, lock} = CloudState.acquire_lock(@data_dir, actor: "w1", operation: "apply")
+    %{"ok" => true, "lock" => lock} = CloudState.acquire_lock(@data_dir, actor: "w1", operation: "apply")
     assert is_binary(lock["id"])
     assert lock["operation"] == "apply"
 
-    {:denied, existing} = CloudState.acquire_lock(@data_dir, actor: "w2", operation: "destroy")
+    %{"ok" => false, "lock" => existing} = CloudState.acquire_lock(@data_dir, actor: "w2", operation: "destroy")
     assert existing["who"] == "w1"
   end
 
   test "release honors lock id; force breaks it" do
-    {:ok, lock} = CloudState.acquire_lock(@data_dir, actor: "w1", operation: "apply")
+    %{"ok" => true, "lock" => lock} = CloudState.acquire_lock(@data_dir, actor: "w1", operation: "apply")
 
-    assert {:error, msg} = CloudState.release_lock(@data_dir, lock_id: "wrong")
+    assert %{"ok" => false, "error" => msg} = CloudState.release_lock(@data_dir, lock_id: "wrong")
     assert msg =~ "mismatch"
 
-    assert {:ok, true} = CloudState.release_lock(@data_dir, lock_id: lock["id"])
-    assert {:ok, lock2} = CloudState.acquire_lock(@data_dir, actor: "w2", operation: "apply")
-    assert {:ok, true} = CloudState.release_lock(@data_dir, lock_id: lock2["id"], force: true)
+    assert %{"ok" => true, "released" => true, "previous" => prev} =
+             CloudState.release_lock(@data_dir, lock_id: lock["id"])
+
+    assert prev["who"] == "w1"
+
+    %{"ok" => true, "lock" => lock2} = CloudState.acquire_lock(@data_dir, actor: "w2", operation: "apply")
+    assert %{"ok" => true, "released" => true} = CloudState.release_lock(@data_dir, lock_id: lock2["id"], force: true)
   end
 
   test "read_lock auto-releases when the owning execution finished" do
