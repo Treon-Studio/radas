@@ -49,6 +49,7 @@ defmodule RadasWeb.Router do
 
       # Literal single-segment paths must precede "/:name".
       get "/archived", CloudStacksController, :archived_list
+      get "/runs", CloudStacksController, :all_runs
       get "/ttl/expired", CloudStacksController, :ttl_expired
       post "/bulk-tags", CloudStacksController, :bulk_tags
 

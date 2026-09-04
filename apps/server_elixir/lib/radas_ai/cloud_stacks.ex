@@ -291,6 +291,26 @@ defmodule RadasAI.CloudStacks do
     _ -> %{}
   end
 
+  @doc "All TOFU_RUNs for a project, newest first (Python all_runs_list, cap 200)."
+  @spec all_tofu_runs(String.t() | nil) :: [map()]
+  def all_tofu_runs(project_id) do
+    rows =
+      query_all!(
+        """
+        SELECT data FROM executions
+        WHERE project_id = $1 AND data->'runParams'->>'execution_type' = 'TOFU_RUN'
+        ORDER BY created_at DESC LIMIT 200
+        """,
+        [project_id || "default"]
+      )
+
+    Enum.map(rows, fn row ->
+      exec_to_run(row["data"]) |> Map.put("mtime", trunc(row["data"]["createdAt"] || 0))
+    end)
+  rescue
+    _ -> []
+  end
+
   @doc "Map an execution record onto the console run shape (Python _exec_to_run)."
   @spec exec_to_run(map()) :: map()
   def exec_to_run(exe) do

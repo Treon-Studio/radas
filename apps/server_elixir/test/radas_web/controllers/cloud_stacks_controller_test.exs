@@ -955,6 +955,23 @@ defmodule RadasWeb.CloudStacksControllerTest do
     assert Jason.decode!(c.resp_body)["count"] == 1
   end
 
+  test "all runs aggregate joins stack info", %{conn: conn} do
+    create_stack(conn, "agg-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/agg-dev/actions", %{"action" => "plan"})
+
+    %{"run_id" => _} = Jason.decode!(c.resp_body)
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/runs", nil)
+    assert c.status == 200
+    runs = Jason.decode!(c.resp_body)["runs"]
+    entry = Enum.find(runs, &(&1["stack"] == "agg-dev"))
+    assert entry["action"] == "plan"
+    assert entry["env"] == "dev"
+    assert entry["provider"] == "bytedc"
+  end
+
   test "state overview reports state presence, lock and versions", %{conn: conn, data_dir: data_dir} do
     create_stack(conn, "ov-dev")
 

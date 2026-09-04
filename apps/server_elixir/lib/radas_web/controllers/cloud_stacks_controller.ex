@@ -800,6 +800,29 @@ defmodule RadasWeb.CloudStacksController do
     end)
   end
 
+  # -- all runs aggregate (Python all_runs_list — Provisioning Summary) ----------------
+
+  def all_runs(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      project_id = project_id(conn)
+
+      runs =
+        CloudStacks.all_tofu_runs(project_id)
+        |> Enum.map(fn run ->
+          stack = run["stack"]
+
+          if stack do
+            info = CloudStacks.stack_info(project_id, stack)
+            Map.merge(run, %{"env" => info["env"], "cloud_project" => info["cloud_project"], "provider" => info["provider"] || "bytedc"})
+          else
+            run
+          end
+        end)
+
+      json(conn, %{"runs" => runs})
+    end)
+  end
+
   # -- inventory (Python stacks_inventory) ----------------------------------------------
 
   def inventory(conn, %{"name" => name}) do
