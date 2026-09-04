@@ -206,6 +206,54 @@ defmodule RadasAI.WorkerRegistry do
     end
   end
 
+  @doc "Rotate a worker's registration token; returns the plaintext once."
+  @spec rotate_worker_token(String.t()) :: String.t() | nil
+  def rotate_worker_token(worker_id) do
+    case load_worker(worker_id) do
+      nil ->
+        nil
+
+      worker ->
+        plaintext_token = generate_token()
+        salt = generate_salt()
+
+        worker =
+          worker
+          |> Map.put("tokenHash", hash_token(plaintext_token, salt))
+          |> Map.put("tokenSalt", salt)
+          |> Map.put("lastTokenRotatedAt", RadasAI.DB.now())
+
+        if save_worker(worker) do
+          upsert_worker_token(worker_id, worker["tokenHash"], salt)
+          plaintext_token
+        else
+          nil
+        end
+    end
+  end
+
+  @doc "Enable/disable a worker; false when absent."
+  @spec set_worker_enabled(String.t(), boolean()) :: boolean()
+  def set_worker_enabled(worker_id, enabled) do
+    case load_worker(worker_id) do
+      nil -> false
+      worker -> save_worker(Map.put(worker, "enabled", enabled))
+    end
+  end
+
+  @doc "Delete a worker record; false when absent."
+  @spec delete_worker(String.t()) :: boolean()
+  def delete_worker(worker_id) do
+    file = Path.join(workers_dir(), worker_id <> ".json")
+
+    if File.exists?(file) do
+      File.rm(file)
+      true
+    else
+      false
+    end
+  end
+
   @doc "Whether a worker heartbeat is within `ttl_seconds` (Python is_worker_online)."
   @spec is_worker_online(String.t(), number()) :: boolean()
   def is_worker_online(worker_id, ttl_seconds \\ 60) do

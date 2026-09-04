@@ -532,8 +532,6 @@ defmodule RadasWeb.CloudStacksController do
   end
 
   defp stream_run_log(conn, project_id, _name, run_id, initial_status) do
-    final = MapSet.new(["SUCCESS", "FAILED", "CANCELED", "ERROR", "TIMEOUT", "STALLED"])
-
     stream =
       Stream.resource(
         fn -> {0, 0, initial_status} end,
@@ -920,6 +918,98 @@ defmodule RadasWeb.CloudStacksController do
         )
 
       json(conn, %{"count" => length(violations), "violations" => violations})
+    end)
+  end
+
+  # -- drift schedule + manual drift check (UC342, drift_routes.py) --------------------
+
+  def drift_schedule_get(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      meta = CloudStacks.load_meta(project_id, name)
+      json(conn, meta["drift_schedule"] || %{"enabled" => false, "cron" => nil, "alert_on_drift" => true})
+    end)
+  end
+
+  def drift_schedule_set(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      config = conn.body_params || %{}
+      enabled = !!config["enabled"]
+      cron = config["cron"]
+
+      cond do
+        enabled and cron in [nil, ""] ->
+          conn |> put_status(400) |> json(%{"error" => "cron expression required when enabled"})
+
+        cron != nil and not is_binary(cron) ->
+          conn |> put_status(400) |> json(%{"error" => "cron must be a string"})
+
+        enabled and cron != "" ->
+          # Validate the 5-field cron shape (UTC); apscheduler parity is
+          # best-effort — field ranges + step syntax.
+          unless valid_cron?(cron) do
+            conn |> put_status(400) |> json(%{"error" => "Invalid cron expression: #{cron}"})
+          else
+            schedule = %{
+              "enabled" => true,
+              "cron" => cron,
+              "alert_on_drift" => !!Map.get(config, "alert_on_drift", true),
+              "updated_at" => System.system_time(:second)
+            }
+
+            CloudStacks.save_meta(project_id, name, %{"drift_schedule" => schedule})
+            json(conn, %{"success" => true, "stack" => name, "schedule" => schedule})
+          end
+
+        true ->
+          schedule = %{
+            "enabled" => false,
+            "cron" => nil,
+            "alert_on_drift" => !!Map.get(config, "alert_on_drift", true),
+            "updated_at" => System.system_time(:second)
+          }
+
+          CloudStacks.save_meta(project_id, name, %{"drift_schedule" => schedule})
+          json(conn, %{"success" => true, "stack" => name, "schedule" => schedule})
+      end
+    end)
+  end
+
+  # Best-effort 5-field cron shape validation (apscheduler parity).
+  defp valid_cron?(cron) do
+    fields = String.split(cron, " ", trim: true)
+    length(fields) == 5 and Enum.all?(fields, &cron_field_ok?/1)
+  end
+
+  defp cron_field_ok?(f) do
+    case String.split(f, "/", parts: 2) do
+      [base] -> cron_base_ok?(base)
+      [base, step] -> cron_base_ok?(base) and Regex.match?(~r/^\d+$/, step)
+      _ -> false
+    end
+  end
+
+  defp cron_base_ok?("*"), do: true
+
+  defp cron_base_ok?(f) do
+    Enum.all?(String.split(f, ","), fn part ->
+      case String.split(part, "-", parts: 2) do
+        [a] -> Regex.match?(~r/^\d+$/, a)
+        [a, b] -> Regex.match?(~r/^\d+$/, a) and Regex.match?(~r/^\d+$/, b)
+        _ -> false
+      end
+    end)
+  end
+
+  def drift_check(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      try do
+        run_id =
+          CloudStacks.create_execution(project_id, name, "drift", triggered_by: "manual_drift_check")
+
+        json(conn, %{"status" => "queued", "stack" => name, "run_id" => run_id})
+      rescue
+        e -> conn |> put_status(500) |> json(%{"error" => Exception.message(e)})
+      end
     end)
   end
 

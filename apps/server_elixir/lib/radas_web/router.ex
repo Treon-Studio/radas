@@ -31,6 +31,9 @@ defmodule RadasWeb.Router do
     get "/elixir/health", HealthController, :show
     post "/elixir/echo", EchoController, :create
 
+    # Lightweight readiness probe (Python misc_routes.api_health; Docker + workers).
+    get "/health", HealthController, :misc_health
+
     # Legacy auth namespace (Phase 2): flat {success, ...} bodies, public.
     post "/auth/login", AuthController, :login
     post "/auth/refresh", AuthController, :refresh
@@ -39,6 +42,26 @@ defmodule RadasWeb.Router do
     # Public evaluate — the Go worker calls this with its registry token and
     # Python ships it without @require_auth (worker/console contract).
     post "/flags/evaluate", FlagsController, :evaluate
+
+    # Ontology read-only routes (semantic contract for desktop/console).
+    get "/ontology", OntologyController, :show
+    get "/ontology/alerts", OntologyController, :alerts
+
+    # Admin worker management (api/admin_routes.py).
+    scope "/admin/workers" do
+      pipe_through :legacy_auth
+
+      get "/", AdminWorkersController, :list
+      post "/", AdminWorkersController, :create
+      get "/:worker_id", AdminWorkersController, :show
+      patch "/:worker_id", AdminWorkersController, :update
+      delete "/:worker_id", AdminWorkersController, :delete
+      post "/:worker_id/rotate-token", AdminWorkersController, :rotate_token
+      post "/:worker_id/enable", AdminWorkersController, :enable
+      post "/:worker_id/disable", AdminWorkersController, :disable
+      post "/:worker_id/request-info", AdminWorkersController, :request_info
+      get "/:worker_id/runs", AdminWorkersController, :runs
+    end
 
     # Cloud stacks (Phase 7): stack CRUD + state routes over the shared
     # DATA_DIR layout and stack_meta jsonb (coexistence with Flask).
@@ -72,6 +95,9 @@ defmodule RadasWeb.Router do
       put "/:name/state/backend", CloudStacksController, :state_backend_put
       get "/:name/drift", CloudStacksController, :drift_get
       put "/:name/drift", CloudStacksController, :drift_set
+      post "/:name/drift-check", CloudStacksController, :drift_check
+      get "/:name/drift-schedule", CloudStacksController, :drift_schedule_get
+      put "/:name/drift-schedule", CloudStacksController, :drift_schedule_set
       get "/:name/runs", CloudStacksController, :runs_list
       get "/:name/runs/:run_id", CloudStacksController, :run_get
       get "/:name/runs/:run_id/stream", CloudStacksController, :run_stream
@@ -102,6 +128,81 @@ defmodule RadasWeb.Router do
       put "/:name/pin", CloudStacksController, :pin_set
       post "/:name/archive", CloudStacksController, :archive
       post "/:name/restore", CloudStacksController, :restore
+    end
+
+    # Legacy /api/cloud/* aliases (cloud_provisioning bp url_prefix="/api/cloud";
+    # the Go CLI's remote commands target these). The /api/v2 mirrors share
+    # the same handlers — runtime bodies are identical.
+    scope "/cloud" do
+      pipe_through :v2_auth
+
+      get "/providers", CloudStacksController, :providers_list
+      get "/bytedc/schema", CloudStacksController, :bytedc_schema
+      get "/:provider/schema", CloudStacksController, :provider_schema
+      get "/dependencies/graph", CloudStacksController, :dependency_graph
+      post "/scan-plan", CloudStacksController, :scan_plan
+      get "/executions/:execution_id/comments", CloudStacksController, :comments_list
+      post "/executions/:execution_id/comments", CloudStacksController, :comments_add
+      get "/policy/violations", CloudStacksController, :policy_violations
+
+      scope "/stacks" do
+        get "/archived", CloudStacksController, :archived_list
+        get "/ttl/expired", CloudStacksController, :ttl_expired
+        post "/bulk-tags", CloudStacksController, :bulk_tags
+        get "/runs", CloudStacksController, :all_runs
+
+        get "/", CloudStacksController, :list
+        post "/", CloudStacksController, :create
+        get "/:name", CloudStacksController, :show
+        put "/:name", CloudStacksController, :update
+        delete "/:name", CloudStacksController, :delete
+        post "/:name/actions", CloudStacksController, :stack_action
+        get "/:name/inventory", CloudStacksController, :inventory
+        get "/:name/protection", CloudStacksController, :protection_get
+        post "/:name/protection", CloudStacksController, :protection_set
+        post "/:name/force-unlock", CloudStacksController, :force_unlock
+        get "/:name/drift", CloudStacksController, :drift_get
+        put "/:name/drift", CloudStacksController, :drift_set
+        post "/:name/drift-check", CloudStacksController, :drift_check
+        get "/:name/drift-schedule", CloudStacksController, :drift_schedule_get
+        put "/:name/drift-schedule", CloudStacksController, :drift_schedule_set
+        get "/:name/runs", CloudStacksController, :runs_list
+        get "/:name/runs/:run_id", CloudStacksController, :run_get
+        get "/:name/runs/:run_id/stream", CloudStacksController, :run_stream
+        get "/:name/state", CloudStacksController, :state_inspect
+        get "/:name/state/overview", CloudStacksController, :state_overview
+        get "/:name/state/lock", CloudStacksController, :state_lock_get
+        post "/:name/state/lock", CloudStacksController, :state_lock_acquire
+        delete "/:name/state/lock", CloudStacksController, :state_lock_release
+        get "/:name/state/versions", CloudStacksController, :state_versions_list
+        post "/:name/state/versions", CloudStacksController, :state_versions_snapshot
+        get "/:name/state/versions/:version_id", CloudStacksController, :state_version_get
+        post "/:name/state/versions/:version_id/rollback", CloudStacksController, :state_version_rollback
+        get "/:name/state/audit", CloudStacksController, :state_audit
+        get "/:name/state/backend", CloudStacksController, :state_backend_get
+        put "/:name/state/backend", CloudStacksController, :state_backend_put
+        get "/:name/policy", CloudStacksController, :policy_get
+        put "/:name/policy", CloudStacksController, :policy_set
+        get "/:name/dependencies", CloudStacksController, :dependencies_get
+        post "/:name/dependencies", CloudStacksController, :dependencies_set
+        put "/:name/dependencies", CloudStacksController, :dependencies_set
+        get "/:name/ttl", CloudStacksController, :ttl_get
+        post "/:name/ttl", CloudStacksController, :ttl_set
+        put "/:name/ttl", CloudStacksController, :ttl_set
+        get "/:name/circuit-breaker", CloudStacksController, :circuit_breaker_get
+        post "/:name/circuit-breaker/reset", CloudStacksController, :circuit_breaker_reset
+        get "/:name/config/export", CloudStacksController, :config_export
+        post "/:name/config/import", CloudStacksController, :config_import
+        get "/:name/timeout", CloudStacksController, :timeout_get
+        post "/:name/timeout", CloudStacksController, :timeout_set
+        put "/:name/timeout", CloudStacksController, :timeout_set
+        get "/:name/cooldown", CloudStacksController, :cooldown_get
+        get "/:name/pin", CloudStacksController, :pin_get
+        post "/:name/pin", CloudStacksController, :pin_set
+        put "/:name/pin", CloudStacksController, :pin_set
+        post "/:name/archive", CloudStacksController, :archive
+        post "/:name/restore", CloudStacksController, :restore
+      end
     end
 
     # Provider catalog + wizard schemas (Python list_providers / *_schema).
