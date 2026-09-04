@@ -1,0 +1,13 @@
+{
+  "changelog": [],
+  "dependencies": [],
+  "description": "VPC + subnet + router + security group dasar (Hetzner)",
+  "name": "vpc-clone",
+  "tags": [
+    "network",
+    "vpc",
+    "hetzner"
+  ],
+  "type": "tofu-block",
+  "version": "1.0.0"
+}

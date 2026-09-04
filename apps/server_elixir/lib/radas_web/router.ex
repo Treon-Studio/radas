@@ -77,6 +77,67 @@ defmodule RadasWeb.Router do
     get "/audit/search", AuditLogController, :search
     post "/audit/prune", AuditLogController, :prune
 
+    # Code registry (api/code_registry_routes.py; UC 382+, UC 661–666).
+    scope "/registry" do
+      pipe_through :v2_auth
+
+      get "/", CodeRegistryController, :catalog
+      get "/installed", CodeRegistryController, :installed
+      post "/import", CodeRegistryController, :item_import
+      post "/publish", CodeRegistryController, :publish
+      post "/sync-git", CodeRegistryController, :sync_git
+      get "/stacks/:stack/items/:name/diff", CodeRegistryController, :diff
+      post "/stacks/:stack/items/:name/update", CodeRegistryController, :update
+      get "/:name", CodeRegistryController, :item_show
+      get "/:name/changelog", CodeRegistryController, :item_changelog
+      get "/:name/export", CodeRegistryController, :item_export
+      post "/:name/install", CodeRegistryController, :install
+      post "/:name/uninstall", CodeRegistryController, :uninstall
+    end
+
+    # Compliance scorecard/report/export (api/compliance_routes.py).
+    scope "/compliance" do
+      pipe_through :v2_auth
+
+      get "/scorecard", ComplianceController, :scorecard
+      get "/report", ComplianceController, :report
+      get "/export", ComplianceController, :export
+    end
+
+    # User invitations (api/user_invite_routes.py; UC625). Claim/get stay
+    # public — the invitee has no account yet (Python parity).
+    scope "/users/invites" do
+      pipe_through :legacy_auth
+
+      post "/", UserInvitesController, :create
+      get "/", UserInvitesController, :list
+    end
+
+    get "/users/invites/:token", UserInvitesController, :show
+    post "/users/invites/:token/claim", UserInvitesController, :claim
+    delete "/users/invites/:token", UserInvitesController, :revoke
+
+    # Test cases (api/test_case_routes.py; UC 161+, UC202).
+    scope "/tests" do
+      pipe_through :v2_auth
+
+      get "/catalog", TestCasesController, :catalog
+      post "/validate", TestCasesController, :validate
+      get "/", TestCasesController, :list
+      post "/", TestCasesController, :create
+      get "/:test_id", TestCasesController, :show
+      patch "/:test_id", TestCasesController, :update
+      delete "/:test_id", TestCasesController, :delete
+      post "/:test_id/clone", TestCasesController, :clone
+      post "/:test_id/run", TestCasesController, :run
+      post "/:test_id/tofu-test", TestCasesController, :tofu_test
+      get "/:test_id/versions", TestCasesController, :versions
+      post "/:test_id/versions/:version/rollback", TestCasesController, :rollback
+      get "/:test_id/history", TestCasesController, :history
+    end
+
+    get "/test-cases/score", TestCasesController, :score
+
     # Ontology read-only routes (semantic contract for desktop/console).
     get "/ontology", OntologyController, :show
     get "/ontology/alerts", OntologyController, :alerts
