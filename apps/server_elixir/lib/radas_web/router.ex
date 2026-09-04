@@ -43,6 +43,16 @@ defmodule RadasWeb.Router do
     # Python ships it without @require_auth (worker/console contract).
     post "/flags/evaluate", FlagsController, :evaluate
 
+    # Platform project list/create (projects_routes.py) + queue view.
+    scope "/projects" do
+      pipe_through :legacy_auth
+
+      get "/", ProjectsController, :list
+      post "/", ProjectsController, :create
+    end
+
+    get "/queue", QueueController, :show
+
     # Approval workflow (api/approval_routes.py; UC 50/68/72).
     scope "/approvals" do
       pipe_through :legacy_auth

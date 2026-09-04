@@ -41,8 +41,6 @@ defmodule RadasCliRouteParityTest do
       {"/api/tests", "apps/server/services/test_cases.py (1061 LOC)"},
       {"/api/test-cases", "apps/server/services/test_cases.py (1061 LOC)"},
       {"/api/registry", "apps/server/api/code_registry_routes.py"},
-      {"/api/queue", "apps/server/api/queue_search_routes.py (489 LOC)"},
-      {"/api/projects", "apps/server/api/projects_routes.py (487 LOC)"},
       {"/api/users/invites", "apps/server/api (user invites)"}
     ]
 
