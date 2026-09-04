@@ -21,9 +21,17 @@ defmodule RadasWeb.LongTailServicesTest do
     data_dir = Path.join(System.tmp_dir!(), "radas-lt-#{System.unique_integer()}")
     System.put_env("DATA_DIR", data_dir)
 
+    # Isolate the code registry: copy the tracked catalog into a temp
+    # REGISTRY_DIR so import/publish tests never pollute the repo tree.
+    registry_dir = Path.join(data_dir, "registry")
+    File.mkdir_p!(data_dir)
+    File.cp_r!(Path.expand(Path.join([File.cwd!(), "priv", "registry"])), registry_dir)
+    System.put_env("REGISTRY_DIR", registry_dir)
+
     on_exit(fn ->
       System.delete_env("JWT_SECRET_KEY")
       System.delete_env("GLOBAL_SECRETS_ENCRYPTION_KEY")
+      System.delete_env("REGISTRY_DIR")
       System.delete_env("DATA_DIR")
       File.rm_rf!(data_dir)
     end)
