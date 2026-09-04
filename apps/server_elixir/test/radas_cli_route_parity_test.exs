@@ -37,8 +37,6 @@ defmodule RadasCliRouteParityTest do
     # commit that ports its service (Phase 8 long-tail ledger, see
     # docs/architecture/elixir-phase8-notes.md).
     deferred = [
-      {"/api/approvals", "apps/server/services/approval_service.py (447 LOC)"},
-      {"/api/audit", "apps/server/api/audit_log_routes.py"},
       {"/api/compliance/report", "apps/server/api/compliance_routes.py"},
       {"/api/tests", "apps/server/services/test_cases.py (1061 LOC)"},
       {"/api/test-cases", "apps/server/services/test_cases.py (1061 LOC)"},

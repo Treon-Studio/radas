@@ -43,6 +43,30 @@ defmodule RadasWeb.Router do
     # Python ships it without @require_auth (worker/console contract).
     post "/flags/evaluate", FlagsController, :evaluate
 
+    # Approval workflow (api/approval_routes.py; UC 50/68/72).
+    scope "/approvals" do
+      pipe_through :legacy_auth
+
+      get "/", ApprovalsController, :list
+      post "/", ApprovalsController, :create
+      post "/:approval_id/approve", ApprovalsController, :approve
+      post "/:approval_id/reject", ApprovalsController, :reject
+    end
+
+    # Audit log surface (api/audit_log_routes.py; UC620/UC621).
+    scope "/audit-log" do
+      pipe_through :legacy_auth
+
+      get "/", AuditLogController, :list
+      get "/export", AuditLogController, :export
+      get "/search", AuditLogController, :search
+      post "/prune", AuditLogController, :prune
+    end
+
+    get "/audit/export", AuditLogController, :export
+    get "/audit/search", AuditLogController, :search
+    post "/audit/prune", AuditLogController, :prune
+
     # Ontology read-only routes (semantic contract for desktop/console).
     get "/ontology", OntologyController, :show
     get "/ontology/alerts", OntologyController, :alerts
