@@ -42,7 +42,7 @@ createdb radas && createdb radas_test
 
 ```bash
 # schema dibuat otomatis saat boot (pg_schema.migrate())
-cd apps/server
+cd apps/server_elixir
 DATABASE_URL=postgresql://localhost/radas .venv/bin/python app.py
 ```
 
@@ -51,7 +51,7 @@ DATABASE_URL=postgresql://localhost/radas .venv/bin/python app.py
 Backup `data/` dulu, lalu:
 
 ```bash
-cd apps/server
+cd apps/server_elixir
 DATABASE_URL=postgres://… .venv/bin/python scripts/migrate_legacy.py --data-dir data
 ```
 
@@ -61,7 +61,7 @@ mengisinya ke PG. Idempotent (skip bila sudah terisi; `--force` untuk ulang).
 ## Testing
 
 ```bash
-cd apps/server
+cd apps/server_elixir
 # test memakai TEST_DATABASE_URL (default postgresql://localhost/radas_test);
 # schema di-reset per test.
 .venv/bin/python -m pytest tests/ -q

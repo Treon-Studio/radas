@@ -84,7 +84,7 @@ Sama seperti lokal — `pnpm dev:radas` atau pm2 di VPS:
 ```bash
 cd /path/to/radas
 pnpm install
-cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd apps/server_elixir && mix deps.get
 # set .env: DATABASE_URL (Neon) + JWT_SECRET_KEY kuat + CORS_ALLOWED_ORIGINS
 pm2 start ecosystem.config.cjs
 ```

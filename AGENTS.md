@@ -6,17 +6,19 @@ Re-check after pulling — the repo is in active transition.
 
 ## Repo state (read first)
 
-- **Real app tree:** `apps/` = `cli`, `console`, `desktop-app`, `server`,
+- **Real app tree:** `apps/` = `cli`, `console`, `desktop-app`,
   `server_elixir`, `worker` (+ a `data/` runtime dir). There is **no**
   `apps/dashboard`, `apps/extension`, `apps/site`, `apps/homepage`, or
   `apps/opensible-*`. The Chrome extension was removed (commit `4feaf59d`);
   `MIGRATION_GUIDE.md` is retired in place with a banner.
-- **The API backend is `apps/server_elixir/` (Phoenix/Elixir).** Phase 8 of
-  the Elixir migration flipped CI, docker-compose, pm2 and the nginx router
-  to Phoenix; the Flask tree `apps/server/` is **retired in place** — a
-  behavioral reference only. Do not add features there and do not point
-  infrastructure at it (`tests/test_repo_paths.py` guards workflows).
-  Older docs may say `apps/opensible-server` — also retired.
+- **The API backend is `apps/server_elixir/` (Phoenix/Elixir).** The Elixir
+  migration is COMPLETE: Phase 8 flipped CI, docker-compose, pm2 and the
+  nginx router to Phoenix and **physically removed the Flask tree
+  `apps/server/`**. Every remote CLI command in
+  `contracts/cli-route-manifest.json` maps to a served Phoenix route
+  (`RadasCliRouteParityTest`). Older docs may say `apps/opensible-server`
+  or `apps/server` — both retired; `tests/test_repo_paths.py` rejects
+  reintroductions.
 - **No `modules/` directory.** Shared TypeScript lives in `packages/`.
 - **Contract artifacts are authoritative:** `contracts/radas-api-v2.openapi.json`
   (historical served snapshot — the byte-pin gate retired with Flask;
@@ -50,9 +52,6 @@ apps/
   console/      @radas/console (Vite + React 19 console; vitest + jsdom).
                 Run: pnpm --filter @radas/console dev (port 8080).
   desktop-app/  @radas/desktop-app.
-  server/       RETIRED Flask control plane (Python 3.14) — behavioral
-                reference during the Phase 8 long-tail parity cleanup. Do not
-                add features; do not route infra here.
   server_elixir/  Phoenix control plane (the API backend). Setup:
                 cd apps/server_elixir && mix deps.get && mix ecto.setup
                 Run: mix phx.server (port 4000).
@@ -91,15 +90,14 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
   RadasOntologyParityTest), `bash scripts/check-elixir-contract.sh` (smoke
   against a running server), `pytest tests/test_repo_paths.py` (repo guards),
   `bash scripts/check-sensitive-paths-elixir.sh`.
-  Legacy Flask reference (retired): its venv tests still run with
-  `TEST_DATABASE_URL=sqlite:///:memory:` if a behavioral comparison is
-  needed; do not run two pytest processes concurrently.
+- **Repo layout integrity:** `python3 tests/test_repo_paths.py` (stdlib,
+  no venv needed; also runs under pytest).
 - **Worker (Go):** `cd apps/worker && go test ./...`.
 - **Console:** `cd apps/console && pnpm typecheck && pnpm test && pnpm build`.
 - **Cross-client contract gate:** `bash scripts/run-cross-client-contracts.sh`
   (mode a offline; `RUN_FULL_CONTRACT=1` + `RADAS_TEST_*` for live-server
   legs). Runs in CI as the `cross-client-contracts` job.
-- **Repo layout integrity:** `pytest tests/test_repo_paths.py`.
+
 - **Radas stack (local dev via pm2):** `pnpm dev:radas` / `:stop` / `:restart`
   (see `ecosystem.config.cjs`). macOS note: port 5000 is AirPlay; the server
   defaults to 5001.
@@ -162,11 +160,10 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 ## Database
 
-- **Selalu PostgreSQL.** `DATABASE_URL` wajib; skema di-manage oleh
-  migrasi Python versi `schema_migrations` (historis, lihat
-  `apps/server/storage/pg_schema.py`) + Ecto migration di
-  `apps/server_elixir/priv/repo/migrations/` (tracking table
-  `ecto_migrations`); jangan buat tabel manual di luar itu.
+- **Selalu PostgreSQL.** `DATABASE_URL` wajib; skema di-manage oleh Ecto
+  migration di `apps/server_elixir/priv/repo/migrations/` (tracking table
+  `ecto_migrations`) + historical Python `schema_migrations` rows; jangan
+  buat tabel manual di luar itu.
 - Akses via `RadasAI.DB` helpers (`query_one!/query_all!/execute!`) dan
   `Radas.Repo` (Ecto) di apps/server_elixir; JSONB needs explicit
   `$n::jsonb`/`::text::jsonb` casts in raw SQL.

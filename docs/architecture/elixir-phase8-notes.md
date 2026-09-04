@@ -1,7 +1,24 @@
-# Elixir Migration — Phase 8 Ledger (Flask Decommission)
+# Elixir Migration — Phase 8 Ledger (Flask Decommission) — COMPLETE
 
 Status per 2026-09-04, branch `feat/elixir-migration-phase0`.
-Suite 338 ExUnit green; smoke / path-guards / sensitive-path gates pass.
+Suite 344 ExUnit green; smoke / path-guards / sensitive-path gates pass.
+
+## FINAL STATE: `apps/server/` HAS BEEN PHYSICALLY REMOVED
+
+The exit criteria below are all met:
+
+1. ✅ Deferred parity ledger empty — every remote CLI command in
+   `contracts/cli-route-manifest.json` maps to a served Phoenix route
+   (`RadasCliRouteParityTest` has no deferred entries).
+2. ✅ No active references — `.github/`, `scripts/`, `ecosystem.config.cjs`,
+   `AGENTS.md` point exclusively at `apps/server_elixir`.
+3. ✅ Phoenix-only topology — router/nginx, docker-compose
+   (`apps/server_elixir/docker-compose.yml`), pm2 and image builds
+   (`build-images.yml` → opensible-phoenix) carry no Flask leg.
+4. ✅ `git rm -r apps/server` done (including the `apps/server/IaC`
+   submodule pointer); `tests/test_repo_paths.py` guards against
+   reintroduction ("apps/server/" is a retired prefix) and its runner is
+   now stdlib-only (`python3 tests/test_repo_paths.py`).
 
 ## What the cutover did
 

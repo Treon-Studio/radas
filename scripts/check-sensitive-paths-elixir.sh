@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Static checks for sensitive-path patterns in the Elixir server tree.
 #
-# Port of apps/server/scripts/check_sensitive_paths.py (Python-AST rules do
-# not apply to Elixir; these are the equivalents for the new codebase):
+# Historical provenance: the retired Flask check_sensitive_paths.py
+# (Python-AST rules; ported as the Elixir equivalents below):
 #
 # - SP001E  shell execution through a single interpolated string:
 #           System.cmd/3 / System.shell/1 with an interpolated command
