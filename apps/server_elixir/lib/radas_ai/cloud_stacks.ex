@@ -771,8 +771,17 @@ defmodule RadasAI.CloudStacks do
       }
       |> merge_run_params(extra_run_params)
 
-    # Policy config rides on runParams when the stack opted in (Phase 7-d
-    # ports cloud_policy; disabled by default so the default path matches).
+    # Policy config rides on runParams when the stack opted in
+    # (Python _create_execution; cloud_policy engine runs worker-side).
+    run_params =
+      if RadasAI.CloudPolicy.policy_enabled_from_meta(load_meta(project_id, stack)) and
+           action in ["plan", "apply", "destroy"] do
+        meta = load_meta(project_id, stack)
+        Map.put(run_params, "policy", RadasAI.CloudPolicy.policy_config_from_meta(meta))
+      else
+        run_params
+      end
+
     worker_id = worker_id || autoselect_local_worker()
 
     {run_params, worker_id} =

@@ -95,6 +95,8 @@ defmodule RadasWeb.Router do
       post "/:name/timeout", CloudStacksController, :timeout_set
       put "/:name/timeout", CloudStacksController, :timeout_set
       get "/:name/cooldown", CloudStacksController, :cooldown_get
+      get "/:name/policy", CloudStacksController, :policy_get
+      put "/:name/policy", CloudStacksController, :policy_set
       get "/:name/pin", CloudStacksController, :pin_get
       post "/:name/pin", CloudStacksController, :pin_set
       put "/:name/pin", CloudStacksController, :pin_set
@@ -110,6 +112,7 @@ defmodule RadasWeb.Router do
       get "/bytedc/schema", CloudStacksController, :bytedc_schema
       get "/:provider/schema", CloudStacksController, :provider_schema
       get "/dependencies/graph", CloudStacksController, :dependency_graph
+      get "/policy/violations", CloudStacksController, :policy_violations
       post "/scan-plan", CloudStacksController, :scan_plan
       get "/executions/:execution_id/comments", CloudStacksController, :comments_list
       post "/executions/:execution_id/comments", CloudStacksController, :comments_add

@@ -17,6 +17,7 @@ defmodule RadasWeb.CloudStacksController do
 
   alias RadasAI.AuditEvents
   alias RadasAI.CloudInventory
+  alias RadasAI.CloudPolicy
   alias RadasAI.CloudProviders
   alias RadasAI.StackGovernance
   alias RadasAI.CloudStacks
@@ -859,6 +860,66 @@ defmodule RadasWeb.CloudStacksController do
       else
         json(conn, Map.merge(CloudInventory.empty(state_present), %{"message" => "No inventory yet. Run Apply to provision resources."}))
       end
+    end)
+  end
+
+  # -- policy-as-code gate (services/cloud_policy.py) ------------------------------------
+
+  def policy_get(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      json(conn, CloudPolicy.policy_payload(project_id, name))
+    end)
+  end
+
+  def policy_set(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      body = conn.body_params || %{}
+      patch = %{}
+
+      patch =
+        if Map.has_key?(body, "enabled") do
+          enabled = body["enabled"]
+
+          enabled =
+            if is_binary(enabled),
+              do: String.trim(String.downcase(enabled)) in ["1", "true", "yes", "on"],
+              else: enabled
+
+          if not is_boolean(enabled) do
+            throw({:bad_enabled, conn})
+          else
+            Map.put(patch, "policy_enabled", enabled)
+          end
+        else
+          patch
+        end
+
+      patch =
+        if is_map(body["policy"]), do: Map.put(patch, "policy_rules", CloudPolicy.sanitize_policy(body["policy"])), else: patch
+
+      CloudStacks.save_meta(project_id, name, patch)
+      json(conn, Map.merge(%{"ok" => true}, CloudPolicy.policy_payload(project_id, name)))
+    end)
+  catch
+    {:bad_enabled, conn} -> conn |> put_status(400) |> json(%{"error" => "'enabled' must be a boolean."})
+  end
+
+  def policy_violations(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      limit =
+        case Integer.parse(conn.query_params["limit"] || "100") do
+          {n, _} -> n
+          :error -> 100
+        end
+
+      violations =
+        CloudPolicy.query_policy_violations(project_id(conn),
+          stack: conn.query_params["stack"],
+          severity: conn.query_params["severity"],
+          limit: limit
+        )
+
+      json(conn, %{"count" => length(violations), "violations" => violations})
     end)
   end
 

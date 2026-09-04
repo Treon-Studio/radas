@@ -972,6 +972,90 @@ defmodule RadasWeb.CloudStacksControllerTest do
     assert entry["provider"] == "bytedc"
   end
 
+  test "policy gate: default payload, configure, violations, exemptions", %{conn: conn} do
+    create_stack(conn, "pol-dev")
+
+    # Default payload: disabled, warn mode, deny_public_ingress on.
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/pol-dev/policy", nil)
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["enabled"] == false
+    assert body["policy"]["mode"] == "warn"
+    assert body["policy"]["rules"]["deny_public_ingress"]["enabled"] == true
+    assert body["last_result"] == nil
+
+    # Enable + customize.
+    c =
+      dispatch(conn, @endpoint, :put, "/api/v2/cloud/stacks/pol-dev/policy", %{
+        "enabled" => true,
+        "policy" => %{
+          "mode" => "enforce",
+          "rules" => %{
+            "max_created" => %{"enabled" => true, "limit" => 10},
+            "deny_public_ingress" => %{"enabled" => true, "ports" => [22, 3389, 99999]}
+          },
+          "custom_rules" => [
+            %{"name" => "No Huge Disks", "attribute" => "size_gb", "operator" => "gt", "value" => "500", "severity" => "deny"},
+            %{"name" => "Bad Regex", "operator" => "matches", "value" => "([", "attribute" => "name"}
+          ]
+        }
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["enabled"] == true
+    assert body["policy"]["mode"] == "enforce"
+    assert body["policy"]["rules"]["max_created"]["limit"] == 10
+    # Invalid port dropped; invalid-regex custom rule dropped.
+    assert body["policy"]["rules"]["deny_public_ingress"]["ports"] == [22, 3389]
+    assert length(body["policy"]["custom_rules"]) == 1
+    assert hd(body["policy"]["custom_rules"])["id"] == "no-huge-disks"
+
+    # runParams carry the policy config for gated actions.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/pol-dev/actions", %{"action" => "plan"})
+
+    assert c.status == 202
+    %{"run_id" => run_id} = Jason.decode!(c.resp_body)
+    exe = RadasAI.Executions.get_execution(run_id, @project)
+    pol = exe["runParams"]["policy"]
+    assert pol["mode"] == "enforce"
+    assert pol["rules"]["max_created"]["limit"] == 10
+
+    # Violations store: record + query with filters.
+    RadasAI.CloudPolicy.record_policy_violations(@project, "pol-dev", run_id, [
+      %{"rule" => "max_created", "severity" => "warn", "message" => "too many", "resource" => "vm"},
+      %{"rule" => "deny_public_ingress", "severity" => "deny", "message" => "port open", "resource" => "sg"}
+    ])
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/policy/violations?stack=pol-dev", nil)
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["count"] == 2
+
+    c =
+      dispatch(
+        conn,
+        @endpoint,
+        :get,
+        "/api/v2/cloud/policy/violations?stack=pol-dev&severity=deny"
+      )
+
+    assert Jason.decode!(c.resp_body)["count"] == 1
+
+    # Exemptions: create → exempt → list.
+    assert RadasAI.CloudPolicy.rule_exempted?(@project, "pol-dev", "max_created") == false
+
+    RadasAI.CloudPolicy.create_policy_exemption(@project, "pol-dev", "max_created", "approved by infra",
+      requested_by: "byoc-user", ttl_seconds: 3600
+    )
+
+    assert RadasAI.CloudPolicy.rule_exempted?(@project, "pol-dev", "max_created") == true
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/pol-dev/policy", nil)
+    assert is_map(Jason.decode!(c.resp_body)["policy"])
+  end
+
   test "state overview reports state presence, lock and versions", %{conn: conn, data_dir: data_dir} do
     create_stack(conn, "ov-dev")
 
