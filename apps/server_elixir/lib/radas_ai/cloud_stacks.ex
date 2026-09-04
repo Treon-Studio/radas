@@ -10,8 +10,10 @@ defmodule RadasAI.CloudStacks do
   import RadasAI.DB
 
   alias RadasAI.CloudProviders
+  alias RadasAI.ExecutionHistory
   alias RadasAI.ProjectPaths
   alias RadasAI.SecretEncryption
+  alias RadasAI.StackSnapshots
 
   @name_re ~r/^[a-z0-9][a-z0-9_-]{2,49}$/
 
@@ -638,6 +640,102 @@ defmodule RadasAI.CloudStacks do
       "bucket = \"REPLACE_ME_TFSTATE_BUCKET\"\n" <>
       "key    = \"cloud-provisioning/#{stack}.tfstate\"\n" <>
       "region = \"\"\n"
+  end
+
+  # ---------------------------------------------------------------------------
+  # TOFU execution enqueue (Python _create_execution — dispatched to workers)
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Enqueue a TOFU_RUN execution that any online worker can claim (Python
+  _create_execution): refresh IaC assets, load decrypted secrets into
+  runParams, autoselect an online local/default worker when none is
+  targeted, snapshot pre-apply state, and create the execution record.
+  Returns the execution id.
+  """
+  @spec create_execution(String.t() | nil, String.t(), String.t(), keyword()) :: String.t()
+  def create_execution(project_id, stack, action, opts \\ []) do
+    worker_id = Keyword.get(opts, :worker_id)
+    triggered_by = Keyword.get(opts, :triggered_by)
+    triggered_by_user_id = Keyword.get(opts, :triggered_by_user_id)
+    priority = Keyword.get(opts, :priority, 0)
+    extra_run_params = Keyword.get(opts, :extra_run_params)
+
+    provider = load_meta(project_id, stack)["provider"] || "bytedc"
+    sync_iac_assets(project_id, provider)
+    sd = stack_dir(project_id, stack)
+    secrets_map = load_secrets(project_id, stack)
+
+    run_params =
+      %{
+        "execution_type" => "TOFU_RUN",
+        "tofu_action" => action,
+        "stack_name" => stack,
+        "stack_dir" => sd,
+        "project_id" => project_id,
+        "provider" => provider,
+        "secrets" => secrets_map,
+        "secret_keys" => CloudProviders.secret_keys_for(provider),
+        "env" => %{"TF_IN_AUTOMATION" => "1"}
+      }
+      |> merge_run_params(extra_run_params)
+
+    # Policy config rides on runParams when the stack opted in (Phase 7-d
+    # ports cloud_policy; disabled by default so the default path matches).
+    worker_id = worker_id || autoselect_local_worker()
+
+    {run_params, worker_id} =
+      if worker_id do
+        run_params
+        |> Map.put("target_worker_id", worker_id)
+        |> Map.put("requirements", %{"worker_id" => worker_id})
+        |> then(&{&1, worker_id})
+      else
+        {run_params, worker_id}
+      end
+
+    data =
+      %{
+        "status" => "QUEUED",
+        "playbookName" => "tofu #{action} · #{stack}",
+        "mode" => "TOFU",
+        "runName" => "#{stack}/#{action}",
+        "tag" => "tofu",
+        "priority" => priority || 0,
+        "runParams" => run_params
+      }
+      |> maybe_put("triggeredBy", triggered_by)
+      |> maybe_put("triggeredByUserId", triggered_by_user_id)
+
+    eid = ExecutionHistory.create_execution_record(data, project_id || "default")
+
+    if action == "apply" do
+      StackSnapshots.snapshot(project_id || "default", stack, "pre-apply")
+    end
+
+    eid
+  end
+
+  defp merge_run_params(params, nil), do: params
+  defp merge_run_params(params, extra) when is_map(extra), do: Map.merge(params, extra)
+  defp merge_run_params(params, _), do: params
+
+  defp maybe_put(map, _k, nil), do: map
+  defp maybe_put(map, k, v), do: Map.put(map, k, v)
+
+  @doc "First online worker tagged local/default (Python autoselect fallback)."
+  @spec autoselect_local_worker() :: String.t() | nil
+  def autoselect_local_worker do
+    RadasAI.WorkerRegistry.load_all_workers()
+    |> Enum.find_value(fn {wid, w} ->
+      tags = (w["tags"] || []) |> Enum.map(&String.downcase(to_string(&1)))
+
+      if ("local" in tags or "default" in tags) and RadasAI.WorkerRegistry.is_worker_online(wid, 60) do
+        wid
+      else
+        nil
+      end
+    end)
   end
 
   # ---------------------------------------------------------------------------

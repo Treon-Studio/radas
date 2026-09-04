@@ -350,6 +350,161 @@ defmodule RadasWeb.CloudStacksControllerTest do
     assert c.status == 409
   end
 
+  test "action queues a plan run and returns the 202 payload", %{conn: conn, data_dir: data_dir} do
+    create_stack(conn, "act-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/act-dev/actions", %{
+        "action" => "plan"
+      })
+
+    assert c.status == 202
+    body = Jason.decode!(c.resp_body)
+    assert body["ok"] == true
+    assert body["status"] == "queued"
+    assert body["project_id"] == @project
+    assert is_binary(body["run_id"]) and body["run_id"] != ""
+
+    # Execution record is a TOFU_RUN for the stack with the queued status.
+    exe = RadasAI.Executions.get_execution(body["run_id"], @project)
+    assert exe["status"] == "QUEUED"
+    rp = exe["runParams"]
+    assert rp["execution_type"] == "TOFU_RUN"
+    assert rp["tofu_action"] == "plan"
+    assert rp["stack_name"] == "act-dev"
+    assert rp["provider"] == "bytedc"
+    assert rp["env"]["TF_IN_AUTOMATION"] == "1"
+
+    # Meta + audit trail updated.
+    meta = RadasAI.CloudStacks.load_meta(@project, "act-dev")
+    assert meta["last_action"] == "plan"
+    assert meta["last_status"] == "queued"
+    assert meta["last_run_id"] == body["run_id"]
+  end
+
+  test "action supports unknown action / drift gate / lock ops", %{conn: conn} do
+    create_stack(conn, "gates-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "reboot"
+      })
+
+    assert c.status == 400
+
+    # drift is refused while disabled (default).
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "drift"
+      })
+
+    assert c.status == 409
+
+    # Operator lock/unlock round trip.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "lock",
+        "reason" => "contract"
+      })
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["locked"] == true
+
+    # Mutating action refused while operator-locked (423).
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "apply"
+      })
+
+    assert c.status == 423
+    %{"error" => err} = Jason.decode!(c.resp_body)
+    # Python's platform layer maps 423 to HTTP_423 (no named code).
+    assert err["code"] == "HTTP_423"
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "unlock"
+      })
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["locked"] == false
+
+    # force-unlock is routed to the state lock endpoint instead.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gates-dev/actions", %{
+        "action" => "force-unlock"
+      })
+
+    assert c.status == 400
+  end
+
+  test "mutating apply acquires the stack state lock and refuses a second run", %{conn: conn, data_dir: data_dir} do
+    create_stack(conn, "lockrun-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/lockrun-dev/actions", %{
+        "action" => "apply"
+      })
+
+    assert c.status == 202
+    %{"run_id" => run_id} = Jason.decode!(c.resp_body)
+
+    # The stack state lock now exists, owned by the queued run.
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/lockrun-dev/state/lock", nil)
+    lock = Jason.decode!(c.resp_body)["lock"]
+    assert lock["run_id"] == run_id
+    assert lock["operation"] == "apply"
+
+    # A second mutating run is refused with 409.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/lockrun-dev/actions", %{
+        "action" => "apply"
+      })
+
+    assert c.status == 409
+
+    # Pre-action snapshot was captured.
+    assert RadasAI.StackSnapshots.list_snapshots(@project, "lockrun-dev") != []
+
+    _ = data_dir
+  end
+
+  test "project lock blocks a second mutating run across stacks", %{conn: conn} do
+    create_stack(conn, "pl-a")
+    create_stack(conn, "pl-b")
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/pl-a/actions", %{"action" => "apply"})
+    assert c.status == 202
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/pl-b/actions", %{"action" => "apply"})
+    assert c.status == 409
+    %{"error" => err} = Jason.decode!(c.resp_body)
+    assert err["code"] == "CONFLICT"
+  end
+
+  test "taint requires an address", %{conn: conn} do
+    create_stack(conn, "taint-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/taint-dev/actions", %{
+        "action" => "taint",
+        "address" => ""
+      })
+
+    assert c.status == 400
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/taint-dev/actions", %{
+        "action" => "taint",
+        "address" => "module.stack.aws_instance.web"
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["queued"] == true
+    assert is_binary(body["execution_id"])
+  end
+
   test "state overview reports state presence, lock and versions", %{conn: conn, data_dir: data_dir} do
     create_stack(conn, "ov-dev")
 

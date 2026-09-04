@@ -52,6 +52,7 @@ defmodule RadasWeb.Router do
       get "/:name", CloudStacksController, :show
       put "/:name", CloudStacksController, :update
       delete "/:name", CloudStacksController, :delete
+      post "/:name/actions", CloudStacksController, :stack_action
       get "/:name/state/overview", CloudStacksController, :state_overview
       get "/:name/state/lock", CloudStacksController, :state_lock_get
       post "/:name/state/lock", CloudStacksController, :state_lock_acquire

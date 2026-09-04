@@ -310,6 +310,31 @@ defmodule RadasAI.Flags do
     end
   end
 
+  @doc """
+  Evaluate a flag across the scope hierarchy with Python registry override
+  precedence: project → organization → global (first existing definition
+  wins). Returns {enabled, reason} like evaluate/2.
+  """
+  @spec evaluate_scoped(String.t(), keyword()) :: map()
+  def evaluate_scoped(key, opts \\ []) do
+    scopes =
+      [
+        {"project", Keyword.get(opts, :project_id)},
+        {"organization", Keyword.get(opts, :org_id)},
+        {"global", nil}
+      ]
+      |> Enum.reject(fn {_type, id} -> id in [nil, ""] end)
+
+    scopes
+    |> Enum.find_value(result(key, false, "unknown_flag"), fn {type, id} ->
+      if get_flag(key, scope_type: type, scope_id: id) do
+        evaluate(key, env: Keyword.get(opts, :env, "prod"), user: Keyword.get(opts, :user, ""), scope_type: type, scope_id: id)
+      else
+        nil
+      end
+    end)
+  end
+
   defp evaluate_user(key, flag, env, user) do
     blacklist = flag["users_blacklist"] || []
     whitelist = flag["users_whitelist"] || []

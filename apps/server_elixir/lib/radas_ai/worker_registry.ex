@@ -206,6 +206,26 @@ defmodule RadasAI.WorkerRegistry do
     end
   end
 
+  @doc "Whether a worker heartbeat is within `ttl_seconds` (Python is_worker_online)."
+  @spec is_worker_online(String.t(), number()) :: boolean()
+  def is_worker_online(worker_id, ttl_seconds \\ 60) do
+    worker = load_worker(worker_id)
+
+    cond do
+      worker == nil or Map.get(worker, "enabled", true) != true ->
+        false
+
+      true ->
+        last_seen = worker["lastSeenAt"]
+
+        cond do
+          last_seen in [nil, ""] -> false
+          is_number(last_seen) -> RadasAI.DB.now() - last_seen <= ttl_seconds
+          true -> false
+        end
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Internals
   # ---------------------------------------------------------------------------
