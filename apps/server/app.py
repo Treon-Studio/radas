@@ -109,7 +109,7 @@ try:
         app,
         resources={r"/api/*": {"origins": _cors_allowed_origins}},
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Project-Id", "X-Request-Id", "X-Trace-Id", "Idempotency-Key"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Project-Id", "X-Org-Id", "X-9Router-Token-Saver", "X-Request-Id", "X-Trace-Id", "Idempotency-Key"],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         vary_header=True,
     )

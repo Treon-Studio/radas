@@ -734,6 +734,116 @@ _V25_DDL: List[str] = [
     """CREATE INDEX IF NOT EXISTS idx_org_ai_usage_org_timestamp ON org_ai_usage(org_id, timestamp DESC)""",
 ]
 
+# Version 26 — 9Router multi-account credentials and gateway endpoint keys.
+_V26_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_provider_accounts (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        provider_name TEXT NOT NULL,
+        label TEXT NOT NULL,
+        api_key_encrypted TEXT NOT NULL,
+        base_url TEXT NOT NULL DEFAULT '',
+        priority INTEGER NOT NULL DEFAULT 100,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_org_ai_accounts UNIQUE (org_id, provider_name, label)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_accounts_lookup ON org_ai_provider_accounts(org_id, provider_name, is_active, priority)""",
+    """CREATE TABLE IF NOT EXISTS org_ai_endpoint_keys (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_prefix TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at DOUBLE PRECISION NOT NULL,
+        last_used_at DOUBLE PRECISION,
+        CONSTRAINT uq_org_ai_endpoint_keys_prefix UNIQUE (org_id, key_prefix)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_endpoint_keys_org ON org_ai_endpoint_keys(org_id, is_active)""",
+]
+
+# Version 27 — 9Router request/attempt telemetry with per-model cost estimates.
+_V27_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_request_logs (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        user_id TEXT,
+        endpoint TEXT NOT NULL,
+        requested_model TEXT NOT NULL,
+        resolved_provider TEXT,
+        resolved_model TEXT,
+        status TEXT NOT NULL,
+        error_code TEXT,
+        http_status INTEGER,
+        latency_ms INTEGER,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        tokens_saved_rtk INTEGER NOT NULL DEFAULT 0,
+        cost_usd_est DOUBLE PRECISION NOT NULL DEFAULT 0,
+        fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
+        stream BOOLEAN NOT NULL DEFAULT FALSE,
+        request_id TEXT NOT NULL,
+        attempts JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at DOUBLE PRECISION NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_request_logs_org_time ON org_ai_request_logs(org_id, created_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_request_logs_request ON org_ai_request_logs(request_id)""",
+]
+
+# Version 28 — 9Router OAuth provider accounts (PKCE flows, encrypted tokens).
+_V28_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_oauth_accounts (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        provider_name TEXT NOT NULL,
+        label TEXT NOT NULL,
+        client_id TEXT NOT NULL DEFAULT '',
+        access_token_encrypted TEXT NOT NULL,
+        refresh_token_encrypted TEXT,
+        scope TEXT,
+        status TEXT NOT NULL DEFAULT 'connected',
+        expires_at DOUBLE PRECISION,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_org_ai_oauth_accounts UNIQUE (org_id, provider_name, label)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_oauth_accounts_lookup ON org_ai_oauth_accounts(org_id, provider_name, status)""",
+]
+
+# Version 29 - 9Router org egress proxy pools (encrypted proxy URLs, rotation).
+_V29_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_proxy_pools (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        proxy_url_encrypted TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at DOUBLE PRECISION NOT NULL,
+        updated_at DOUBLE PRECISION NOT NULL,
+        CONSTRAINT uq_org_ai_proxy_pools UNIQUE (org_id, label)
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_proxy_pools_lookup ON org_ai_proxy_pools(org_id, is_active)""",
+]
+
+# Version 30 - 9Router stateful Responses storage (store=true / previous_response_id).
+_V30_DDL: List[str] = [
+    """CREATE TABLE IF NOT EXISTS org_ai_responses (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+        user_id TEXT,
+        provider_name TEXT,
+        model TEXT,
+        input_messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+        output_json JSONB,
+        output_text TEXT,
+        previous_response_id TEXT,
+        created_at DOUBLE PRECISION NOT NULL
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_org_ai_responses_org_time ON org_ai_responses(org_id, created_at DESC)""",
+]
+
 # Ordered source of truth for the schema's applied versions. Tests and tooling
 # use this registry instead of duplicating a stale list of migration numbers.
 MIGRATIONS = (
@@ -742,7 +852,8 @@ MIGRATIONS = (
     (11, _V11_DDL), (12, _V12_DDL), (13, _V13_DDL), (14, _V14_DDL),
     (15, _V15_DDL), (16, _V16_DDL), (17, _V17_DDL), (18, _V18_DDL),
     (19, _V19_DDL), (20, _V20_DDL), (21, _V21_DDL), (22, _V22_DDL),
-    (23, _V23_DDL), (24, _V24_DDL), (25, _V25_DDL),
+    (23, _V23_DDL), (24, _V24_DDL), (25, _V25_DDL), (26, _V26_DDL),
+    (27, _V27_DDL), (28, _V28_DDL), (29, _V29_DDL), (30, _V30_DDL),
 )
 
 # Directory scanned by the reproducibility gate for numbered SQL migration

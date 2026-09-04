@@ -9559,6 +9559,452 @@
         }
       ]
     },
+    "/api/v2/orgs/{org_id}/ai/accounts": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_accounts",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 list_org_ai_accounts.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_accounts",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 save_org_ai_account.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/accounts/{account_id}": {
+      "delete": {
+        "operationId": "delete_orgs_org_id_ai_accounts_account_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 delete_org_ai_account.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "account_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/costs": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_costs",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Aggregate cost estimates (public rates, non-billing) over a date range.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/endpoint-keys": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_endpoint_keys",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 list_org_ai_endpoint_keys.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_endpoint_keys",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 create_org_ai_endpoint_key.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/endpoint-keys/{key_id}": {
+      "delete": {
+        "operationId": "delete_orgs_org_id_ai_endpoint_keys_key_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 revoke_org_ai_endpoint_key.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "key_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/logs": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_logs",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Redacted request/attempt logs with date-range and status filters.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/accounts": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_oauth_accounts",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 list_org_ai_oauth_accounts.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/accounts/{account_id}": {
+      "delete": {
+        "operationId": "delete_orgs_org_id_ai_oauth_accounts_account_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 revoke_org_ai_oauth_account.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "account_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/providers": {
+      "get": {
+        "operationId": "get_orgs_org_id_ai_oauth_providers",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Registry metadata for OAuth-capable providers (client_id presence only).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/{provider}/begin": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_oauth_provider_begin",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 begin_org_ai_oauth.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/{provider}/complete": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_oauth_provider_complete",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 complete_org_ai_oauth.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/{provider}/device/begin": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_oauth_provider_device_begin",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 begin_org_ai_device_flow.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/{provider}/device/complete": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_oauth_provider_device_complete",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 complete_org_ai_device_flow.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/oauth/{provider}/import-token": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_orgs_org_id_ai_oauth_provider_import_token",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Operator-side token import for import_token/custom-flow providers.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
     "/api/v2/orgs/{org_id}/ai/providers": {
       "get": {
         "operationId": "get_orgs_org_id_ai_providers",
@@ -9591,6 +10037,52 @@
           }
         },
         "summary": "Save or update an AI provider API key for an organization.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/orgs/{org_id}/ai/providers/{provider_id}": {
+      "delete": {
+        "operationId": "delete_orgs_org_id_ai_providers_provider_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 delete_org_ai_provider.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "provider_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "patch_orgs_org_id_ai_providers_provider_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 update_org_ai_provider.",
         "tags": [
           "Ai Router Api"
         ]
@@ -9632,6 +10124,40 @@
           "Ai Router Api"
         ]
       }
+    },
+    "/api/v2/orgs/{org_id}/ai/routes/{route_id}": {
+      "delete": {
+        "operationId": "delete_orgs_org_id_ai_routes_route_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Proxy of v1 delete_org_ai_route.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "org_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "route_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
     },
     "/api/v2/orgs/{org_id}/ai/usage": {
       "get": {
@@ -15777,6 +16303,48 @@
         ]
       }
     },
+    "/api/v2/v1/audio/speech": {
+      "post": {
+        "operationId": "post_v1_audio_speech",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "OpenAI-compatible text-to-speech passthrough; returns raw audio bytes.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/audio/transcriptions": {
+      "post": {
+        "operationId": "post_v1_audio_transcriptions",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "OpenAI-compatible speech-to-text passthrough (OpenAI-protocol providers).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/audio/voices": {
+      "get": {
+        "operationId": "get_v1_audio_voices",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "OpenAI-style TTS voice catalog per audio-capable provider (no paid call).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
     "/api/v2/v1/chat/completions": {
       "post": {
         "operationId": "post_v1_chat_completions",
@@ -15791,6 +16359,49 @@
         ]
       }
     },
+    "/api/v2/v1/compress": {
+      "post": {
+        "description": "Forwards to an external Headroom service when HEADROOM_URL is configured,\notherwise applies the local RTK filter pipeline. Compression failures never\nfail the request - the original payload is returned unchanged.",
+        "operationId": "post_v1_compress",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Headroom-compatible compression endpoint; fail-open by design.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/embeddings": {
+      "post": {
+        "operationId": "post_v1_embeddings",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Forward OpenAI-compatible embeddings requests through the configured provider.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/images/generations": {
+      "post": {
+        "operationId": "post_v1_images_generations",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "OpenAI-compatible image generation passthrough (OpenAI-protocol providers).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
     "/api/v2/v1/models": {
       "get": {
         "operationId": "get_v1_models",
@@ -15799,11 +16410,114 @@
             "$ref": "#/components/responses/DEFAULT_ERROR"
           }
         },
-        "summary": "List all models enabled for the organization across configured providers.",
+        "summary": "List aliases and models configured for the authenticated organization.",
         "tags": [
           "Ai Router Api"
         ]
       }
+    },
+    "/api/v2/v1/responses": {
+      "post": {
+        "operationId": "post_v1_responses",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "OpenAI Responses API passthrough (stateless use).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/responses/compact": {
+      "post": {
+        "operationId": "post_v1_responses_compact",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Compact conversation context: Responses body routed through the chat\npipeline (upstream semantics: body._compact through the chat executor).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/responses/{response_id}": {
+      "get": {
+        "operationId": "get_v1_responses_response_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Retrieve one stored response (org-scoped; requires store=true on create).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "response_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v2/v1/videos/{action}": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "action",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "post_v1_videos_action",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Async video job creation proxy (upstream xai videoConfig shape).",
+        "tags": [
+          "Ai Router Api"
+        ]
+      }
+    },
+    "/api/v2/v1/videos/{video_id}": {
+      "get": {
+        "operationId": "get_v1_videos_video_id",
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Poll one async video job.",
+        "tags": [
+          "Ai Router Api"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "video_id",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ]
     },
     "/api/v2/webhooks": {
       "get": {

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/raizora/radas/v4/internal/ai"
@@ -31,9 +32,17 @@ func setupChatSession(aiConfig *ai.AIConfig, projects, templates []string) *ai.C
 		return nil
 	}
 
+	baseURL := providerCfg.BaseURL
+	if aiConfig.DefaultProvider == ai.GatewayProviderName && baseURL == "" {
+		// Route through the RADAS 9Router gateway when no explicit URL is set.
+		if apiURL := os.Getenv("RADAS_API_URL"); apiURL != "" {
+			baseURL = strings.TrimRight(apiURL, "/") + "/api/v1"
+		}
+	}
+
 	provider := ai.NewOpenAIProvider(ai.OpenAIConfig{
 		APIKey:  providerCfg.APIKey,
-		BaseURL: providerCfg.BaseURL,
+		BaseURL: baseURL,
 		Model:   providerCfg.Model,
 	})
 
