@@ -1,6 +1,7 @@
 # Elixir Migration — Phase 8 Ledger (Flask Decommission)
 
 Status per 2026-09-04, branch `feat/elixir-migration-phase0`.
+Suite 338 ExUnit green; smoke / path-guards / sensitive-path gates pass.
 
 ## What the cutover did
 
@@ -26,15 +27,21 @@ Status per 2026-09-04, branch `feat/elixir-migration-phase0`.
 ## Remaining long-tail (the deferred ledger — each entry must be deleted in
 ## the commit that ports its service; mirrored in RadasCliRouteParityTest)
 
+**Ported since the flip** (entries removed from the parity-test deferred
+list): approvals (`RadasAI.ApprovalService` + ApprovalsController),
+audit-log list/search/export/prune (`AuditLogController`), queue view
+(`QueueController`), platform project list/create (`ProjectsController`),
+ontology routes, admin workers, legacy `/api/cloud/*` aliases, drift
+check/schedule.
+
+**Still deferred** (each entry maps to `RadasCliRouteParityTest`'s
+deferred list — remove there when ported):
+
 | CLI path prefix | Flask source | Notes |
 |---|---|---|
-| `/api/approvals` | `services/approval_service.py` (447 LOC) | approve/reject/list + should_skip_approval gate (also used by the stack-action approval gate) |
-| `/api/audit-log`, `/api/audit/search`, `/api/audit-log/export` | `api/audit_log_routes.py` | audit_log table already shared |
 | `/api/compliance/report` | `api/compliance_routes.py` | UC evidence pack |
 | `/api/tests`, `/api/test-cases/score` | `services/test_cases.py` (1061 LOC) | blocker-gate source for stack actions (fails closed in Flask) |
 | `/api/registry`, `/api/registry/:id/install` | `api/code_registry_routes.py` | |
-| `/api/queue` | `api/queue_search_routes.py` (489 LOC) | queue stats/search/capabilities |
-| `/api/projects` | `api/projects_routes.py` (487 LOC) | platform-envelope project list/services |
 | `/api/users/invites` | user_service invites | |
 
 Other Flask-only modules not CLI-consumed (sources, vault, global_secrets,
