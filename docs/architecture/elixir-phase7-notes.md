@@ -1,8 +1,8 @@
 # Elixir Migration — Phase 7 Progress Ledger
 
 Status of the cloud-provisioning port (Phase 7) as of 2026-09-04.
-Branch `feat/elixir-migration-phase0`, suite 305 ExUnit green, gates
-(smoke / path-guards / OpenAPI+route-parity) pass at commit `ffe11e48`.
+Branch `feat/elixir-migration-phase0`, suite 306 ExUnit green, gates
+(smoke / path-guards / OpenAPI+route-parity) pass at commit `fa7fbb96`.
 
 ## Done (Phase 7 milestones)
 
@@ -13,6 +13,7 @@ Branch `feat/elixir-migration-phase0`, suite 305 ExUnit green, gates
 | `0b1e5327` | 7-c: `POST /stacks/:name/actions` (tofu lifecycle gates → TOFU_RUN enqueue 202), `ProjectLock`/`RemoteStateLock`/`LockLifecycle`, `StackOps`, `EnvRoles`, `StackSnapshots`, `AuditEvents`, `Flags.evaluate_scoped` |
 | `d998b6b6` | 7-d: provider catalog/schemas data-driven from `priv/provider_schemas/providers.json` (exported from the Python adapters — all 10 IaC providers), drift, runs list/get/SSE stream, state inspect, force-unlock (UC523), version get/rollback (Python `{ok,...}` shapes) |
 | `ffe11e48` | 7-e: governance slice — protection, comments, dependencies DAG, TTL, circuit breaker, scan-plan, config export/import, timeouts, pinning, bulk-tags, archive/restore, cooldown + `CloudInventory` (bytedc tfstate parser full port) |
+| `fa7fbb96` | 7-f: all-runs aggregate `GET /stacks/runs` (provisioning summary) |
 
 ## Remaining for Phase 7
 
@@ -28,8 +29,6 @@ Branch `feat/elixir-migration-phase0`, suite 305 ExUnit green, gates
 3. **Other inventory builders**: 9 adapters besides bytedc have
    `build_inventory`; `RadasAI.CloudInventory` returns the empty shape
    for them. Dump sources live in `apps/server/services/cloud_providers/<id>.py`.
-4. **All-runs aggregate** `GET /api/v2/cloud/runs` (cloud_provisioning.py:734)
-   — TOFU_RUN list across stacks with stack info join.
 5. **Deferred action gates** (documented in `CloudStacksController.run_action/5`):
    maintenance windows (`automation_rules`), test-case blockers
    (`test_cases.latest_failed_blocker` — fails closed in Python),
