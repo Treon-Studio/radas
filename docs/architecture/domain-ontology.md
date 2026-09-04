@@ -9,7 +9,7 @@ authoritative contract artifacts in `contracts/`.
 ## What it is — and what it is not
 
 - **It is** a pragmatic, versioned JSON document, validated by
-  `apps/server/tests/test_ontology_schema.py`. Each entity records its
+  `RadasOntologyParityTest` (apps/server_elixir/test). Each entity records its
   `states`, `final_states`, `transitions`, `relations`, `events`, and the
   `source` file:lines it was transcribed from. Entities with an empty state
   machine (`Project`, `Stack`, `ServiceDefinition`, `RuntimeProvider`) are
@@ -25,7 +25,7 @@ authoritative contract artifacts in `contracts/`.
 - **It carries no secrets**: entity metadata and rules only — no tokens, no
   payloads.
 
-Server code reads it through `apps/server/services/ontology.py`
+Server code reads it through `RadasAI.Ontology` (apps/server_elixir/lib/radas_ai/ontology.ex)
 (`load_ontology`, `states`, `transitions`, `alert_rules`), and two
 authenticated read-only routes serve it under the platform envelope:
 `GET /api/ontology` (the whole document) and `GET /api/ontology/alerts`
@@ -72,7 +72,7 @@ in server code (`storage/executions_store.py`, `services/service_operations.py`,
 `services/service_instances.py`). It is not a spec the code was generated
 from, and the parity gate is not a snapshot to regenerate mechanically.
 
-`apps/server/tests/test_ontology_parity.py` compares the ontology against the
+`RadasOntologyParityTest` compares the ontology against the
 real server constants and pins the `/api/ontology` routes. When it fails,
 server code and the contract have drifted: **update whichever side is wrong
 and reconcile both in one commit whose message explains the change.** The
@@ -84,7 +84,7 @@ same discipline applies to the generated console types below.
    verbatim from the server constants; transitions exactly as the code
    allows) or the alert rule (`when` within the DSL, plus `severity`,
    `route`, `title`).
-2. **Run the parity tests** (`apps/server/tests/test_ontology_parity.py`) —
+2. **Run the parity tests** (`RadasOntologyParityTest` in apps/server_elixir) —
    they name the drift between the contract and the code. If the server
    constants must change to match, change them; if the contract must change
    to match the server, change it back.

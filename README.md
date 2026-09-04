@@ -83,28 +83,29 @@ persistence dan model multi-tenant berbasis org.
 radas/
 ├── apps/
 │   ├── radas-console/     # React 19 + Vite + TanStack Router/Query (UI)
-│   ├── opensible-server/  # Flask API (RPC) + services + storage (Postgres)
+│   ├── server_elixir/     # Phoenix API (Elixir) + services + storage (Postgres)
 │   ├── opensible-worker/  # Go worker — claim & eksekusi OpenTofu/Ansible
 │   └── cli/               # Go CLI (radas)
-├── templates/opensible-iac/  # Modul OpenTofu per provider
+├── templates/opensible-iac/  # Modul OpenTofu per provider (IaC source)
 └── docs/                     # ROADMAP (666 use cases), ARCHITECTURE, dsb
 ```
 
 ## ⌨️ Local Development
 
-Prasyarat: Node 22+, pnpm 10, Python 3.12, Go 1.25+, PostgreSQL 15 (lokal)
-atau Neon (cloud).
+Prasyarat: Node 22+, pnpm 10, Elixir 1.18 + Erlang 27, Go 1.25+, PostgreSQL 15
+(lokal) atau Neon (cloud).
 
 ```bash
 # 1. Dependencies
 pnpm install
-cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd apps/server_elixir && mix deps.get
 
 # 2. Database (Postgres lokal — atau set DATABASE_URL ke Neon)
 brew install postgresql@15 && brew services start postgresql@15
 createdb radas && createdb radas_test
+mix ecto.setup
 
-# 3. Jalankan (pm2 orchestrates server :5001, console :8080, worker)
+# 3. Jalankan (pm2 orchestrates phoenix :4000, console :8080, worker)
 pnpm dev:radas
 ```
 
@@ -114,20 +115,24 @@ via `ADMIN_INITIAL_PASSWORD` di `ecosystem.config.cjs`).
 ### Test
 
 ```bash
-cd apps/server
-.venv/bin/python -m pytest tests/ -q      # memakai radas_test, schema reset per test
+cd apps/server_elixir
+mix test                                  # suite penuh + parity gates (ExUnit)
+bash scripts/check-sensitive-paths-elixir.sh   # static rules
+python3 tests/test_repo_paths.py          # repo path integrity (stdlib)
 ```
 
 ## 🗄️ Database (PostgreSQL/Neon)
 
 - `DATABASE_URL` **wajib** — server menolak boot tanpa koneksi Postgres yang
   bisa diakses (Neon supported: `postgres://user:pass@host/db?sslmode=require`).
-- Skema dikelola `storage/pg_schema.py` (versioned `schema_migrations`).
+- Skema dikelola Ecto migration `apps/server_elixir/priv/repo/migrations/`
+  (tracking table `ecto_migrations`).
 - Migrasi data lama (SQLite/JSON → PG):
 
 ```bash
-cd apps/server
-DATABASE_URL=postgres://… .venv/bin/python scripts/migrate_legacy.py --data-dir data
+# Legacy one-shot migration script lived in the retired Flask tree; for
+# legacy data imports use the current kv/config ingestion via Phoenix.
+DATABASE_URL=postgres://… pnpm --filter @radas/console dev
 ```
 
 Detail lengkap: [`docs/postgres-neon.md`](docs/postgres-neon.md).
