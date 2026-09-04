@@ -715,6 +715,246 @@ defmodule RadasWeb.CloudStacksControllerTest do
     assert Jason.decode!(c.resp_body)["backend_type"] == "local"
   end
 
+  test "governance surface: protection, ttl, pin, timeout, circuit-breaker, tags, archive", %{conn: conn} do
+    create_stack(conn, "gov-dev")
+
+    # Protection.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/protection", %{
+        "protected_resources" => ["module.vm.hcs_ecs_compute_instance.this[0]", "  ", "module.vm.hcs_ecs_compute_instance.this[0]"]
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["protected_count"] == 1
+    assert body["protected_resources"] == ["module.vm.hcs_ecs_compute_instance.this[0]"]
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/gov-dev/protection", nil)
+    assert Jason.decode!(c.resp_body)["protected_count"] == 1
+
+    # TTL.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/ttl", %{
+        "ttl_seconds" => 3600,
+        "auto_destroy" => true
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["ok"] == true
+    assert body["remaining_seconds"] == 3600
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/gov-dev/ttl", nil)
+    assert Jason.decode!(c.resp_body)["expires_at"] > 0
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/ttl", %{"ttl_seconds" => 0})
+    assert c.status == 400
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/ttl", %{})
+    assert c.status == 400
+
+    # No expired stacks (TTL just set).
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/ttl/expired", nil)
+    assert Jason.decode!(c.resp_body)["expired_count"] == 0
+
+    # Worker pin.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/pin", %{
+        "worker_id" => "worker-a",
+        "tags" => ["gpu"],
+        "strict" => true
+      })
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["worker_pin"]["worker_id"] == "worker-a"
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/gov-dev/pin", nil)
+    assert Jason.decode!(c.resp_body)["worker_pin"]["required_tags"] == ["gpu"]
+
+    # Timeouts.
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/gov-dev/timeout", nil)
+    assert Jason.decode!(c.resp_body)["timeouts"]["apply"] == 1800
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/timeout", %{
+        "action" => "apply",
+        "timeout_seconds" => 2400
+      })
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["all_timeouts"]["apply"] == 2400
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev/timeout", %{
+        "action" => "apply",
+        "timeout_seconds" => 5
+      })
+
+    assert c.status == 400
+
+    # Circuit breaker.
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/gov-dev/circuit-breaker", nil)
+    assert Jason.decode!(c.resp_body)["is_open"] == false
+
+    # Bulk tags.
+    create_stack(conn, "gov-dev2")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/bulk-tags", %{
+        "stacks" => ["gov-dev", "gov-dev2"],
+        "tags" => %{"team" => "sre"}
+      })
+
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["updated_count"] == 2
+
+    # Archive / restore.
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev2/archive", %{"reason" => "cleanup"})
+    assert c.status == 200
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/archived", nil)
+    archived = Jason.decode!(c.resp_body)["archived"]
+    assert Enum.any?(archived, &(&1["stack"] == "gov-dev2"))
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/gov-dev2/restore", %{})
+    assert c.status == 200
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/archived", nil)
+    assert Jason.decode!(c.resp_body)["archived"] == []
+  end
+
+  test "dependencies: set, get, graph, cycle rejection", %{conn: conn} do
+    create_stack(conn, "dep-a")
+    create_stack(conn, "dep-b")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/dep-b/dependencies", %{
+        "depends_on" => ["dep-a", "  ", "dep-b"]
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["depends_on"] == ["dep-a"]
+
+    # Self-dependency and blanks dropped; cycle rejected.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/dep-a/dependencies", %{
+        "depends_on" => ["dep-b"]
+      })
+
+    assert c.status == 400
+    # Envelope normalization replaces the flat message (Python parity).
+    %{"error" => err} = Jason.decode!(c.resp_body)
+    assert err["code"] == "BAD_REQUEST"
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/dep-b/dependencies", nil)
+    assert Jason.decode!(c.resp_body)["depends_on"] == ["dep-a"]
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/dependencies/graph", nil)
+    graph = Jason.decode!(c.resp_body)
+    assert graph["graph"]["dep-b"] == ["dep-a"]
+    assert graph["graph"]["dep-a"] == []
+  end
+
+  test "execution comments + scan-plan", %{conn: conn} do
+    create_stack(conn, "cm-dev")
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/stacks/cm-dev/actions", %{"action" => "plan"})
+
+    %{"run_id" => run_id} = Jason.decode!(c.resp_body)
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/executions/#{run_id}/comments", %{
+        "comment" => "  reviewed  "
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["comment"] == "reviewed"
+    assert body["author"] == "cs"
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/executions/#{run_id}/comments", nil)
+    body = Jason.decode!(c.resp_body)
+    assert body["count"] == 1
+    assert hd(body["comments"])["comment"] == "reviewed"
+
+    c = dispatch(conn, @endpoint, :post, "/api/v2/cloud/executions/#{run_id}/comments", %{"comment" => ""})
+    assert c.status == 400
+
+    # Secret scanning masks AWS keys + keyword secrets.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/v2/cloud/scan-plan", %{
+        "text" => "id = AKIAIOSFODNN7EXAMPLE\npassword = \"hunter22\""
+      })
+
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["clean"] == false
+    assert body["findings_count"] >= 2
+    refute body["masked_text"] =~ "AKIAIOSFODNN7EXAMPLE"
+    refute body["masked_text"] =~ "hunter22"
+    assert body["masked_text"] =~ "[REDACTED_AWS_KEY]"
+  end
+
+  test "inventory parses bytedc tfstate into VM inventory", %{conn: conn, data_dir: data_dir} do
+    create_stack(conn, "inv-dev")
+
+    state = %{
+      "resources" => [
+        %{
+          "module" => "module.vm",
+          "type" => "hcs_ecs_compute_instance",
+          "name" => "this",
+          "instances" => [
+            %{
+              "attributes" => %{
+                "id" => "i-1",
+                "name" => "web-01",
+                "status" => "ACTIVE",
+                "network" => [%{"uuid" => "sn-1", "fixed_ip_v4" => "10.0.1.10"}],
+                "security_group_ids" => ["sg-1"]
+              }
+            }
+          ]
+        },
+        %{
+          "type" => "hcs_vpc_subnet",
+          "name" => "app",
+          "instances" => [%{"attributes" => %{"id" => "sn-1", "name" => "app-sn", "cidr" => "10.0.1.0/24", "vpc_id" => "vpc-1"}}]
+        },
+        %{
+          "type" => "hcs_vpc",
+          "name" => "main",
+          "instances" => [%{"attributes" => %{"id" => "vpc-1", "name" => "main-vpc", "cidr" => "10.0.0.0/16"}}]
+        }
+      ]
+    }
+
+    File.write!(
+      Path.join(stack_sd(data_dir, "inv-dev"), "terraform.tfstate"),
+      Jason.encode!(state)
+    )
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/inv-dev/inventory", nil)
+    assert c.status == 200
+    body = Jason.decode!(c.resp_body)
+    assert body["count"] == 1
+    assert body["state_present"] == true
+    vm = hd(body["vms"])
+    assert vm["hostname"] == "web-01"
+    assert vm["private_ip"] == "10.0.1.10"
+    assert vm["subnet_name"] == "app-sn"
+    assert vm["vpc_name"] == "main-vpc"
+    assert body["subnets"] |> hd() |> Map.get("id") == "sn-1"
+
+    # Persisted cache survives (without state file it still reports from cache).
+    File.rm!(Path.join(stack_sd(data_dir, "inv-dev"), "terraform.tfstate"))
+
+    c = dispatch(conn, @endpoint, :get, "/api/v2/cloud/stacks/inv-dev/inventory", nil)
+    assert Jason.decode!(c.resp_body)["count"] == 1
+  end
+
   test "state overview reports state presence, lock and versions", %{conn: conn, data_dir: data_dir} do
     create_stack(conn, "ov-dev")
 

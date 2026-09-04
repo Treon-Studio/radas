@@ -16,7 +16,9 @@ defmodule RadasWeb.CloudStacksController do
   import Plug.Conn
 
   alias RadasAI.AuditEvents
+  alias RadasAI.CloudInventory
   alias RadasAI.CloudProviders
+  alias RadasAI.StackGovernance
   alias RadasAI.CloudStacks
   alias RadasAI.CloudState
   alias RadasAI.LockLifecycle
@@ -797,6 +799,287 @@ defmodule RadasWeb.CloudStacksController do
       end
     end)
   end
+
+  # -- inventory (Python stacks_inventory) ----------------------------------------------
+
+  def inventory(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, sd, dd ->
+      refresh = conn.query_params["refresh"] not in ["0", "false", "no"]
+      cache_path = Path.join(dd, "inventory.json")
+      state_file = Path.join(sd, "terraform.tfstate")
+      snapshot_file = Path.join(sd, "terraform.tfstate.json")
+      source = cond do
+        File.exists?(state_file) -> state_file
+        File.exists?(snapshot_file) -> snapshot_file
+        true -> nil
+      end
+      provider = CloudStacks.load_meta(project_id, name)["provider"] || "bytedc"
+      state_present = source != nil
+
+      if refresh and source do
+        try do
+          state = Jason.decode!(File.read!(source))
+          inv = CloudInventory.build_inventory(provider, state)
+          payload = Map.merge(inv, %{"generated_at" => System.system_time(:second)})
+          File.mkdir_p!(Path.dirname(cache_path))
+          File.write!(cache_path, Jason.encode!(payload, pretty: true))
+        rescue
+          _ -> :ok
+        end
+      end
+
+      if File.exists?(cache_path) do
+        case Jason.decode(File.read!(cache_path)) do
+          {:ok, data} -> json(conn, Map.put(data, "state_present", state_present))
+          _ -> json(conn, Map.merge(CloudInventory.empty(state_present), %{"message" => "No inventory yet. Run Apply to provision resources."}))
+        end
+      else
+        json(conn, Map.merge(CloudInventory.empty(state_present), %{"message" => "No inventory yet. Run Apply to provision resources."}))
+      end
+    end)
+  end
+
+  # -- governance routes (services/cloud_provisioning.py UC slice) -----------------------
+
+  def protection_get(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      json(conn, StackGovernance.get_resource_protection(project_id, name))
+    end)
+  end
+
+  def protection_set(conn, %{"name" => name}) do
+    with_pid(conn, name, fn project_id, _sd, _dd ->
+      body = conn.body_params || %{}
+      resources = body["protected_resources"] || body["resources"] || []
+      json(conn, StackGovernance.set_resource_protection(project_id, name, resources))
+    end)
+  end
+
+  # Python guards comments + scan-plan with @require_auth only (no project
+  # access check) — the :v2_auth pipeline provides the auth gate.
+  def comments_list(conn, %{"execution_id" => execution_id}) do
+    comments = StackGovernance.list_execution_comments(execution_id)
+    json(conn, %{"execution_id" => execution_id, "count" => length(comments), "comments" => comments})
+  end
+
+  def comments_add(conn, %{"execution_id" => execution_id}) do
+    body = conn.body_params || %{}
+    user = conn.assigns[:current_user] || %{}
+
+    try do
+      payload =
+        StackGovernance.add_execution_comment(
+          project_id(conn, body),
+          execution_id,
+          body["comment"] || body["text"] || "",
+          user["username"] || user["email"] || "system"
+        )
+
+      json(conn, payload)
+    rescue
+      e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+    end
+  end
+
+  def dependencies_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, StackGovernance.get_stack_dependencies(project_id(conn), name))
+    end)
+  end
+
+  def dependencies_set(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      deps = body["depends_on"] || body["dependencies"] || []
+
+      try do
+        json(conn, StackGovernance.set_stack_dependencies(project_id(conn, body), name, deps))
+      rescue
+        e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+      end
+    end)
+  end
+
+  def dependency_graph(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, StackGovernance.get_stack_dependency_graph(project_id(conn)))
+    end)
+  end
+
+  def ttl_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, StackGovernance.get_stack_ttl(project_id(conn), name))
+    end)
+  end
+
+  def ttl_set(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      ttl_sec = body["ttl_seconds"] || body["seconds"] || body["ttl"]
+
+      if ttl_sec in [nil, ""] do
+        conn |> put_status(400) |> json(%{"error" => "ttl_seconds required"})
+      else
+        auto_destroy = if body["auto_destroy"] in [nil, true], do: true, else: !!body["auto_destroy"]
+
+        try do
+          json(conn, StackGovernance.set_stack_ttl(project_id(conn, body), name, parse_int!(ttl_sec), auto_destroy))
+        rescue
+          e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+        end
+      end
+    end)
+  end
+
+  def ttl_expired(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      expired = StackGovernance.check_expired_ttl_stacks(project_id(conn))
+      json(conn, %{"expired_count" => length(expired), "stacks" => expired})
+    end)
+  end
+
+  def circuit_breaker_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      meta = CloudStacks.load_meta(project_id(conn), name)
+      cb = meta["circuit_breaker"] || %{"state" => "closed", "consecutive_failures" => 0, "failure_threshold" => 3}
+      json(conn, %{"stack" => name, "project_id" => project_id(conn), "circuit_breaker" => cb, "is_open" => cb["state"] == "open"})
+    end)
+  end
+
+  def circuit_breaker_reset(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, StackGovernance.reset_circuit_breaker(project_id(conn), name))
+    end)
+  end
+
+  def scan_plan(conn, _params) do
+    body = conn.body_params || %{}
+    text = body["text"] || body["plan_output"] || body["output"] || ""
+    json(conn, StackGovernance.scan_and_mask_secrets(text))
+  end
+
+
+  def config_export(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, StackGovernance.export_stack_config_bundle(project_id(conn), name))
+    end)
+  end
+
+  def config_import(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      bundle = conn.body_params || %{}
+
+      try do
+        json(conn, StackGovernance.import_stack_config_bundle(project_id(conn, bundle), name, bundle))
+      rescue
+        e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+      end
+    end)
+  end
+
+  def timeout_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      meta = CloudStacks.load_meta(project_id(conn), name)
+      json(conn, %{"stack" => name, "project_id" => project_id(conn), "timeouts" => meta["timeouts"] || StackGovernance.default_action_timeouts()})
+    end)
+  end
+
+  def timeout_set(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      action = body["action"] || "apply"
+      timeout_sec = body["timeout_seconds"] || body["seconds"] || body["timeout"]
+
+      if timeout_sec in [nil, ""] do
+        conn |> put_status(400) |> json(%{"error" => "timeout_seconds required"})
+      else
+        try do
+          json(conn, StackGovernance.set_execution_timeout(project_id(conn, body), name, to_string(action), parse_int!(timeout_sec)))
+        rescue
+          e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+        end
+      end
+    end)
+  end
+
+  def cooldown_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      rem = StackGovernance.get_stack_cooldown_remaining(project_id(conn), name)
+      json(conn, %{"stack" => name, "project_id" => project_id(conn), "in_cooldown" => rem > 0, "remaining_seconds" => rem})
+    end)
+  end
+
+  def pin_get(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, %{"stack" => name, "project_id" => project_id(conn), "worker_pin" => StackGovernance.get_stack_worker_pin(project_id(conn), name)})
+    end)
+  end
+
+  def pin_set(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      wid = body["worker_id"] || body["workerId"]
+      tags = body["tags"] || body["required_tags"] || []
+      strict = if body["strict"] in [nil, true], do: true, else: !!body["strict"]
+
+      try do
+        json(conn, StackGovernance.set_stack_worker_pin(project_id(conn, body), name, wid, tags, strict))
+      rescue
+        e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+      end
+    end)
+  end
+
+  def bulk_tags(conn, _params) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      stacks = body["stacks"] || []
+      tags = body["tags"] || %{}
+      overwrite = !!body["overwrite"]
+
+      if stacks == [] or tags == %{} do
+        conn |> put_status(400) |> json(%{"error" => "stacks and tags required"})
+      else
+        try do
+          json(conn, StackGovernance.bulk_update_stack_tags(project_id(conn, body), stacks, tags, overwrite))
+        rescue
+          e in ArgumentError -> conn |> put_status(400) |> json(%{"error" => e.message})
+        end
+      end
+    end)
+  end
+
+  def archive(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      body = conn.body_params || %{}
+      user = conn.assigns[:current_user] || %{}
+      json(conn, StackGovernance.archive_stack(project_id(conn, body), name, user["username"] || "", body["reason"] || ""))
+    end)
+  end
+
+  def restore(conn, %{"name" => name}) do
+    with_project_access(conn, project_id(conn, conn.body_params || %{}), fn ->
+      user = conn.assigns[:current_user] || %{}
+      json(conn, StackGovernance.restore_archived_stack(project_id(conn, conn.body_params || %{}), name, user["username"] || ""))
+    end)
+  end
+
+  def archived_list(conn, _params) do
+    with_project_access(conn, project_id(conn), fn ->
+      json(conn, %{"archived" => StackGovernance.list_archived_stacks(project_id(conn))})
+    end)
+  end
+
+  defp parse_int!(v) when is_integer(v), do: v
+
+  defp parse_int!(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, _} -> n
+      :error -> raise ArgumentError, message: "integer required"
+    end
+  end
+
+  defp parse_int!(v) when is_float(v), do: trunc(v)
 
   # -- state routes (CloudState delegation; Python cloud_state.py route table) -------
 

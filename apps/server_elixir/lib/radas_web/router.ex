@@ -47,6 +47,11 @@ defmodule RadasWeb.Router do
     scope "/v2/cloud/stacks" do
       pipe_through :v2_auth
 
+      # Literal single-segment paths must precede "/:name".
+      get "/archived", CloudStacksController, :archived_list
+      get "/ttl/expired", CloudStacksController, :ttl_expired
+      post "/bulk-tags", CloudStacksController, :bulk_tags
+
       get "/", CloudStacksController, :list
       post "/", CloudStacksController, :create
       get "/:name", CloudStacksController, :show
@@ -71,6 +76,29 @@ defmodule RadasWeb.Router do
       get "/:name/runs/:run_id/stream", CloudStacksController, :run_stream
       get "/:name/state", CloudStacksController, :state_inspect
       post "/:name/force-unlock", CloudStacksController, :force_unlock
+      get "/:name/inventory", CloudStacksController, :inventory
+      get "/:name/protection", CloudStacksController, :protection_get
+      post "/:name/protection", CloudStacksController, :protection_set
+      put "/:name/protection", CloudStacksController, :protection_set
+      get "/:name/dependencies", CloudStacksController, :dependencies_get
+      post "/:name/dependencies", CloudStacksController, :dependencies_set
+      put "/:name/dependencies", CloudStacksController, :dependencies_set
+      get "/:name/ttl", CloudStacksController, :ttl_get
+      post "/:name/ttl", CloudStacksController, :ttl_set
+      put "/:name/ttl", CloudStacksController, :ttl_set
+      get "/:name/circuit-breaker", CloudStacksController, :circuit_breaker_get
+      post "/:name/circuit-breaker/reset", CloudStacksController, :circuit_breaker_reset
+      get "/:name/config/export", CloudStacksController, :config_export
+      post "/:name/config/import", CloudStacksController, :config_import
+      get "/:name/timeout", CloudStacksController, :timeout_get
+      post "/:name/timeout", CloudStacksController, :timeout_set
+      put "/:name/timeout", CloudStacksController, :timeout_set
+      get "/:name/cooldown", CloudStacksController, :cooldown_get
+      get "/:name/pin", CloudStacksController, :pin_get
+      post "/:name/pin", CloudStacksController, :pin_set
+      put "/:name/pin", CloudStacksController, :pin_set
+      post "/:name/archive", CloudStacksController, :archive
+      post "/:name/restore", CloudStacksController, :restore
     end
 
     # Provider catalog + wizard schemas (Python list_providers / *_schema).
@@ -80,6 +108,10 @@ defmodule RadasWeb.Router do
       get "/providers", CloudStacksController, :providers_list
       get "/bytedc/schema", CloudStacksController, :bytedc_schema
       get "/:provider/schema", CloudStacksController, :provider_schema
+      get "/dependencies/graph", CloudStacksController, :dependency_graph
+      post "/scan-plan", CloudStacksController, :scan_plan
+      get "/executions/:execution_id/comments", CloudStacksController, :comments_list
+      post "/executions/:execution_id/comments", CloudStacksController, :comments_add
     end
 
     # SSO (env-gated; 503 when the provider is not configured).
