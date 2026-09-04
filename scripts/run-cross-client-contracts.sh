@@ -6,8 +6,9 @@
 # idempotent deploy mutation -> replay/conflict" contract across all three
 # client legs:
 #
-#   * server reference (pytest):   apps/server/tests/test_cli_server_integration.py
-#                                  + tests/test_ontology_{schema,loader,parity}.py
+#   * server reference (ExUnit):   apps/server_elixir/test — the Phoenix suite
+#                                  is the behavioral contract reference
+#                                  (Phase 8: the Flask reference was retired)
 #   * TypeScript console client:   apps/console/src/test/cross-client-fixtures.test.ts
 #     (always-on fixture leg + env-gated real-HTTP leg)
 #   * Go client + direct HTTP:     apps/cli/internal/integration/cross_client_test.go
@@ -18,10 +19,10 @@
 # Modes:
 #
 #   (a) Default (always on): the offline-safe gate —
-#         1. [server]  pytest reference contract (real blueprints, isolated
-#                      test DB via TEST_DATABASE_URL; requires a running
-#                      PostgreSQL — the CI job provisions a postgres:16
-#                      service container)
+#         1. [server]  ExUnit reference contract (the Phoenix suite covers the
+#                      login/projects/services/execution flows and the
+#                      ontology parity gate; requires a running PostgreSQL —
+#                      the CI job provisions a postgres:16 service container)
 #         2. [console] typecheck + full vitest run (the fixture leg asserts the
 #                      console client against the contract; the real-HTTP leg
 #                      skips) + production build
@@ -60,7 +61,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_DIR="$ROOT/apps/server"
+SERVER_DIR="$ROOT/apps/server_elixir"
 CONSOLE_DIR="$ROOT/apps/console"
 CLI_DIR="$ROOT/apps/cli"
 WORKER_DIR="$ROOT/apps/worker"
@@ -74,18 +75,18 @@ if [[ ! -f "$ROOT/contracts/cross-client-fixtures.json" ]]; then
     fail "contracts/cross-client-fixtures.json is missing (it is the shared contract source)"
 fi
 
-# --- gate 1: [server] pytest reference contract -----------------------------
-echo "==> [server] cross-client reference contract (pytest, real blueprints)"
-if [[ ! -x "$SERVER_DIR/.venv/bin/pytest" ]]; then
-    echo "error: [server] $SERVER_DIR/.venv/bin/pytest not found." >&2
-    echo "       create the venv first: cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt" >&2
+# --- gate 1: [server] ExUnit reference contract ------------------------------
+echo "==> [server] cross-client reference contract (ExUnit, Phoenix suite)"
+if [[ ! -f "$SERVER_DIR/mix.exs" ]]; then
+    echo "error: [server] $SERVER_DIR/mix.exs not found." >&2
     exit 1
 fi
 cd "$SERVER_DIR"
-# Gate 1 also runs the domain-ontology tests (contracts/domain-ontology.json):
-# schema validation, the loader, and the parity gate against the server's real
-# state machines (see docs/architecture/domain-ontology.md).
-.venv/bin/pytest -q tests/test_cli_server_integration.py tests/test_ontology_schema.py tests/test_ontology_loader.py tests/test_ontology_parity.py
+# Gate 1 runs the full Phoenix suite, which includes the ontology parity gate
+# (RadasOntologyParityTest) and the CLI route-parity gate
+# (RadasCliRouteParityTest) against contracts/domain-ontology.json and
+# contracts/cli-route-manifest.json (see docs/architecture/domain-ontology.md).
+mix test
 
 # --- gate 2: [console] typecheck + vitest + build ---------------------------
 echo "==> [console] contract fixtures test + typecheck + build"
@@ -103,7 +104,7 @@ echo "==> [cli] go vet + go test (live-server contract tests skip unless configu
 cd "$CLI_DIR"
 go vet ./...
 # Unset DB env vars so the CLI's DSN() unit tests (TestDSN/no_env) see a clean
-# environment — the cross-client job sets DATABASE_URL for the server pytest
+# environment — the cross-client job sets DATABASE_URL for the server ExUnit
 # leg, and Go's os.Getenv reads it directly.
 env -u DATABASE_URL -u DB_URL -u SUPABASE_DB_URL go test ./...
 

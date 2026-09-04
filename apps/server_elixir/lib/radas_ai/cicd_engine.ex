@@ -125,7 +125,9 @@ defmodule RadasAI.CicdEngine do
 
         {output, exit_code} =
           try do
-            case System.shell(command) do
+            # CI pipeline shell steps execute user-authored commands by
+            # design (mirrors the Python cicd_engine allowlist).
+            case System.shell(command) do  # sensitive-path-ok
               {out, 0} -> {out, 0}
               {out, code} -> {out, code}
             end

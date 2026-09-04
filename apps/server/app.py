@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""
+"""DEPRECATED — RETIRED IN PLACE (Phase 8 of the Elixir migration, 2026-09).
+
+This Flask tree is no longer the RADAS API backend. The Phoenix server at
+apps/server_elixir serves the full surface; CI, docker-compose, pm2 and the
+nginx router are wired to it. This tree is kept only as a behavioral
+reference while the long-tail parity ledger
+(docs/architecture/elixir-phase8-notes.md) is emptied. Do not add features
+here; do not point infrastructure at it (guards in tests/test_repo_paths.py
+enforce the workflow part).
+
 - Ansible 
 """
 import os

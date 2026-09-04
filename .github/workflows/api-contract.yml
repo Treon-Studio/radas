@@ -1,27 +1,22 @@
-name: API Contract
+name: Phoenix API Contract
 
-# Task 6.1 (2026-08-27 console-CLI integration plan): the served /api/v2
-# OpenAPI document must never drift from the committed snapshot at
-# contracts/radas-api-v2.openapi.json, and the whole server suite must pass
-# against a real PostgreSQL fixture. Route parity (CLI manifest vs served
-# routes) and sensitive-path static rules run in the same gate.
-#
-# Generated clients: none exist yet (console: hand-written
-# apps/console/src/lib/api.ts; CLI: apps/cli/internal/client), so the
-# "stale generated client" check reduces to snapshot-vs-served drift today.
-# When a generated client lands, add its regeneration + diff check to
-# scripts/check-openapi-contract.sh.
+# Phase 8 cutover: the Flask server is retired. The behavioral contract gate
+# is the Phoenix ExUnit suite — it asserts the platform envelope, error codes,
+# redaction, worker protocol, and per-domain runtime bodies that the console,
+# CLI, and Go worker depend on (mirror coverage of the retired Python suite).
+# The CLI route-parity gate (contracts/cli-route-manifest.json vs served
+# Phoenix routes) and the ontology parity gate run inside the same suite.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/server/**'
+      - 'apps/server_elixir/**'
       - 'contracts/**'
       - '.github/workflows/api-contract.yml'
   pull_request:
     paths:
-      - 'apps/server/**'
+      - 'apps/server_elixir/**'
       - 'contracts/**'
       - '.github/workflows/api-contract.yml'
 
@@ -31,9 +26,9 @@ concurrency:
 
 jobs:
   api-contract:
-    name: OpenAPI contract & server suite (PostgreSQL)
+    name: Phoenix contract suite (PostgreSQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -61,50 +56,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
         with:
-          python-version: '3.12'
+          elixir-version: '1.18'
+          otp-version: '27'
 
-      - name: Install server dependencies
-        working-directory: apps/server
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
+      - name: Install dependencies
+        working-directory: apps/server_elixir
+        run: mix deps.get
 
-      # Full server suite against the PostgreSQL fixture. tests/test_compose_config.py
-      # is excluded only because it still points at the stale apps/opensible-server
-      # path (2 known failures; Task 6.4 repairs the paths and re-includes it).
-      - name: Run full server suite (minus stale compose_config paths)
-        working-directory: apps/server
-        run: pytest tests/ --ignore=tests/test_compose_config.py
+      - name: Compile (warnings are non-fatal)
+        working-directory: apps/server_elixir
+        run: mix compile
 
-      - name: Run OpenAPI contract gate
-        run: bash scripts/check-openapi-contract.sh
+      - name: Run full Phoenix suite against the PostgreSQL fixture
+        working-directory: apps/server_elixir
+        run: mix test
 
-      # Failure diagnostics: export the currently served document and capture
-      # the diff against the committed snapshot as a reviewable artifact.
-      - name: Capture served-spec diff
-        if: failure()
-        run: |
-          cd apps/server
-          python scripts/export_openapi.py --output /tmp/served-openapi.json \
-            > /tmp/exporter.log 2>&1 || true
-          cd ../..
-          {
-            echo "# OpenAPI contract failure diagnostics"
-            echo "## exporter log (scripts/export_openapi.py)"
-            cat /tmp/exporter.log
-            echo
-            echo "## diff: committed snapshot (contracts/radas-api-v2.openapi.json) -> served spec"
-            diff -u contracts/radas-api-v2.openapi.json /tmp/served-openapi.json || true
-          } > openapi-spec-diff.txt
-
-      - name: Upload spec diff artifact
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openapi-spec-diff
-          path: openapi-spec-diff.txt
-          if-no-files-found: ignore
+      - name: Check sensitive-path static rules (Elixir)
+        run: bash scripts/check-sensitive-paths-elixir.sh

@@ -1,19 +1,20 @@
 /**
  * pm2 local-development orchestration for the Radas stack.
  *
+ * Phase 8 cutover: the API backend is Phoenix (apps/server_elixir, :4000).
+ * The legacy Flask server entry has been retired from this orchestration.
+ *
  * First-time setup (once):
- *   cd apps/opensible-server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+ *   cd apps/server_elixir && mix deps.get && mix ecto.setup
  *
  * Commands:
- *   pnpm dev:radas            # start server (:5001) + console (:8080) + worker
+ *   pnpm dev:radas            # start phoenix (:4000) + console (:8080) + worker
  *   pnpm dev:radas:stop       # stop everything (keeps pm2 daemon)
  *   pnpm dev:radas:restart    # restart all apps
  *   pnpm dev:radas:logs       # follow combined logs
  *
- * Ports: server 5001 (PORT env). macOS AirPlay Receiver occupies :5000 by
- * default — either run on 5001 (default here) or free 5000 by disabling
- * AirPlay Receiver in System Settings → General → AirDrop & Handoff, then
- * set `OPEN_SERVER_PORT=5000 pm2 start ecosystem.config.cjs`.
+ * Ports: phoenix 4000 (OPEN_PHOENIX_PORT env). Set RADAS_ROUTER=1 to add the
+ * nginx front door (:8090).
  *
  * The console proxies /api → VITE_API_TARGET (defaults to the server port
  * below in vite.config.ts).
@@ -110,11 +111,9 @@ const globalSecretsEncryptionKey = requireStrongProductionSecret(
 );
 const databaseUrl = requireProductionValue("DATABASE_URL", process.env.DATABASE_URL);
 
-// Opt-in Elixir migration services (Phase 0.2): set RADAS_PHOENIX=1 and/or
-// RADAS_ROUTER=1 to start the Phoenix server (:4000) and the nginx router
-// (:8090). Both are off by default so the standard `pnpm dev:radas` stack is
-// untouched.
-const PHOENIX_ENABLED = process.env.RADAS_PHOENIX === "1";
+// Phase 8: Phoenix is the default backend. The router (nginx front door)
+// stays opt-in via RADAS_ROUTER=1.
+const PHOENIX_ENABLED = true;
 const ROUTER_ENABLED = process.env.RADAS_ROUTER === "1";
 const PHOENIX_PORT = process.env.OPEN_PHOENIX_PORT || "4000";
 const ROUTER_PORT = process.env.OPEN_ROUTER_PORT || "8090";
@@ -146,30 +145,6 @@ module.exports = {
       },
     }] : []),
     {
-      name: "radas-server",
-      cwd: "./apps/server",
-      script: ".venv/bin/python",
-      args: "app.py",
-      interpreter: "none",
-      env: {
-        ...process.env,
-        PORT: SERVER_PORT,
-        DATA_DIR: process.env.DATA_DIR || "./data",
-        FLASK_ENV: childFlaskEnv,
-        FLASK_DEBUG: childFlaskDebug,
-        JWT_SECRET_KEY: jwtSecret,
-        INTERNAL_CALL_SECRET,
-        GLOBAL_SECRETS_ENCRYPTION_KEY: globalSecretsEncryptionKey,
-        WORKER_REGISTRATION_SECRET: workerRegistrationSecret,
-        VAULT_SERVER_SECRET: vaultServerSecret,
-        PREVIEW_WEBHOOK_SECRET: previewWebhookSecret,
-        ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD || "",
-        CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || "http://localhost:8080",
-        DATABASE_URL: databaseUrl || "postgresql://localhost/radas",
-        TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || "postgresql://localhost/radas_test",
-      },
-    },
-    {
       name: "radas-console",
       cwd: "./apps/console",
       script: "./node_modules/vite/bin/vite.js",
@@ -187,7 +162,7 @@ module.exports = {
         FLASK_ENV: childFlaskEnv,
         WORKER_NAME: "worker-go",
         WORKER_TAGS: "go",
-        WORKER_SERVER_URL: `http://127.0.0.1:${SERVER_PORT}`,
+        WORKER_SERVER_URL: `http://127.0.0.1:${PHOENIX_PORT}`,
         WORKER_TOKEN_FILE: "./data/worker.token",
         DATA_DIR: "./data",
         // Must exactly match the server's registration secret.

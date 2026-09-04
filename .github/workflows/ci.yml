@@ -69,10 +69,10 @@ jobs:
         working-directory: apps/worker
         run: go test ./...
 
-  python-tests:
-    name: Test Flask Server API
+  elixir-tests:
+    name: Test Phoenix Server API
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -100,36 +100,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
         with:
-          python-version: '3.12'
+          elixir-version: '1.18'
+          otp-version: '27'
 
-      - name: Install dependencies
-        working-directory: apps/server
+      - name: Install dependencies + run Phoenix suite
+        working-directory: apps/server_elixir
+        env:
+          DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+          TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+          JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
+          INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
+          GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
+          mix deps.get
+          mix ecto.create --quiet
+          mix ecto.migrate --quiet
+          mix test
 
-      - name: Run Python API tests
-        working-directory: apps/server
-        run: pytest tests/
+      # Phase 8: the CLI route-parity gate runs inside the ExUnit suite
+      # (RadasCliRouteParityTest); the sensitive-path static rules gate for
+      # the Elixir tree is scripts/check-sensitive-paths-elixir.sh.
+      - name: Check sensitive-path static rules (Elixir)
+        run: bash scripts/check-sensitive-paths-elixir.sh
 
-      # Task 6.1: contract surface checks alongside the API tests. The full
-      # OpenAPI snapshot + PostgreSQL gate lives in api-contract.yml; these
-      # steps keep parity/redaction visible on every plain server run.
-      - name: Check CLI route parity (manifest vs served routes)
-        working-directory: apps/server
-        run: python scripts/check_route_parity.py
-
-      - name: Check sensitive-path static rules
-        working-directory: apps/server
-        run: python scripts/check_sensitive_paths.py
-
-  # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
-  # of scripts/run-cross-client-contracts.sh: the pytest server reference
-  # contract (which also runs the domain-ontology schema/loader/parity tests),
+  # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode
+  # (a) of scripts/run-cross-client-contracts.sh: the Phoenix ExUnit suite is
+  # the behavioral reference contract (including the ontology parity gate),
   # the console TypeScript client fixture leg (typecheck + vitest + build),
   # and the Go CLI (vet + tests) / worker tests. The live-server legs
   # (Go client + direct HTTP, TypeScript real HTTP) stay env-gated for
@@ -175,20 +174,14 @@ jobs:
           go-version: '1.25.x'
           check-latest: true
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
         with:
-          python-version: '3.12'
+          elixir-version: '1.18'
+          otp-version: '27'
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Create server virtualenv
-        working-directory: apps/server
-        run: |
-          python -m venv .venv
-          .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run cross-client contract gate (mode a)
         env:

@@ -23,7 +23,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-REQUIRED_APP_DIRS = ("cli", "console", "server", "worker", "desktop-app")
+REQUIRED_APP_DIRS = ("cli", "console", "server", "server_elixir", "worker", "desktop-app")
 
 REQUIRED_CONTRACT_FILES = (
     "contracts/radas-api-v2.openapi.json",
@@ -33,6 +33,9 @@ REQUIRED_CONTRACT_FILES = (
 )
 
 # Paths that no longer exist and must not be referenced by active files.
+# `apps/server` is retired-in-place (Phase 8: Phoenix is the API backend);
+# infrastructure and docs must not route traffic or CI to it anymore —
+# active files reference apps/server_elixir instead.
 RETIRED_PATH_PREFIXES = (
     "apps/opensible-server",
     "apps/radas-console",
@@ -99,6 +102,31 @@ def test_migration_guide_is_retired_with_banner():
         pytest.skip("MIGRATION_GUIDE.md not present on this checkout")
     assert "RETIRED" in guide.read_text(encoding="utf-8"), (
         "MIGRATION_GUIDE.md still references removed apps without a retirement banner"
+    )
+
+
+def test_active_workflows_do_not_target_retired_flask_server():
+    """Phase 8: CI must run the Phoenix suite (apps/server_elixir), not the
+    retired Flask tree. apps/server itself stays as a deprecated reference —
+    only NEW workflow targets are banned."""
+    import re as _re
+
+    workflows = sorted((ROOT / ".github/workflows").glob("*.yml"))
+    for workflow in workflows:
+        text = workflow.read_text(encoding="utf-8", errors="replace")
+        for match in _re.finditer(r"working-directory:\s*(\S+)", text):
+            target = match.group(1).strip("'\"").rstrip("/")
+            assert target != "apps/server", (
+                f"{workflow.name}: working-directory targets the retired Flask "
+                "tree; point it at apps/server_elixir"
+            )
+
+
+def test_pm2_does_not_launch_the_retired_flask_server():
+    eco = (ROOT / "ecosystem.config.cjs").read_text(encoding="utf-8", errors="replace")
+    assert 'name: "radas-server"' not in eco, (
+        "ecosystem.config.cjs still launches the retired Flask server; "
+        "radas-phoenix is the backend entry"
     )
 
 
