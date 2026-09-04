@@ -115,6 +115,43 @@ defmodule RadasWeb.Router do
       post "/executions/:execution_id/comments", CloudStacksController, :comments_add
     end
 
+    # BYOC (Fase 6 — UC 271+): bring-your-own-cloud accounts, probes,
+    # inventory, import mappings, budgets, quotas, backups. All routes
+    # require auth (Python @require_auth); account routes add the
+    # project-scoped ownership check inside the controller.
+    scope "/byoc" do
+      pipe_through :v2_auth
+
+      post "/providers/detect", ByocController, :providers_detect
+      get "/providers", ByocController, :providers_list
+      get "/accounts", ByocController, :accounts_list
+      post "/accounts", ByocController, :accounts_create
+      delete "/accounts/:account_id", ByocController, :accounts_delete
+      post "/accounts/:account_id/validate", ByocController, :accounts_validate
+      post "/check-due", ByocController, :check_due
+      post "/accounts/:account_id/rotate", ByocController, :accounts_rotate
+      get "/accounts/:account_id/inventory", ByocController, :inventory
+      get "/accounts/:account_id/inventory/drift", ByocController, :inventory_drift
+      get "/accounts/:account_id/inventory/snapshots", ByocController, :inventory_snapshots
+      get "/accounts/:account_id/managed-resources", ByocController, :managed_resources_get
+      put "/accounts/:account_id/managed-resources", ByocController, :managed_resources_put
+      put "/accounts/:account_id/budget", ByocController, :budget_set
+      get "/accounts/:account_id/budget/check", ByocController, :budget_check
+      get "/accounts/:account_id/cost", ByocController, :cost
+      post "/accounts/:account_id/state-sync", ByocController, :state_sync
+      post "/accounts/:account_id/import", ByocController, :import_mapping
+      get "/stacks/:stack/backend-type", ByocController, :stack_backend_type
+      get "/inventory/export/csv", ByocController, :inventory_csv
+      post "/adopt-only", ByocController, :adopt_only
+      post "/clash-check", ByocController, :clash_check
+      get "/accounts/:account_id/quota", ByocController, :quota_get
+      post "/accounts/:account_id/quota", ByocController, :quota_set
+      put "/accounts/:account_id/quota", ByocController, :quota_set
+      get "/backup/export", ByocController, :backup_export
+      post "/backup/restore", ByocController, :backup_restore
+      get "/accounts/:account_id/unmanaged", ByocController, :unmanaged
+    end
+
     # SSO (env-gated; 503 when the provider is not configured).
     get "/auth/google/begin", AuthController, :google_begin
     get "/auth/google/callback", AuthController, :google_callback
