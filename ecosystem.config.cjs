@@ -110,8 +110,41 @@ const globalSecretsEncryptionKey = requireStrongProductionSecret(
 );
 const databaseUrl = requireProductionValue("DATABASE_URL", process.env.DATABASE_URL);
 
+// Opt-in Elixir migration services (Phase 0.2): set RADAS_PHOENIX=1 and/or
+// RADAS_ROUTER=1 to start the Phoenix server (:4000) and the nginx router
+// (:8090). Both are off by default so the standard `pnpm dev:radas` stack is
+// untouched.
+const PHOENIX_ENABLED = process.env.RADAS_PHOENIX === "1";
+const ROUTER_ENABLED = process.env.RADAS_ROUTER === "1";
+const PHOENIX_PORT = process.env.OPEN_PHOENIX_PORT || "4000";
+const ROUTER_PORT = process.env.OPEN_ROUTER_PORT || "8090";
+
 module.exports = {
   apps: [
+    ...(PHOENIX_ENABLED ? [{
+      name: "radas-phoenix",
+      cwd: "./apps/server_elixir",
+      script: "mix",
+      args: "phx.server",
+      interpreter: "none",
+      env: {
+        ...process.env,
+        PORT: PHOENIX_PORT,
+        DATABASE_URL: databaseUrl || "postgresql://localhost/radas",
+      },
+    }] : []),
+    ...(ROUTER_ENABLED ? [{
+      name: "radas-router",
+      cwd: ".",
+      script: "nginx",
+      args: `-c ${__dirname}/nginx/radas.conf -p ${__dirname}`,
+      interpreter: "none",
+      env: {
+        ...process.env,
+        OPEN_PHOENIX_PORT: PHOENIX_PORT,
+        OPEN_ROUTER_PORT: ROUTER_PORT,
+      },
+    }] : []),
     {
       name: "radas-server",
       cwd: "./apps/server",
