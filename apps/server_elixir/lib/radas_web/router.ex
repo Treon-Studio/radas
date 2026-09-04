@@ -112,6 +112,16 @@ defmodule RadasWeb.Router do
     get "/inventory/host-vars/:host_name", InventoryController, :host_vars_show
     put "/inventory/host-vars/:host_name", InventoryController, :host_vars_put
 
+    # Templates (Phase 6-3): catalog + render. The full 29-template Python
+    # catalog port continues; generic ships first.
+    get "/templates", TemplatesController, :list
+    get "/templates/:template_id", TemplatesController, :show
+    post "/templates/:template_id/render", TemplatesController, :render
+
+    # Ansible run: creates the shared QUEUED execution record (the runner
+    # subprocess stays on Flask during coexistence).
+    post "/run_ansible", TemplatesController, :run
+
     # Playbooks (Phase 6-2): dual-store (ui JSON + repo YAML).
     get "/projects/:project_id/playbooks", PlaybooksController, :list
     post "/projects/:project_id/playbooks", PlaybooksController, :create
