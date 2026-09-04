@@ -112,6 +112,14 @@ defmodule RadasWeb.Router do
     get "/inventory/host-vars/:host_name", InventoryController, :host_vars_show
     put "/inventory/host-vars/:host_name", InventoryController, :host_vars_put
 
+    # Playbooks (Phase 6-2): dual-store (ui JSON + repo YAML).
+    get "/projects/:project_id/playbooks", PlaybooksController, :list
+    post "/projects/:project_id/playbooks", PlaybooksController, :create
+    get "/projects/:project_id/playbooks/:playbook_id", PlaybooksController, :show
+    put "/projects/:project_id/playbooks/:playbook_id", PlaybooksController, :update
+    delete "/projects/:project_id/playbooks/:playbook_id", PlaybooksController, :delete
+    put "/projects/:project_id/playbooks-yaml", PlaybooksController, :yaml_save
+
     get "/orgs", IdentityController, :orgs_list
     post "/orgs", IdentityController, :orgs_create
     get "/orgs/:org_id", IdentityController, :orgs_show
