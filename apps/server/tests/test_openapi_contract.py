@@ -42,7 +42,7 @@ from api_v2 import (
     v2_surface_ok,
 )
 from api_v2.contract_checks import find_contract_violations
-from scripts.export_openapi import canonical_json_bytes
+from tests.openapi_semantic import assert_semantic_equivalence
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -174,13 +174,23 @@ def test_v2_contract_violations_do_not_regress_baseline(v2_spec):
 
 
 def test_committed_snapshot_matches_served_document(v2_spec):
+    """Semantic surface pin (Elixir migration Phase 0.1).
+
+    The snapshot must serve the identical (path, method, operationId) surface
+    and remain a structurally valid OpenAPI document. Byte identity and JSON
+    serialization no longer gate: no client depends on them; the
+    cross-client fixtures assert semantic equivalence.
+    """
     assert SNAPSHOT_PATH.exists(), (
         f"missing {SNAPSHOT_PATH}; run scripts/export_openapi.py --output {SNAPSHOT_PATH}"
     )
-    assert SNAPSHOT_PATH.read_bytes() == canonical_json_bytes(v2_spec)
+    snapshot_doc = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    assert_semantic_equivalence(snapshot_doc, v2_spec, label="served")
 
 
 def test_exporter_output_is_byte_stable_and_matches_snapshot(tmp_path):
+    """Exporter determinism is kept (reviewable diffs); snapshot equality is
+    relaxed to semantic equivalence (see openapi_semantic.py)."""
     outputs = []
     for run in (1, 2):
         out = tmp_path / f"export-{run}.json"
@@ -196,7 +206,9 @@ def test_exporter_output_is_byte_stable_and_matches_snapshot(tmp_path):
         outputs.append(out.read_bytes())
 
     assert outputs[0] == outputs[1], "exporter is not byte-stable across runs"
-    assert outputs[0] == SNAPSHOT_PATH.read_bytes(), "exporter output != committed snapshot"
+    snapshot_doc = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    exporter_doc = json.loads(outputs[0])
+    assert_semantic_equivalence(snapshot_doc, exporter_doc, label="exporter")
 
 
 # ---------------------------------------------------------------------------

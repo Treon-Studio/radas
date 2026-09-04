@@ -4,7 +4,7 @@
   "author": "RADAS Team",
   "version": "1.0.0",
   "private": true,
-  "description": "RADAS Desktop App Wrapper with Cod\u00e9dex-style 8-bit Pet Companion Widget",
+  "description": "RADAS Desktop App Wrapper with Codédex-style 8-bit Pet Companion Widget",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
@@ -42,7 +42,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
-    "electron": "^34.2.0",
+    "electron": "^44.1.1",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.2",
     "postcss": "^8.5.2",
