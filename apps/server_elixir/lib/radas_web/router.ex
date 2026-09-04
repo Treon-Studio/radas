@@ -102,6 +102,16 @@ defmodule RadasWeb.Router do
 
     get "/auth/me", AuthController, :me
 
+    # Inventory (Phase 6): groups/hosts/vars over the project repo layout.
+    get "/inventory/groups", InventoryController, :groups_show
+    post "/inventory/groups", InventoryController, :groups_add
+    delete "/inventory/groups/:group_name", InventoryController, :groups_delete
+    get "/inventory/hosts", InventoryController, :hosts_show
+    get "/inventory/group-vars/:group_name", InventoryController, :group_vars_show
+    put "/inventory/group-vars/:group_name", InventoryController, :group_vars_put
+    get "/inventory/host-vars/:host_name", InventoryController, :host_vars_show
+    put "/inventory/host-vars/:host_name", InventoryController, :host_vars_put
+
     get "/orgs", IdentityController, :orgs_list
     post "/orgs", IdentityController, :orgs_create
     get "/orgs/:org_id", IdentityController, :orgs_show

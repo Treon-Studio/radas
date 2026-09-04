@@ -47,7 +47,8 @@ defmodule Radas.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5"},
-      {:bcrypt_elixir, "~> 3.0"}
+      {:bcrypt_elixir, "~> 3.0"},
+      {:yaml_elixir, "~> 2.11"}
     ]
   end
 
