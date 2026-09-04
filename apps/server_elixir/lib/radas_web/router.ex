@@ -237,8 +237,16 @@ defmodule RadasWeb.Router do
     # Templates (Phase 6-3): catalog + render. The full 29-template Python
     # catalog port continues; generic ships first.
     get "/templates", TemplatesController, :list
+    get "/templates/custom", TemplatesController, :custom_list
+    post "/templates/import", TemplatesController, :custom_import
+    get "/templates/instances", TemplatesController, :instances_list
+    get "/templates/instances/detail", TemplatesController, :instances_detail
+    get "/templates/instances/history", TemplatesController, :instances_history
+    get "/templates/instances/version", TemplatesController, :instances_version
+    delete "/templates/instances", TemplatesController, :instances_delete
     get "/templates/:template_id", TemplatesController, :show
     post "/templates/:template_id/render", TemplatesController, :render
+    post "/templates/:template_id/save", TemplatesController, :save
 
     # Ansible run: creates the shared QUEUED execution record (the runner
     # subprocess stays on Flask during coexistence).

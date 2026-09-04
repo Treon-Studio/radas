@@ -37,7 +37,12 @@ defmodule RadasWeb.TemplatesControllerTest do
         @jwt_secret
       )
 
-    {:ok, conn: build_conn() |> put_req_header("authorization", "Bearer " <> token)}
+    {:ok,
+     conn:
+       build_conn()
+       |> put_req_header("authorization", "Bearer " <> token)
+       |> put_req_header("x-project-id", @project),
+     data_dir: data_dir}
   end
 
   test "GET /api/templates lists the catalog (generic first-class)", %{conn: conn} do
@@ -122,4 +127,98 @@ defmodule RadasWeb.TemplatesControllerTest do
     assert conn.status == 400
     assert Jason.decode!(conn.resp_body)["error"] =~ "host"
   end
+  test "save creates playbook + instance sidecar; instances list/detail/delete round trip", %{conn: conn, data_dir: data_dir} do
+    c =
+      dispatch(conn, @endpoint, :post, "/api/templates/generic/save", %{
+        "values" => %{},
+        "targets" => %{},
+        "environment" => "dev"
+      })
+
+    assert c.status == 200, c.resp_body
+    body = Jason.decode!(c.resp_body)
+    assert body["ok"] == true
+    assert body["filename"] =~ "dev-"
+    assert body["environment"] == "dev"
+    assert is_binary(body["playbook_id"])
+
+    repo = Path.join([data_dir, "projects", @project, "repo"])
+    assert File.exists?(Path.join([repo, "playbooks", body["filename"]]))
+
+    # Instance config sidecar lives OUTSIDE repo/ (data/template-instances/).
+    refute String.contains?(body["instance_path"], "repo/")
+    cfg = Path.join([data_dir, "projects", @project, "data", "template-instances", body["instance_path"]])
+    assert File.exists?(cfg)
+
+    # List.
+    c = dispatch(conn, @endpoint, :get, "/api/templates/instances", nil)
+    assert c.status == 200
+    instances = Jason.decode!(c.resp_body)["instances"]
+    assert length(instances) == 1
+    inst = hd(instances)
+    assert inst["template_id"] == "generic"
+    assert inst["filename"] == body["filename"]
+    assert inst["playbook_id"] == body["playbook_id"]
+
+    # Detail by id.
+    c = dispatch(conn, @endpoint, :get, "/api/templates/instances/detail?id=" <> inst["id"], nil)
+    assert c.status == 200
+    detail = Jason.decode!(c.resp_body)
+    assert detail["id"] == inst["id"]
+    assert is_binary(detail["rendered_yaml"])
+
+    # Second save (different env) doesn't collide.
+    c =
+      dispatch(conn, @endpoint, :post, "/api/templates/generic/save", %{
+        "values" => %{},
+        "targets" => %{},
+        "environment" => "prod"
+      })
+
+    assert c.status == 200
+
+    # Delete.
+    c = dispatch(conn, @endpoint, :delete, "/api/templates/instances?id=" <> inst["id"], nil)
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["ok"] == true
+    refute File.exists?(cfg)
+
+    c = dispatch(conn, @endpoint, :delete, "/api/templates/instances?id=" <> inst["id"], nil)
+    assert c.status == 404
+
+    _ = repo
+  end
+
+  test "custom templates list + import validation", %{conn: conn, data_dir: data_dir} do
+    c = dispatch(conn, @endpoint, :get, "/api/templates/custom", nil)
+    assert c.status == 200
+    assert Jason.decode!(c.resp_body)["templates"] == []
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/templates/import", %{
+        "name" => "My Template",
+        "git_url" => ""
+      })
+
+    assert c.status == 400
+
+    c =
+      dispatch(conn, @endpoint, :post, "/api/templates/import", %{
+        "name" => "My Template",
+        "git_url" => "/definitely/not/a/repo"
+      })
+
+    # git clone fails (non-git path) → 400 with the error message.
+    assert c.status == 400
+    assert Jason.decode!(c.resp_body)["error"] =~ "git clone failed"
+
+    # Seed a custom dir manually to verify listing.
+    File.mkdir_p!(Path.join([data_dir, "custom-templates", "my-template"]))
+
+    c = dispatch(conn, @endpoint, :get, "/api/templates/custom", nil)
+    templates = Jason.decode!(c.resp_body)["templates"]
+    assert [%{"name" => "my-template"}] = templates
+  end
+
+
 end
