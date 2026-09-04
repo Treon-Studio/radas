@@ -2,7 +2,13 @@
  * Thin fetch wrapper for the OpenSible backend.
  * Platform responses use a `data` envelope; operation responses intentionally
  * keep their asynchronous payload in the top-level `operation` field.
+ *
+ * Header construction (Bearer auth + X-Request-Id) lives in the SDK transport
+ * (@treon-studio/radas-sdk createRadasTransport); this module keeps only the
+ * console-owned semantics: token storage, auth refresh, project scoping, and
+ * envelope/error handling.
  */
+import { createRadasTransport } from "@treon-studio/radas-sdk";
 const TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 const USER_KEY = "user_data";
@@ -187,7 +193,8 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     ...((init?.headers as Record<string, string>) ?? {}),
   };
   const realPath = projectId ? path.replace("/_current/", `/${encodeURIComponent(projectId)}/`) : path;
-  const res = await fetch(apiBase + realPath, {
+  const transport = createRadasTransport({ baseUrl: apiBase, getToken });
+  const res = await transport(realPath, {
     ...init,
     method,
     headers,
