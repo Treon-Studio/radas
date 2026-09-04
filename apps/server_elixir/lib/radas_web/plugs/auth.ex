@@ -3,22 +3,23 @@ defmodule RadasWeb.Plugs.Auth do
   Port of `require_auth` in `auth/middleware.py` for the legacy namespace.
 
   Accepts, in order: the internal-call header (scheduler/background calls),
-  RADAS JWTs (signature, expiry, token_type, blacklist), and long-lived API
-  tokens. Enforces the `readonly` role on non-GET requests outside /api/auth.
-  Sets `current_user` on the conn. Worker-token verification lands with the
-  Phase 4 execution cutover (worker paths stay on Flask until then).
+  RADAS JWTs (signature, expiry, token_type, blacklist, session revocation),
+  and worker tokens (`RadasAI.WorkerRegistry` — the Go worker authenticates
+  with its registry token on any path, matching Python's middleware worker
+  branch). Enforces the `readonly` role on non-GET requests outside
+  /api/auth. Sets `current_user` on the conn.
   """
 
   import Plug.Conn
 
-  alias RadasAI.AuthService
+  alias RadasAI.{AuthService, WorkerRegistry}
 
   def init(opts \\ []), do: opts
 
   def call(conn, _opts) do
     conn
     |> try_internal_call()
-    |> try_jwt()
+    |> try_token()
     |> case do
       {:ok, conn} -> conn
       {:skip, conn} -> deny(conn, 401, "Access token missing")
@@ -44,42 +45,67 @@ defmodule RadasWeb.Plugs.Auth do
     end
   end
 
-  defp try_jwt({:ok, conn}), do: {:ok, conn}
+  defp try_token({:ok, conn}), do: {:ok, conn}
 
-  defp try_jwt({:skip, conn}) do
+  defp try_token({:skip, conn}) do
     token = token_from(conn)
 
     if token in [nil, ""] do
       {:skip, conn}
     else
-      claims = AuthService.verify_token(token, data_dir(), "access")
-
       cond do
-        claims == nil ->
-          {:denied, conn, 401, "Invalid or expired token"}
+        jwt = AuthService.verify_token(token, data_dir(), "access") ->
+          current_user = %{
+            "user_id" => jwt["user_id"],
+            "username" => jwt["username"],
+            "roles" => jwt["roles"] || [],
+            "org_id" => jwt["org_id"]
+          }
 
-        readonly_blocked?(conn, claims) ->
-          {:denied, conn, 403, "This account has read-only access."}
+          readonly_blocked?(conn, current_user)
+          |> finish(conn, current_user, token)
+
+        worker_match(worker_token_match(token)) ->
+          {worker_id, _worker} = worker_token_match(token)
+
+          current_user = %{
+            "user_id" => "__worker__:" <> worker_id,
+            "username" => "worker:" <> String.slice(worker_id, 0, 8),
+            "roles" => []
+          }
+
+          readonly_blocked?(conn, current_user)
+          |> finish(conn, current_user, token)
 
         true ->
-          {:ok,
-           conn
-           |> assign(:current_user, %{
-             "user_id" => claims["user_id"],
-             "username" => claims["username"],
-             "roles" => claims["roles"] || [],
-             "org_id" => claims["org_id"]
-           })
-           |> assign(:token, token)}
+          {:denied, conn, 401, "Invalid or expired token"}
       end
     end
   end
 
-  defp readonly_blocked?(conn, claims) do
-    "readonly" in List.wrap(claims["roles"]) and
+  # cond clauses evaluate for truthiness — a nil from verify_token would
+  # raise inside a bare match, so unwrap via a nil-tolerant helper.
+  defp worker_token_match(token) do
+    case WorkerRegistry.verify_token(token) do
+      nil -> nil
+      result -> result
+    end
+  end
+
+  defp worker_match({worker_id, worker} = result) when is_binary(worker_id) and is_map(worker), do: result
+  defp worker_match(_), do: false
+
+  defp readonly_blocked?(conn, current_user) do
+    "readonly" in List.wrap(current_user["roles"]) and
       conn.method not in ["GET", "HEAD", "OPTIONS"] and
       not String.starts_with?(conn.request_path, "/api/auth/")
   end
+
+  defp finish(false, conn, current_user, token),
+    do: {:ok, conn |> assign(:current_user, current_user) |> assign(:token, token)}
+
+  defp finish(true, conn, _current_user, _token),
+    do: {:denied, conn, 403, "This account has read-only access."}
 
   defp token_from(conn) do
     case get_req_header(conn, "authorization") |> List.first() do

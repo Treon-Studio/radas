@@ -29,6 +29,10 @@ defmodule RadasWeb.Router do
     post "/auth/refresh", AuthController, :refresh
     post "/auth/logout", AuthController, :logout
 
+    # Public evaluate — the Go worker calls this with its registry token and
+    # Python ships it without @require_auth (worker/console contract).
+    post "/flags/evaluate", FlagsController, :evaluate
+
     # SSO (env-gated; 503 when the provider is not configured).
     get "/auth/google/begin", AuthController, :google_begin
     get "/auth/google/callback", AuthController, :google_callback
@@ -71,6 +75,27 @@ defmodule RadasWeb.Router do
   post "/api/execution_settings", RadasWeb.ExecutionsController, :settings_save
 
   get "/api/executions/stream", RadasWeb.ExecutionsController, :execution_stream
+
+  # Feature flags (Phase 5): all routes authenticate (JWT / internal-call /
+  # worker token — the Go worker sends its registry token); mutations are
+  # admin-gated inside the controller. Evaluate works for both console users
+  # and workers.
+  scope "/api/flags", RadasWeb do
+    pipe_through :legacy_auth
+
+    get "/", FlagsController, :list
+    post "/", FlagsController, :create
+    patch "/:key", FlagsController, :update
+    delete "/:key", FlagsController, :delete
+    get "/audit", FlagsController, :audit
+    post "/expire-due", FlagsController, :expire_due
+    get "/export", FlagsController, :export
+    post "/import", FlagsController, :import
+  end
+
+  # Public evaluate — the Go worker calls this with its registry token and
+  # Python ships it without @require_auth (worker/console contract).
+
 
   scope "/api", RadasWeb do
     pipe_through :legacy_auth

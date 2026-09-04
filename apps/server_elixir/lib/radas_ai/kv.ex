@@ -16,12 +16,14 @@ defmodule RadasAI.KV do
 
   @spec set(String.t(), String.t(), term(), float() | nil) :: :ok
   def set(scope, key, value, updated_at \\ nil) do
+    # The JSON text is sent as a text param and cast text→jsonb server-side
+    # (Postgrex would double-encode a binary param bound directly as jsonb).
     execute!(
       """
-      INSERT INTO kv_store (scope, key, value, updated_at) VALUES ($1, $2, $3, $4)
+      INSERT INTO kv_store (scope, key, value, updated_at) VALUES ($1, $2, $3::text::jsonb, $4)
       ON CONFLICT (scope, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
       """,
-      [scope, key, value, updated_at || now()]
+      [scope, key, Jason.encode!(value), updated_at || now()]
     )
 
     :ok
