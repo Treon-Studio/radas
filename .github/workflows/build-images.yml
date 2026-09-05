@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: server
+          - name: phoenix
             context: .
             dockerfile: apps/server/Dockerfile
           - name: worker
@@ -36,16 +36,13 @@ jobs:
       # The Dockerfiles expect a legacy layout (server/, worker/, IaC/ at the
       # context root). Stage that layout instead of rewriting the Dockerfiles.
       - name: Stage build context
+        if: matrix.name != 'console'
         run: |
           mkdir -p /tmp/ctx
-          cp -r apps/server /tmp/ctx/server
-          rm -rf /tmp/ctx/server/.venv /tmp/ctx/server/__pycache__ /tmp/ctx/server/node_modules
-          cp -r apps/worker /tmp/ctx/worker
-          # IaC tracked source; apps/server/IaC is an empty local mount point.
+          cp -r apps/${{ matrix.name }} /tmp/ctx/${{ matrix.name }}
+          # IaC tracked source (the server expects IaC/ at the context root).
           cp -r templates/opensible-iac /tmp/ctx/IaC
           cp apps/${{ matrix.name }}/Dockerfile /tmp/ctx/Dockerfile
-          # Keep only the Dockerfile: the server .dockerignore (written for the
-          # legacy context) would exclude IaC/ from the staged root.
           rm -f /tmp/ctx/.dockerignore
 
       - name: Console context (self-contained)

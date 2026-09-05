@@ -1,0 +1,3161 @@
+{
+ "adapters": {
+  "aws": {
+   "id": "aws",
+   "label": "AWS",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "region",
+    "vpc_cidr",
+    "subnet_cidr",
+    "subnet_cidr_b",
+    "ami_id",
+    "instance_type",
+    "app_vm_count",
+    "auth_method",
+    "ssh_public_key",
+    "admin_username",
+    "admin_password",
+    "admin_cidrs",
+    "web_cidrs",
+    "enable_web_ingress",
+    "custom_ingress_rules",
+    "enable_platform",
+    "platform_roles",
+    "platform_overrides",
+    "extra_vms",
+    "enable_alb",
+    "alb_internal",
+    "alb_target_port",
+    "alb_health_check_path",
+    "alb_certificate_arn",
+    "enable_rds",
+    "rds_engine",
+    "rds_engine_version",
+    "rds_instance_class",
+    "rds_allocated_storage",
+    "rds_db_name",
+    "rds_username",
+    "rds_password",
+    "rds_publicly_accessible",
+    "rds_skip_final_snapshot",
+    "enable_s3",
+    "s3_bucket_name",
+    "s3_versioning",
+    "s3_block_public_access",
+    "labels"
+   ],
+   "secret_keys": [
+    "aws_access_key",
+    "aws_secret_key",
+    "admin_password",
+    "rds_password"
+   ],
+   "platform_override_keys": [
+    "ami_id",
+    "instance_type"
+   ],
+   "schema": {
+    "provider": "aws",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Prefix used for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "region",
+        "label": "AWS Region",
+        "type": "string",
+        "default": "us-east-1",
+        "required": true,
+        "help": "AWS region code (us-east-1, eu-west-1, ap-southeast-1, ...)."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "aws_access_key",
+        "label": "AWS Access Key ID",
+        "type": "secret",
+        "required": true,
+        "help": "IAM user access key ID."
+       },
+       {
+        "name": "aws_secret_key",
+        "label": "AWS Secret Access Key",
+        "type": "secret",
+        "required": true,
+        "help": "IAM user secret access key. Store in the encrypted secret store."
+       },
+       {
+        "name": "auth_method",
+        "label": "VM login method",
+        "type": "select",
+        "default": "ssh_key",
+        "options": [
+         "ssh_key",
+         "password"
+        ],
+        "help": "'ssh_key' creates an aws_key_pair from your public key. 'password' uses cloud-init to create a Linux user with password login."
+       },
+       {
+        "name": "ssh_public_key",
+        "label": "SSH public key",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "auth_method": "ssh_key"
+        },
+        "help": "ssh-ed25519 or ssh-rsa public key. Registered as an aws_key_pair and attached to every instance."
+       },
+       {
+        "name": "admin_username",
+        "label": "Admin username",
+        "type": "string",
+        "default": "opensible",
+        "visible_when": {
+         "auth_method": "password"
+        },
+        "help": "Linux user created on every instance via cloud-init, with sudo NOPASSWD."
+       },
+       {
+        "name": "admin_password",
+        "label": "Admin password",
+        "type": "secret",
+        "visible_when": {
+         "auth_method": "password"
+        },
+        "help": "Password for the admin user. Injected via cloud-init user_data."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "vpc_cidr",
+        "label": "VPC CIDR",
+        "type": "cidr",
+        "default": "10.0.0.0/16",
+        "required": true,
+        "help": "IPv4 CIDR block for the VPC."
+       },
+       {
+        "name": "subnet_cidr",
+        "label": "Subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.1.0/24",
+        "required": true,
+        "help": "Public subnet CIDR (must sit inside the VPC CIDR)."
+       }
+      ]
+     },
+     {
+      "id": "firewall",
+      "title": "Security Group",
+      "icon": "fa-shield-halved",
+      "fields": [
+       {
+        "name": "admin_cidrs",
+        "label": "Admin CIDRs (SSH port 22)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "help": "JSON array of source CIDRs allowed on port 22, e.g. [\"203.0.113.10/32\"]. Restrict in production."
+       },
+       {
+        "name": "enable_web_ingress",
+        "label": "Allow web ingress (ports 80/443)",
+        "type": "bool",
+        "default": true,
+        "help": "When enabled, opens 80 and 443 on the security group."
+       },
+       {
+        "name": "web_cidrs",
+        "label": "Web CIDRs (ports 80/443)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "visible_when": {
+         "enable_web_ingress": true
+        },
+        "help": "Source CIDRs allowed on 80/443. Ignored if web ingress is disabled."
+       },
+       {
+        "name": "custom_ingress_rules",
+        "label": "Custom ingress rules (any port / CIDR)",
+        "type": "json",
+        "default": [],
+        "help": "JSON array of extra ingress rules on the main security group. Each entry is an object with description, protocol (tcp/udp/icmp/-1), from_port, to_port, cidr_blocks. Example: [{\"description\":\"App API\",\"protocol\":\"tcp\",\"from_port\":8080,\"to_port\":8080,\"cidr_blocks\":[\"10.0.0.0/8\"]}]"
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute defaults",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "ami_id",
+        "label": "AMI ID (optional)",
+        "type": "string",
+        "default": "",
+        "help": "Leave empty to auto-select the latest Canonical Ubuntu 24.04 LTS x86_64 AMI in the region."
+       },
+       {
+        "name": "instance_type",
+        "label": "Default instance type",
+        "type": "string",
+        "default": "t3.micro",
+        "help": "EC2 instance type (t3.micro, t3.small, m5.large, c6i.xlarge, ...)."
+       },
+       {
+        "name": "app_vm_count",
+        "label": "App VM count",
+        "type": "number",
+        "default": 0,
+        "min": 0,
+        "max": 50,
+        "help": "Number of generic app VMs. Leave 0 if you only want the Platform pool."
+       }
+      ]
+     },
+     {
+      "id": "platform",
+      "title": "Platform pool",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "enable_platform",
+        "label": "Provision platform pool",
+        "type": "bool",
+        "default": false
+       },
+       {
+        "name": "platform_roles",
+        "label": "Platform roles (rename / add / remove, set count + instance type per role)",
+        "type": "role_counts",
+        "default": {
+         "postgres": 1,
+         "redis": 1,
+         "observability": 1
+        },
+        "roles": [
+         "postgres",
+         "redis",
+         "observability",
+         "nexus",
+         "openbao",
+         "runner"
+        ],
+        "flavor_field": "platform_overrides",
+        "flavor_key": "instance_type",
+        "help": "Edit role names inline, set VM count, and optionally override the instance type per role."
+       },
+       {
+        "name": "platform_overrides",
+        "label": "Platform per-role overrides (auto)",
+        "type": "hidden_map",
+        "default": {}
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     },
+     {
+      "id": "alb",
+      "title": "Load Balancer (ALB)",
+      "icon": "fa-globe",
+      "fields": [
+       {
+        "name": "enable_alb",
+        "label": "Provision Application Load Balancer",
+        "type": "bool",
+        "default": false,
+        "help": "Creates an ALB across two subnets in different AZs, a target group and an HTTP listener. App-pool instances are auto-registered."
+       },
+       {
+        "name": "alb_internal",
+        "label": "Internal ALB (no public IPs)",
+        "type": "bool",
+        "default": false,
+        "visible_when": {
+         "enable_alb": true
+        }
+       },
+       {
+        "name": "alb_target_port",
+        "label": "Backend target port",
+        "type": "number",
+        "default": 80,
+        "min": 1,
+        "max": 65535,
+        "visible_when": {
+         "enable_alb": true
+        },
+        "help": "Port that App instances listen on. The ALB forwards HTTP traffic to this port."
+       },
+       {
+        "name": "alb_health_check_path",
+        "label": "Health-check path",
+        "type": "string",
+        "default": "/",
+        "visible_when": {
+         "enable_alb": true
+        },
+        "help": "HTTP path used by the target group to verify instance health."
+       },
+       {
+        "name": "alb_certificate_arn",
+        "label": "ACM certificate ARN (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "enable_alb": true
+        },
+        "help": "When set, the ALB also exposes an HTTPS listener on 443 using this ACM certificate."
+       },
+       {
+        "name": "subnet_cidr_b",
+        "label": "Second subnet CIDR (different AZ)",
+        "type": "cidr",
+        "default": "10.0.2.0/24",
+        "visible_when": {
+         "enable_alb": true
+        },
+        "help": "A second subnet is required by the ALB (and by RDS). Created automatically in a different AZ."
+       }
+      ]
+     },
+     {
+      "id": "rds",
+      "title": "Database (RDS)",
+      "icon": "fa-database",
+      "fields": [
+       {
+        "name": "enable_rds",
+        "label": "Provision Amazon RDS",
+        "type": "bool",
+        "default": false,
+        "help": "Creates a managed RDS instance in a private DB subnet group. Reachable from the App security group on the engine port."
+       },
+       {
+        "name": "rds_engine",
+        "label": "Engine",
+        "type": "select",
+        "default": "postgres",
+        "options": [
+         "postgres",
+         "mysql"
+        ],
+        "visible_when": {
+         "enable_rds": true
+        }
+       },
+       {
+        "name": "rds_engine_version",
+        "label": "Engine version (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "enable_rds": true
+        },
+        "help": "Empty = AWS default. Examples: '16.4' (postgres), '8.0' (mysql)."
+       },
+       {
+        "name": "rds_instance_class",
+        "label": "Instance class",
+        "type": "string",
+        "default": "db.t3.micro",
+        "visible_when": {
+         "enable_rds": true
+        },
+        "help": "db.t3.micro, db.t3.small, db.m5.large, ..."
+       },
+       {
+        "name": "rds_allocated_storage",
+        "label": "Allocated storage (GB)",
+        "type": "number",
+        "default": 20,
+        "min": 5,
+        "max": 65536,
+        "visible_when": {
+         "enable_rds": true
+        }
+       },
+       {
+        "name": "rds_db_name",
+        "label": "Initial database name",
+        "type": "string",
+        "default": "appdb",
+        "visible_when": {
+         "enable_rds": true
+        }
+       },
+       {
+        "name": "rds_username",
+        "label": "Master username",
+        "type": "string",
+        "default": "opensible",
+        "visible_when": {
+         "enable_rds": true
+        }
+       },
+       {
+        "name": "rds_password",
+        "label": "Master password",
+        "type": "secret",
+        "visible_when": {
+         "enable_rds": true
+        },
+        "help": "Stored encrypted. Required when RDS is enabled."
+       },
+       {
+        "name": "rds_publicly_accessible",
+        "label": "Publicly accessible",
+        "type": "bool",
+        "default": false,
+        "visible_when": {
+         "enable_rds": true
+        },
+        "help": "Leave off unless you need to reach the DB from outside the VPC."
+       },
+       {
+        "name": "rds_skip_final_snapshot",
+        "label": "Skip final snapshot on destroy",
+        "type": "bool",
+        "default": true,
+        "visible_when": {
+         "enable_rds": true
+        },
+        "help": "Turn off for production so RDS keeps a snapshot when the stack is destroyed."
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "title": "Object storage (S3)",
+      "icon": "fa-database",
+      "fields": [
+       {
+        "name": "enable_s3",
+        "label": "Provision S3 bucket",
+        "type": "bool",
+        "default": false,
+        "help": "Creates a bucket for backups, logs, assets and state files."
+       },
+       {
+        "name": "s3_bucket_name",
+        "label": "Bucket name (globally unique)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "enable_s3": true
+        },
+        "help": "S3 bucket names must be globally unique across all AWS accounts."
+       },
+       {
+        "name": "s3_versioning",
+        "label": "Enable object versioning",
+        "type": "bool",
+        "default": true,
+        "visible_when": {
+         "enable_s3": true
+        }
+       },
+       {
+        "name": "s3_block_public_access",
+        "label": "Block all public access",
+        "type": "bool",
+        "default": true,
+        "visible_when": {
+         "enable_s3": true
+        },
+        "help": "Recommended. Turn off only if you intentionally serve public content from the bucket."
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "eks": {
+   "id": "eks",
+   "label": "Amazon EKS",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "region",
+    "kubernetes_version",
+    "create_iam_roles",
+    "existing_cluster_role_arn",
+    "existing_node_role_arn",
+    "vpc_cidr",
+    "public_subnet_cidrs",
+    "availability_zones",
+    "endpoint_public_access",
+    "endpoint_private_access",
+    "public_access_cidrs",
+    "primary_instance_type",
+    "primary_disk_size_gb",
+    "primary_capacity_type",
+    "primary_ami_type",
+    "primary_enable_autoscaling",
+    "primary_desired_size",
+    "primary_min_size",
+    "primary_max_size",
+    "extra_node_groups",
+    "labels"
+   ],
+   "secret_keys": [
+    "aws_access_key",
+    "aws_secret_key"
+   ],
+   "platform_override_keys": [],
+   "schema": {
+    "provider": "eks",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Prefix for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "region",
+        "label": "AWS Region",
+        "type": "string",
+        "default": "us-east-1",
+        "required": true,
+        "help": "AWS region code (us-east-1, eu-west-1, ap-southeast-1, ...)."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "aws_access_key",
+        "label": "AWS Access Key ID",
+        "type": "secret",
+        "required": true,
+        "help": "IAM user access key ID with EKS + EC2 + IAM permissions."
+       },
+       {
+        "name": "aws_secret_key",
+        "label": "AWS Secret Access Key",
+        "type": "secret",
+        "required": true,
+        "help": "IAM user secret access key. Stored encrypted per stack."
+       }
+      ]
+     },
+     {
+      "id": "cluster",
+      "title": "Cluster",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "kubernetes_version",
+        "label": "Kubernetes version",
+        "type": "string",
+        "default": "1.31",
+        "placeholder": "e.g. 1.31",
+        "help": "EKS control-plane version (e.g. 1.30, 1.31, 1.32). Must be a version currently supported by AWS EKS in your region."
+       },
+       {
+        "name": "create_iam_roles",
+        "label": "Create IAM roles",
+        "type": "bool",
+        "default": true,
+        "help": "Turn off if your AWS user cannot create IAM roles. You must then provide existing EKS role ARNs."
+       },
+       {
+        "name": "existing_cluster_role_arn",
+        "label": "Existing EKS cluster role ARN",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "create_iam_roles": false
+        },
+        "help": "Role trusted by eks.amazonaws.com with AmazonEKSClusterPolicy and AmazonEKSVPCResourceController."
+       },
+       {
+        "name": "existing_node_role_arn",
+        "label": "Existing EKS node role ARN",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "create_iam_roles": false
+        },
+        "help": "Role trusted by ec2.amazonaws.com with AmazonEKSWorkerNodePolicy, AmazonEKS_CNI_Policy, and AmazonEC2ContainerRegistryReadOnly."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "vpc_cidr",
+        "label": "VPC CIDR",
+        "type": "cidr",
+        "default": "10.30.0.0/16",
+        "required": true
+       },
+       {
+        "name": "public_subnet_cidrs",
+        "label": "Public subnet CIDRs (one per AZ, min 2)",
+        "type": "json",
+        "default": [
+         "10.30.1.0/24",
+         "10.30.2.0/24"
+        ],
+        "help": "JSON array of at least 2 CIDRs. EKS requires subnets in different AZs."
+       },
+       {
+        "name": "availability_zones",
+        "label": "Availability zones (optional)",
+        "type": "json",
+        "default": [],
+        "help": "JSON array like [\"us-east-1a\",\"us-east-1b\"]. Leave empty to auto-pick the first N AZs."
+       },
+       {
+        "name": "endpoint_public_access",
+        "label": "Public API endpoint",
+        "type": "bool",
+        "default": true,
+        "help": "Expose the EKS control plane publicly. Turn off for private clusters."
+       },
+       {
+        "name": "endpoint_private_access",
+        "label": "Private API endpoint",
+        "type": "bool",
+        "default": false,
+        "help": "Expose the EKS control plane inside the VPC."
+       },
+       {
+        "name": "public_access_cidrs",
+        "label": "Public API CIDRs",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "visible_when": {
+         "endpoint_public_access": true
+        },
+        "help": "CIDRs allowed to reach the public EKS API. Restrict in production."
+       }
+      ]
+     },
+     {
+      "id": "primary_pool",
+      "title": "Primary node group",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "primary_instance_type",
+        "label": "Instance type",
+        "type": "string",
+        "default": "t3.medium",
+        "help": "EC2 instance type (t3.medium, m5.large, c6i.xlarge, ...)."
+       },
+       {
+        "name": "primary_disk_size_gb",
+        "label": "Node disk size (GB)",
+        "type": "number",
+        "default": 50,
+        "min": 20,
+        "max": 2000
+       },
+       {
+        "name": "primary_capacity_type",
+        "label": "Capacity type",
+        "type": "select",
+        "default": "ON_DEMAND",
+        "options": [
+         "ON_DEMAND",
+         "SPOT"
+        ]
+       },
+       {
+        "name": "primary_ami_type",
+        "label": "AMI type",
+        "type": "select",
+        "default": "AL2023_x86_64_STANDARD",
+        "options": [
+         "AL2023_x86_64_STANDARD",
+         "AL2_x86_64",
+         "BOTTLEROCKET_x86_64",
+         "AL2023_ARM_64_STANDARD"
+        ]
+       },
+       {
+        "name": "primary_enable_autoscaling",
+        "label": "Enable autoscaling",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "primary_desired_size",
+        "label": "Desired size (fixed)",
+        "type": "number",
+        "default": 2,
+        "min": 1,
+        "max": 50,
+        "visible_when": {
+         "primary_enable_autoscaling": false
+        }
+       },
+       {
+        "name": "primary_min_size",
+        "label": "Min size",
+        "type": "number",
+        "default": 1,
+        "min": 0,
+        "max": 50,
+        "visible_when": {
+         "primary_enable_autoscaling": true
+        }
+       },
+       {
+        "name": "primary_max_size",
+        "label": "Max size",
+        "type": "number",
+        "default": 5,
+        "min": 1,
+        "max": 200,
+        "visible_when": {
+         "primary_enable_autoscaling": true
+        }
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra node groups (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_node_groups",
+        "label": "Extra node groups (JSON map)",
+        "type": "json",
+        "default": {},
+        "help": "Map of group_name -> object. Keys: instance_type, disk_size_gb, capacity_type, ami_type, desired_size, enable_autoscaling, min_size, max_size, labels. Example: {\"gpu\": {\"instance_type\": \"g4dn.xlarge\", \"desired_size\": 1, \"labels\": {\"gpu\": \"true\"}}}"
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "gcp": {
+   "id": "gcp",
+   "label": "Google Cloud",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "gcp_project_id",
+    "region",
+    "zone",
+    "subnet_cidr",
+    "image",
+    "machine_type",
+    "disk_size_gb",
+    "app_vm_count",
+    "auth_method",
+    "ssh_public_key",
+    "admin_username",
+    "admin_password",
+    "admin_cidrs",
+    "web_cidrs",
+    "enable_web_ingress",
+    "custom_ingress_rules",
+    "enable_platform",
+    "platform_roles",
+    "platform_overrides",
+    "extra_vms",
+    "labels"
+   ],
+   "secret_keys": [
+    "gcp_credentials_json",
+    "admin_password"
+   ],
+   "platform_override_keys": [
+    "disk_size_gb",
+    "image",
+    "machine_type"
+   ],
+   "schema": {
+    "provider": "gcp",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Prefix used for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "gcp_project_id",
+        "label": "GCP Project ID",
+        "type": "string",
+        "required": true,
+        "help": "The Google Cloud project id (e.g. 'my-org-prod-1234')."
+       },
+       {
+        "name": "region",
+        "label": "GCP Region",
+        "type": "string",
+        "default": "us-central1",
+        "required": true,
+        "help": "GCP region (us-central1, europe-west1, asia-southeast1, ...)."
+       },
+       {
+        "name": "zone",
+        "label": "GCP Zone",
+        "type": "string",
+        "default": "us-central1-a",
+        "required": true,
+        "help": "Zone inside the region (e.g. us-central1-a). VMs are created in this zone."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "gcp_credentials_json",
+        "label": "Service Account JSON key",
+        "type": "secret",
+        "required": true,
+        "help": "Paste the full JSON key file for a service account with Compute Admin + Network Admin. Stored encrypted."
+       },
+       {
+        "name": "auth_method",
+        "label": "VM login method",
+        "type": "select",
+        "default": "ssh_key",
+        "options": [
+         "ssh_key",
+         "password"
+        ],
+        "help": "'ssh_key' injects your public key via instance metadata. 'password' uses cloud-init to create a Linux user with password login."
+       },
+       {
+        "name": "ssh_public_key",
+        "label": "SSH public key",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "auth_method": "ssh_key"
+        },
+        "help": "ssh-ed25519 or ssh-rsa public key. Attached to every instance via ssh-keys metadata."
+       },
+       {
+        "name": "admin_username",
+        "label": "Admin username",
+        "type": "string",
+        "default": "opensible",
+        "help": "Linux user for SSH (created via cloud-init when auth_method='password', or used as the metadata key user)."
+       },
+       {
+        "name": "admin_password",
+        "label": "Admin password",
+        "type": "secret",
+        "visible_when": {
+         "auth_method": "password"
+        },
+        "help": "Password for the admin user. Injected via cloud-init user_data."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "subnet_cidr",
+        "label": "Subnet CIDR",
+        "type": "cidr",
+        "default": "10.10.0.0/24",
+        "required": true,
+        "help": "Primary CIDR range for the auto-created subnet in the selected region."
+       }
+      ]
+     },
+     {
+      "id": "firewall",
+      "title": "Firewall",
+      "icon": "fa-shield-halved",
+      "fields": [
+       {
+        "name": "admin_cidrs",
+        "label": "Admin CIDRs (SSH port 22)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "help": "JSON array of source CIDRs allowed on port 22. Restrict in production."
+       },
+       {
+        "name": "enable_web_ingress",
+        "label": "Allow web ingress (ports 80/443)",
+        "type": "bool",
+        "default": true,
+        "help": "Opens 80/443 on the firewall when enabled."
+       },
+       {
+        "name": "web_cidrs",
+        "label": "Web CIDRs (ports 80/443)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "visible_when": {
+         "enable_web_ingress": true
+        },
+        "help": "Source CIDRs allowed on 80/443."
+       },
+       {
+        "name": "custom_ingress_rules",
+        "label": "Custom ingress rules (any port / CIDR)",
+        "type": "json",
+        "default": [],
+        "help": "JSON array of extra firewall rules. Each entry is an object with description, protocol (tcp/udp/icmp), ports (list of strings — single \"8080\" or range \"30000-32767\", omit for icmp), and source_ranges. Example: [{\"description\":\"App API\",\"protocol\":\"tcp\",\"ports\":[\"8080\"],\"source_ranges\":[\"10.0.0.0/8\"]}]"
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute defaults",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "image",
+        "label": "Boot image",
+        "type": "string",
+        "default": "ubuntu-os-cloud/ubuntu-2404-lts-amd64",
+        "help": "GCE image in '<project>/<family-or-image>' form. Default = Ubuntu 24.04 LTS."
+       },
+       {
+        "name": "machine_type",
+        "label": "Default machine type",
+        "type": "string",
+        "default": "e2-small",
+        "help": "GCE machine type (e2-small, e2-medium, n2-standard-2, c3-standard-4, ...)."
+       },
+       {
+        "name": "disk_size_gb",
+        "label": "Boot disk size (GB)",
+        "type": "number",
+        "default": 20,
+        "min": 10,
+        "max": 2000,
+        "help": "Boot persistent disk size in gibibytes."
+       },
+       {
+        "name": "app_vm_count",
+        "label": "App VM count",
+        "type": "number",
+        "default": 0,
+        "min": 0,
+        "max": 50,
+        "help": "Number of generic app VMs. Leave 0 if you only want the Platform pool."
+       }
+      ]
+     },
+     {
+      "id": "platform",
+      "title": "Platform pool",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "enable_platform",
+        "label": "Provision platform pool",
+        "type": "bool",
+        "default": false
+       },
+       {
+        "name": "platform_roles",
+        "label": "Platform roles (rename / add / remove, set count + machine type per role)",
+        "type": "role_counts",
+        "default": {
+         "postgres": 1,
+         "redis": 1,
+         "observability": 1
+        },
+        "roles": [
+         "postgres",
+         "redis",
+         "observability",
+         "nexus",
+         "openbao",
+         "runner"
+        ],
+        "flavor_field": "platform_overrides",
+        "flavor_key": "machine_type",
+        "help": "Edit role names inline, set VM count, and optionally override the machine type per role."
+       },
+       {
+        "name": "platform_overrides",
+        "label": "Platform per-role overrides (auto)",
+        "type": "hidden_map",
+        "default": {}
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "gke": {
+   "id": "gke",
+   "label": "Google Kubernetes Engine",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "gcp_project_id",
+    "node_service_account_email",
+    "manage_node_service_account_act_as_binding",
+    "region",
+    "zone",
+    "cluster_type",
+    "kubernetes_version",
+    "release_channel",
+    "subnet_cidr",
+    "pods_cidr",
+    "services_cidr",
+    "master_authorized_cidrs",
+    "enable_private_nodes",
+    "primary_machine_type",
+    "primary_disk_size_gb",
+    "primary_disk_type",
+    "primary_node_count",
+    "primary_enable_autoscaling",
+    "primary_min_nodes",
+    "primary_max_nodes",
+    "primary_preemptible",
+    "extra_node_pools",
+    "labels"
+   ],
+   "secret_keys": [
+    "gcp_credentials_json"
+   ],
+   "platform_override_keys": [],
+   "schema": {
+    "provider": "gke",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Prefix for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "gcp_project_id",
+        "label": "GCP Project ID",
+        "type": "string",
+        "required": true,
+        "help": "The Google Cloud project id (e.g. 'my-org-prod-1234')."
+       },
+       {
+        "name": "node_service_account_email",
+        "label": "GKE node service account email",
+        "type": "string",
+        "default": "",
+        "help": "Optional. Empty = use the client_email from the JSON key for GKE nodes. Grant IAM roles to that service account email, not only to your human Google user."
+       },
+       {
+        "name": "manage_node_service_account_act_as_binding",
+        "label": "Auto-grant node service account access",
+        "type": "bool",
+        "default": true,
+        "help": "OpenSible will add Service Account User on the selected node service account. The JSON key service account needs Service Account Admin, because OpenTofu runs as the JSON key identity, not your Cloud Shell user."
+       },
+       {
+        "name": "region",
+        "label": "GCP Region",
+        "type": "string",
+        "default": "us-central1",
+        "required": true,
+        "help": "Region for the VPC and (for regional clusters) the control plane."
+       },
+       {
+        "name": "zone",
+        "label": "GCP Zone (zonal clusters only)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "cluster_type": "zonal"
+        },
+        "help": "Zone for a zonal cluster (e.g. us-central1-a). Ignored for regional clusters."
+       },
+       {
+        "name": "cluster_type",
+        "label": "Cluster type",
+        "type": "select",
+        "default": "regional",
+        "options": [
+         "regional",
+         "zonal"
+        ],
+        "help": "Regional clusters span 3 zones (HA control plane). Zonal clusters are cheaper but single-zone."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "gcp_credentials_json",
+        "label": "Service Account JSON key",
+        "type": "secret",
+        "required": true,
+        "help": "Paste the full JSON key. Its client_email is the identity OpenSible uses, so grant roles/container.admin, roles/compute.networkAdmin, and if auto-grant is enabled roles/iam.serviceAccountAdmin to this service account email."
+       }
+      ]
+     },
+     {
+      "id": "cluster",
+      "title": "Cluster",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "kubernetes_version",
+        "label": "Kubernetes version",
+        "type": "string",
+        "default": "",
+        "help": "Empty = GKE picks the default for the selected release channel (recommended)."
+       },
+       {
+        "name": "release_channel",
+        "label": "Release channel",
+        "type": "select",
+        "default": "REGULAR",
+        "options": [
+         "RAPID",
+         "REGULAR",
+         "STABLE",
+         "UNSPECIFIED"
+        ],
+        "help": "STABLE lags behind but is safest. REGULAR is the GKE default."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "subnet_cidr",
+        "label": "Subnet CIDR (nodes)",
+        "type": "cidr",
+        "default": "10.20.0.0/22",
+        "required": true,
+        "help": "Primary CIDR for node IPs."
+       },
+       {
+        "name": "pods_cidr",
+        "label": "Pods secondary CIDR",
+        "type": "cidr",
+        "default": "10.24.0.0/14",
+        "required": true,
+        "help": "Secondary range for Pod IPs (VPC-native / alias IP). Must not overlap the node subnet."
+       },
+       {
+        "name": "services_cidr",
+        "label": "Services secondary CIDR",
+        "type": "cidr",
+        "default": "10.28.0.0/20",
+        "required": true,
+        "help": "Secondary range for ClusterIP Services."
+       },
+       {
+        "name": "master_authorized_cidrs",
+        "label": "Master authorized networks",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "help": "JSON array of CIDRs allowed to reach the GKE control plane. Restrict in production."
+       },
+       {
+        "name": "enable_private_nodes",
+        "label": "Private nodes (Cloud NAT for egress)",
+        "type": "bool",
+        "default": false,
+        "help": "When ON, nodes have no public IP and a Cloud NAT is created for outbound traffic."
+       }
+      ]
+     },
+     {
+      "id": "primary_pool",
+      "title": "Primary node pool",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "primary_machine_type",
+        "label": "Machine type",
+        "type": "string",
+        "default": "e2-standard-2",
+        "help": "e2-standard-2, n2-standard-4, c3-standard-4, ..."
+       },
+       {
+        "name": "primary_disk_size_gb",
+        "label": "Boot disk size (GB)",
+        "type": "number",
+        "default": 50,
+        "min": 10,
+        "max": 2000
+       },
+       {
+        "name": "primary_disk_type",
+        "label": "Disk type",
+        "type": "select",
+        "default": "pd-balanced",
+        "options": [
+         "pd-standard",
+         "pd-balanced",
+         "pd-ssd"
+        ]
+       },
+       {
+        "name": "primary_enable_autoscaling",
+        "label": "Enable autoscaling",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "primary_node_count",
+        "label": "Node count per location (fixed size)",
+        "type": "number",
+        "default": 2,
+        "min": 1,
+        "max": 50,
+        "visible_when": {
+         "primary_enable_autoscaling": false
+        },
+        "help": "Regional clusters multiply this by 3 (one per zone)."
+       },
+       {
+        "name": "primary_min_nodes",
+        "label": "Min nodes (autoscale)",
+        "type": "number",
+        "default": 1,
+        "min": 0,
+        "max": 50,
+        "visible_when": {
+         "primary_enable_autoscaling": true
+        }
+       },
+       {
+        "name": "primary_max_nodes",
+        "label": "Max nodes (autoscale)",
+        "type": "number",
+        "default": 5,
+        "min": 1,
+        "max": 200,
+        "visible_when": {
+         "primary_enable_autoscaling": true
+        }
+       },
+       {
+        "name": "primary_preemptible",
+        "label": "Preemptible / Spot nodes",
+        "type": "bool",
+        "default": false,
+        "help": "Cheaper but Google may reclaim the VM at any time. Not for stateful workloads."
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra node pools (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_node_pools",
+        "label": "Extra node pools (JSON map)",
+        "type": "json",
+        "default": {},
+        "help": "Map of pool_name -> object. Keys: machine_type, disk_size_gb, disk_type, node_count, enable_autoscaling, min_nodes, max_nodes, preemptible, labels. Example: {\"gpu\": {\"machine_type\": \"n1-standard-4\", \"node_count\": 1, \"labels\": {\"gpu\": \"true\"}}}"
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "hetzner": {
+   "id": "hetzner",
+   "label": "Hetzner Cloud",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "location",
+    "network_cidr",
+    "app_subnet_cidr",
+    "image",
+    "server_type",
+    "app_vm_count",
+    "auth_method",
+    "ssh_public_key",
+    "admin_username",
+    "admin_password",
+    "admin_cidrs",
+    "web_cidrs",
+    "enable_web_ingress",
+    "custom_ingress_rules",
+    "enable_load_balancer",
+    "load_balancer_type",
+    "enable_platform",
+    "platform_roles",
+    "platform_overrides",
+    "extra_vms",
+    "labels"
+   ],
+   "secret_keys": [
+    "hcloud_token",
+    "admin_password"
+   ],
+   "platform_override_keys": [
+    "image",
+    "location",
+    "server_type"
+   ],
+   "schema": {
+    "provider": "hetzner",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Used as the prefix for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "location",
+        "label": "Location",
+        "type": "string",
+        "default": "nbg1",
+        "required": true,
+        "help": "Hetzner location code (nbg1, fsn1, hel1, ash, hil, sin)."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "hcloud_token",
+        "label": "Hetzner Cloud API token",
+        "type": "secret",
+        "required": true,
+        "help": "Create in Hetzner Cloud Console → Project → Security → API Tokens (Read & Write)."
+       },
+       {
+        "name": "auth_method",
+        "label": "VM login method",
+        "type": "select",
+        "default": "ssh_key",
+        "options": [
+         "ssh_key",
+         "password"
+        ],
+        "help": "Choose 'ssh_key' to inject an SSH public key, or 'password' to create a Linux user with a password (cloud-init)."
+       },
+       {
+        "name": "ssh_public_key",
+        "label": "SSH public key",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "auth_method": "ssh_key"
+        },
+        "help": "ssh-ed25519 or ssh-rsa public key. Uploaded to the Hetzner project and injected into every server."
+       },
+       {
+        "name": "admin_username",
+        "label": "Admin username",
+        "type": "string",
+        "default": "opensible",
+        "visible_when": {
+         "auth_method": "password"
+        },
+        "help": "Linux user created on every VM via cloud-init, with sudo NOPASSWD."
+       },
+       {
+        "name": "admin_password",
+        "label": "Admin password",
+        "type": "secret",
+        "visible_when": {
+         "auth_method": "password"
+        },
+        "help": "Password for the admin user. Stored encrypted; injected via cloud-init user_data. Password SSH login is enabled on the VM."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "network_cidr",
+        "label": "Network CIDR",
+        "type": "cidr",
+        "default": "10.0.0.0/16",
+        "required": true,
+        "help": "Private network range for the Hetzner project."
+       },
+       {
+        "name": "app_subnet_cidr",
+        "label": "App subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.1.0/24",
+        "required": true,
+        "help": "Subnet inside the network CIDR where app + platform VMs attach."
+       }
+      ]
+     },
+     {
+      "id": "firewall",
+      "title": "Firewall",
+      "icon": "fa-shield-halved",
+      "fields": [
+       {
+        "name": "admin_cidrs",
+        "label": "Admin CIDRs (SSH port 22)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "help": "JSON array of source CIDRs allowed on port 22, e.g. [\"203.0.113.10/32\"]. Use your office/VPN IP in production."
+       },
+       {
+        "name": "enable_web_ingress",
+        "label": "Allow web ingress (ports 80/443)",
+        "type": "bool",
+        "default": true,
+        "help": "When enabled, opens 80 and 443 on the firewall to the Web CIDRs below."
+       },
+       {
+        "name": "web_cidrs",
+        "label": "Web CIDRs (ports 80/443)",
+        "type": "json",
+        "default": [
+         "0.0.0.0/0"
+        ],
+        "visible_when": {
+         "enable_web_ingress": true
+        },
+        "help": "Source CIDRs allowed on 80/443. Ignored if web ingress is disabled."
+       },
+       {
+        "name": "custom_ingress_rules",
+        "label": "Custom firewall rules (any port / CIDR)",
+        "type": "json",
+        "default": [],
+        "help": "JSON array of extra inbound rules. Each entry is an object with description, protocol (tcp/udp/icmp), port (\"22\" or range \"30000-32767\", omit for icmp), and source_ips. Example: [{\"description\":\"App API\",\"protocol\":\"tcp\",\"port\":\"8080\",\"source_ips\":[\"10.0.0.0/8\"]}]"
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute defaults",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "image",
+        "label": "Default image",
+        "type": "string",
+        "default": "ubuntu-24.04",
+        "help": "Hetzner image name (ubuntu-24.04, debian-12, ...)."
+       },
+       {
+        "name": "server_type",
+        "label": "Default server type",
+        "type": "string",
+        "default": "cx22",
+        "help": "Hetzner server type (cx22, cpx11, cax11, cpx31, ...)."
+       },
+       {
+        "name": "app_vm_count",
+        "label": "App VM count",
+        "type": "number",
+        "default": 0,
+        "min": 0,
+        "max": 50,
+        "help": "Number of generic app VMs to create. Leave 0 if you only want the Platform pool."
+       }
+      ]
+     },
+     {
+      "id": "platform",
+      "title": "Platform pool",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "enable_platform",
+        "label": "Provision platform pool",
+        "type": "bool",
+        "default": false
+       },
+       {
+        "name": "platform_roles",
+        "label": "Platform roles (rename / add / remove, set count + server type per role)",
+        "type": "role_counts",
+        "default": {
+         "postgres": 1,
+         "redis": 1,
+         "observability": 1
+        },
+        "roles": [
+         "postgres",
+         "redis",
+         "observability",
+         "nexus",
+         "openbao",
+         "runner"
+        ],
+        "flavor_field": "platform_overrides",
+        "flavor_key": "server_type",
+        "help": "Edit role names inline, set VM count, and optionally override the server type per role."
+       },
+       {
+        "name": "platform_overrides",
+        "label": "Platform per-role overrides (auto)",
+        "type": "hidden_map",
+        "default": {}
+       }
+      ]
+     },
+     {
+      "id": "edge",
+      "title": "Load balancer",
+      "icon": "fa-globe",
+      "fields": [
+       {
+        "name": "enable_load_balancer",
+        "label": "Provision public load balancer",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "load_balancer_type",
+        "label": "Load balancer type",
+        "type": "string",
+        "default": "lb11",
+        "visible_when": {
+         "enable_load_balancer": true
+        },
+        "help": "lb11 / lb21 / lb31 — Hetzner LB size."
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "biznet": {
+   "id": "biznet",
+   "label": "Biznet Gio",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "region",
+    "network_cidr",
+    "app_subnet_cidr",
+    "image",
+    "flavor",
+    "app_vm_count",
+    "os_auth_url",
+    "os_username",
+    "os_password",
+    "os_project_name",
+    "os_domain_name",
+    "enable_platform",
+    "platform_roles",
+    "platform_overrides",
+    "enable_load_balancer",
+    "extra_vms",
+    "labels"
+   ],
+   "secret_keys": [
+    "os_password"
+   ],
+   "platform_override_keys": [
+    "flavor",
+    "image",
+    "region"
+   ],
+   "schema": {
+    "provider": "biznet",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Used as the prefix for every resource: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "region",
+        "label": "Region / location",
+        "type": "select",
+        "default": "JKT2",
+        "options": [
+         "JKT1",
+         "JKT2",
+         "SBY",
+         "SIN"
+        ],
+        "help": "Gio region — Jakarta (JKT1/JKT2), Surabaya (SBY), Singapore (SIN)."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "os_auth_url",
+        "label": "Keystone auth URL",
+        "type": "string",
+        "default": "https://keystone.gio.space/v3",
+        "required": true,
+        "help": "Gio identity endpoint (Keystone v3), e.g. https://keystone.gio.space/v3."
+       },
+       {
+        "name": "os_username",
+        "label": "Username",
+        "type": "string",
+        "required": true,
+        "help": "Gio cloud account username."
+       },
+       {
+        "name": "os_password",
+        "label": "Password",
+        "type": "secret",
+        "required": true,
+        "help": "Gio cloud account password. Stored encrypted per stack."
+       },
+       {
+        "name": "os_project_name",
+        "label": "Project / tenant name",
+        "type": "string",
+        "required": true,
+        "help": "The Gio project (tenant) that owns the resources."
+       },
+       {
+        "name": "os_domain_name",
+        "label": "Domain name",
+        "type": "string",
+        "default": "Default",
+        "help": "Identity domain — usually 'Default'."
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "network_cidr",
+        "label": "Network CIDR",
+        "type": "cidr",
+        "default": "10.0.0.0/16",
+        "required": true,
+        "help": "Private network range for the Gio project network."
+       },
+       {
+        "name": "app_subnet_cidr",
+        "label": "App subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.1.0/24",
+        "required": true,
+        "help": "Subnet inside the network CIDR where app + platform VMs attach."
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute defaults",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "image",
+        "label": "Default image",
+        "type": "string",
+        "default": "ubuntu-24.04",
+        "help": "OpenStack image name (ubuntu-24.04, debian-12, ...)."
+       },
+       {
+        "name": "flavor",
+        "label": "Default flavor",
+        "type": "string",
+        "default": "g2.small",
+        "help": "Gio flavor name (g1.small, g2.small, g2.medium, ...)."
+       },
+       {
+        "name": "app_vm_count",
+        "label": "App VM count",
+        "type": "number",
+        "default": 0,
+        "min": 0,
+        "max": 50,
+        "help": "Number of generic app VMs to create. Leave 0 if you only want the Platform pool."
+       }
+      ]
+     },
+     {
+      "id": "platform",
+      "title": "Platform pool",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "enable_platform",
+        "label": "Provision platform pool",
+        "type": "bool",
+        "default": false
+       },
+       {
+        "name": "platform_roles",
+        "label": "Platform roles (rename / add / remove, set count + flavor per role)",
+        "type": "role_counts",
+        "default": {
+         "postgres": 1,
+         "redis": 1,
+         "observability": 1
+        },
+        "roles": [
+         "postgres",
+         "redis",
+         "observability",
+         "nexus",
+         "openbao",
+         "runner"
+        ],
+        "flavor_field": "platform_overrides",
+        "flavor_key": "flavor",
+        "help": "Edit role names inline, set VM count, and optionally override the flavor per role."
+       },
+       {
+        "name": "platform_overrides",
+        "label": "Platform per-role overrides (auto)",
+        "type": "hidden_map",
+        "default": {}
+       }
+      ]
+     },
+     {
+      "id": "edge",
+      "title": "Load balancer",
+      "icon": "fa-globe",
+      "fields": [
+       {
+        "name": "enable_load_balancer",
+        "label": "Provision Octavia load balancer",
+        "type": "bool",
+        "default": false,
+        "help": "Creates an Octavia LBaaSv2 load balancer with a floating IP in front of the app pool."
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "idcloudhost": {
+   "id": "idcloudhost",
+   "label": "IDCloudHost",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "region",
+    "server_plan",
+    "os_image",
+    "ssh_public_key",
+    "app_vm_count",
+    "api_token",
+    "extra_vms",
+    "labels"
+   ],
+   "secret_keys": [
+    "api_token"
+   ],
+   "platform_override_keys": [
+    "os_image",
+    "region",
+    "server_plan"
+   ],
+   "schema": {
+    "provider": "idcloudhost",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Used as the prefix for every hostname: <project_name>-<env>-<role>."
+       },
+       {
+        "name": "region",
+        "label": "Region / location",
+        "type": "select",
+        "default": "jakarta",
+        "options": [
+         "jakarta",
+         "singapore"
+        ],
+        "help": "IDCloudHost datacenter — Jakarta or Singapore."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "api_token",
+        "label": "IDCloudHost API token",
+        "type": "secret",
+        "required": true,
+        "help": "Create the token in the IDCloudHost dashboard (Account → API). Stored encrypted per stack."
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "server_plan",
+        "label": "Server plan",
+        "type": "select",
+        "default": "vision-s-2",
+        "options": [
+         "vision-s-1",
+         "vision-s-2",
+         "vision-s-3",
+         "vision-s-4",
+         "vision-s-5",
+         "vision-s-6"
+        ],
+        "help": "IDCloudHost vision plan size (CPU / RAM)."
+       },
+       {
+        "name": "os_image",
+        "label": "OS image",
+        "type": "string",
+        "default": "ubuntu-24.04",
+        "help": "OS template name (ubuntu-24.04, debian-12, ...)."
+       },
+       {
+        "name": "ssh_public_key",
+        "label": "SSH public key",
+        "type": "string",
+        "default": "",
+        "help": "ssh-ed25519 or ssh-rsa public key injected into the server."
+       },
+       {
+        "name": "app_vm_count",
+        "label": "App VM count",
+        "type": "number",
+        "default": 1,
+        "min": 0,
+        "max": 50,
+        "help": "Number of app VPS instances to provision."
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "cloudflare": {
+   "id": "cloudflare",
+   "label": "Cloudflare",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "account_id",
+    "zone_name",
+    "create_zone",
+    "zone_plan",
+    "dns_records",
+    "r2_buckets",
+    "workers",
+    "worker_routes",
+    "access_apps",
+    "labels"
+   ],
+   "secret_keys": [
+    "api_token"
+   ],
+   "platform_override_keys": [],
+   "schema": {
+    "provider": "cloudflare",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Used as prefix and label on managed resources."
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "api_token",
+        "label": "Cloudflare API Token",
+        "type": "secret",
+        "required": true,
+        "help": "Create in Cloudflare Dashboard → My Profile → API Tokens. Needs Zone:Edit, DNS:Edit, Workers/R2/Access scopes as required."
+       },
+       {
+        "name": "account_id",
+        "label": "Cloudflare Account ID",
+        "type": "string",
+        "required": true,
+        "help": "Right-hand sidebar of any zone overview page in the Cloudflare dashboard."
+       }
+      ]
+     },
+     {
+      "id": "zone",
+      "title": "DNS Zone",
+      "icon": "fa-globe",
+      "fields": [
+       {
+        "name": "zone_name",
+        "label": "Zone (domain)",
+        "type": "string",
+        "required": true,
+        "help": "Root domain — e.g. example.com. Used for records, worker routes, and Access apps."
+       },
+       {
+        "name": "create_zone",
+        "label": "Create the zone in Cloudflare",
+        "type": "bool",
+        "default": false,
+        "help": "OFF (default): use an existing zone (data source). ON: creates it (you must change registrar nameservers)."
+       },
+       {
+        "name": "zone_plan",
+        "label": "Zone plan (when creating)",
+        "type": "select",
+        "default": "free",
+        "options": [
+         "free",
+         "pro",
+         "business",
+         "enterprise"
+        ],
+        "visible_when": {
+         "create_zone": true
+        }
+       }
+      ]
+     },
+     {
+      "id": "dns",
+      "title": "DNS Records",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "dns_records",
+        "label": "DNS records (JSON array)",
+        "type": "json",
+        "default": [
+         {
+          "name": "@",
+          "type": "A",
+          "content": "192.0.2.10",
+          "ttl": 1,
+          "proxied": true
+         },
+         {
+          "name": "www",
+          "type": "CNAME",
+          "content": "@",
+          "ttl": 1,
+          "proxied": true
+         }
+        ],
+        "help": "Each record: {\"name\",\"type\",\"content\",\"ttl\",\"proxied\"}. Use \"@\" for the zone apex. ttl 1 = automatic."
+       }
+      ]
+     },
+     {
+      "id": "r2",
+      "title": "R2 Object Storage",
+      "icon": "fa-database",
+      "fields": [
+       {
+        "name": "r2_buckets",
+        "label": "R2 buckets (JSON array)",
+        "type": "json",
+        "default": [],
+        "help": "Each bucket: {\"name\",\"location\"}. location optional (e.g. \"wnam\", \"enam\", \"weur\")."
+       }
+      ]
+     },
+     {
+      "id": "workers",
+      "title": "Workers",
+      "icon": "fa-cog",
+      "fields": [
+       {
+        "name": "workers",
+        "label": "Worker scripts (JSON array)",
+        "type": "json",
+        "default": [],
+        "help": "Each: {\"name\",\"content\",\"module\":false}. content is the JS source string."
+       },
+       {
+        "name": "worker_routes",
+        "label": "Worker routes (JSON array)",
+        "type": "json",
+        "default": [],
+        "help": "Each: {\"pattern\":\"example.com/api/*\",\"script_name\":\"my-worker\"}."
+       }
+      ]
+     },
+     {
+      "id": "access",
+      "title": "Zero Trust / Access",
+      "icon": "fa-shield-halved",
+      "fields": [
+       {
+        "name": "access_apps",
+        "label": "Access applications (JSON array)",
+        "type": "json",
+        "default": [],
+        "help": "Each app: {\"name\",\"domain\",\"session_duration\":\"24h\",\"allowed_emails\":[\"user@corp\"]}. Emails list creates an allow-policy."
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "bytedc": {
+   "id": "bytedc",
+   "label": "ByteDC",
+   "category": "cloud",
+   "tfvars_order": [
+    "env",
+    "region",
+    "project_name",
+    "name_prefix",
+    "vpc_name",
+    "vpc_cidr",
+    "public_subnet_cidr",
+    "public_subnet_gw",
+    "app_subnet_cidr",
+    "app_subnet_gw",
+    "data_subnet_cidr",
+    "data_subnet_gw",
+    "admin_cidr",
+    "web_cidr",
+    "enable_web_ingress",
+    "existing_vpc_id",
+    "existing_public_subnet_id",
+    "existing_app_subnet_id",
+    "existing_data_subnet_id",
+    "existing_public_ipv4_subnet_id",
+    "existing_app_ipv4_subnet_id",
+    "existing_data_ipv4_subnet_id",
+    "existing_app_sg_id",
+    "existing_data_sg_id",
+    "az",
+    "image_id",
+    "flavor_id",
+    "vm_count",
+    "enable_elb",
+    "enable_nat",
+    "enable_dns",
+    "domain_base",
+    "enable_platform",
+    "platform_roles",
+    "platform_subnets",
+    "platform_overrides",
+    "platform_eip_roles",
+    "platform_eip_pool_type",
+    "nat_eip_pool_type",
+    "existing_nat_gateway_id",
+    "create_nat_in_existing_vpc",
+    "manage_existing_nat_snat_rules",
+    "nat_floating_ip_id",
+    "ssh_port",
+    "extra_users",
+    "ingress_rules",
+    "extra_vms"
+   ],
+   "secret_keys": [
+    "access_key",
+    "secret_key",
+    "ecs_admin_pass"
+   ],
+   "platform_override_keys": [
+    "az",
+    "az_zone",
+    "eip_pool_type",
+    "flavor_id",
+    "image_id"
+   ],
+   "schema": {
+    "provider": "bytedc",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "ByteDC Project Name",
+        "type": "string",
+        "required": true,
+        "help": "Resource space name from ByteDC console (Service List > Resource Space). Used for the HCS provider."
+       },
+       {
+        "name": "name_prefix",
+        "label": "Stack Project Name (Naming Prefix)",
+        "type": "string",
+        "default": "",
+        "help": "Prefix used for VM/VPC/ELB names: <prefix>-<env>-<role>. Falls back to ByteDC Project Name when empty."
+       },
+       {
+        "name": "region",
+        "label": "Region",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "ByteDC region ID from the console, e.g. cn-north-1."
+       },
+       {
+        "name": "az",
+        "label": "Availability Zone",
+        "type": "string",
+        "default": "az1.dc1",
+        "required": true
+       }
+      ]
+     },
+     {
+      "id": "credentials",
+      "title": "Credentials",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "access_key",
+        "label": "Access Key",
+        "type": "secret",
+        "required": true
+       },
+       {
+        "name": "secret_key",
+        "label": "Secret Key",
+        "type": "secret",
+        "required": true
+       }
+      ]
+     },
+     {
+      "id": "network",
+      "title": "Networking (VPC)",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "vpc_name",
+        "label": "VPC name (optional)",
+        "type": "string",
+        "default": "",
+        "help": "Custom VPC display name. Leave blank to use the default <prefix>-<env>-vpc."
+       },
+       {
+        "name": "vpc_cidr",
+        "label": "VPC CIDR",
+        "type": "cidr",
+        "default": "10.0.0.0/16",
+        "required": true
+       },
+       {
+        "name": "public_subnet_cidr",
+        "label": "Public subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.0.0/24"
+       },
+       {
+        "name": "public_subnet_gw",
+        "label": "Public subnet gateway",
+        "type": "string",
+        "default": "10.0.0.1"
+       },
+       {
+        "name": "app_subnet_cidr",
+        "label": "App subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.1.0/24"
+       },
+       {
+        "name": "app_subnet_gw",
+        "label": "App subnet gateway",
+        "type": "string",
+        "default": "10.0.1.1"
+       },
+       {
+        "name": "data_subnet_cidr",
+        "label": "Data subnet CIDR",
+        "type": "cidr",
+        "default": "10.0.250.0/24"
+       },
+       {
+        "name": "data_subnet_gw",
+        "label": "Data subnet gateway",
+        "type": "string",
+        "default": "10.0.250.1"
+       },
+       {
+        "name": "admin_cidr",
+        "label": "Admin CIDR (SSH/admin UIs)",
+        "type": "cidr",
+        "default": "",
+        "help": "Your office/public CIDR allowed to reach port 2222 + admin UIs. Example: 203.0.113.10/32."
+       },
+       {
+        "name": "web_cidr",
+        "label": "Web CIDR (80/443)",
+        "type": "cidr",
+        "default": "0.0.0.0/0"
+       },
+       {
+        "name": "enable_web_ingress",
+        "label": "Enable web ingress",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "use_existing_network",
+        "label": "Reuse an existing VPC / subnets",
+        "type": "bool",
+        "default": false,
+        "help": "Off by default — the stack creates its own VPC, subnets and SGs. Turn on only when you want this stack to plug into an existing network so multiple stacks can reach each other."
+       },
+       {
+        "name": "existing_vpc_id",
+        "label": "Existing VPC ID",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Required when reuse is on. When set, VPC creation is skipped. You MUST also fill all three subnet IDs below (Public, App, Data) — otherwise new subnets are created inside the existing VPC and may collide with your CIDRs."
+       },
+       {
+        "name": "existing_public_subnet_id",
+        "label": "Existing Public Subnet ID",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Required when reuse is on."
+       },
+       {
+        "name": "existing_app_subnet_id",
+        "label": "Existing App Subnet ID",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Required when reuse is on."
+       },
+       {
+        "name": "existing_data_subnet_id",
+        "label": "Existing Data Subnet ID",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Required when reuse is on."
+       },
+       {
+        "name": "existing_public_ipv4_subnet_id",
+        "label": "Existing Public IPv4 Subnet ID (ELB only)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Only required if Enable ELB is on. The neutron IPv4 subnet ID of the public subnet (different from the VPC subnet ID)."
+       },
+       {
+        "name": "existing_app_ipv4_subnet_id",
+        "label": "Existing App IPv4 Subnet ID (ELB only)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        }
+       },
+       {
+        "name": "existing_data_ipv4_subnet_id",
+        "label": "Existing Data IPv4 Subnet ID (ELB only)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        }
+       },
+       {
+        "name": "existing_app_sg_id",
+        "label": "Existing App SG ID (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        },
+        "help": "Reuse the previous stack's app-sg so you don't get duplicate-name conflicts. Leave blank to create a fresh SG."
+       },
+       {
+        "name": "existing_data_sg_id",
+        "label": "Existing Data SG ID (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_network": true
+        }
+       }
+      ]
+     },
+     {
+      "id": "compute",
+      "title": "Compute defaults",
+      "icon": "fa-server",
+      "fields": [
+       {
+        "name": "image_id",
+        "label": "ByteDC IMS image ID",
+        "type": "string",
+        "required": true,
+        "help": "e.g. Ubuntu 22.04 image UUID. Used as the default for the Platform pool."
+       },
+       {
+        "name": "flavor_id",
+        "label": "Default flavor",
+        "type": "string",
+        "default": "s3.small.1",
+        "help": "Fallback flavor for Platform pool roles that don't set their own."
+       }
+      ]
+     },
+     {
+      "id": "platform",
+      "title": "Platform pool",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "enable_platform",
+        "label": "Provision platform pool",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "platform_roles",
+        "label": "Platform roles (rename / add / remove, set count + subnet + flavor per role)",
+        "type": "role_counts",
+        "default": {
+         "postgres": 1,
+         "redis": 1,
+         "nexus": 1,
+         "openbao": 1,
+         "observability": 1,
+         "runner": 1
+        },
+        "roles": [
+         "postgres",
+         "redis",
+         "nexus",
+         "openbao",
+         "observability",
+         "runner"
+        ],
+        "subnet_field": "platform_subnets",
+        "subnet_options": [
+         "data",
+         "app"
+        ],
+        "flavor_field": "platform_overrides",
+        "flavor_key": "flavor_id",
+        "help": "Edit role names inline, set VM count, pick subnet (data/app), and optionally override the flavor per role. Leave flavor blank to use the default."
+       },
+       {
+        "name": "platform_subnets",
+        "label": "Platform subnet assignment (auto)",
+        "type": "hidden_map",
+        "default": {
+         "postgres": "data",
+         "redis": "data",
+         "nexus": "data",
+         "openbao": "data",
+         "observability": "data",
+         "runner": "data"
+        }
+       },
+       {
+        "name": "platform_overrides",
+        "label": "Platform per-role overrides (auto)",
+        "type": "hidden_map",
+        "default": {}
+       },
+       {
+        "name": "platform_eip_roles",
+        "label": "Roles getting a public EIP",
+        "type": "multiselect",
+        "source": "platform_roles",
+        "options": [
+         "postgres",
+         "redis",
+         "nexus",
+         "openbao",
+         "observability",
+         "runner"
+        ],
+        "default": [
+         "runner",
+         "observability"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "edge",
+      "title": "Edge (ELB / NAT / DNS)",
+      "icon": "fa-globe",
+      "fields": [
+       {
+        "name": "enable_elb",
+        "label": "Provision ELB + EIP",
+        "type": "bool",
+        "default": true
+       },
+       {
+        "name": "enable_nat",
+        "label": "Enable NAT / outbound egress",
+        "type": "bool",
+        "default": true,
+        "help": "For a new VPC, this creates a NAT gateway. For an existing VPC, leave this off unless you also provide an Existing NAT Gateway ID or explicitly create a new NAT in that VPC."
+       },
+       {
+        "name": "enable_dns",
+        "label": "Provision private DNS zone",
+        "type": "bool",
+        "default": false
+       },
+       {
+        "name": "domain_base",
+        "label": "Domain base",
+        "type": "string",
+        "default": "example.com",
+        "help": "Base DNS domain for the private zone, e.g. internal.example.com."
+       },
+       {
+        "name": "platform_eip_pool_type",
+        "label": "Platform EIP pool",
+        "type": "string",
+        "default": ""
+       },
+       {
+        "name": "nat_eip_pool_type",
+        "label": "NAT EIP pool",
+        "type": "string",
+        "default": ""
+       },
+       {
+        "name": "use_existing_nat",
+        "label": "Reuse / manage an existing NAT gateway",
+        "type": "bool",
+        "default": false,
+        "help": "Off by default. Turn on only when you want to plug into an existing NAT gateway (or intentionally create another NAT inside a reused VPC)."
+       },
+       {
+        "name": "existing_nat_gateway_id",
+        "label": "Existing NAT Gateway ID (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_nat": true
+        },
+        "help": "Use this when the selected existing VPC already has a NAT gateway. The stack will not create a duplicate NAT gateway."
+       },
+       {
+        "name": "create_nat_in_existing_vpc",
+        "label": "Create new NAT inside existing VPC",
+        "type": "bool",
+        "default": false,
+        "visible_when": {
+         "use_existing_nat": true
+        },
+        "help": "Advanced: only turn on when you intentionally want this stack to create another NAT gateway in a reused VPC."
+       },
+       {
+        "name": "manage_existing_nat_snat_rules",
+        "label": "Manage SNAT rules on existing NAT",
+        "type": "bool",
+        "default": false,
+        "visible_when": {
+         "use_existing_nat": true
+        },
+        "help": "Usually off. Turn on only if you provide NAT EIP ID and want this stack to add SNAT rules to an existing NAT gateway."
+       },
+       {
+        "name": "nat_floating_ip_id",
+        "label": "NAT EIP ID (optional)",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "use_existing_nat": true
+        },
+        "help": "Existing EIP ID for NAT. Required only when managing SNAT rules on an existing NAT gateway."
+       }
+      ]
+     },
+     {
+      "id": "security",
+      "title": "Security & Access",
+      "icon": "fa-shield-halved",
+      "fields": [
+       {
+        "name": "ecs_admin_pass",
+        "label": "ECS Admin Password",
+        "type": "secret",
+        "required": true,
+        "help": "Default root/admin password seeded into every provisioned VM. Stored encrypted."
+       },
+       {
+        "name": "ssh_port",
+        "label": "Custom SSH Port",
+        "type": "number",
+        "default": 2222,
+        "min": 1,
+        "max": 65535,
+        "help": "Port opened on the app/data security groups from the Admin CIDR. Golden image ships on 2222."
+       },
+       {
+        "name": "extra_users",
+        "label": "Extra Linux Users",
+        "type": "json",
+        "default": [],
+        "help": "List of additional users seeded on every VM. Example:\n[{\"name\": \"alice\", \"password\": \"Str0ng!Pass\", \"sudo\": true, \"ssh_key\": \"ssh-ed25519 AAAA...\"}]"
+       },
+       {
+        "name": "ingress_rules",
+        "label": "Extra Security Group Ingress Rules",
+        "type": "json",
+        "default": [],
+        "help": "List of extra inbound rules applied to the app SG. Example:\n[{\"protocol\": \"tcp\", \"port\": 8080, \"cidr\": \"10.0.0.0/8\", \"sg\": \"app\", \"description\": \"internal api\"}]\nsg: \"app\" | \"data\" (default app)."
+       }
+      ]
+     },
+     {
+      "id": "extras",
+      "title": "Extra VMs (optional)",
+      "icon": "fa-plus-square",
+      "fields": [
+       {
+        "name": "extra_vms",
+        "label": "Ad-hoc VMs (bastion / load-test / etc.)",
+        "type": "extra_vms",
+        "default": {}
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  },
+  "kubernetes": {
+   "id": "kubernetes",
+   "label": "Kubernetes",
+   "category": "onprem",
+   "tfvars_order": [
+    "env",
+    "project_name",
+    "auth_method",
+    "cluster_endpoint",
+    "namespace_name",
+    "create_namespace",
+    "workloads",
+    "enable_ingress",
+    "ingress_class",
+    "ingress_host",
+    "ingress_target_workload",
+    "ingress_target_port",
+    "ingress_tls",
+    "install_ingress_nginx",
+    "install_cert_manager",
+    "install_metrics_server",
+    "labels"
+   ],
+   "secret_keys": [
+    "kubeconfig",
+    "cluster_ca_cert",
+    "cluster_token"
+   ],
+   "platform_override_keys": [],
+   "schema": {
+    "provider": "kubernetes",
+    "groups": [
+     {
+      "id": "project",
+      "title": "Project",
+      "icon": "fa-folder",
+      "fields": [
+       {
+        "name": "env",
+        "label": "Environment",
+        "type": "string",
+        "default": "dev",
+        "required": true,
+        "help": "Short env tag — dev / sit / prod."
+       },
+       {
+        "name": "project_name",
+        "label": "Project name (naming prefix)",
+        "type": "string",
+        "required": true,
+        "help": "Used as label prefix on every Kubernetes object OpenSible creates."
+       }
+      ]
+     },
+     {
+      "id": "cluster",
+      "title": "Cluster Auth",
+      "icon": "fa-key",
+      "secret": true,
+      "fields": [
+       {
+        "name": "auth_method",
+        "label": "Cluster auth method",
+        "type": "select",
+        "default": "kubeconfig",
+        "options": [
+         "kubeconfig",
+         "token"
+        ],
+        "help": "'kubeconfig' pastes the full YAML (recommended, works with EKS/GKE/AKS/k3s). 'token' uses cluster endpoint + CA cert + bearer token instead."
+       },
+       {
+        "name": "kubeconfig",
+        "label": "Kubeconfig YAML",
+        "type": "secret",
+        "multiline": true,
+        "visible_when": {
+         "auth_method": "kubeconfig"
+        },
+        "help": "Paste the full kubeconfig file (~/.kube/config). Stored encrypted, written to <stack>/kubeconfig.yaml (chmod 600) only at execution time."
+       },
+       {
+        "name": "cluster_endpoint",
+        "label": "API server URL",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "auth_method": "token"
+        },
+        "help": "https://<cluster-endpoint>:6443"
+       },
+       {
+        "name": "cluster_ca_cert",
+        "label": "Cluster CA certificate (base64)",
+        "type": "secret",
+        "multiline": true,
+        "visible_when": {
+         "auth_method": "token"
+        },
+        "help": "Base64-encoded CA cert (the value from `kubectl config view --raw` under `certificate-authority-data`)."
+       },
+       {
+        "name": "cluster_token",
+        "label": "Service-account bearer token",
+        "type": "secret",
+        "visible_when": {
+         "auth_method": "token"
+        },
+        "help": "Bearer token for a ServiceAccount with sufficient RBAC (cluster-admin for the sample workloads)."
+       }
+      ]
+     },
+     {
+      "id": "namespace",
+      "title": "Namespace",
+      "icon": "fa-layer-group",
+      "fields": [
+       {
+        "name": "namespace_name",
+        "label": "Namespace name",
+        "type": "string",
+        "required": true,
+        "default": "opensible",
+        "help": "Kubernetes namespace to deploy into."
+       },
+       {
+        "name": "create_namespace",
+        "label": "Create namespace if missing",
+        "type": "bool",
+        "default": true,
+        "help": "OFF: assume it exists (data lookup). ON: OpenSible creates it."
+       }
+      ]
+     },
+     {
+      "id": "workloads",
+      "title": "Workloads",
+      "icon": "fa-boxes-stacked",
+      "fields": [
+       {
+        "name": "workloads",
+        "label": "Workloads (JSON array)",
+        "type": "json",
+        "default": [
+         {
+          "name": "hello",
+          "image": "nginxdemos/hello:latest",
+          "replicas": 2,
+          "port": 80,
+          "env": {}
+         }
+        ],
+        "help": "Each workload: {\"name\",\"image\",\"replicas\",\"port\",\"env\":{K:V}}. Creates one Deployment + ClusterIP Service per entry."
+       }
+      ]
+     },
+     {
+      "id": "ingress",
+      "title": "Ingress",
+      "icon": "fa-network-wired",
+      "fields": [
+       {
+        "name": "enable_ingress",
+        "label": "Enable Ingress",
+        "type": "bool",
+        "default": false,
+        "help": "Creates a single Ingress in front of one of the workloads' services."
+       },
+       {
+        "name": "ingress_class",
+        "label": "Ingress class",
+        "type": "string",
+        "default": "nginx",
+        "visible_when": {
+         "enable_ingress": true
+        },
+        "help": "IngressClass name (e.g. 'nginx', 'traefik'). Requires a controller installed on the cluster."
+       },
+       {
+        "name": "ingress_host",
+        "label": "Ingress host",
+        "type": "string",
+        "default": "",
+        "visible_when": {
+         "enable_ingress": true
+        },
+        "help": "FQDN, e.g. app.example.com. Must resolve to your ingress controller's external IP."
+       },
+       {
+        "name": "ingress_target_workload",
+        "label": "Target workload name",
+        "type": "string",
+        "default": "hello",
+        "visible_when": {
+         "enable_ingress": true
+        },
+        "help": "Name of the workload above whose Service should receive the ingress traffic."
+       },
+       {
+        "name": "ingress_target_port",
+        "label": "Target service port",
+        "type": "number",
+        "default": 80,
+        "visible_when": {
+         "enable_ingress": true
+        },
+        "help": "Port exposed by the workload's Service."
+       },
+       {
+        "name": "ingress_tls",
+        "label": "Enable TLS (uses cert-manager 'letsencrypt-prod' issuer)",
+        "type": "bool",
+        "default": false,
+        "visible_when": {
+         "enable_ingress": true
+        },
+        "help": "Adds cert-manager annotations so certs are issued automatically. Install cert-manager below if not already present."
+       }
+      ]
+     },
+     {
+      "id": "addons",
+      "title": "Helm Addons (optional)",
+      "icon": "fa-cog",
+      "fields": [
+       {
+        "name": "install_ingress_nginx",
+        "label": "Install ingress-nginx",
+        "type": "bool",
+        "default": false,
+        "help": "Deploys the ingress-nginx controller (helm chart, namespace 'ingress-nginx')."
+       },
+       {
+        "name": "install_cert_manager",
+        "label": "Install cert-manager",
+        "type": "bool",
+        "default": false,
+        "help": "Deploys cert-manager into the 'cert-manager' namespace (CRDs included)."
+       },
+       {
+        "name": "install_metrics_server",
+        "label": "Install metrics-server",
+        "type": "bool",
+        "default": false,
+        "help": "Deploys metrics-server into 'kube-system' (needed for HPA / `kubectl top`)."
+       }
+      ]
+     }
+    ]
+   },
+   "full_inventory": true
+  }
+ },
+ "catalog": [
+  {
+   "id": "aws",
+   "label": "AWS",
+   "description": "Amazon Web Services — VPC, EC2, Security Group, Key Pair, Internet Gateway.",
+   "enabled": true,
+   "logo": "aws",
+   "category": "cloud"
+  },
+  {
+   "id": "eks",
+   "label": "Amazon EKS",
+   "description": "Amazon Elastic Kubernetes Service — managed Kubernetes on AWS with a public VPC, IAM roles, and managed node groups.",
+   "enabled": true,
+   "logo": "aws",
+   "category": "cloud"
+  },
+  {
+   "id": "gcp",
+   "label": "Google Cloud",
+   "description": "Google Cloud Platform — VPC, Compute Engine, Firewall, Cloud NAT.",
+   "enabled": true,
+   "logo": "gcp",
+   "category": "cloud"
+  },
+  {
+   "id": "gke",
+   "label": "Google Kubernetes Engine",
+   "description": "Google Kubernetes Engine (GKE) — managed Kubernetes on Google Cloud with VPC-native networking and node pools.",
+   "enabled": true,
+   "logo": "gcp",
+   "category": "cloud"
+  },
+  {
+   "id": "hetzner",
+   "label": "Hetzner Cloud",
+   "description": "Hetzner Cloud — servers, private network, firewall, load balancer.",
+   "enabled": true,
+   "logo": "hetzner",
+   "category": "cloud"
+  },
+  {
+   "id": "biznet",
+   "label": "Biznet Gio",
+   "description": "Biznet Gio Cloud — Indonesian OpenStack-based public cloud (VPC, VMs, load balancer).",
+   "enabled": true,
+   "logo": "biznet",
+   "category": "cloud"
+  },
+  {
+   "id": "idcloudhost",
+   "label": "IDCloudHost",
+   "description": "IDCloudHost — Indonesian VPS provider (Jakarta & Singapore regions).",
+   "enabled": true,
+   "logo": "idcloudhost",
+   "category": "cloud"
+  },
+  {
+   "id": "cloudflare",
+   "label": "Cloudflare",
+   "description": "Cloudflare — DNS zone, records, R2 buckets, Workers, Zero Trust Access.",
+   "enabled": true,
+   "logo": "cloudflare",
+   "category": "cloud"
+  },
+  {
+   "id": "bytedc",
+   "label": "ByteDC",
+   "description": "Huawei-compatible private cloud — VPC, ECS, ELB, NAT, DNS.",
+   "enabled": true,
+   "logo": "bytedc",
+   "category": "cloud"
+  },
+  {
+   "id": "kubernetes",
+   "label": "Kubernetes",
+   "description": "Kubernetes — deploy namespaces, workloads, services, ingresses and Helm addons into an existing cluster (bring your own kubeconfig).",
+   "enabled": true,
+   "logo": "kubernetes",
+   "category": "onprem"
+  }
+ ],
+ "all_secret_keys": [
+  "aws_access_key",
+  "aws_secret_key",
+  "admin_password",
+  "rds_password",
+  "gcp_credentials_json",
+  "hcloud_token",
+  "os_password",
+  "api_token",
+  "access_key",
+  "secret_key",
+  "ecs_admin_pass",
+  "kubeconfig",
+  "cluster_ca_cert",
+  "cluster_token"
+ ],
+ "default_provider": "bytedc"
+}

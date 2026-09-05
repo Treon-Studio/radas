@@ -1,28 +1,35 @@
 # RADAS Agent Notes
 
-Concise instructions for agents working in this repo. Verified against the
-`feat/console-v4-ai-router-clean` tree on 2026-08-28. Re-check after pulling —
-the repo is in active transition and `main` is behind this branch.
+Concise instructions for agents working in this repo. Updated for the
+Phase 8 Elixir cutover on 2026-09-04 (`feat/elixir-migration-phase0`).
+Re-check after pulling — the repo is in active transition.
 
 ## Repo state (read first)
 
-- **Real app tree:** `apps/` = `cli`, `console`, `desktop-app`, `server`,
-  `worker` (+ a `data/` runtime dir). There is **no** `apps/dashboard`,
-  `apps/extension`, `apps/site`, `apps/homepage`, or `apps/opensible-*`.
-  The Chrome extension was removed (commit `4feaf59d`); `MIGRATION_GUIDE.md`
-  is retired in place with a banner.
-- **The server is `apps/server/`** (Flask, Python 3.14 venv). Older docs,
-  plans, and commit messages may say `apps/opensible-server` — that path is
-  retired; `tests/test_repo_paths.py` fails any file that reintroduces it.
-  `apps/server/apps/opensible-server/` is a nested legacy data dir, not code.
+- **Real app tree:** `apps/` = `cli`, `console`, `desktop-app`,
+  `server`, `worker` (+ a `data/` runtime dir). There is **no**
+  `apps/dashboard`, `apps/extension`, `apps/site`, `apps/homepage`, or
+  `apps/opensible-*`. The Chrome extension was removed (commit `4feaf59d`);
+  `MIGRATION_GUIDE.md` is retired in place with a banner.
+- **The API backend is `apps/server/` (Phoenix/Elixir).** The Elixir
+  migration is COMPLETE: Phase 8 flipped CI, docker-compose, pm2 and the
+  nginx router to Phoenix and **physically removed the Flask tree
+  `apps/server/`**. Every remote CLI command in
+  `contracts/cli-route-manifest.json` maps to a served Phoenix route
+  (`RadasCliRouteParityTest`). Older docs may say `apps/opensible-server`
+  or `apps/server` — both retired; `tests/test_repo_paths.py` rejects
+  reintroductions.
 - **No `modules/` directory.** Shared TypeScript lives in `packages/`.
 - **Contract artifacts are authoritative:** `contracts/radas-api-v2.openapi.json`
-  (served snapshot, byte-pinned by a test), `contracts/cli-route-manifest.json`
-  (route parity gate), `contracts/cross-client-fixtures.json` (Go/TS parity),
+  (historical served snapshot — the byte-pin gate retired with Flask;
+  clients are semantic-coupled, not byte-coupled),
+  `contracts/cli-route-manifest.json` (CLI route-parity gate, now
+  enforced by `RadasCliRouteParityTest` against the Phoenix routes),
+  `contracts/cross-client-fixtures.json` (Go/TS parity),
   `contracts/radas-api-v2-violations-baseline.json` (tighten-only ratchet).
 - **Domain ontology:** `contracts/domain-ontology.json` is authoritative for
   entity states/transitions/alert semantics; parity-gated by
-  `apps/server/tests/test_ontology_parity.py` (see
+  `RadasOntologyParityTest` in apps/server (see
   `docs/architecture/domain-ontology.md`).
 - **Evidence & verification docs:** `docs/architecture/roadmap-evidence-matrix.md`,
   `docs/architecture/e2e-flow-matrix.md`, `docs/verification/`. Trust these
@@ -45,18 +52,18 @@ apps/
   console/      @radas/console (Vite + React 19 console; vitest + jsdom).
                 Run: pnpm --filter @radas/console dev (port 8080).
   desktop-app/  @radas/desktop-app.
-  server/       Flask control plane (Python 3.14). One-time setup:
-                cd apps/server && python3 -m venv .venv &&
-                .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-                Tests: .venv/bin/pytest (TEST_DATABASE_URL, see Database).
+  server/         Phoenix control plane (the API backend). Setup:
+                cd apps/server && mix deps.get && mix ecto.setup
+                Run: mix phx.server (port 4000).
   worker/       Go worker (module github.com/opensible/worker-go, go >= 1.22).
                 Run: go build -o bin/worker ./cmd/worker.
   data/         Runtime data directory (not code).
 packages/       pnpm workspace members:
                 config, hooks, sdk, types, ui, utils, validation
-templates/      docs/ + opensible-iac/ (OpenTofu/Ansible tree used by the
-                server; the server may rewrite platform-owned `_template/`
-                files on boot — `git checkout -- <path>` those before commit).
+templates/      docs/ + opensible-iac/ (OpenTofu/Ansible tree — the tracked
+                IaC source the Phoenix server syncs into stack workspaces;
+                the server may rewrite platform-owned `_template/`
+                files — `git checkout -- <path>` those before commit).
 contracts/      API contract artifacts + fixtures (see Repo state).
 scripts/        Repo-level driver scripts (cross-client contracts, layout
                 verification, vulnerability scan, import migration).
@@ -76,18 +83,21 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 - **CLI (Go):** `cd apps/cli && go build -o bin/radas`; `go test ./...`;
   `govulncheck ./...`. Module is `github.com/raizora/radas/v4`.
-- **Server (Python):** from `apps/server`: `compileall` for syntax, then
-  `TEST_DATABASE_URL=sqlite:///:memory:` (plus the CI-style
-  JWT/INTERNAL_CALL/GLOBAL_SECRETS env; mirror
-  `.github/workflows/api-contract.yml`) `.venv/bin/pytest -q`.
-  Do **not** run two pytest processes concurrently — they reset each other's
-  test schema and produce spurious ERRORs.
+- **Server (Elixir/Phoenix):** from `apps/server`: `mix deps.get`,
+  then `mix test` (needs DATABASE_URL/TEST_DATABASE_URL + JWT/INTERNAL_CALL/
+  GLOBAL_SECRETS env; mirror `.github/workflows/api-contract.yml`).
+  The gates: full `mix test` (includes RadasCliRouteParityTest +
+  RadasOntologyParityTest), `bash scripts/check-server-contract.sh` (smoke
+  against a running server), `pytest tests/test_repo_paths.py` (repo guards),
+  `bash scripts/check-sensitive-paths.sh`.
+- **Repo layout integrity:** `python3 tests/test_repo_paths.py` (stdlib,
+  no venv needed; also runs under pytest).
 - **Worker (Go):** `cd apps/worker && go test ./...`.
 - **Console:** `cd apps/console && pnpm typecheck && pnpm test && pnpm build`.
 - **Cross-client contract gate:** `bash scripts/run-cross-client-contracts.sh`
   (mode a offline; `RUN_FULL_CONTRACT=1` + `RADAS_TEST_*` for live-server
   legs). Runs in CI as the `cross-client-contracts` job.
-- **Repo layout integrity:** `pytest tests/test_repo_paths.py`.
+
 - **Radas stack (local dev via pm2):** `pnpm dev:radas` / `:stop` / `:restart`
   (see `ecosystem.config.cjs`). macOS note: port 5000 is AirPlay; the server
   defaults to 5001.
@@ -106,11 +116,12 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 ## CI workflows (`.github/workflows/`)
 
-- `api-contract.yml` — server contract gate on `apps/server/**`,
-  `contracts/**` changes: postgres:16 service, full server suite, OpenAPI
-  snapshot byte-compare, redaction + sensitive-path checks, spec-diff artifact.
+- `api-contract.yml` — Phoenix contract gate on `apps/server/**`,
+  `contracts/**` changes: postgres:16 service, full `mix test` suite
+  (includes the CLI route-parity + ontology parity gates), sensitive-path
+  static rules for the Elixir tree.
 - `ci.yml` — server sensitive-path static rules + `cross-client-contracts`
-  job (`scripts/run-cross-client-contracts.sh` mode a: server pytest
+  job (`scripts/run-cross-client-contracts.sh` mode a: Phoenix ExUnit
   reference + console typecheck/vitest/build + CLI/worker Go tests).
 - `deploy-console.yml` — deploys `apps/console` to Cloudflare Pages
   (`--project-name radas-console`).
@@ -134,8 +145,9 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 - **Platform contracts:** `/api/v2/*` always returns the platform envelope
   (`{data, request_id}` / `{error:{code,message,details}}`); legacy `/api/*`
   routes keep their historical shapes. The served OpenAPI snapshot is
-  byte-pinned — regenerate only via `apps/server/scripts/export_openapi.py`
-  and update the baseline ratchet deliberately.
+  served by Phoenix; the historical byte-pin gate retired with Flask.
+  `contracts/cli-route-manifest.json` is the enforced route contract —
+  every remote CLI command must resolve to a Phoenix route.
 - **Secrets are never logged or embedded in assertion messages**; test
   headers derive from the runtime env (see
   `tests/test_global_secret_key_routes.py` for the pattern).
@@ -147,8 +159,9 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
   `tests/test_repo_paths.py`.
 - Don't import `app.py` from server tests to get singletons; it starts
   background schedulers at import. Use the blueprint-registering harness in
-  `apps/server/tests/test_cli_server_integration.py` /
-  `test_e2e_flow_matrix.py` (and `app_context.set_projects_dir`).
+  the Phoenix ExUnit harnesses in `apps/server/test/` (DataCase
+  seeds orgs/projects/memberships directly; do not import a server
+  bootstrap module).
 - Console `pnpm test` includes env-gated real-HTTP legs that skip unless
   `VITEST_CROSS_CLIENT_*` is set; Go integration tests skip unless
   `RADAS_TEST_*` is set. Set them only for live-server verification.
@@ -156,11 +169,13 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 ## Database
 
-- **Selalu PostgreSQL.** `DATABASE_URL` wajib; skema di-manage
-  `apps/server/storage/pg_schema.py` (versioned `schema_migrations`); jangan
+- **Selalu PostgreSQL.** `DATABASE_URL` wajib; skema di-manage oleh Ecto
+  migration di `apps/server/priv/repo/migrations/` (tracking table
+  `ecto_migrations`) + historical Python `schema_migrations` rows; jangan
   buat tabel manual di luar itu.
-- Akses via `storage/pg.py` helpers (`execute/query_one/query_all/
-  transaction`) atau `storage/pg_compat.py` (facade sqlite3-style).
+- Akses via `RadasAI.DB` helpers (`query_one!/query_all!/execute!`) dan
+  `Radas.Repo` (Ecto) di apps/server; JSONB needs explicit
+  `$n::jsonb`/`::text::jsonb` casts in raw SQL.
 - JSON-config stores → tabel `kv_store(scope, key, value jsonb)`; gunakan
   `storage/kv.py`. Durable failure counters also live there
   (`storage/metrics_counters.py`).

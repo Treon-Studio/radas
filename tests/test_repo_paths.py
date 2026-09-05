@@ -1,7 +1,10 @@
-"""Repository path integrity (Task 6.4 of the 2026-08-27 integration plan).
+"""Repository path integrity (Task 6.4 of the 2026-08-27 integration plan;
+Phase 8 update: the Flask server apps/server has been REMOVED).
 
 Guards against the stale-path failure mode this repo has hit repeatedly
-(apps/opensible-server -> apps/server, apps/radas-console -> apps/console,
+(apps/opensible-server -> apps/server -> apps/server (Phoenix, after the
+Flask removal the canonical backend dir is apps/server again —
+apps/server_elixir is retired), apps/radas-console -> apps/console,
 apps/chrome-ext removal, contract discovery pointing at nonexistent files):
 
   1. the required app trees and contract artifacts exist;
@@ -11,7 +14,8 @@ apps/chrome-ext removal, contract discovery pointing at nonexistent files):
      real directory;
   4. package / module identities match the documented convention.
 
-Stdlib-only so it runs under any Python with pytest (server venv or system).
+Stdlib-only: runs under pytest when available, or standalone via
+`python3 tests/test_repo_paths.py` (no venv needed).
 """
 from __future__ import annotations
 
@@ -33,7 +37,11 @@ REQUIRED_CONTRACT_FILES = (
 )
 
 # Paths that no longer exist and must not be referenced by active files.
+# `apps/server_elixir` was renamed back to `apps/server` after the Flask
+# tree was physically removed (Phase 8 final cutover) — active files must
+# reference apps/server.
 RETIRED_PATH_PREFIXES = (
+    "apps/server_elixir",
     "apps/opensible-server",
     "apps/radas-console",
     "apps/chrome-ext",
@@ -126,3 +134,38 @@ def test_go_module_identities(rel, expected):
 def test_package_names(rel, expected):
     manifest = json.loads((ROOT / rel).read_text(encoding="utf-8"))
     assert manifest.get("name") == expected
+
+
+if __name__ == "__main__":
+    import sys
+
+    failures = 0
+
+    def _run(name, fn, args=()):
+        global failures
+        try:
+            fn(*args)
+        except AssertionError as exc:
+            failures += 1
+            print(f"FAIL {name}: {exc}")
+        except Exception as exc:  # noqa: BLE001
+            failures += 1
+            print(f"ERROR {name}: {exc}")
+
+    for name, fn in sorted(globals().items()):
+        if not (name.startswith("test_") and callable(fn)):
+            continue
+        if name == "test_active_files_have_no_retired_path_references":
+            for rel in ACTIVE_PATH_FILES:
+                _run(f"{name}[{rel}]", fn, (rel,))
+        elif name == "test_go_module_identities":
+            for rel, expected in EXPECTED_MODULE_IDS.items():
+                _run(f"{name}[{rel}]", fn, (rel, expected))
+        elif name == "test_package_names":
+            for rel, expected in EXPECTED_PACKAGE_NAMES.items():
+                _run(f"{name}[{rel}]", fn, (rel, expected))
+        else:
+            _run(name, fn)
+
+    print("path-integrity checks " + ("FAILED" if failures else "passed"))
+    sys.exit(1 if failures else 0)

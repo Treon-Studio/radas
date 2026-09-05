@@ -50,6 +50,6 @@ printf '  node %s\n' "$(node --version)"
 printf '  pnpm %s\n' "$(pnpm --version)"
 printf '  %s\n' "$(python3 --version)"
 
-route_count=$(rg -n '(@[^[:space:]]*\.route\(|add_url_rule\()' apps/server --glob '*.py' | wc -l | tr -d ' ')
+route_count=$(rg -n 'get |post |put |patch |delete ' apps/server/lib/radas_web/router.ex | wc -l | tr -d ' ')
 printf 'Server route declaration count: %s\n' "$route_count"
 printf '%s\n' "Layout verification passed."

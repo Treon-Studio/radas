@@ -1,31 +1,34 @@
-# Backend API (Flask)
-# Build context: project root (docker build -f backend/Dockerfile .)
-FROM python:3.14-slim
+# Phoenix (Elixir) API server image — replaces the retired Flask server image.
+FROM hexpm/elixir:1.18.4-erlang-27.3-alpine-3.21 AS build
+
+RUN apk add --no-cache build-base git postgresql-client
 
 WORKDIR /app
 
-# Split OS packages into smaller layers so Zot behind Cloudflare does not reject uploads over ~100 MB.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    openssh-client \
-    sshpass \
-    && rm -rf /var/lib/apt/lists/*
+ENV MIX_ENV=prod
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ansible-core \
-    && rm -rf /var/lib/apt/lists/*
+COPY mix.exs mix.lock ./
+COPY config config
+RUN mix deps.get && mix deps.compile
 
-COPY server/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY lib lib
+COPY priv priv
+RUN mix compile
 
-COPY server /app
+RUN mix release
 
-# Ship the IaC tree (modules + env templates) so cloud_provisioning._sync_iac_assets
-# can refresh per-project stack workspaces with the latest module code on every run.
-COPY IaC /app/IaC
+FROM alpine:3.21
 
-RUN mkdir -p /app/data
+RUN apk add --no-cache libstdc++ openssl ncurses-libs tzdata && \
+    addgroup -S app && adduser -S app -G app
 
-EXPOSE 5000
+WORKDIR /app
+COPY --from=build /app/_build/prod/rel/radas ./
+COPY --from=build /app/priv/registry ./priv/registry
 
-CMD ["python", "app.py"]
+ENV DATA_DIR=/app/data
+RUN mkdir -p /app/data && chown -R app:app /app
+USER app
+
+EXPOSE 4000
+CMD ["bin/radas", "start"]

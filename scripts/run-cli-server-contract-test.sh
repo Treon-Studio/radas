@@ -4,12 +4,11 @@
 #
 # Two modes:
 #
-#   (a) Server half (always): the pytest reference contract in
-#       apps/server/tests/test_cli_server_integration.py runs against the real
-#       Flask blueprints + an isolated PostgreSQL schema (pg_db fixture).
-#       Requires a reachable PostgreSQL at TEST_DATABASE_URL
-#       (default postgresql://localhost/radas_test) and nothing else —
-#       no live server, no Docker, no cloud credentials.
+#   (a) Server half (always): the Phoenix ExUnit suite runs against a
+#       reachable PostgreSQL at TEST_DATABASE_URL (default
+#       postgresql://localhost/radas_test) and nothing else — no live
+#       server, no Docker, no cloud credentials. The Flask-era pytest
+#       reference was retired with the Phase 8 cutover.
 #
 #   (b) Full CLI↔server mode (only when RUN_FULL_CONTRACT=1): runs the
 #       env-gated Go contract test apps/cli/internal/integration/
@@ -43,14 +42,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVER_DIR="$ROOT/apps/server"
 CLI_DIR="$ROOT/apps/cli"
 
-echo "==> [mode a] server contract (pytest against real blueprints + PostgreSQL)"
-if [[ ! -x "$SERVER_DIR/.venv/bin/pytest" ]]; then
-    echo "error: $SERVER_DIR/.venv/bin/pytest not found." >&2
-    echo "       create the venv first: cd apps/server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt" >&2
+echo "==> [mode a] server contract (Phoenix ExUnit + PostgreSQL)"
+if [[ ! -f "$SERVER_DIR/mix.exs" ]]; then
+    echo "error: $SERVER_DIR/mix.exs not found." >&2
     exit 1
 fi
 cd "$SERVER_DIR"
-.venv/bin/pytest -q tests/test_cli_server_integration.py tests/test_cli_auth_contract.py
+mix deps.get
+mix test
 
 if [[ "${RUN_FULL_CONTRACT:-0}" != "1" ]]; then
     echo "==> mode (b) skipped (set RUN_FULL_CONTRACT=1 and the RADAS_TEST_* variables to run it)"

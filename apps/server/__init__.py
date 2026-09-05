@@ -1,1 +1,0 @@
-"""OpenSible backend package."""

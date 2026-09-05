@@ -1,20 +1,22 @@
-# Production contract: copy .env.example to .env beside this file, generate and
-# fill every required value, then run `docker compose up`. This file intentionally
-# has no development secret defaults. For local development without containers,
-# use the PM2 configuration in ecosystem.config.cjs with the same .env contract.
+# Production contract (Phase 8 cutover): copy .env.example to .env beside this
+# file, generate and fill every required value, then run
+# `docker compose --profile server up`.
+#
+# Phoenix (Elixir) is the API backend. The legacy Flask container
+# (opensible-server) has been retired — it is no longer part of the default
+# or router topologies. For local development without containers, use the
+# PM2 configuration in ecosystem.config.cjs with the same .env contract.
 services:
-  opensible-server:
-    image: docker.io/ossopensible/opensible-server:latest
-    container_name: opensible-server
+  opensible-phoenix:
+    image: docker.io/ossopensible/opensible-phoenix:latest
+    container_name: opensible-phoenix
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "4000:4000"
     volumes:
       - opensible-data:/app/data
     environment:
       TZ: Asia/Phnom_Penh
-      FLASK_ENV: production
-      FLASK_DEBUG: "0"
       DATA_DIR: /app/data
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
@@ -35,10 +37,10 @@ services:
     environment:
       TZ: Asia/Phnom_Penh
       API_URL: ""
-      BACKEND_HOST: opensible-server
-      BACKEND_PORT: "5000"
+      BACKEND_HOST: opensible-phoenix
+      BACKEND_PORT: "4000"
     depends_on:
-      - opensible-server
+      - opensible-phoenix
 
   opensible-worker:
     image: docker.io/ossopensible/opensible-worker:latest
@@ -52,11 +54,9 @@ services:
       TZ: Asia/Phnom_Penh
       WORKER_NAME: worker-go
       WORKER_TAGS: go
-      WORKER_SERVER_URL: http://127.0.0.1:5000
+      WORKER_SERVER_URL: http://127.0.0.1:4000
       WORKER_TOKEN_FILE: /app/data/worker.token
       DATA_DIR: /app/data
-      FLASK_ENV: production
-      FLASK_DEBUG: "0"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET:?INTERNAL_CALL_SECRET must be set}
@@ -67,12 +67,10 @@ services:
       VAULT_SERVER_PORT: 9998
       VAULT_SERVER_SECRET: ${VAULT_SERVER_SECRET:?VAULT_SERVER_SECRET must be set}
     depends_on:
-      - opensible-server
+      - opensible-phoenix
 
-  # Strangler-fig router for the Elixir migration (Phase 0.2). Opt-in via
-  # profile so the default topology is untouched: `docker compose --profile
-  # router up`. Routes /api/elixir/* to the Phoenix service, everything else
-  # to Flask; migration phases extend ../../nginx/radas-docker.conf.
+  # Front-door router (single origin for the console). The router profile
+  # keeps the direct-ports topology working without nginx.
   opensible-router:
     image: nginx:1.27-alpine
     container_name: opensible-router
@@ -83,27 +81,7 @@ services:
     volumes:
       - ../../nginx/radas-docker.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - opensible-server
-
-  # Phoenix (Elixir) replacement server, served behind the router. Only
-  # needed when the router profile is active.
-  opensible-phoenix:
-    image: docker.io/ossopensible/opensible-phoenix:latest
-    container_name: opensible-phoenix
-    restart: unless-stopped
-    profiles: ["router"]
-    ports:
-      - "4000:4000"
-    environment:
-      TZ: Asia/Phnom_Penh
-      DATA_DIR: /app/data
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
-      INTERNAL_CALL_SECRET: ${INTERNAL_CALL_SECRET:?INTERNAL_CALL_SECRET must be set}
-      GLOBAL_SECRETS_ENCRYPTION_KEY: ${GLOBAL_SECRETS_ENCRYPTION_KEY:?GLOBAL_SECRETS_ENCRYPTION_KEY must be set}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://opensible.example.com}
-    depends_on:
-      - opensible-server
+      - opensible-phoenix
 
 volumes:
   opensible-data:
