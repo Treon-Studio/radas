@@ -80,7 +80,7 @@ jobs:
         run: go test ./...
 
   # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
-  # of scripts/run-cross-client-contracts.sh: the ExUnit server reference
+  # of scripts/run-cross-client-contracts.sh: the Phoenix server reference
   # contract (which also runs the domain-ontology schema/loader/parity tests),
   # the console TypeScript client fixture leg (typecheck + vitest + build),
   # and the Go CLI (vet + tests) / worker tests. The live-server legs
