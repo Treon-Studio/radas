@@ -29,6 +29,7 @@ defmodule RadasWeb.Router do
     pipe_through :api
 
     get "/healthz", HealthController, :show
+    get "/readyz", HealthController, :ready
     post "/platform/echo", EchoController, :create
 
     # Lightweight readiness probe (Python misc_routes.api_health; Docker + workers).
@@ -184,7 +185,11 @@ defmodule RadasWeb.Router do
       get "/:name/state/versions", CloudStacksController, :state_versions_list
       post "/:name/state/versions", CloudStacksController, :state_versions_snapshot
       get "/:name/state/versions/:version_id", CloudStacksController, :state_version_get
-      post "/:name/state/versions/:version_id/rollback", CloudStacksController, :state_version_rollback
+
+      post "/:name/state/versions/:version_id/rollback",
+           CloudStacksController,
+           :state_version_rollback
+
       get "/:name/state/audit", CloudStacksController, :state_audit
       get "/:name/state/backend", CloudStacksController, :state_backend_get
       put "/:name/state/backend", CloudStacksController, :state_backend_put
@@ -272,7 +277,11 @@ defmodule RadasWeb.Router do
         get "/:name/state/versions", CloudStacksController, :state_versions_list
         post "/:name/state/versions", CloudStacksController, :state_versions_snapshot
         get "/:name/state/versions/:version_id", CloudStacksController, :state_version_get
-        post "/:name/state/versions/:version_id/rollback", CloudStacksController, :state_version_rollback
+
+        post "/:name/state/versions/:version_id/rollback",
+             CloudStacksController,
+             :state_version_rollback
+
         get "/:name/state/audit", CloudStacksController, :state_audit
         get "/:name/state/backend", CloudStacksController, :state_backend_get
         put "/:name/state/backend", CloudStacksController, :state_backend_put
@@ -413,7 +422,6 @@ defmodule RadasWeb.Router do
 
   # Public evaluate — the Go worker calls this with its registry token and
   # Python ships it without @require_auth (worker/console contract).
-
 
   scope "/api", RadasWeb do
     pipe_through :legacy_auth

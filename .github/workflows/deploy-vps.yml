@@ -41,9 +41,13 @@ jobs:
                 exit 1
               fi
             }
-            # Phoenix cutover: make sure the pm2 Phoenix entry is enabled.
-            if grep -q '^PHOENIX_ENABLED=' /opt/radas/.env; then sed -i 's/^PHOENIX_ENABLED=.*/PHOENIX_ENABLED=true/' /opt/radas/.env; else echo 'PHOENIX_ENABLED=true' >> /opt/radas/.env; fi
-            if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
+            # Phoenix configuration is owned by /opt/radas/.env. Do not
+            # rewrite production values during a deploy; fail if the explicit
+            # Phoenix switch is present but disabled.
+            if grep -q '^PHOENIX_ENABLED=' /opt/radas/.env && ! grep -q '^PHOENIX_ENABLED=true$' /opt/radas/.env; then
+              echo 'PHOENIX_ENABLED=true is required in /opt/radas/.env'
+              exit 1
+            fi
 
             required_env DATABASE_URL
             required_env JWT_SECRET_KEY
@@ -62,11 +66,13 @@ jobs:
             # Compile the Phoenix app (idempotent; first deploy takes longer).
             cd /opt/radas/apps/server
             mix deps.get
+            mix ecto.migrate
             mix compile
 
             cd /opt/radas
             pm2 delete radas-phoenix || true
             pm2 start ecosystem.config.cjs --only radas-phoenix --update-env
+            pm2 describe radas-phoenix | grep -q 'status.*online' || { echo 'radas-phoenix is not online'; exit 1; }
 
             cd /opt/radas/apps/worker
             go mod tidy && go build -o /opt/radas/bin/radas-worker ./cmd/worker
@@ -75,16 +81,24 @@ jobs:
             cd /opt/radas
             pm2 delete radas-worker || true
             pm2 start ecosystem.config.cjs --only radas-worker --update-env
+            pm2 describe radas-worker | grep -q 'status.*online' || { echo 'radas-worker is not online'; exit 1; }
 
-            # Phoenix serves /api/healthz on :4000 (OPEN_PHOENIX_PORT default).
+            # Phoenix serves liveness and dependency readiness on :4000.
             health_code=000
+            ready_code=000
             for attempt in $(seq 1 24); do
-              health_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4000/api/healthz || true)
-              if [ "$health_code" = "200" ]; then break; fi
+              health_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://127.0.0.1:4000/api/healthz || true)
+              ready_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://127.0.0.1:4000/api/readyz || true)
+              if [ "$health_code" = "200" ] && [ "$ready_code" = "200" ]; then break; fi
               sleep 5
             done
-            echo "health: $health_code"
-            if [ "$health_code" != "200" ]; then
+            echo "liveness: $health_code readiness: $ready_code"
+            if [ "$health_code" != "200" ] || [ "$ready_code" != "200" ]; then
+              pm2 status || true
               pm2 logs radas-phoenix --nostream --lines 80 || true
+              pm2 logs radas-worker --nostream --lines 80 || true
               exit 1
             fi
+
+            # Keep the existing contract smoke required on every deployment.
+            RADAS_SMOKE_BASE_URL="http://127.0.0.1:4000" bash scripts/post-cutover-smoke.sh

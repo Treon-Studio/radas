@@ -20,6 +20,9 @@
 set -euo pipefail
 
 BASE_URL="${RADAS_ELIXIR_BASE_URL:-http://localhost:4000}"
+CURL_TIMEOUT="${RADAS_SMOKE_TIMEOUT:-10}"
+TMP_HEADERS="$(mktemp "${TMPDIR:-/tmp}/radas-contract-headers.XXXXXX")"
+trap 'rm -f "$TMP_HEADERS"' EXIT
 failures=0
 
 fail() {
@@ -44,7 +47,7 @@ PY
 }
 
 echo "== 1. health endpoint =="
-resp=$(curl -s -w '\n%{http_code}' "$BASE_URL/api/healthz")
+resp=$(curl -sS --fail-with-body --connect-timeout "$CURL_TIMEOUT" --max-time "$CURL_TIMEOUT" -w '\n%{http_code}' "$BASE_URL/api/healthz")
 status="${resp##*$'\n'}"
 body="${resp%$'\n'*}"
 [ "$status" = "200" ] || fail "health returned HTTP $status (want 200)"
@@ -52,7 +55,7 @@ json "$body" 'doc.get("status") == "ok"' || fail "health body missing status=ok"
 
 echo "== 2. echo probe: envelope + redaction + request-id pairing =="
 req_id="req-echo-$RANDOM"
-resp=$(curl -s -w '\n%{http_code}' -X POST "$BASE_URL/api/platform/echo" \
+resp=$(curl -sS --fail-with-body --connect-timeout "$CURL_TIMEOUT" --max-time "$CURL_TIMEOUT" -w '\n%{http_code}' -X POST "$BASE_URL/api/platform/echo" \
   -H "Content-Type: application/json" \
   -H "X-Request-ID: $req_id" \
   -d '{"name": "probe", "api_key": "sk-live-SUPERSECRET123", "token": "tok-secret"}')
@@ -65,7 +68,7 @@ json "$body" 'doc["data"]["name"] == "probe"' || fail "echo dropped non-sensitiv
 json "$body" 'doc["data"]["token"] == "[REDACTED]"' || fail "echo did not redact token"
 
 echo "== 3. platform unmatched → error envelope =="
-resp=$(curl -s -w '\n%{http_code}' "$BASE_URL/api/v2/definitely-not-here")
+resp=$(curl -sS --connect-timeout "$CURL_TIMEOUT" --max-time "$CURL_TIMEOUT" -w '\n%{http_code}' "$BASE_URL/api/v2/definitely-not-here")
 status="${resp##*$'\n'}"
 body="${resp%$'\n'*}"
 [ "$status" = "404" ] || fail "platform 404 returned HTTP $status (want 404)"
@@ -73,9 +76,9 @@ json "$body" 'doc["error"]["code"] == "NOT_FOUND"' || fail "platform 404 not an 
 json "$body" 'bool(doc.get("request_id"))' || fail "platform 404 missing request_id"
 
 echo "== 4. legacy unmatched → legacy shape, no stamping =="
-resp=$(curl -s -D /tmp/server-contract-headers "$BASE_URL/api/auth/definitely-not-here")
+resp=$(curl -sS --connect-timeout "$CURL_TIMEOUT" --max-time "$CURL_TIMEOUT" -D "$TMP_HEADERS" "$BASE_URL/api/auth/definitely-not-here")
 json "$resp" '"error" not in doc and doc.get("errors")' || fail "legacy 404 shape drifted"
-if grep -qi '^x-request-id:' /tmp/server-contract-headers; then
+if grep -qi '^x-request-id:' "$TMP_HEADERS"; then
   fail "legacy path must not stamp X-Request-ID"
 fi
 

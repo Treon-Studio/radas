@@ -48,7 +48,8 @@ defmodule RadasWeb.Plugs.PlatformContract do
       # temporary during the migration, behaves like the platform contract so
       # request-id pairing and envelope conformance are verifiable end-to-end
       # before any product endpoint is cut over. Removed at Phase 8.
-      String.starts_with?(path, "/api/platform/") or String.starts_with?(path, "/api/healthz") ->
+      String.starts_with?(path, "/api/platform/") or String.starts_with?(path, "/api/healthz") or
+          String.starts_with?(path, "/api/readyz") ->
         true
 
       true ->
@@ -77,6 +78,14 @@ defmodule RadasWeb.Plugs.PlatformContract do
 
     body =
       cond do
+        String.starts_with?(conn.request_path, "/api/readyz") and
+            is_error_envelope?(conn.resp_body) ->
+          body = decode(conn.resp_body)
+
+          body
+          |> Map.put("request_id", request_id)
+          |> Map.update!("error", &Radas.Redaction.redact_sensitive/1)
+
         conn.status >= 500 ->
           Radas.Envelope.error("INTERNAL_SERVER_ERROR", "Internal server error", request_id)
 

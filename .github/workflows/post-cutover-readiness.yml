@@ -1,0 +1,119 @@
+name: Post-Cutover Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_smoke:
+        description: Run HTTP smoke against the protected staging origin
+        required: false
+        default: false
+        type: boolean
+      run_db_drill:
+        description: Run the disposable PostgreSQL backup/restore drill
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  static-and-phoenix:
+    name: Readiness scripts and Phoenix suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: radas
+          POSTGRES_PASSWORD: radas
+          POSTGRES_DB: radas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radas -d radas_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
+      JWT_SECRET_KEY: readiness-test-jwt-secret
+      INTERNAL_CALL_SECRET: readiness-test-internal-secret
+      GLOBAL_SECRETS_ENCRYPTION_KEY: readiness-test-encryption-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18'
+          otp-version: '27'
+      - name: Install dependencies
+        working-directory: apps/server
+        run: mix deps.get
+      - name: Validate scripts
+        run: bash -n scripts/post-cutover-smoke.sh scripts/db-recovery-drill.sh
+      - name: Run Phoenix suite
+        working-directory: apps/server
+        run: mix test
+
+  live-staging:
+    name: Protected staging HTTP smoke
+    if: ${{ inputs.run_live_smoke }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run post-cutover smoke
+        env:
+          RADAS_SMOKE_BASE_URL: ${{ secrets.RADAS_SMOKE_BASE_URL }}
+          RADAS_SMOKE_ROUTER_URL: ${{ secrets.RADAS_SMOKE_ROUTER_URL }}
+          RADAS_SMOKE_USERNAME: ${{ secrets.RADAS_SMOKE_USERNAME }}
+          RADAS_SMOKE_PASSWORD: ${{ secrets.RADAS_SMOKE_PASSWORD }}
+        run: |
+          test -n "$RADAS_SMOKE_BASE_URL" || { echo 'RADAS_SMOKE_BASE_URL is required in staging'; exit 1; }
+          bash scripts/post-cutover-smoke.sh
+
+  database-drill:
+    name: Disposable PostgreSQL backup/restore drill
+    if: ${{ inputs.run_db_drill }}
+    runs-on: ubuntu-latest
+    environment: staging
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: drill
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: radas_drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U drill -d radas_drill"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DRILL_CONFIRM: '1'
+      DRILL_DATABASE_URL: postgresql://drill:drill@localhost:5432/radas_drill
+      DRILL_RESTORE_DATABASE_URL: postgresql://drill:drill@localhost:5432/radas_drill_restore
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18'
+          otp-version: '27'
+      - name: Install PostgreSQL client and Phoenix dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          createdb -h localhost -U drill radas_drill_restore || true
+          cd apps/server && mix deps.get
+      - name: Create schema and run migrations
+        env:
+          DATABASE_URL: ${{ env.DRILL_DATABASE_URL }}
+        working-directory: apps/server
+        run: mix ecto.migrate
+      - name: Run recovery drill
+        run: bash scripts/db-recovery-drill.sh
