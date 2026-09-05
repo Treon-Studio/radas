@@ -46,7 +46,7 @@ defmodule RadasWeb.AuditLogController do
     end
   end
 
-  defp build_query(conn, opts \\ %{}) do
+  defp build_query(conn, opts) do
     wheres = []
     args = []
 
@@ -305,7 +305,7 @@ defmodule RadasWeb.AuditLogController do
     |> DateTime.to_iso8601()
   end
 
-  defp parse_body_int(v, default) when is_integer(v), do: v
+  defp parse_body_int(v, _default) when is_integer(v), do: v
 
   defp parse_body_int(v, default) when is_binary(v) do
     case Integer.parse(v) do

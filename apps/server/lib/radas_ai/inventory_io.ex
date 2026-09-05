@@ -269,7 +269,7 @@ defmodule RadasAI.InventoryIO do
     {hosts_set, hosts_list} =
       case group_data["hosts"] do
         hosts when is_map(hosts) ->
-          Enum.reduce(hosts, {hosts_set, hosts_list}, fn {host, config}, {set, list} ->
+          Enum.reduce(hosts, {hosts_set, hosts_list}, fn {host, _config}, {set, list} ->
             if is_binary(host) and not String.starts_with?(host, "#") and not MapSet.member?(set, host) do
               set = MapSet.put(set, host)
               entry = %{"name" => host, "inventory_file" => inventory_file}
@@ -346,7 +346,7 @@ defmodule RadasAI.InventoryIO do
   @doc "Minimal YAML emitter for simple maps/lists/scalars (vars files)."
   def encode_yaml(data), do: encode_value(stringify(data), 0) <> "\n"
 
-  defp encode_value(%{} = map, indent) when map_size(map) == 0, do: "{}"
+  defp encode_value(%{} = map, _indent) when map_size(map) == 0, do: "{}"
 
   defp encode_value(%{} = map, indent) do
     pad = String.duplicate(" ", indent)
@@ -379,16 +379,4 @@ defmodule RadasAI.InventoryIO do
 
   def stringify(data) when is_list(data), do: Enum.map(data, &stringify/1)
   def stringify(data), do: data
-
-  defp parse_int(nil, default), do: default
-
-  defp parse_int(v, _default) when is_integer(v), do: v
-  defp parse_int(v, _default) when is_float(v), do: trunc(v)
-
-  defp parse_int(v, default) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, _} -> n
-      :error -> default
-    end
-  end
 end

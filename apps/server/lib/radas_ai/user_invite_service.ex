@@ -6,7 +6,6 @@ defmodule RadasAI.UserInviteService do
   (shared with Flask).
   """
 
-  import RadasAI.DB
 
   alias RadasAI.Identity
   alias RadasAI.KV

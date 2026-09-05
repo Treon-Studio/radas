@@ -460,17 +460,4 @@ defmodule RadasAI.CloudState do
     {:ok, read_backend_config(stack_dir)}
   end
 
-  defp parse_int(nil, default), do: default
-
-  defp parse_int(v, _default) when is_integer(v), do: v
-  defp parse_int(v, _default) when is_float(v), do: trunc(v)
-
-  defp parse_int(v, default) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, _} -> n
-      :error -> default
-    end
-  end
-
-  defp parse_int(_, default), do: default
 end

@@ -11,9 +11,7 @@ defmodule RadasWeb.PlaybooksController do
 
   import Plug.Conn
 
-  alias RadasAI.{ExecutionHistory, Playbooks}
-
-  defp project_id(conn, params \\ %{}), do: params["project_id"] || get_req_header(conn, "x-project-id") |> List.first()
+  alias RadasAI.Playbooks
 
   # -- list / create ---------------------------------------------------------------
 

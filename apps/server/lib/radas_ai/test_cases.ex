@@ -9,12 +9,9 @@ defmodule RadasAI.TestCases do
   `test_results:<pid>` — shared with Flask.
   """
 
-  import RadasAI.DB
 
   alias RadasAI.CloudStacks
   alias RadasAI.KV
-  alias RadasAI.WebhookDispatcher
-
   @severities ["blocker", "warning", "info"]
   @kinds ["assertion", "tofu_validate", "tofu_test", "tftest", "ansible_validate", "ansible_idempotency", "iac_scan", "smoke"]
 
@@ -398,7 +395,7 @@ defmodule RadasAI.TestCases do
       unless System.find_executable(hd(argv)) do
         %{"tool" => command, "status" => "unavailable", "returncode" => nil, "output" => "tool not installed"}
       else
-        timeout = max(1, min(Kernel.trunc(Keyword.get(opts, :timeout_seconds, 30)), 300))
+        _timeout = max(1, min(Kernel.trunc(Keyword.get(opts, :timeout_seconds, 30)), 300))
         cwd = Keyword.get(opts, :cwd)
 
         try do
@@ -545,7 +542,7 @@ defmodule RadasAI.TestCases do
   defp evaluate(tc, texts, timeout_seconds, mock_provider, project_id) do
     case tc["kind"] do
       "assertion" ->
-        {mapped, {passed, findings}} =
+        {mapped, {passed, _findings}} =
           Enum.map_reduce(List.wrap(tc["assertions"] || []), {true, []}, fn aid, {p, f} ->
             rule = assertion_rule(aid)
 
@@ -619,7 +616,7 @@ defmodule RadasAI.TestCases do
 
     tool_status =
       case results do
-        [{t, _l, res}] -> res["status"]
+        [{_t, _l, res}] -> res["status"]
         multiple -> Map.new(multiple, fn {t, _l, res} -> {t, res["status"]} end)
       end
 

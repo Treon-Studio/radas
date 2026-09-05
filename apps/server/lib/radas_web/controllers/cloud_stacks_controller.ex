@@ -426,7 +426,6 @@ defmodule RadasWeb.CloudStacksController do
   end
 
   defp org_id_of_project(project_id) do
-    import RadasAI.DB
     case RadasAI.DB.query_one!("SELECT org_id FROM projects WHERE id = $1", [project_id]) do
       %{"org_id" => org_id} -> org_id
       nil -> nil

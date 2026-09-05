@@ -126,7 +126,7 @@ defmodule RadasAI.ExecutionHistory do
 
   @doc "Full log text for one execution."
   @spec get_execution_log(String.t(), String.t()) :: String.t() | nil
-  def get_execution_log(execution_id, project_id) do
+  def get_execution_log(execution_id, _project_id) do
     case query_one!("SELECT data FROM execution_logs WHERE execution_id = $1 AND chunk = 0", [execution_id]) do
       nil -> nil
       row -> row["data"] |> to_string()

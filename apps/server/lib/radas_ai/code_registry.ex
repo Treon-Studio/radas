@@ -183,7 +183,6 @@ defmodule RadasAI.CodeRegistry do
             dfs(root, dep, res, vis, visiting)
           end)
 
-        visiting = MapSet.delete(visiting, current)
         visited = MapSet.put(visited, current)
 
         resolved =

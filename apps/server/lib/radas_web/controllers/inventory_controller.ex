@@ -12,10 +12,6 @@ defmodule RadasWeb.InventoryController do
 
   alias RadasAI.{InventoryIO, ProjectPaths}
 
-  defp project_id(conn, params \\ %{}) do
-    get_req_header(conn, "x-project-id") |> List.first() || params["project_id"]
-  end
-
   # -- inventory groups ----------------------------------------------------------
 
   def groups_show(conn, _params) do

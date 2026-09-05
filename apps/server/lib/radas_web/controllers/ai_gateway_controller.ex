@@ -454,7 +454,7 @@ defmodule RadasWeb.AIGatewayController do
     end
   end
 
-  defp execute_gateway(conn, org_id, provider, model, endpoint, fun) do
+  defp execute_gateway(_conn, org_id, provider, model, endpoint, fun) do
     spec = Providers.spec_for(provider)
 
     cond do

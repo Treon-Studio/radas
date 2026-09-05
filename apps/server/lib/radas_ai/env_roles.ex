@@ -4,7 +4,6 @@ defmodule RadasAI.EnvRoles do
   access mapping, stored in the shared kv_store (`env_roles` scope).
   """
 
-  import RadasAI.DB
 
   alias RadasAI.KV
 

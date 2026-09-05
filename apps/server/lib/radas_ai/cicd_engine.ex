@@ -152,7 +152,7 @@ defmodule RadasAI.CicdEngine do
     end
   end
 
-  defp save_step_log(project_id, run_id, index, output) do
+  defp save_step_log(_project_id, run_id, index, output) do
     log_ref = "step_#{index}.log"
     path = Path.join([data_dir(), "cicd", "runs", run_id, log_ref])
     File.mkdir_p!(Path.dirname(path))

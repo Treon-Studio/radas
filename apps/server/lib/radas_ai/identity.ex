@@ -236,7 +236,7 @@ defmodule RadasAI.Identity do
       {:error, "Role already exists"}
     else
       role_id = "role-" <> (:crypto.strong_rand_bytes(6) |> Base.encode16(case: :lower))
-      ts = now()
+      _ts = now()
 
       execute!(
         "INSERT INTO roles (id, name, description, is_system, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5)",

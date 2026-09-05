@@ -493,7 +493,7 @@ defmodule RadasAI.Gateway do
 
   defp int_or(nil, default), do: default
   defp int_or(value, _default) when is_integer(value), do: value
-  defp int_or(value, default) when is_float(value), do: trunc(value)
+  defp int_or(value, _default) when is_float(value), do: trunc(value)
 
   defp int_or(value, default) when is_binary(value) do
     case Integer.parse(value) do

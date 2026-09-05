@@ -49,7 +49,7 @@ defmodule RadasAI.LockLifecycle do
   @doc "Release locks from acquire_for_execution (enqueue-failure path); returns the count."
   @spec release_for_acquisition(map(), keyword()) :: integer()
   def release_for_acquisition(acquisition, opts \\ []) do
-    stack = Keyword.get(opts, :stack)
+    _stack = Keyword.get(opts, :stack)
     project_id = Keyword.get(opts, :project_id)
     acquisition = acquisition || %{}
     released = 0

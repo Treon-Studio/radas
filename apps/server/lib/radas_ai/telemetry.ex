@@ -170,7 +170,7 @@ defmodule RadasAI.Telemetry do
     entries
     |> Enum.reject(fn {_clause, value} -> is_nil(value) end)
     |> Enum.reduce({[], []}, fn
-      {clause, value}, {cls, ps} = acc ->
+      {clause, value}, {cls, ps} = _acc ->
         if String.ends_with?(clause, "$") do
           {cls ++ ["(#{clause}#{length(ps) + 1})"], ps ++ [value]}
         else

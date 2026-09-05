@@ -244,7 +244,7 @@ defmodule RadasAI.Playbooks do
     end
   end
 
-  @doc "Python uuid5(NAMESPACE_URL, ...) parity — sha1 digest with RFC-4122 bits."
+  # Python uuid5(NAMESPACE_URL, ...) parity — sha1 digest with RFC-4122 bits.
   defp playbook_uuid(project_id, name) do
     namespace =
       <<0x6B, 0xA7, 0xB8, 0x11, 0x9D, 0xAD, 0x11, 0xD1, 0x80, 0xB4, 0x00, 0xC0, 0x4F, 0xD4, 0x30, 0xC8>>

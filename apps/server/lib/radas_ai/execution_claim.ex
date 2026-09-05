@@ -12,7 +12,7 @@ defmodule RadasAI.ExecutionClaim do
 
   import RadasAI.DB
 
-  alias RadasAI.{Admission, Executions, Metrics}
+  alias RadasAI.{Admission, Executions}
 
   @default_lease_seconds 3600
 

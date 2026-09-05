@@ -123,7 +123,7 @@ defmodule RadasWeb.TestCasesController do
   defp parse_bool(nil), do: nil
   defp parse_bool(v), do: String.downcase(v) in ["1", "true", "yes", "on"]
 
-  defp parse_int(v, default) when is_integer(v), do: v
+  defp parse_int(v, _default) when is_integer(v), do: v
 
   defp parse_int(v, default) when is_binary(v) do
     case Integer.parse(v) do

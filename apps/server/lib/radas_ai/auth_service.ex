@@ -155,7 +155,7 @@ defmodule RadasAI.AuthService do
         :global.del_lock({__MODULE__, user_id})
         reraise e, __STACKTRACE__
 
-      e ->
+      _e ->
         :global.del_lock({__MODULE__, user_id})
         raise SessionRevocationError,
           message: "Failed to persist session revocation cutoff for user #{user_id}"

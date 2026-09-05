@@ -1,15 +1,12 @@
 import Config
 
-# Configure your database
-#
-# The MIX_TEST_PARTITION environment variable can be used
-# to provide built-in test partitioning in CI environment.
-# Run `mix help test` for more information.
+# The database URL comes from the environment (TEST_DATABASE_URL / DATABASE_URL)
+# so CI and local runs share one code path; the fallback matches the Phoenix
+# generator default for bare `mix test` without env setup.
 config :radas, Radas.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "radas_test#{System.get_env("MIX_TEST_PARTITION")}",
+  url:
+    System.get_env("TEST_DATABASE_URL") || System.get_env("DATABASE_URL") ||
+      "ecto://postgres:postgres@localhost/radas_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 

@@ -155,7 +155,7 @@ defmodule RadasAI.SSOAuth do
   defp consume_state(state) do
     case query_one!("SELECT value FROM kv_store WHERE scope = $1 AND key = $2", ["sso_state", state]) do
       nil -> {:error, "Unknown or expired OAuth state"}
-      row ->
+      _row ->
         RadasAI.DB.execute!("DELETE FROM kv_store WHERE scope = $1 AND key = $2", ["sso_state", state])
         :ok
     end
@@ -163,15 +163,15 @@ defmodule RadasAI.SSOAuth do
 
   @doc "Find-or-create an SSO user keyed by provider+subject; marks sso:<provider> role-less."
   @spec provision_sso_user(String.t(), String.t(), String.t(), String.t()) :: {:ok, map()}
-  def provision_sso_user(provider, subject, email, display_name) do
+  def provision_sso_user(provider, subject, email, _display_name) do
     username = "#{provider}_#{String.slice(String.replace(subject, ~r/[^a-zA-Z0-9_-]/, ""), 0, 30)}"
 
     case query_one!("SELECT id FROM users WHERE username = $1", [username]) do
       %{"id" => _id} ->
-        {:ok, Identity.get_user_by_username(username)}
+        {:ok, RadasAI.Identity.get_user_by_username(username)}
 
       nil ->
-        case Identity.create_user(
+        case RadasAI.Identity.create_user(
                username: username,
                password: :crypto.strong_rand_bytes(24) |> Base.url_encode64(padding: false),
                email: email

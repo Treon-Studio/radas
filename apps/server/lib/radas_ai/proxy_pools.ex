@@ -19,8 +19,6 @@ defmodule RadasAI.ProxyPools do
     end
   end
 
-  @gateway_cache :radas_ai_proxy_gateway_cache
-
   @doc "Redacted pool metadata — the proxy URL is never returned."
   @spec list_pools(String.t()) :: [map()]
   def list_pools(org_id) do
@@ -126,10 +124,4 @@ defmodule RadasAI.ProxyPools do
     end
   end
 
-  defp cache_table do
-    case :ets.info(@gateway_cache) do
-      :undefined -> :ets.new(@gateway_cache, [:named_table, :set, :public])
-      _ -> @gateway_cache
-    end
-  end
 end

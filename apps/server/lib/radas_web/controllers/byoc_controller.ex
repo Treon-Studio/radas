@@ -27,7 +27,7 @@ defmodule RadasWeb.ByocController do
 
   # -- _account_access port -----------------------------------------------------
 
-  defp account_access(conn, account_id, opts \\ []) do
+  defp account_access(conn, account_id, opts) do
     write = Keyword.get(opts, :write, false)
     user = current_user(conn)
     user_id = user["user_id"]
@@ -152,7 +152,7 @@ defmodule RadasWeb.ByocController do
     audit_account(account, "byoc.account.accessed", endpoint, actor_id)
   end
 
-  defp guarded(conn, account_id, opts \\ [], fun) do
+  defp guarded(conn, account_id, opts, fun) do
     case resolve_access(conn, account_access(conn, account_id, opts)) do
       {:ok, account, conn} ->
         fun.(account, conn)

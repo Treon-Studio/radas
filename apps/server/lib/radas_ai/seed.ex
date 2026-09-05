@@ -6,9 +6,8 @@ defmodule RadasAI.Seed do
   to stdout once.
   """
 
-  import RadasAI.DB
 
-  alias RadasAI.{AuthService, Identity}
+  alias RadasAI.Identity
 
   @base_permissions [
     {"roles.read", "View roles", "roles", "read"},
@@ -38,7 +37,7 @@ defmodule RadasAI.Seed do
   def seed_default_roles do
     for {name, description, is_system} <- @base_roles do
       case Identity.create_role(name, description, is_system: is_system) do
-        %{} = role -> :ok
+        %{} = _role -> :ok
         {:error, _} -> :ok
       end
     end
@@ -60,7 +59,7 @@ defmodule RadasAI.Seed do
     :ok
   end
 
-  def seed_default_user(opts) do
+  def seed_default_user(_opts) do
     if Identity.get_user_by_username("admin") do
       :ok
     else

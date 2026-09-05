@@ -10,7 +10,6 @@ defmodule RadasWeb.AuthController do
   use RadasWeb, :controller
 
   import Plug.Conn
-  import RadasAI.DB
 
   alias RadasAI.AuthService
 

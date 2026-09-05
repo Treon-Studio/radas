@@ -12,7 +12,6 @@ defmodule RadasAI.ComplianceService do
   import RadasAI.DB
 
   alias RadasAI.CloudStacks
-  alias RadasAI.WebhookDispatcher
 
   @doc "Audit activity summary for the last `days` days (Python audit_summary)."
   @spec audit_summary(integer()) :: map()

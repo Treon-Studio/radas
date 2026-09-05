@@ -439,7 +439,7 @@ defmodule RadasAI.Translators do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp flatten_text(content, provider) when is_binary(content), do: content
+  defp flatten_text(content, _provider) when is_binary(content), do: content
 
   defp flatten_text(content, provider) when is_list(content) do
     texts =
@@ -466,14 +466,12 @@ defmodule RadasAI.Translators do
       retryable: false
   end
 
-  defp max_tokens(payload, default), do: int_or(payload["max_tokens"], default)
-
   defp maybe_put(map, _key, nil, _cast), do: map
   defp maybe_put(map, key, value, cast), do: Map.put(map, key, cast.(value))
 
   defp int_or(nil, default), do: default
   defp int_or(value, _default) when is_integer(value), do: value
-  defp int_or(value, default) when is_float(value), do: trunc(value)
+  defp int_or(value, _default) when is_float(value), do: trunc(value)
 
   defp int_or(value, default) when is_binary(value) do
     case Integer.parse(value) do

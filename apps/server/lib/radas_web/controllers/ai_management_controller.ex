@@ -580,7 +580,7 @@ defmodule RadasWeb.AIManagementController do
 
   defp parse_int_or(nil, default), do: default
 
-  defp parse_int_or(value, default) when is_integer(value), do: value
+  defp parse_int_or(value, _default) when is_integer(value), do: value
 
   defp parse_int_or(value, default) when is_binary(value) do
     case Integer.parse(value) do

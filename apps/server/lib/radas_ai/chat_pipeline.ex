@@ -62,7 +62,7 @@ defmodule RadasAI.ChatPipeline do
       compressed_messages =
         case ponytail_level(conn) do
           nil -> compressed_messages
-          level -> Ponytail.apply_ponytail(compressed_messages, level)
+          level -> RadasAI.Ponytail.apply_ponytail(compressed_messages, level)
         end
 
       # 2. Ordered fallback chain: route combo or default multi-tier chain.

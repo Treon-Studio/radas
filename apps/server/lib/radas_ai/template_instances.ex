@@ -94,12 +94,12 @@ defmodule RadasAI.TemplateInstances do
     if env == "", do: base, else: "#{env}-#{base}"
   end
 
-  def config_filename(env, playbook_filename, template_id) do
+  def config_filename(_env, playbook_filename, template_id) do
     stem = playbook_filename |> String.split(".") |> Enum.drop(-1) |> Enum.join(".")
     "#{stem}.#{template_id}.config.json"
   end
 
-  defp safe_repo_path(repo_root, rel) when rel in [nil, ""], do: nil
+  defp safe_repo_path(_repo_root, rel) when rel in [nil, ""], do: nil
 
   defp safe_repo_path(repo_root, rel) do
     safe_rel = to_string(rel) |> String.trim_leading("/") |> String.replace("..", "_")
@@ -503,7 +503,7 @@ defmodule RadasAI.TemplateInstances do
   # Legacy git history / version
   # ---------------------------------------------------------------------------
 
-  def git_run(cwd, args, timeout \\ 15_000) do
+  def git_run(cwd, args, _timeout \\ 15_000) do
     case System.cmd("git", args, cd: cwd, stderr_to_stdout: true, env: %{}, parallelism: 1) do
       {out, 0} -> {:ok, out}
       {out, _} -> {:error, out}

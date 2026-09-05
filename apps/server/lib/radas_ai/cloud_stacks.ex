@@ -709,10 +709,10 @@ defmodule RadasAI.CloudStacks do
       end
 
       if provider == "bytedc" do
-        src_tpl = Path.join(src, "envs", "_template")
+        src_tpl = Path.join([src, "envs", "_template"])
 
         if File.dir?(src_tpl) do
-          dst_tpl = Path.join(root, "envs", "_template")
+          dst_tpl = Path.join([root, "envs", "_template"])
           File.rm_rf!(dst_tpl)
           File.cp_r!(src_tpl, dst_tpl)
         end
@@ -784,14 +784,13 @@ defmodule RadasAI.CloudStacks do
 
     worker_id = worker_id || autoselect_local_worker()
 
-    {run_params, worker_id} =
+    run_params =
       if worker_id do
         run_params
         |> Map.put("target_worker_id", worker_id)
         |> Map.put("requirements", %{"worker_id" => worker_id})
-        |> then(&{&1, worker_id})
       else
-        {run_params, worker_id}
+        run_params
       end
 
     data =

@@ -12,7 +12,7 @@ defmodule RadasWeb.ExecutionsController do
 
   import Plug.Conn
 
-  alias RadasAI.{ExecutionClaim, ExecutionHistory, Executions, WorkerRegistry}
+  alias RadasAI.{ExecutionHistory, Executions}
 
   defp project_id_from(conn) do
     get_req_header(conn, "x-project-id") |> List.first() || conn.query_params["project_id"]
@@ -174,7 +174,7 @@ defmodule RadasWeb.ExecutionsController do
       raw = ExecutionHistory.get_execution_log(execution_id, project_id)
 
       if raw in [nil, ""] do
-        json(conn, %{"success" => true, "lines": []})
+        json(conn, %{"success" => true, "lines" => []})
       else
         lines = parse_log_lines(raw, conn.query_params)
         json(conn, %{"success" => true, "lines" => lines, "nextCursor" => nil})
@@ -270,11 +270,11 @@ defmodule RadasWeb.ExecutionsController do
             if empty_reads >= 300 do
               {:halt, {offset, empty_reads}}
             else
-              {text, next_offset, _size, complete} = Executions.read_log_chunk(execution_id, offset, 1024 * 1024, project_id)
+              {text, next_offset, size, complete} = Executions.read_log_chunk(execution_id, offset, 1024 * 1024, project_id)
               status = Executions.get_execution(execution_id, project_id) |> then(&(if &1, do: &1["status"], else: "UNKNOWN"))
 
               if text != "" do
-                event = %{"type" => "chunk", "text" => text, "nextOffset" => next_offset, "fileSize" => _size, "isComplete" => complete, "status" => status}
+                event = %{"type" => "chunk", "text" => text, "nextOffset" => next_offset, "fileSize" => size, "isComplete" => complete, "status" => status}
                 frame = "data: " <> Jason.encode!(event) <> "\n\n"
                 {[frame], {next_offset, if(complete, do: 301, else: 0)}}
               else

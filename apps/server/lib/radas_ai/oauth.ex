@@ -544,7 +544,7 @@ defmodule RadasAI.OAuth do
       {:ok, %Req.Response{status: 400, body: %{"error" => "authorization_pending"}}} ->
         %{"status" => "pending"}
 
-      {:ok, %Req.Response{status: status}} ->
+      {:ok, %Req.Response{status: _status}} ->
         raise OAuthError, message: "Token endpoint rejected the device exchange", status: 502
 
       {:error, _} ->
@@ -659,7 +659,7 @@ defmodule RadasAI.OAuth do
 
   defp parse_int(nil, default), do: default
 
-  defp parse_int(value, default) when is_integer(value), do: value
+  defp parse_int(value, _default) when is_integer(value), do: value
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
@@ -668,6 +668,6 @@ defmodule RadasAI.OAuth do
     end
   end
 
-  defp parse_int(value, default) when is_float(value), do: trunc(value)
+  defp parse_int(value, _default) when is_float(value), do: trunc(value)
   defp parse_int(_, default), do: default
 end

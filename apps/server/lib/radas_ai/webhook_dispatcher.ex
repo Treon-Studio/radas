@@ -5,7 +5,6 @@ defmodule RadasAI.WebhookDispatcher do
   (Task), HMAC-SHA256 signed, 3 attempts, 5s timeout, best-effort.
   """
 
-  import RadasAI.DB
 
   alias RadasAI.KV
 

@@ -12,7 +12,6 @@ defmodule RadasAI.Flags do
   - audit: `flag_audit:<scope_type>:<scope_id>`
   """
 
-  import RadasAI.DB
 
   alias RadasAI.KV
 

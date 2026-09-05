@@ -266,7 +266,7 @@ defmodule RadasAI.CostStore do
         monthly = to_float(compute["gpu_hour"], 0.0) * hours * qty
         emit(items, warns, total, kind, name, qty, "hour", to_float(compute["gpu_hour"], 0.0), monthly)
 
-      size_kind when kind in ["ssd", "hdd", "object_storage", "snapshot"] ->
+      _size_kind when kind in ["ssd", "hdd", "object_storage", "snapshot"] ->
         size = to_float(Map.get(r, "size_gb"), 0.0)
         key = %{ssd: "ssd_gb_month", hdd: "hdd_gb_month", object_storage: "object_gb_month", snapshot: "snapshot_gb_month"}[String.to_existing_atom(kind)]
         unit_price = to_float(storage[key], 0.0)

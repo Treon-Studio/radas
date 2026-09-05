@@ -118,7 +118,7 @@ defmodule RadasWeb.FlagsController do
       conn |> put_status(400) |> json(%{"error" => "key required"})
     else
       scope_type = to_string(body["scope_type"] || "global")
-      scope_id = body["scope_id"]
+      _scope_id = body["scope_id"]
 
       opts =
         cond do

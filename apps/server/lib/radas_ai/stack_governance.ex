@@ -206,14 +206,6 @@ defmodule RadasAI.StackGovernance do
         true -> nil
       end
     end)
-    |> then(fn res ->
-      if res do
-        res
-      else
-        visited = Map.put(visited, node, 2)
-        nil
-      end
-    end)
   end
 
   # ---------------------------------------------------------------------------
