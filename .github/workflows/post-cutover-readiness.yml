@@ -71,9 +71,48 @@ jobs:
           RADAS_SMOKE_ROUTER_URL: ${{ secrets.RADAS_SMOKE_ROUTER_URL }}
           RADAS_SMOKE_USERNAME: ${{ secrets.RADAS_SMOKE_USERNAME }}
           RADAS_SMOKE_PASSWORD: ${{ secrets.RADAS_SMOKE_PASSWORD }}
+          RADAS_SMOKE_WORKER_NAME: ${{ secrets.RADAS_SMOKE_WORKER_NAME }}
+          RADAS_SMOKE_WORKER_REGISTRATION_SECRET: ${{ secrets.RADAS_SMOKE_WORKER_REGISTRATION_SECRET }}
         run: |
           test -n "$RADAS_SMOKE_BASE_URL" || { echo 'RADAS_SMOKE_BASE_URL is required in staging'; exit 1; }
+          test -n "$RADAS_SMOKE_WORKER_NAME" || { echo 'RADAS_SMOKE_WORKER_NAME is required in staging'; exit 1; }
+          test -n "$RADAS_SMOKE_WORKER_REGISTRATION_SECRET" || { echo 'RADAS_SMOKE_WORKER_REGISTRATION_SECRET is required in staging'; exit 1; }
           bash scripts/post-cutover-smoke.sh
+          worker_json="$(mktemp)"
+          trap 'rm -f "$worker_json"' EXIT
+          curl -sS --fail-with-body --connect-timeout 10 --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -H "X-Worker-Registration-Secret: $RADAS_SMOKE_WORKER_REGISTRATION_SECRET" \
+            --data "$(python3 -c 'import json,os; print(json.dumps({"name":os.environ["RADAS_SMOKE_WORKER_NAME"],"capabilities":{"smoke":True},"tags":["smoke"]}))')" \
+            "$RADAS_SMOKE_BASE_URL/api/worker/register" -o "$worker_json"
+          python3 - "$worker_json" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              body = json.load(fh)
+          if body.get("success") is not True or not body.get("workerId") or not body.get("workerToken"):
+              raise SystemExit("worker registration contract failed")
+          print("PASS: worker registration")
+          PY
+          worker_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["workerId"])' "$worker_json")"
+          worker_token="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["workerToken"])' "$worker_json")"
+          heartbeat_json="$(mktemp)"
+          trap 'rm -f "$worker_json" "$heartbeat_json"' EXIT
+          curl -sS --fail-with-body --connect-timeout 10 --max-time 20 \
+            -H 'Content-Type: application/json' -H "Authorization: Bearer $worker_token" \
+            --data "$(python3 -c 'import json,sys; print(json.dumps({"workerId":sys.argv[1]}))' "$worker_id")" \
+            "$RADAS_SMOKE_BASE_URL/api/worker/heartbeat" -o "$heartbeat_json"
+          python3 - "$heartbeat_json" "$worker_id" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              body = json.load(fh)
+          if body.get("success") is not True or body.get("workerId") != sys.argv[2]:
+              raise SystemExit("worker heartbeat contract failed")
+          print("PASS: worker heartbeat")
+          PY
+          # The identity is disposable; remove it from the staging registry.
+          curl -sS --fail-with-body --connect-timeout 10 --max-time 20 \
+            -X DELETE -H "Authorization: Bearer $worker_token" \
+            "$RADAS_SMOKE_BASE_URL/api/admin/workers/$worker_id" -o /dev/null || true
 
   database-drill:
     name: Disposable PostgreSQL backup/restore drill
