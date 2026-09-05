@@ -79,66 +79,8 @@ jobs:
         working-directory: apps/worker
         run: go test ./...
 
-  python-tests:
-    name: Test Flask Server API
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: radas
-          POSTGRES_PASSWORD: radas
-          POSTGRES_DB: radas_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U radas -d radas_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
-      TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
-      JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
-      INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
-      GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        working-directory: apps/server
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-
-      - name: Run Python API tests
-        working-directory: apps/server
-        run: pytest tests/
-
-      # Task 6.1: contract surface checks alongside the API tests. The full
-      # OpenAPI snapshot + PostgreSQL gate lives in api-contract.yml; these
-      # steps keep parity/redaction visible on every plain server run.
-      - name: Check CLI route parity (manifest vs served routes)
-        working-directory: apps/server
-        run: python scripts/check_route_parity.py
-
-      - name: Check sensitive-path static rules
-        working-directory: apps/server
-        run: python scripts/check_sensitive_paths.py
-
   # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
-  # of scripts/run-cross-client-contracts.sh: the pytest server reference
+  # of scripts/run-cross-client-contracts.sh: the ExUnit server reference
   # contract (which also runs the domain-ontology schema/loader/parity tests),
   # the console TypeScript client fixture leg (typecheck + vitest + build),
   # and the Go CLI (vet + tests) / worker tests. The live-server legs
@@ -185,10 +127,11 @@ jobs:
           go-version: '1.25.x'
           check-latest: true
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
         with:
-          python-version: '3.12'
+          elixir-version: '1.18'
+          otp-version: '27'
 
       - name: Install workspace dependencies
         env:
@@ -198,13 +141,6 @@ jobs:
           npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
           npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
           pnpm install --frozen-lockfile
-
-      - name: Create server virtualenv
-        working-directory: apps/server
-        run: |
-          python -m venv .venv
-          .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run cross-client contract gate (mode a)
         env:
