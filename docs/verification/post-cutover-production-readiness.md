@@ -129,15 +129,40 @@ HTTP smoke and database drill jobs are opt-in inputs and use the protected
 service and runs script syntax validation plus the Phoenix suite. It never
 falls back to production credentials.
 
-## Evidence and known limitations
+## Evidence and current status
 
-Required evidence for marking readiness complete:
+### Verified evidence
 
-- Phoenix contract suite and cross-client contract suite green.
-- `post-cutover-smoke.sh` output from local and staging/public routed origins.
-- `db-recovery-drill.sh` output with pre/post sentinels and measured RPO/RTO.
-- PM2 Phoenix/worker status and restart/requeue drill.
-- Tested staging rollback record.
+| Check | Evidence | Result |
+|---|---|---|
+| Phoenix suite | `post-cutover-readiness` run `33943444104`, job `101245104188` | 353 tests, 0 failures |
+| Database recovery | Same workflow, job `101245104305` | restore completed; `restore_seconds=1`; JSONB, bytea, ledger, sequence, and corrupted-archive checks passed |
+| Local HTTP smoke | `post-cutover-smoke.sh` against `127.0.0.1:4000` | liveness, readiness, platform envelope, redaction, 404, legacy shape, and CORS passed |
+| Required repository CI | PR #81 checks | Phoenix, console, Go, and cross-client checks passed |
+
+The database drill's measured result is an observed local/CI recovery time, not
+a production RTO guarantee. The run did not publish the dump or raw response
+bodies. Its source and restore databases were disposable PostgreSQL service
+instances.
+
+### Blocked operational evidence
+
+The following items are intentionally **not marked passed**:
+
+- Protected staging HTTP smoke: the readiness workflow job was skipped because
+  no `RADAS_SMOKE_BASE_URL`, smoke account, or router origin secrets are
+  configured in the repository's `staging` environment.
+- Worker register/heartbeat against a deployed VPS: no disposable staging
+  worker identity was available, and the latest Deploy VPS run
+  `33943422932` failed before the remote script began with an SSH connection
+  timeout. No worker token was created and no production worker was touched.
+- Staging rollback and soak: no staging deployment/image and no rollback drill
+  execution is available yet. The manual rollback procedure above remains a
+  runbook, not evidence of a completed drill.
+
+These gaps must be resolved by configuring a protected staging environment and
+running the optional workflow jobs. Do not infer them from in-process ExUnit
+coverage or the PM2 commands in the workflow.
 
 Cloudflare Pages checks are controlled by Cloudflare project configuration,
 including GitHub Packages authentication and deployment secrets. A failing
