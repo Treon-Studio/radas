@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: deploy-console-${{ github.ref }}
   cancel-in-progress: true
@@ -29,8 +33,10 @@ jobs:
       - name: Install dependencies
         env:
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}" >> .npmrc
+          npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
+          npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
           pnpm install --frozen-lockfile
 
       - name: Build Console (API -> prod domain)

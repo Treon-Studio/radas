@@ -106,8 +106,8 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 - **Node 22, pnpm 9+** (CI uses Node 22; local pnpm 11.24 works). Don't bump
   pnpm without checking the lockfile.
-- **`.npmrc`:** `shamefully-hoist=true`, `link-workspace-packages=false`,
-  `prefer-workspace-packages=false`.
+- **`.npmrc`:** configures the `@treon-studio` scope to use the GitHub
+  Packages registry (`https://npm.pkg.github.com`).
 - **`degit.json`:** when this repo is used as a scaffold template, it strips
   `apps/`, `packages/`, `templates/`, `pnpm-lock.yaml`, `README.md`, etc.
 - **Biome** is the formatter/linter (see `biome.json`). Style: 4-space JSON,

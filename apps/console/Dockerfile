@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Frontend — Vite/React SPA served via nginx
 # Build context: repo root  (docker build -f Dockerfile .)
 
@@ -7,7 +8,13 @@ WORKDIR /app
 
 # Install deps first for better layer caching
 COPY package.json bun.lock* ./
-RUN bun install --frozen-lockfile || bun install
+RUN --mount=type=secret,id=GH_PACKAGES_TOKEN \
+    token="$(cat /run/secrets/GH_PACKAGES_TOKEN)" && \
+    npm_config_userconfig=/tmp/github-packages.npmrc && \
+    npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$npm_config_userconfig" && \
+    npm config set //npm.pkg.github.com/:_authToken "$token" --userconfig "$npm_config_userconfig" && \
+    NPM_CONFIG_USERCONFIG="$npm_config_userconfig" bun install --frozen-lockfile || \
+    NPM_CONFIG_USERCONFIG="$npm_config_userconfig" bun install
 
 # Copy source and build
 COPY tsconfig.json vite.config.ts index.html ./

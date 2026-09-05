@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -31,8 +35,10 @@ jobs:
       - name: Install dependencies
         env:
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}" >> .npmrc
+          npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
+          npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
           pnpm install --frozen-lockfile
 
       - name: Typecheck Console
@@ -73,10 +79,10 @@ jobs:
         working-directory: apps/worker
         run: go test ./...
 
-  elixir-tests:
-    name: Test Phoenix Server API
+  python-tests:
+    name: Test Flask Server API
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     services:
       postgres:
@@ -104,35 +110,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          elixir-version: '1.18'
-          otp-version: '27'
+          python-version: '3.12'
 
-      - name: Install dependencies + run Phoenix suite
+      - name: Install dependencies
         working-directory: apps/server
-        env:
-          DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
-          TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
-          JWT_SECRET_KEY: ci-test-secret-key-0123456789abcdef
-          INTERNAL_CALL_SECRET: ci-test-internal-call-secret-key-0123456789
-          GLOBAL_SECRETS_ENCRYPTION_KEY: ci-test-global-secrets-key-0123456789
         run: |
-          mix deps.get
-          mix ecto.create --quiet
-          mix ecto.migrate --quiet
-          mix test
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
 
-      # Phase 8: the CLI route-parity gate runs inside the ExUnit suite
-      # (RadasCliRouteParityTest); the sensitive-path static rules gate for
-      # the Elixir tree is scripts/check-sensitive-paths.sh.
-      - name: Check sensitive-path static rules (Elixir)
-        run: bash scripts/check-sensitive-paths.sh
+      - name: Run Python API tests
+        working-directory: apps/server
+        run: pytest tests/
 
-  # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode
-  # (a) of scripts/run-cross-client-contracts.sh: the Phoenix ExUnit suite is
-  # the behavioral reference contract (including the ontology parity gate),
+      # Task 6.1: contract surface checks alongside the API tests. The full
+      # OpenAPI snapshot + PostgreSQL gate lives in api-contract.yml; these
+      # steps keep parity/redaction visible on every plain server run.
+      - name: Check CLI route parity (manifest vs served routes)
+        working-directory: apps/server
+        run: python scripts/check_route_parity.py
+
+      - name: Check sensitive-path static rules
+        working-directory: apps/server
+        run: python scripts/check_sensitive_paths.py
+
+  # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode (a)
+  # of scripts/run-cross-client-contracts.sh: the pytest server reference
+  # contract (which also runs the domain-ontology schema/loader/parity tests),
   # the console TypeScript client fixture leg (typecheck + vitest + build),
   # and the Go CLI (vet + tests) / worker tests. The live-server legs
   # (Go client + direct HTTP, TypeScript real HTTP) stay env-gated for
@@ -178,18 +185,26 @@ jobs:
           go-version: '1.25.x'
           check-latest: true
 
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          elixir-version: '1.18'
-          otp-version: '27'
+          python-version: '3.12'
 
       - name: Install workspace dependencies
         env:
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}" >> .npmrc
+          npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
+          npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
           pnpm install --frozen-lockfile
+
+      - name: Create server virtualenv
+        working-directory: apps/server
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run cross-client contract gate (mode a)
         env:
