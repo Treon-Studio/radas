@@ -86,6 +86,10 @@ cd "$SERVER_DIR"
 # (RadasOntologyParityTest) and the CLI route-parity gate
 # (RadasCliRouteParityTest) against contracts/domain-ontology.json and
 # contracts/cli-route-manifest.json (see docs/architecture/domain-ontology.md).
+if [[ ! -d "$SERVER_DIR/deps/phoenix" ]]; then
+    echo "    [server] hex deps missing; running mix deps.get"
+    mix deps.get
+fi
 mix test
 
 # --- gate 2: [console] typecheck + vitest + build ---------------------------
