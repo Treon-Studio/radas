@@ -19,13 +19,10 @@ jobs:
 
       - name: Deploy server+worker → VPS
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          ADMIN_RESET_PASSWORD: ${{ secrets.ADMIN_RESET_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: ADMIN_RESET_PASSWORD
           script: |
 
             set -e
@@ -33,7 +30,8 @@ jobs:
             git pull origin main
 
             # Read presence only: never print or export production secrets into
-            # the GitHub Actions environment. Values are supplied by /opt/radas/.env.
+            # the GitHub Actions environment. Values are supplied by /opt/radas/.env
+            # (ecosystem.config.cjs loads the file itself for the pm2 entries).
             test -r /opt/radas/.env || { echo '/opt/radas/.env is required'; exit 1; }
             required_env() {
               name="$1"
@@ -43,10 +41,8 @@ jobs:
                 exit 1
               fi
             }
-            # Normalize and force the canonical production indicator before
-            # any validation or process startup.
-            if grep -q '^FLASK_ENV=' /opt/radas/.env; then sed -i 's/^FLASK_ENV=.*/FLASK_ENV=production/' /opt/radas/.env; else echo 'FLASK_ENV=production' >> /opt/radas/.env; fi
-            if grep -q '^FLASK_DEBUG=' /opt/radas/.env; then sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' /opt/radas/.env; else echo 'FLASK_DEBUG=0' >> /opt/radas/.env; fi
+            # Phoenix cutover: make sure the pm2 Phoenix entry is enabled.
+            if grep -q '^PHOENIX_ENABLED=' /opt/radas/.env; then sed -i 's/^PHOENIX_ENABLED=.*/PHOENIX_ENABLED=true/' /opt/radas/.env; else echo 'PHOENIX_ENABLED=true' >> /opt/radas/.env; fi
             if grep -q '^CORS_ALLOWED_ORIGINS=' /opt/radas/.env; then sed -i 's#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev#' /opt/radas/.env; else echo 'CORS_ALLOWED_ORIGINS=https://radas-console.pages.dev' >> /opt/radas/.env; fi
 
             required_env DATABASE_URL
@@ -57,68 +53,21 @@ jobs:
             required_env VAULT_SERVER_SECRET
             required_env PREVIEW_WEBHOOK_SECRET
 
-            cd apps/server
-            .venv/bin/pip install -q -r requirements.txt
-            # Validate presence and strength without sourcing or printing the
-            # values. The file remains the sole source for PM2/container env.
-            .venv/bin/python - <<'PY'
-            import re
-            from pathlib import Path
-            from utils.runtime_secrets import validate_secret_value
+            # The IaC templates live in templates/opensible-iac (tracked); the
+            # server resolves them at apps/server/IaC/<provider>. Stage the
+            # tree there (rsync keeps removed template files from lingering).
+            mkdir -p /opt/radas/apps/server/IaC
+            rsync -a --delete /opt/radas/templates/opensible-iac/ /opt/radas/apps/server/IaC/
 
-            required = {
-                "DATABASE_URL": False,
-                "JWT_SECRET_KEY": True,
-                "INTERNAL_CALL_SECRET": True,
-                "GLOBAL_SECRETS_ENCRYPTION_KEY": True,
-                "WORKER_REGISTRATION_SECRET": True,
-                "VAULT_SERVER_SECRET": True,
-                "PREVIEW_WEBHOOK_SECRET": True,
-            }
-            values = {}
-            for line in Path("/opt/radas/.env").read_text(encoding="utf-8").splitlines():
-                match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line)
-                if match:
-                    values[match.group(1)] = match.group(2).strip()
-            missing = []
-            for name, strong in required.items():
-                value = values.get(name, "")
-                if not value:
-                    missing.append(name)
-                elif strong:
-                    # Reuse the runtime's exact Unicode-trimmed code-point and
-                    # ASCII letter/digit policy; do not duplicate another gate.
-                    try:
-                        validate_secret_value(name, value)
-                    except RuntimeError:
-                        missing.append(name)
-            if missing:
-                raise SystemExit("Production configuration is missing or weak: " + ", ".join(missing))
-            PY
-            if [ -n "${ADMIN_RESET_PASSWORD:-}" ]; then
-              server_pid=$(pm2 pid radas-server || true)
-              if [ -n "$server_pid" ] && [ "$server_pid" != "0" ] && [ -r "/proc/$server_pid/environ" ]; then
-                export DATABASE_URL="$(tr '\0' '\n' < "/proc/$server_pid/environ" | sed -n 's/^DATABASE_URL=//p')"
-              fi
-              if [ -z "${DATABASE_URL:-}" ]; then
-                export DATABASE_URL="$(grep -E '^DATABASE_URL=' /opt/radas/.env | cut -d= -f2-)"
-              fi
-              test -n "${DATABASE_URL:-}" || { echo 'DATABASE_URL is required for admin reset'; exit 1; }
-              .venv/bin/python scripts/update_admin_password.py "$ADMIN_RESET_PASSWORD"
-            fi
-            # Revalidate the rewritten file; the runtime must observe the same
-            # canonical production indicator and complete secret set.
-            grep -q '^FLASK_ENV=production$' /opt/radas/.env || { echo 'FLASK_ENV=production is required'; exit 1; }
-            required_env DATABASE_URL
-            required_env JWT_SECRET_KEY
-            required_env INTERNAL_CALL_SECRET
-            required_env GLOBAL_SECRETS_ENCRYPTION_KEY
-            required_env WORKER_REGISTRATION_SECRET
-            required_env VAULT_SERVER_SECRET
-            required_env PREVIEW_WEBHOOK_SECRET
+            # Compile the Phoenix app (idempotent; first deploy takes longer).
+            cd /opt/radas/apps/server
+            mix deps.get
+            mix compile
+
             cd /opt/radas
-            pm2 delete radas-server || true
-            pm2 start ecosystem.config.cjs --only radas-server --update-env
+            pm2 delete radas-phoenix || true
+            pm2 start ecosystem.config.cjs --only radas-phoenix --update-env
+
             cd /opt/radas/apps/worker
             go mod tidy && go build -o /opt/radas/bin/radas-worker ./cmd/worker
             # Recreate the worker from ecosystem.config.cjs so every secret is
@@ -126,16 +75,16 @@ jobs:
             cd /opt/radas
             pm2 delete radas-worker || true
             pm2 start ecosystem.config.cjs --only radas-worker --update-env
-            cd /opt/radas
-            grep -q 'PORT=5001' .env || echo 'PORT=5001' >> .env
+
+            # Phoenix serves /api/healthz on :4000 (OPEN_PHOENIX_PORT default).
             health_code=000
-            for attempt in $(seq 1 12); do
-              health_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5001/api/health || true)
+            for attempt in $(seq 1 24); do
+              health_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4000/api/healthz || true)
               if [ "$health_code" = "200" ]; then break; fi
               sleep 5
             done
             echo "health: $health_code"
             if [ "$health_code" != "200" ]; then
-              pm2 logs radas-server --nostream --lines 80 || true
+              pm2 logs radas-phoenix --nostream --lines 80 || true
               exit 1
             fi
