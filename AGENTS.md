@@ -130,7 +130,16 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 ## Conventions
 
 - **Dependency flow:** `apps → packages`. `packages` must not import from
-  apps. Package naming: `@radas/<name>`.
+  apps. Repository-local workspace package naming is `@radas/<name>`.
+- **Shared package ownership:** [`Treon-Studio/infra`](https://github.com/Treon-Studio/infra)
+  is the canonical source for cross-repository infrastructure packages such as
+  `@treon-studio/contracts`, `validation`, `config`, `observability`,
+  `api-client`, `biome-config`, and `tsconfig`, distributed through GitHub
+  Packages. Change their source in `infra`, publish a version, and upgrade it
+  here; do not copy, fork, or recreate them locally. Product SDKs remain in
+  their producing repositories: `@treon-studio/radas-sdk` is owned here, while
+  `@treon-studio/kurir-sdk` is owned by Kurir. Do not confuse the published
+  `@treon-studio/*` scope with the legacy/local `@treonstudio/*` scope.
 - **Go modules:** CLI `github.com/raizora/radas/v4`; worker
   `github.com/opensible/worker-go`.
 - **Platform contracts:** `/api/v2/*` always returns the platform envelope

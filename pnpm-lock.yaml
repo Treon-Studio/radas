@@ -153,6 +153,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.3
         version: 3.14.9(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@treon-studio/radas-sdk':
+        specifier: ^0.1.6
+        version: 0.1.6(react@19.2.6)
       '@uiw/react-codemirror':
         specifier: ^4.25.10
         version: 4.25.11(@babel/runtime@7.29.7)(@codemirror/autocomplete@6.20.3)(@codemirror/language@6.12.4)(@codemirror/lint@6.9.7)(@codemirror/search@6.7.1)(@codemirror/state@6.7.1)(@codemirror/theme-one-dark@6.1.3)(@codemirror/view@6.43.8)(codemirror@6.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -376,7 +379,7 @@ importers:
   packages/sdk:
     dependencies:
       '@treon-studio/contracts':
-        specifier: ^0.1.1
+        specifier: '*'
         version: 0.1.2
       openapi-fetch:
         specifier: ^0.13.0
@@ -2540,6 +2543,11 @@ packages:
 
   '@treon-studio/contracts@0.1.2':
     resolution: {integrity: sha512-na703iEQ5Z2DxywNczgp65UAGB63gkqSNF1fJYRLUe7Gg/YkQzgHL4lyfE2estDADEUjaH4/K8Z99FPdkcBeLA==, tarball: https://npm.pkg.github.com/download/@treon-studio/contracts/0.1.2/890e02093f4fae390d8e52d932134a0a622b1faf}
+
+  '@treon-studio/radas-sdk@0.1.6':
+    resolution: {integrity: sha512-KIjz7wq0qYdNQBBF67AD0QMI3mswFubg/NyZOh3NhJgVHXm6IpC3SR1KQv2DdcBxqjQ0Zuz+xofzBqUqjptTYw==, tarball: https://npm.pkg.github.com/download/@treon-studio/radas-sdk/0.1.6/c9b28417574925427c6d3afb5f5071e47c62c00a}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
 
   '@tsconfig/node10@1.0.11':
     resolution: {integrity: sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==}
@@ -8172,6 +8180,28 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.3': {}
 
+  '@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@3.25.76)':
+    dependencies:
+      '@hono/node-server': 2.1.0(hono@4.13.1)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1(supports-color@10.2.2)
+      express-rate-limit: 8.6.2(express@5.2.1(supports-color@10.2.2))(supports-color@10.2.2)
+      hono: 4.13.1
+      jose: 6.2.8
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.0
+      raw-body: 3.0.1
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
+    transitivePeerDependencies:
+      - supports-color
+
   '@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 2.1.0(hono@4.13.1)
@@ -8194,28 +8224,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     optional: true
-
-  '@modelcontextprotocol/sdk@1.30.0(supports-color@8.1.1)(zod@3.25.76)':
-    dependencies:
-      '@hono/node-server': 2.1.0(hono@4.13.1)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.5
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.0.6
-      express: 5.2.1(supports-color@10.2.2)
-      express-rate-limit: 8.6.2(express@5.2.1(supports-color@10.2.2))(supports-color@8.1.1)
-      hono: 4.13.1
-      jose: 6.2.8
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.0
-      raw-body: 3.0.1
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
-    transitivePeerDependencies:
-      - supports-color
 
   '@monaco-editor/loader@1.7.0':
     dependencies:
@@ -9408,6 +9416,12 @@ snapshots:
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
   '@treon-studio/contracts@0.1.2': {}
+
+  '@treon-studio/radas-sdk@0.1.6(react@19.2.6)':
+    dependencies:
+      '@treon-studio/contracts': 0.1.2
+      openapi-fetch: 0.13.8
+      react: 19.2.6
 
   '@tsconfig/node10@1.0.11': {}
 
@@ -11049,15 +11063,6 @@ snapshots:
       ip-address: 10.5.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
-
-  express-rate-limit@8.6.2(express@5.2.1(supports-color@10.2.2))(supports-color@8.1.1):
-    dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
-      express: 5.2.1(supports-color@10.2.2)
-      ip-address: 10.5.0
-    transitivePeerDependencies:
-      - supports-color
 
   express@4.21.2(supports-color@10.2.2):
     dependencies:
@@ -11103,12 +11108,12 @@ snapshots:
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@10.2.2)
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.0(supports-color@8.1.1)
+      finalhandler: 2.1.0(supports-color@10.2.2)
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -11120,7 +11125,7 @@ snapshots:
       qs: 6.15.3
       range-parser: 1.2.1
       router: 2.2.0(supports-color@10.2.2)
-      send: 1.2.0(supports-color@8.1.1)
+      send: 1.2.0(supports-color@10.2.2)
       serve-static: 2.2.0(supports-color@10.2.2)
       statuses: 2.0.2
       type-is: 2.1.0
@@ -11204,9 +11209,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  finalhandler@2.1.0(supports-color@8.1.1):
+  finalhandler@2.1.0(supports-color@10.2.2):
     dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@10.2.2)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
@@ -11224,7 +11229,7 @@ snapshots:
       '@google-cloud/cloud-sql-connector': 1.8.4(supports-color@10.2.2)
       '@google-cloud/pubsub': 5.3.1(supports-color@10.2.2)
       '@inquirer/prompts': 7.9.0(@types/node@26.2.0)
-      '@modelcontextprotocol/sdk': 1.30.0(supports-color@8.1.1)(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.30.0(supports-color@10.2.2)(zod@3.25.76)
       abort-controller: 3.0.0
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
@@ -13722,16 +13727,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  router@2.2.0(supports-color@8.1.1):
-    dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
-      depd: 2.0.0
-      is-promise: 4.0.0
-      parseurl: 1.3.3
-      path-to-regexp: 8.4.2
-    transitivePeerDependencies:
-      - supports-color
-
   run-parallel@1.2.0:
     dependencies:
       queue-microtask: 1.2.3
@@ -13811,22 +13806,6 @@ snapshots:
   send@1.2.0(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      etag: 1.8.1
-      fresh: 2.0.0
-      http-errors: 2.0.1
-      mime-types: 3.0.1
-      ms: 2.1.3
-      on-finished: 2.4.1
-      range-parser: 1.2.1
-      statuses: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
-
-  send@1.2.0(supports-color@8.1.1):
-    dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
@@ -14130,7 +14109,7 @@ snapshots:
       on-finished: 2.4.1
       on-headers: 1.1.0
       path-to-regexp: 1.9.0
-      router: 2.2.0(supports-color@8.1.1)
+      router: 2.2.0(supports-color@10.2.2)
       update-notifier-cjs: 5.1.7(encoding@0.1.13)
     optionalDependencies:
       re2: 1.22.1(supports-color@10.2.2)
