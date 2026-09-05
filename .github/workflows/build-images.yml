@@ -8,7 +8,7 @@ on:
       - 'apps/server/**'
       - 'apps/worker/**'
       - 'apps/console/**'
-      - 'IaC/**'
+      - 'templates/opensible-iac/**'
       - '.github/workflows/build-images.yml'
 
 permissions:
@@ -33,22 +33,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The Dockerfiles expect a legacy layout (server/, worker/, IaC/ at the
-      # context root). Stage that layout instead of rewriting the Dockerfiles.
-      - name: Stage build context
-        if: matrix.name != 'console'
+      # Stage the context each Dockerfile expects.
+      # - phoenix: apps/server/Dockerfile builds the Phoenix app FROM the app
+      #   root (COPY mix.exs, config, lib, priv), so the context IS apps/server.
+      # - worker: apps/worker/Dockerfile COPYs worker/ and IaC/ from the
+      #   context root, so those two directories are staged.
+      - name: Stage build context (phoenix)
+        if: matrix.name == 'phoenix'
         run: |
           mkdir -p /tmp/ctx
-          if [ "${{ matrix.name }}" = "phoenix" ]; then
-            # Phoenix replaced the legacy Flask app, but its Dockerfile
-            # remains under apps/server for the public image name.
-            cp -r apps/server /tmp/ctx/server
-          else
-            cp -r apps/${{ matrix.name }} /tmp/ctx/${{ matrix.name }}
-          fi
-          # IaC tracked source (the server expects IaC/ at the context root).
+          cp -r apps/server/. /tmp/ctx/
+          rm -f /tmp/ctx/.dockerignore
+
+      - name: Stage build context (worker)
+        if: matrix.name == 'worker'
+        run: |
+          mkdir -p /tmp/ctx
+          cp -r apps/worker /tmp/ctx/worker
+          cp apps/worker/Dockerfile /tmp/ctx/Dockerfile
+          # IaC tracked source; the worker image ships it for tofu runs.
           cp -r templates/opensible-iac /tmp/ctx/IaC
-          cp apps/server/Dockerfile /tmp/ctx/Dockerfile
           rm -f /tmp/ctx/.dockerignore
 
       - name: Console context (self-contained)
