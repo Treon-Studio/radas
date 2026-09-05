@@ -32,9 +32,63 @@ defmodule RadasAI.CloudStacks do
   def valid_name?(name) when is_binary(name), do: Regex.match?(@name_re, name)
   def valid_name?(_), do: false
 
+  defmodule LegacyDefaultWorkspaceError do
+    @moduledoc """
+    Raised when a request-context caller would resolve the shared legacy
+    default workspace (`DATA_DIR/cloud-provisioning/default`). The fallback
+    is a tenant-escape hazard: it must not serve authenticated traffic
+    (Python parity: `LegacyDefaultWorkspaceError`, code 403). Background
+    callers keep the fallback and are counted by
+    `legacy_default_workspace_uses/0`.
+    """
+
+    defexception message: "Project context required", plug_status: 403
+  end
+
+  @legacy_use_key :radas_legacy_default_workspace_uses
+
+  @doc "Counter of legacy default-workspace fallback uses (background only)."
+  def legacy_default_workspace_uses do
+    ensure_metric_table()
+    # +0 with a default object: get-or-init atomically.
+    :ets.update_counter(@legacy_use_key, 1, 0, {1, 0})
+  end
+
+  def reset_legacy_default_workspace_uses do
+    ensure_metric_table()
+    :ets.insert(@legacy_use_key, {1, 0})
+  end
+
+  def record_legacy_default_workspace_use do
+    ensure_metric_table()
+    :ets.update_counter(@legacy_use_key, 1, 1, {1, 0})
+  end
+
+  defp ensure_metric_table do
+    if :ets.whereis(@legacy_use_key) == :undefined do
+      try do
+        :ets.new(@legacy_use_key, [:named_table, :public, :set])
+      rescue
+        ArgumentError -> :ok
+      end
+    end
+  end
+
+  # Flask parity for `bool(request)`: Plug stores the conn in the request
+  # process dictionary for the request lifecycle; background processes never
+  # have it.
+  defp request_context?, do: Process.get(:plug_conn) != nil
+
   def stacks_root(project_id \\ nil)
 
-  def stacks_root(nil), do: Path.join([ProjectPaths.data_dir(), "cloud-provisioning", "default"])
+  def stacks_root(nil) do
+    if request_context?() do
+      raise LegacyDefaultWorkspaceError
+    end
+
+    record_legacy_default_workspace_use()
+    Path.join([ProjectPaths.data_dir(), "cloud-provisioning", "default"])
+  end
 
   def stacks_root(project_id), do: Path.join([ProjectPaths.data_dir(), "projects", project_id, "stacks"])
 

@@ -15,7 +15,7 @@ defmodule RadasWeb.Plugs.Cors do
 
   @default_origins ["http://localhost:8080", "http://127.0.0.1:8080", "http://0.0.0.0:8080"]
 
-  @default_allow_headers ~w(Content-Type Authorization X-Requested-With Accept X-Project-Id X-Request-Id X-Trace-Id Idempotency-Key)
+  @default_allow_headers ~w(Content-Type Authorization X-Requested-With Accept X-Project-Id X-Org-Id X-9Router-Token-Saver X-Request-Id X-Trace-Id Idempotency-Key)
   @allow_methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 
   def init(opts), do: opts

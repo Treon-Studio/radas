@@ -53,7 +53,14 @@ defmodule RadasWeb.CloudStacksController do
   # bodies (the platform plug normalizes them into the error envelope).
   defp with_project_access(conn, project_id, fun) do
     case OrgAccess.ensure_project_access(conn, project_id) do
-      :ok -> fun.()
+      :ok ->
+        try do
+          fun.()
+        rescue
+          e in RadasAI.CloudStacks.LegacyDefaultWorkspaceError ->
+            conn |> put_status(403) |> json(%{"error" => e.message})
+        end
+
       {:error, status, body} -> conn |> put_status(status) |> json(body)
     end
   end
