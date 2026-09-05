@@ -29,7 +29,11 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}" >> .npmrc
+          pnpm install --frozen-lockfile
 
       - name: Typecheck Console
         working-directory: apps/console
@@ -181,7 +185,11 @@ jobs:
           otp-version: '27'
 
       - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}" >> .npmrc
+          pnpm install --frozen-lockfile
 
       - name: Run cross-client contract gate (mode a)
         env:
