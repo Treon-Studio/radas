@@ -39,10 +39,16 @@ jobs:
         if: matrix.name != 'console'
         run: |
           mkdir -p /tmp/ctx
-          cp -r apps/${{ matrix.name }} /tmp/ctx/${{ matrix.name }}
+          if [ "${{ matrix.name }}" = "phoenix" ]; then
+            # Phoenix replaced the legacy Flask app, but its Dockerfile
+            # remains under apps/server for the public image name.
+            cp -r apps/server /tmp/ctx/server
+          else
+            cp -r apps/${{ matrix.name }} /tmp/ctx/${{ matrix.name }}
+          fi
           # IaC tracked source (the server expects IaC/ at the context root).
           cp -r templates/opensible-iac /tmp/ctx/IaC
-          cp apps/${{ matrix.name }}/Dockerfile /tmp/ctx/Dockerfile
+          cp apps/server/Dockerfile /tmp/ctx/Dockerfile
           rm -f /tmp/ctx/.dockerignore
 
       - name: Console context (self-contained)
