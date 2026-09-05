@@ -119,6 +119,28 @@ defmodule Radas.Repo.Migrations.BaselineCoreTables do
     )
     """)
 
+    # ----------------------------------------------------------- V1: orgs
+    execute("""
+    CREATE TABLE IF NOT EXISTS orgs (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_by TEXT,
+        created_at DOUBLE PRECISION
+    )
+    """)
+
+    execute("""
+    CREATE TABLE IF NOT EXISTS org_members (
+        org_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at DOUBLE PRECISION,
+        PRIMARY KEY (org_id, user_id)
+    )
+    """)
+
+    execute("CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id)")
+
     # ------------------------------------------------- V1: config/projects
     execute("""
     CREATE TABLE IF NOT EXISTS projects (
@@ -250,28 +272,6 @@ defmodule Radas.Repo.Migrations.BaselineCoreTables do
         PRIMARY KEY (project_id, stack, ts)
     )
     """)
-
-    # ----------------------------------------------------------- V1: orgs
-    execute("""
-    CREATE TABLE IF NOT EXISTS orgs (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        created_by TEXT,
-        created_at DOUBLE PRECISION
-    )
-    """)
-
-    execute("""
-    CREATE TABLE IF NOT EXISTS org_members (
-        org_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        created_at DOUBLE PRECISION,
-        PRIMARY KEY (org_id, user_id)
-    )
-    """)
-
-    execute("CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id)")
 
     # ------------------------------------------------------- V22: leases
     execute("""
