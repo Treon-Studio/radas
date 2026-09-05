@@ -19,10 +19,11 @@ from services import cloud_provisioning as cp
 @pytest.fixture(autouse=True)
 def _temp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    with cp._metric_lock:
+        cp._legacy_default_workspace_uses = 0
     yield
-    cp._metric_lock.acquire()
-    cp._legacy_default_workspace_uses = 0
-    cp._metric_lock.release()
+    with cp._metric_lock:
+        cp._legacy_default_workspace_uses = 0
 
 
 def _uses_metric() -> int:
