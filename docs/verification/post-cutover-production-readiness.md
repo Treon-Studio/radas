@@ -135,7 +135,7 @@ falls back to production credentials.
 
 | Check | Evidence | Result |
 |---|---|---|
-| Phoenix suite | `post-cutover-readiness` run `33943444104`, job `101245104188` | 353 tests, 0 failures |
+| Phoenix suite | `post-cutover-readiness` run `33943444104`, job `101245104188` (and rerun `33944362571`, job `101247665492`) | 353 tests, 0 failures |
 | Database recovery | Same workflow, job `101245104305` | restore completed; `restore_seconds=1`; JSONB, bytea, ledger, sequence, and corrupted-archive checks passed |
 | Local HTTP smoke | `post-cutover-smoke.sh` against `127.0.0.1:4000` | liveness, readiness, platform envelope, redaction, 404, legacy shape, and CORS passed |
 | Required repository CI | PR #81 checks | Phoenix, console, Go, and cross-client checks passed |
@@ -149,13 +149,18 @@ instances.
 
 The following items are intentionally **not marked passed**:
 
-- Protected staging HTTP smoke: the readiness workflow job was skipped because
-  no `RADAS_SMOKE_BASE_URL`, smoke account, or router origin secrets are
-  configured in the repository's `staging` environment.
+- Protected staging HTTP smoke: explicitly attempted in readiness run
+  `33944362571`, job `101247665584`, and failed closed because
+  `RADAS_SMOKE_BASE_URL`, `RADAS_SMOKE_ROUTER_URL`, `RADAS_SMOKE_USERNAME`, and
+  `RADAS_SMOKE_PASSWORD` are unset in the `staging` environment. The workflow
+  correctly made no HTTP request with empty credentials.
+- Public API smoke: `https://api-radas.treonstudio.com/api/healthz` returned
+  Cloudflare HTTP 530 during the audit. The public origin is unavailable at
+  the edge; this is not evidence of a Phoenix response.
 - Worker register/heartbeat against a deployed VPS: no disposable staging
-  worker identity was available, and the latest Deploy VPS run
-  `33943422932` failed before the remote script began with an SSH connection
-  timeout. No worker token was created and no production worker was touched.
+  worker identity was available, and Deploy VPS run `33944261210` failed
+  before the remote script began with an SSH connection timeout. No worker
+  token was created and no production worker was touched.
 - Staging rollback and soak: no staging deployment/image and no rollback drill
   execution is available yet. The manual rollback procedure above remains a
   runbook, not evidence of a completed drill.
