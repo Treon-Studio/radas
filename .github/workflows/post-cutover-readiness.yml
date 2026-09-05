@@ -108,7 +108,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-          createdb -h localhost -U drill radas_drill_restore || true
+          PGPASSWORD=drill createdb -h localhost -U drill radas_drill_restore || true
           cd apps/server && mix deps.get
       - name: Create schema and run migrations
         env:
