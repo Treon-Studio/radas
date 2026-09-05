@@ -19,10 +19,10 @@
 # offending line (ideally with a short justification). Exits 1 when
 # unallowlisted hits remain, 0 otherwise.
 #
-# Usage: bash scripts/check-sensitive-paths-elixir.sh [root]
+# Usage: bash scripts/check-sensitive-paths.sh [root]
 set -u
 
-ROOT="${1:-apps/server_elixir/lib}"
+ROOT="${1:-apps/server/lib}"
 HITS=0
 
 scan() {

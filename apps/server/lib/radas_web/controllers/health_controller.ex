@@ -4,7 +4,7 @@ defmodule RadasWeb.HealthController do
   use RadasWeb, :controller
 
   def show(conn, _params) do
-    json(conn, %{"status" => "ok", "service" => "radas_elixir"})
+    json(conn, %{"status" => "ok", "service" => "radas"})
   end
 
   @doc "Lightweight readiness probe (Python misc_routes.api_health)."

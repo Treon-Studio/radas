@@ -107,7 +107,7 @@ jobs:
           otp-version: '27'
 
       - name: Install dependencies + run Phoenix suite
-        working-directory: apps/server_elixir
+        working-directory: apps/server
         env:
           DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
           TEST_DATABASE_URL: postgresql://radas:radas@localhost:5432/radas_test
@@ -122,9 +122,9 @@ jobs:
 
       # Phase 8: the CLI route-parity gate runs inside the ExUnit suite
       # (RadasCliRouteParityTest); the sensitive-path static rules gate for
-      # the Elixir tree is scripts/check-sensitive-paths-elixir.sh.
+      # the Elixir tree is scripts/check-sensitive-paths.sh.
       - name: Check sensitive-path static rules (Elixir)
-        run: bash scripts/check-sensitive-paths-elixir.sh
+        run: bash scripts/check-sensitive-paths.sh
 
   # Task 6.2: cross-client contract parity gate. Runs the offline-safe mode
   # (a) of scripts/run-cross-client-contracts.sh: the Phoenix ExUnit suite is

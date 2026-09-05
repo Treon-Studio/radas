@@ -44,11 +44,11 @@ defmodule RadasWeb.Plugs.PlatformContract do
       path == "/api/platform" or String.starts_with?(path, "/api/platform/") ->
         path not in @legacy_platform_paths
 
-      # Bootstrap probe namespace (/api/elixir/health, /api/elixir/echo):
+      # Conformance probe namespace (/api/platform/echo, /api/healthz):
       # temporary during the migration, behaves like the platform contract so
       # request-id pairing and envelope conformance are verifiable end-to-end
       # before any product endpoint is cut over. Removed at Phase 8.
-      String.starts_with?(path, "/api/elixir/") ->
+      String.starts_with?(path, "/api/platform/") or String.starts_with?(path, "/api/healthz") ->
         true
 
       true ->

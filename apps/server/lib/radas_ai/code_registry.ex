@@ -2,7 +2,7 @@ defmodule RadasAI.CodeRegistry do
   @moduledoc """
   Port of `services/code_registry.py` — shadcn-style "bring your own code"
   (Fase 6 — UC 382+, UC 661–666). Registry items are plain git-versioned
-  files under `apps/server_elixir/priv/registry/<type>/<name>` with a
+  files under `apps/server/priv/registry/<type>/<name>` with a
   `radas.json` manifest. Installing COPIES item code into the stack
   workspace; an install manifest at `.cloud-provisioning/<stack>/registry.json`
   tracks exactly what was copied so uninstall removes it.

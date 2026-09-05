@@ -49,8 +49,8 @@ defmodule RadasWeb.Plugs.PlatformContractTest do
     end
 
     test "bootstrap probe namespace behaves like platform" do
-      assert PlatformContract.platform_request?("/api/elixir/health")
-      assert PlatformContract.platform_request?("/api/elixir/echo")
+      assert PlatformContract.platform_request?("/api/healthz")
+      assert PlatformContract.platform_request?("/api/platform/echo")
     end
 
     test "legacy API paths stay outside" do

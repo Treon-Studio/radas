@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/server_elixir/**'
+      - 'apps/server/**'
       - 'apps/worker/**'
       - 'apps/console/**'
       - 'IaC/**'
@@ -23,7 +23,7 @@ jobs:
         include:
           - name: phoenix
             context: .
-            dockerfile: apps/server_elixir/Dockerfile
+            dockerfile: apps/server/Dockerfile
           - name: worker
             context: .
             dockerfile: apps/worker/Dockerfile

@@ -7,11 +7,11 @@ Re-check after pulling — the repo is in active transition.
 ## Repo state (read first)
 
 - **Real app tree:** `apps/` = `cli`, `console`, `desktop-app`,
-  `server_elixir`, `worker` (+ a `data/` runtime dir). There is **no**
+  `server`, `worker` (+ a `data/` runtime dir). There is **no**
   `apps/dashboard`, `apps/extension`, `apps/site`, `apps/homepage`, or
   `apps/opensible-*`. The Chrome extension was removed (commit `4feaf59d`);
   `MIGRATION_GUIDE.md` is retired in place with a banner.
-- **The API backend is `apps/server_elixir/` (Phoenix/Elixir).** The Elixir
+- **The API backend is `apps/server/` (Phoenix/Elixir).** The Elixir
   migration is COMPLETE: Phase 8 flipped CI, docker-compose, pm2 and the
   nginx router to Phoenix and **physically removed the Flask tree
   `apps/server/`**. Every remote CLI command in
@@ -29,7 +29,7 @@ Re-check after pulling — the repo is in active transition.
   `contracts/radas-api-v2-violations-baseline.json` (tighten-only ratchet).
 - **Domain ontology:** `contracts/domain-ontology.json` is authoritative for
   entity states/transitions/alert semantics; parity-gated by
-  `RadasOntologyParityTest` in apps/server_elixir (see
+  `RadasOntologyParityTest` in apps/server (see
   `docs/architecture/domain-ontology.md`).
 - **Evidence & verification docs:** `docs/architecture/roadmap-evidence-matrix.md`,
   `docs/architecture/e2e-flow-matrix.md`, `docs/verification/`. Trust these
@@ -52,8 +52,8 @@ apps/
   console/      @radas/console (Vite + React 19 console; vitest + jsdom).
                 Run: pnpm --filter @radas/console dev (port 8080).
   desktop-app/  @radas/desktop-app.
-  server_elixir/  Phoenix control plane (the API backend). Setup:
-                cd apps/server_elixir && mix deps.get && mix ecto.setup
+  server/         Phoenix control plane (the API backend). Setup:
+                cd apps/server && mix deps.get && mix ecto.setup
                 Run: mix phx.server (port 4000).
   worker/       Go worker (module github.com/opensible/worker-go, go >= 1.22).
                 Run: go build -o bin/worker ./cmd/worker.
@@ -83,13 +83,13 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 - **CLI (Go):** `cd apps/cli && go build -o bin/radas`; `go test ./...`;
   `govulncheck ./...`. Module is `github.com/raizora/radas/v4`.
-- **Server (Elixir/Phoenix):** from `apps/server_elixir`: `mix deps.get`,
+- **Server (Elixir/Phoenix):** from `apps/server`: `mix deps.get`,
   then `mix test` (needs DATABASE_URL/TEST_DATABASE_URL + JWT/INTERNAL_CALL/
   GLOBAL_SECRETS env; mirror `.github/workflows/api-contract.yml`).
   The gates: full `mix test` (includes RadasCliRouteParityTest +
-  RadasOntologyParityTest), `bash scripts/check-elixir-contract.sh` (smoke
+  RadasOntologyParityTest), `bash scripts/check-server-contract.sh` (smoke
   against a running server), `pytest tests/test_repo_paths.py` (repo guards),
-  `bash scripts/check-sensitive-paths-elixir.sh`.
+  `bash scripts/check-sensitive-paths.sh`.
 - **Repo layout integrity:** `python3 tests/test_repo_paths.py` (stdlib,
   no venv needed; also runs under pytest).
 - **Worker (Go):** `cd apps/worker && go test ./...`.
@@ -116,7 +116,7 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 
 ## CI workflows (`.github/workflows/`)
 
-- `api-contract.yml` — Phoenix contract gate on `apps/server_elixir/**`,
+- `api-contract.yml` — Phoenix contract gate on `apps/server/**`,
   `contracts/**` changes: postgres:16 service, full `mix test` suite
   (includes the CLI route-parity + ontology parity gates), sensitive-path
   static rules for the Elixir tree.
@@ -150,7 +150,7 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
   `tests/test_repo_paths.py`.
 - Don't import `app.py` from server tests to get singletons; it starts
   background schedulers at import. Use the blueprint-registering harness in
-  the Phoenix ExUnit harnesses in `apps/server_elixir/test/` (DataCase
+  the Phoenix ExUnit harnesses in `apps/server/test/` (DataCase
   seeds orgs/projects/memberships directly; do not import a server
   bootstrap module).
 - Console `pnpm test` includes env-gated real-HTTP legs that skip unless
@@ -161,11 +161,11 @@ tests/          Repo-level path-integrity tests (stdlib pytest).
 ## Database
 
 - **Selalu PostgreSQL.** `DATABASE_URL` wajib; skema di-manage oleh Ecto
-  migration di `apps/server_elixir/priv/repo/migrations/` (tracking table
+  migration di `apps/server/priv/repo/migrations/` (tracking table
   `ecto_migrations`) + historical Python `schema_migrations` rows; jangan
   buat tabel manual di luar itu.
 - Akses via `RadasAI.DB` helpers (`query_one!/query_all!/execute!`) dan
-  `Radas.Repo` (Ecto) di apps/server_elixir; JSONB needs explicit
+  `Radas.Repo` (Ecto) di apps/server; JSONB needs explicit
   `$n::jsonb`/`::text::jsonb` casts in raw SQL.
 - JSON-config stores → tabel `kv_store(scope, key, value jsonb)`; gunakan
   `storage/kv.py`. Durable failure counters also live there

@@ -7,7 +7,7 @@ defmodule RadasAI.Ontology do
   fails when either side drifts.
   """
 
-  # Compile-time cwd is apps/server_elixir — walk up to the repo contracts.
+  # Compile-time cwd is apps/server — walk up to the repo contracts.
   @ontology_path (Path.expand(Path.join([File.cwd!(), "..", "..", "contracts", "domain-ontology.json"])))
 
   @ontology (case File.read(@ontology_path) do

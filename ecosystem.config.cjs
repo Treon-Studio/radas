@@ -1,11 +1,11 @@
 /**
  * pm2 local-development orchestration for the Radas stack.
  *
- * Phase 8 cutover: the API backend is Phoenix (apps/server_elixir, :4000).
+ * Phase 8 cutover: the API backend is Phoenix (apps/server, :4000).
  * The legacy Flask server entry has been retired from this orchestration.
  *
  * First-time setup (once):
- *   cd apps/server_elixir && mix deps.get && mix ecto.setup
+ *   cd apps/server && mix deps.get && mix ecto.setup
  *
  * Commands:
  *   pnpm dev:radas            # start phoenix (:4000) + console (:8080) + worker
@@ -122,7 +122,7 @@ module.exports = {
   apps: [
     ...(PHOENIX_ENABLED ? [{
       name: "radas-phoenix",
-      cwd: "./apps/server_elixir",
+      cwd: "./apps/server",
       script: "mix",
       args: "phx.server",
       interpreter: "none",

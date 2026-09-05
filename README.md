@@ -83,7 +83,7 @@ persistence dan model multi-tenant berbasis org.
 radas/
 ├── apps/
 │   ├── radas-console/     # React 19 + Vite + TanStack Router/Query (UI)
-│   ├── server_elixir/     # Phoenix API (Elixir) + services + storage (Postgres)
+│   ├── server/            # Phoenix API (Elixir toolchain) + services + storage (Postgres)
 │   ├── opensible-worker/  # Go worker — claim & eksekusi OpenTofu/Ansible
 │   └── cli/               # Go CLI (radas)
 ├── templates/opensible-iac/  # Modul OpenTofu per provider (IaC source)
@@ -98,7 +98,7 @@ Prasyarat: Node 22+, pnpm 10, Elixir 1.18 + Erlang 27, Go 1.25+, PostgreSQL 15
 ```bash
 # 1. Dependencies
 pnpm install
-cd apps/server_elixir && mix deps.get
+cd apps/server && mix deps.get
 
 # 2. Database (Postgres lokal — atau set DATABASE_URL ke Neon)
 brew install postgresql@15 && brew services start postgresql@15
@@ -115,9 +115,9 @@ via `ADMIN_INITIAL_PASSWORD` di `ecosystem.config.cjs`).
 ### Test
 
 ```bash
-cd apps/server_elixir
+cd apps/server
 mix test                                  # suite penuh + parity gates (ExUnit)
-bash scripts/check-sensitive-paths-elixir.sh   # static rules
+bash scripts/check-sensitive-paths.sh   # static rules
 python3 tests/test_repo_paths.py          # repo path integrity (stdlib)
 ```
 
@@ -125,7 +125,7 @@ python3 tests/test_repo_paths.py          # repo path integrity (stdlib)
 
 - `DATABASE_URL` **wajib** — server menolak boot tanpa koneksi Postgres yang
   bisa diakses (Neon supported: `postgres://user:pass@host/db?sslmode=require`).
-- Skema dikelola Ecto migration `apps/server_elixir/priv/repo/migrations/`
+- Skema dikelola Ecto migration `apps/server/priv/repo/migrations/`
   (tracking table `ecto_migrations`).
 - Migrasi data lama (SQLite/JSON → PG):
 

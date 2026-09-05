@@ -6,15 +6,15 @@ defmodule RadasWeb.HealthControllerTest do
 
   @endpoint RadasWeb.Endpoint
 
-  test "GET /api/elixir/health returns ok" do
+  test "GET /api/healthz returns ok" do
     conn =
       build_conn()
-      |> get("/api/elixir/health")
+      |> get("/api/healthz")
 
     assert conn.status == 200
     body = Jason.decode!(conn.resp_body)
     assert body["status"] == "ok"
-    assert body["service"] == "radas_elixir"
+    assert body["service"] == "radas"
   end
 
   test "unmatched platform paths get the error envelope treatment" do

@@ -6,7 +6,7 @@
 # idempotent deploy mutation -> replay/conflict" contract across all three
 # client legs:
 #
-#   * server reference (ExUnit):   apps/server_elixir/test — the Phoenix suite
+#   * server reference (ExUnit):   apps/server/test — the Phoenix suite
 #                                  is the behavioral contract reference
 #                                  (Phase 8: the Flask reference was retired)
 #   * TypeScript console client:   apps/console/src/test/cross-client-fixtures.test.ts
@@ -61,7 +61,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_DIR="$ROOT/apps/server_elixir"
+SERVER_DIR="$ROOT/apps/server"
 CONSOLE_DIR="$ROOT/apps/console"
 CLI_DIR="$ROOT/apps/cli"
 WORKER_DIR="$ROOT/apps/worker"

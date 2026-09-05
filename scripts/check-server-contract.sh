@@ -3,8 +3,8 @@
 # Phase 0.5 harness). Verifies — against a running Phoenix — the exact
 # platform-contract behaviors clients depend on:
 #
-#   1. GET  /api/elixir/health          → 200 JSON with status=ok
-#   2. POST /api/elixir/echo            → success envelope, redacted fields,
+#   1. GET  /api/healthz                → 200 JSON with status=ok
+#   2. POST /api/platform/echo          → success envelope, redacted fields,
 #                                         body request_id == X-Request-ID header
 #   3. GET  /api/v2/<unmatched>         → 404 error envelope (NOT_FOUND) with
 #                                         request_id pairing
@@ -12,7 +12,7 @@
 #   5. OPTIONS /api/* preflight         → 204 with CORS echo headers
 #
 # Usage:
-#   bash scripts/check-elixir-contract.sh                       # :4000
+#   bash scripts/check-server-contract.sh                       # :4000
 #   RADAS_ELIXIR_BASE_URL=http://localhost:8090 bash scripts/... # via router
 #
 # Full cross-client fixtures (login → projects → services → replay) run once
@@ -44,7 +44,7 @@ PY
 }
 
 echo "== 1. health endpoint =="
-resp=$(curl -s -w '\n%{http_code}' "$BASE_URL/api/elixir/health")
+resp=$(curl -s -w '\n%{http_code}' "$BASE_URL/api/healthz")
 status="${resp##*$'\n'}"
 body="${resp%$'\n'*}"
 [ "$status" = "200" ] || fail "health returned HTTP $status (want 200)"
@@ -52,7 +52,7 @@ json "$body" 'doc.get("status") == "ok"' || fail "health body missing status=ok"
 
 echo "== 2. echo probe: envelope + redaction + request-id pairing =="
 req_id="req-echo-$RANDOM"
-resp=$(curl -s -w '\n%{http_code}' -X POST "$BASE_URL/api/elixir/echo" \
+resp=$(curl -s -w '\n%{http_code}' -X POST "$BASE_URL/api/platform/echo" \
   -H "Content-Type: application/json" \
   -H "X-Request-ID: $req_id" \
   -d '{"name": "probe", "api_key": "sk-live-SUPERSECRET123", "token": "tok-secret"}')
@@ -73,9 +73,9 @@ json "$body" 'doc["error"]["code"] == "NOT_FOUND"' || fail "platform 404 not an 
 json "$body" 'bool(doc.get("request_id"))' || fail "platform 404 missing request_id"
 
 echo "== 4. legacy unmatched → legacy shape, no stamping =="
-resp=$(curl -s -D /tmp/elixir-contract-headers "$BASE_URL/api/auth/definitely-not-here")
+resp=$(curl -s -D /tmp/server-contract-headers "$BASE_URL/api/auth/definitely-not-here")
 json "$resp" '"error" not in doc and doc.get("errors")' || fail "legacy 404 shape drifted"
-if grep -qi '^x-request-id:' /tmp/elixir-contract-headers; then
+if grep -qi '^x-request-id:' /tmp/server-contract-headers; then
   fail "legacy path must not stamp X-Request-ID"
 fi
 

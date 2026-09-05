@@ -28,8 +28,8 @@ defmodule RadasWeb.Router do
   scope "/api", RadasWeb do
     pipe_through :api
 
-    get "/elixir/health", HealthController, :show
-    post "/elixir/echo", EchoController, :create
+    get "/healthz", HealthController, :show
+    post "/platform/echo", EchoController, :create
 
     # Lightweight readiness probe (Python misc_routes.api_health; Docker + workers).
     get "/health", HealthController, :misc_health
@@ -485,7 +485,7 @@ defmodule RadasWeb.Router do
   # Worker protocol — registration / heartbeat / system-info served by
   # Elixir (shared Postgres worker_tokens index + profile files). Claim,
   # execution log, and finish stay on Flask via nginx while the execution
-  # pipeline is filesystem-bound (see elixir-phase4-notes.md).
+  # pipeline is filesystem-bound (see the Phase 4 migration notes).
   pipeline :worker do
     plug :accepts, ["json"]
   end

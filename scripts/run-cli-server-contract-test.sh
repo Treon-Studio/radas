@@ -39,7 +39,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_DIR="$ROOT/apps/server_elixir"
+SERVER_DIR="$ROOT/apps/server"
 CLI_DIR="$ROOT/apps/cli"
 
 echo "==> [mode a] server contract (Phoenix ExUnit + PostgreSQL)"
