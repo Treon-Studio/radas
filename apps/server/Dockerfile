@@ -1,5 +1,5 @@
 # Phoenix (Elixir) API server image — replaces the retired Flask server image.
-FROM hexpm/elixir:1.18.4-erlang-27.3-alpine-3.21 AS build
+FROM hexpm/elixir:1.18.4-erlang-27.3-alpine-3.21.7 AS build
 
 RUN apk add --no-cache build-base git postgresql-client
 
