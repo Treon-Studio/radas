@@ -10,11 +10,10 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN --mount=type=secret,id=GH_PACKAGES_TOKEN \
     token="$(cat /run/secrets/GH_PACKAGES_TOKEN)" && \
-    npm_config_userconfig=/tmp/github-packages.npmrc && \
-    npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$npm_config_userconfig" && \
-    npm config set //npm.pkg.github.com/:_authToken "$token" --userconfig "$npm_config_userconfig" && \
-    NPM_CONFIG_USERCONFIG="$npm_config_userconfig" bun install --frozen-lockfile || \
-    NPM_CONFIG_USERCONFIG="$npm_config_userconfig" bun install
+    printf '%s\n' \
+      '@treon-studio:registry=https://npm.pkg.github.com' \
+      "//npm.pkg.github.com/:_authToken=$token" > /root/.npmrc && \
+    bun install --frozen-lockfile
 
 # Copy source and build
 COPY tsconfig.json vite.config.ts index.html ./
