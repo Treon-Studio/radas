@@ -27,15 +27,19 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        working-directory: packages/sdk
+      - name: Configure GitHub Packages authentication
         env:
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
           NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
           npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
           npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
-          pnpm install --no-frozen-lockfile
+
+      - name: Install dependencies
+        working-directory: packages/sdk
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
+        run: pnpm install --no-frozen-lockfile
 
       - name: Generate types, typecheck, test
         working-directory: packages/sdk
@@ -46,11 +50,12 @@ jobs:
 
       - name: Publish to GitHub Packages
         working-directory: packages/sdk
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
           npm version patch --no-git-tag-version
-          npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm publish --userconfig "$NPM_CONFIG_USERCONFIG"
 
       - name: Commit version bump
         run: |
