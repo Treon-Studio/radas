@@ -38,7 +38,8 @@
     "README.md"
   ],
   "dependencies": {
-    "@treon-studio/contracts": "*",
+    "@treon-studio/api-client": "0.2.0",
+    "@treon-studio/contracts": "^0.1.8",
     "openapi-fetch": "^0.13.0"
   },
   "typesVersions": {
