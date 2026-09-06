@@ -4,6 +4,8 @@
  * SDK to own header construction: bearer auth, X-Request-Id, and header
  * merging. The console uses this instead of re-implementing headers.
  */
+import { createApiClient } from "@treon-studio/api-client"
+
 export interface RadasTransportInit extends Omit<RequestInit, "headers"> {
 	headers?: Record<string, string>
 	/** Reuse a caller-provided request id; generated otherwise. */
@@ -25,26 +27,31 @@ export type RadasTransport = (
 ) => Promise<Response>;
 
 export function createRadasTransport(options: RadasTransportOptions): RadasTransport {
-	const { baseUrl, getToken } = options
-	const normalizedBase = baseUrl.replace(/\/+$/, "")
+	const normalizedBase = options.baseUrl.replace(/\/+$/, "")
+	const client = createApiClient({
+		baseUrl: normalizedBase,
+		getToken: options.getToken,
+		fetch: options.fetch,
+		envelope: "raw-response",
+		maxAttempts: 1,
+	})
 
 	return async (path, init = {}) => {
-		const token = getToken()
-		const headers: Record<string, string> = { ...(init.headers ?? {}) }
-		if (token) headers.Authorization = `Bearer ${token}`
-		// Reuse a well-formed caller id; generate a 32-hex id otherwise
-		// (same contract as @treon-studio/observability, kept inline so the
-		// SDK stays dependency-lean).
-		const rid = init.requestId
-		headers["X-Request-Id"] =
-			typeof rid === "string" && /^[0-9a-zA-Z][0-9a-zA-Z_-]{7,127}$/.test(rid)
-				? rid
-				: crypto.randomUUID()
-
-		const fetchImpl = options.fetch ?? globalThis.fetch
-		return fetchImpl(`${normalizedBase}${path}`, {
-			...init,
+		const { method = "GET", body, headers, signal, requestId, ...unsupported } = init
+		void unsupported
+		let apiBody: unknown = body
+		if (typeof body === "string") {
+			try {
+				apiBody = JSON.parse(body)
+			} catch {
+				apiBody = body
+			}
+		}
+		return client.call<Response>(method as Parameters<typeof client.call>[0], path, {
+			body: apiBody,
 			headers,
-		} as RequestInit)
+			signal: signal ?? undefined,
+			requestId,
+		})
 	}
 }

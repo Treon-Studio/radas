@@ -81,6 +81,37 @@ test("transport injects bearer + request id and merges caller headers", async ()
 	expect((calls[1]!.init.headers as Record<string, string>).Authorization).toBe("Bearer tok_2")
 })
 
+test("transport delegates to api-client and returns the raw Response", async () => {
+	const response = new Response(JSON.stringify({ success: true, data: { ok: 1 } }), { status: 201 })
+	let tokenReads = 0
+	const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response)
+	const transport = createRadasTransport({
+		baseUrl: "https://radas.test///",
+		getToken: () => {
+			tokenReads += 1
+			return "token"
+		},
+		fetch: fetchImpl,
+	})
+
+	const result = await transport("/api/v2/flags", {
+		method: "POST",
+		body: JSON.stringify({ enabled: true }),
+		headers: { Authorization: "Bearer caller", "X-Request-Id": "caller-id" },
+	})
+
+	expect(result).toBe(response)
+	expect(tokenReads).toBe(1)
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(fetchImpl.mock.calls[0]![0]).toBe("https://radas.test/api/v2/flags")
+	expect(fetchImpl.mock.calls[0]![1]).toMatchObject({
+		method: "POST",
+		body: JSON.stringify({ enabled: true }),
+	})
+	expect((fetchImpl.mock.calls[0]![1]!.headers as Record<string, string>).Authorization).toBe("Bearer caller")
+	expect((fetchImpl.mock.calls[0]![1]!.headers as Record<string, string>)["X-Request-Id"]).toBe("caller-id")
+})
+
 test("transport omits Authorization when getToken returns null", async () => {
 	const calls: Array<{ init: RequestInit }> = []
 	const transport = createRadasTransport({

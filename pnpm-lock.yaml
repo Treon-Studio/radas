@@ -378,9 +378,12 @@ importers:
 
   packages/sdk:
     dependencies:
+      '@treon-studio/api-client':
+        specifier: 0.2.0
+        version: 0.2.0
       '@treon-studio/contracts':
-        specifier: '*'
-        version: 0.1.2
+        specifier: ^0.1.8
+        version: 0.1.9
       openapi-fetch:
         specifier: ^0.13.0
         version: 0.13.8
@@ -2541,8 +2544,17 @@ packages:
   '@tootallnate/quickjs-emscripten@0.23.0':
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
 
+  '@treon-studio/api-client@0.2.0':
+    resolution: {integrity: sha512-paszlKT8OlKx3eQgIIRZhbsfvikN2k+7BOf5PQc5jJ/cfHz9QkvQuQ7UPpfxngfvqi07PwEfOUusdRWQc4P76A==, tarball: https://npm.pkg.github.com/download/@treon-studio/api-client/0.2.0/fcdeafde0fc57c6341fce563db7ea998bc75c7ec}
+
   '@treon-studio/contracts@0.1.2':
     resolution: {integrity: sha512-na703iEQ5Z2DxywNczgp65UAGB63gkqSNF1fJYRLUe7Gg/YkQzgHL4lyfE2estDADEUjaH4/K8Z99FPdkcBeLA==, tarball: https://npm.pkg.github.com/download/@treon-studio/contracts/0.1.2/890e02093f4fae390d8e52d932134a0a622b1faf}
+
+  '@treon-studio/contracts@0.1.9':
+    resolution: {integrity: sha512-FF+miXT5UYjiS3773GM6ecfTS8tvFJTSoQcJO8wjAJxOu+N+119K4g3mMCGGdWhlsM+voIRpknfrD74L//7Zcw==, tarball: https://npm.pkg.github.com/download/@treon-studio/contracts/0.1.9/79cdc2a9aec8d08b43aafd41c0e5400ee42ca468}
+
+  '@treon-studio/observability@0.1.6':
+    resolution: {integrity: sha512-S0OGok2YuS07hCCqPjigGufhs0/1bTSkgxCDovvlIBVPQoOVRTXvYFDfGVyw+KrYMBb1Qn/r9vodlqSZQjUndw==, tarball: https://npm.pkg.github.com/download/@treon-studio/observability/0.1.6/61a0e6fc99bf97063b07d6485bfd78ba074f86a7}
 
   '@treon-studio/radas-sdk@0.1.6':
     resolution: {integrity: sha512-KIjz7wq0qYdNQBBF67AD0QMI3mswFubg/NyZOh3NhJgVHXm6IpC3SR1KQv2DdcBxqjQ0Zuz+xofzBqUqjptTYw==, tarball: https://npm.pkg.github.com/download/@treon-studio/radas-sdk/0.1.6/c9b28417574925427c6d3afb5f5071e47c62c00a}
@@ -9415,7 +9427,16 @@ snapshots:
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
+  '@treon-studio/api-client@0.2.0':
+    dependencies:
+      '@treon-studio/contracts': 0.1.9
+      '@treon-studio/observability': 0.1.6
+
   '@treon-studio/contracts@0.1.2': {}
+
+  '@treon-studio/contracts@0.1.9': {}
+
+  '@treon-studio/observability@0.1.6': {}
 
   '@treon-studio/radas-sdk@0.1.6(react@19.2.6)':
     dependencies:
