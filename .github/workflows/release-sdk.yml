@@ -9,11 +9,14 @@ on:
       - '.github/workflows/release-sdk.yml'
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+  packages: read
 
 jobs:
   release:
+    permissions:
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +42,7 @@ jobs:
         working-directory: packages/sdk
         env:
           NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Generate types, typecheck, test
         working-directory: packages/sdk

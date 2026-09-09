@@ -12,11 +12,14 @@ on:
         default: 'desktop-v1.0.0'
 
 permissions:
-  contents: write
+  contents: read
   packages: read
 
 jobs:
   build-and-release:
+    permissions:
+      contents: write
+      packages: read
     name: Build & Package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -50,7 +53,7 @@ jobs:
         run: |
           npm config set @treon-studio:registry https://npm.pkg.github.com --userconfig "$NPM_CONFIG_USERCONFIG"
           npm config set //npm.pkg.github.com/:_authToken "$GH_PACKAGES_TOKEN" --userconfig "$NPM_CONFIG_USERCONFIG"
-          pnpm install --no-frozen-lockfile
+          pnpm install --frozen-lockfile
 
       - name: Build RADAS Console static bundle
         run: pnpm --filter @radas/console build
