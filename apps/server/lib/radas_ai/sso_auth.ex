@@ -21,52 +21,52 @@ defmodule RadasAI.SSOAuth do
   # Status / config
   # ---------------------------------------------------------------------------
 
-  def google_configured?, do: env("GOOGLE_CLIENT_ID") != ""
-  def github_configured? do
-    env("GITHUB_OAUTH_CLIENT_ID") != "" and env("GITHUB_OAUTH_CLIENT_SECRET") != ""
+  def google_configured? do
+    configured?("GOOGLE_CLIENT_ID") and configured?("GOOGLE_CLIENT_SECRET") and configured?("GOOGLE_REDIRECT_URI")
   end
 
-  def google_redirect_uri(override \\ ""),
-    do: if(override != "", do: override, else: env("GOOGLE_REDIRECT_URI") || "http://localhost:8080/auth/callback")
+  def github_configured? do
+    configured?("GITHUB_OAUTH_CLIENT_ID") and configured?("GITHUB_OAUTH_CLIENT_SECRET") and configured?("GITHUB_OAUTH_REDIRECT_URI")
+  end
 
-  def github_redirect_uri(override \\ ""),
-    do:
-      if(override != "",
-        do: override,
-        else: env("GITHUB_OAUTH_REDIRECT_URI") || "http://localhost:5001/api/github/oauth/callback"
-      )
+  def google_redirect_uri, do: configured_value("GOOGLE_REDIRECT_URI")
+  def github_redirect_uri, do: configured_value("GITHUB_OAUTH_REDIRECT_URI")
 
   # ---------------------------------------------------------------------------
   # Google
   # ---------------------------------------------------------------------------
 
   @doc "Build the Google authorize URL with a signed state."
-  @spec google_auth_url(keyword()) :: map()
-  def google_auth_url(opts \\ []) do
-    state = new_state("google", Keyword.get(opts, :redirect_uri, "") |> google_redirect_uri())
-    params =
-      URI.encode_query(%{
-        "client_id" => env("GOOGLE_CLIENT_ID"),
-        "redirect_uri" => google_redirect_uri(Keyword.get(opts, :redirect_uri, "")),
-        "response_type" => "code",
-        "scope" => Enum.join(@google_scopes, " "),
-        "state" => state,
-        "access_type" => "offline",
-        "prompt" => "consent"
-      })
+  @spec google_auth_url() :: {:ok, map()} | {:error, String.t()}
+  def google_auth_url do
+    with true <- google_configured?() || {:error, "Google SSO is not configured"},
+         {:ok, redirect_uri} <- google_redirect_uri() do
+      state = new_state("google", redirect_uri)
 
-    %{"url" => "#{@google_auth_url}?#{params}", "state" => state}
+      params =
+        URI.encode_query(%{
+          "client_id" => env("GOOGLE_CLIENT_ID"),
+          "redirect_uri" => redirect_uri,
+          "response_type" => "code",
+          "scope" => Enum.join(@google_scopes, " "),
+          "state" => state,
+          "access_type" => "offline",
+          "prompt" => "consent"
+        })
+
+      {:ok, %{"url" => "#{@google_auth_url}?#{params}", "state" => state}}
+    end
   end
 
   @doc "Exchange a Google code for a provisioned user; returns {:ok, user} | {:error, msg}."
   @spec google_callback(String.t(), String.t()) :: {:ok, map()} | {:error, String.t()}
   def google_callback(code, state) do
-    with :ok <- consume_state(state),
+    with {:ok, %{"redirect_uri" => redirect_uri}} <- consume_state(state, "google"),
          {:ok, tokens} <- post_form(@google_token_url, %{
            "code" => code,
            "client_id" => env("GOOGLE_CLIENT_ID"),
            "client_secret" => env("GOOGLE_CLIENT_SECRET"),
-           "redirect_uri" => google_redirect_uri(),
+           "redirect_uri" => redirect_uri,
            "grant_type" => "authorization_code"
          }),
          {:ok, profile} <- google_userinfo(tokens["access_token"]) do
@@ -90,30 +90,33 @@ defmodule RadasAI.SSOAuth do
   # ---------------------------------------------------------------------------
 
   @doc "Build the GitHub authorize URL with a signed state."
-  @spec github_auth_url(keyword()) :: map()
-  def github_auth_url(opts \\ []) do
-    state = new_state("github", Keyword.get(opts, :redirect_uri, "") |> github_redirect_uri())
+  @spec github_auth_url() :: {:ok, map()} | {:error, String.t()}
+  def github_auth_url do
+    with true <- github_configured?() || {:error, "GitHub SSO is not configured"},
+         {:ok, redirect_uri} <- github_redirect_uri() do
+      state = new_state("github", redirect_uri)
 
-    params =
-      URI.encode_query(%{
-        "client_id" => env("GITHUB_OAUTH_CLIENT_ID"),
-        "redirect_uri" => github_redirect_uri(Keyword.get(opts, :redirect_uri, "")),
-        "scope" => "read:user user:email",
-        "state" => state
-      })
+      params =
+        URI.encode_query(%{
+          "client_id" => env("GITHUB_OAUTH_CLIENT_ID"),
+          "redirect_uri" => redirect_uri,
+          "scope" => "read:user user:email",
+          "state" => state
+        })
 
-    %{"url" => "#{@github_authorize}?#{params}", "state" => state}
+      {:ok, %{"url" => "#{@github_authorize}?#{params}", "state" => state}}
+    end
   end
 
   @doc "Exchange a GitHub code for a provisioned user."
   @spec github_callback(String.t(), String.t()) :: {:ok, map()} | {:error, String.t()}
   def github_callback(code, state) do
-    with :ok <- consume_state(state),
+    with {:ok, %{"redirect_uri" => redirect_uri}} <- consume_state(state, "github"),
          {:ok, tokens} <- post_form(@github_token_url, %{
            "code" => code,
            "client_id" => env("GITHUB_OAUTH_CLIENT_ID"),
            "client_secret" => env("GITHUB_OAUTH_CLIENT_SECRET"),
-           "redirect_uri" => github_redirect_uri(),
+           "redirect_uri" => redirect_uri,
            "accept" => "json"
          }),
          {:ok, profile} <- github_user(tokens["access_token"]) do
@@ -152,12 +155,19 @@ defmodule RadasAI.SSOAuth do
     state
   end
 
-  defp consume_state(state) do
-    case query_one!("SELECT value FROM kv_store WHERE scope = $1 AND key = $2", ["sso_state", state]) do
-      nil -> {:error, "Unknown or expired OAuth state"}
-      _row ->
-        RadasAI.DB.execute!("DELETE FROM kv_store WHERE scope = $1 AND key = $2", ["sso_state", state])
-        :ok
+  defp consume_state(state, expected_provider) do
+    case query_one!("DELETE FROM kv_store WHERE scope = $1 AND key = $2 RETURNING value", ["sso_state", state]) do
+      nil ->
+        {:error, "Unknown or expired OAuth state"}
+
+      %{"value" => %{"provider" => ^expected_provider, "redirect_uri" => redirect_uri} = stored_state} when is_binary(redirect_uri) and redirect_uri != "" ->
+        {:ok, stored_state}
+
+      %{"value" => %{"provider" => _provider}} ->
+        {:error, "OAuth state does not match this provider"}
+
+      _ ->
+        {:error, "Invalid OAuth state"}
     end
   end
 
@@ -197,6 +207,15 @@ defmodule RadasAI.SSOAuth do
 
       {:error, _} ->
         {:error, "Token endpoint unreachable"}
+    end
+  end
+
+  defp configured?(name), do: match?({:ok, _}, configured_value(name))
+
+  defp configured_value(name) do
+    case String.trim(env(name)) do
+      "" -> {:error, "#{name} is not configured"}
+      value -> {:ok, value}
     end
   end
 

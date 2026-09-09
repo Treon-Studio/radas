@@ -97,8 +97,14 @@ pm2 start ecosystem.config.cjs
 | `JWT_SECRET_KEY` | random kuat (`openssl rand -hex 32`) |
 | `INTERNAL_CALL_SECRET` | random kuat |
 | `CORS_ALLOWED_ORIGINS` | `https://radas-console.pages.dev,https://console.domainmu.com` |
-| `GITHUB_OAUTH_CLIENT_ID/SECRET` | (jika pakai GitHub OAuth) |
-| `GITHUB_OAUTH_REDIRECT_URI` | `https://api.domainmu.com/api/github/oauth/callback` |
+| `GOOGLE_CLIENT_ID` | optional; required together with `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` to enable Google SSO |
+| `GOOGLE_CLIENT_SECRET` | optional; secret for Google SSO |
+| `GOOGLE_REDIRECT_URI` | `https://api.domainmu.com/api/auth/google/callback` |
+| `GITHUB_OAUTH_CLIENT_ID` | optional; required together with `GITHUB_OAUTH_CLIENT_SECRET` and `GITHUB_OAUTH_REDIRECT_URI` to enable GitHub SSO |
+| `GITHUB_OAUTH_CLIENT_SECRET` | optional; secret for GitHub SSO |
+| `GITHUB_OAUTH_REDIRECT_URI` | `https://api.domainmu.com/api/auth/github/callback` |
+
+SSO bersifat optional. Namun provider hanya aktif jika seluruh trio client ID, client secret, dan redirect URI dikonfigurasi. Runtime tidak memiliki fallback `localhost`; konfigurasi yang tidak lengkap membuat endpoint begin provider tersebut mengembalikan `503 SSO is not configured`.
 
 ## Rollback / update
 
