@@ -190,8 +190,10 @@ defmodule RadasWeb.AuthController do
     unless RadasAI.SSOAuth.google_configured?() do
       conn |> put_status(503) |> json(%{"success" => false, "error" => "Google SSO is not configured"})
     else
-      result = RadasAI.SSOAuth.google_auth_url(redirect_uri: conn.query_params["redirect_uri"] || "")
-      json(conn, %{"success" => true, "url" => result["url"], "state" => result["state"]})
+      case RadasAI.SSOAuth.google_auth_url() do
+        {:ok, result} -> json(conn, %{"success" => true, "url" => result["url"], "state" => result["state"]})
+        {:error, _message} -> conn |> put_status(503) |> json(%{"success" => false, "error" => "Google SSO is not configured"})
+      end
     end
   end
 
@@ -203,8 +205,10 @@ defmodule RadasWeb.AuthController do
     unless RadasAI.SSOAuth.github_configured?() do
       conn |> put_status(503) |> json(%{"success" => false, "error" => "GitHub SSO is not configured"})
     else
-      result = RadasAI.SSOAuth.github_auth_url(redirect_uri: conn.query_params["redirect_uri"] || "")
-      json(conn, %{"success" => true, "url" => result["url"], "state" => result["state"]})
+      case RadasAI.SSOAuth.github_auth_url() do
+        {:ok, result} -> json(conn, %{"success" => true, "url" => result["url"], "state" => result["state"]})
+        {:error, _message} -> conn |> put_status(503) |> json(%{"success" => false, "error" => "GitHub SSO is not configured"})
+      end
     end
   end
 

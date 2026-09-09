@@ -121,4 +121,65 @@ defmodule RadasWeb.AuthControllerTest do
     claims = RadasAI.AuthService.verify_token(token, "unused-data-dir", "access")
     assert claims["user_id"] == "u"
   end
+
+  test "SSO begin returns 503 until each provider has complete configuration", %{conn: conn} do
+    sso_env = [
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "GOOGLE_REDIRECT_URI",
+      "GITHUB_OAUTH_CLIENT_ID",
+      "GITHUB_OAUTH_CLIENT_SECRET",
+      "GITHUB_OAUTH_REDIRECT_URI"
+    ]
+
+    original_env = Map.new(sso_env, &{&1, System.get_env(&1)})
+    Enum.each(sso_env, &System.delete_env/1)
+
+    on_exit(fn ->
+      Enum.each(original_env, fn {name, value} ->
+        if value, do: System.put_env(name, value), else: System.delete_env(name)
+      end)
+    end)
+
+    google_conn = get(conn, "/api/auth/google/begin")
+    assert google_conn.status == 503
+    assert Jason.decode!(google_conn.resp_body) == %{"success" => false, "error" => "Google SSO is not configured"}
+
+    github_conn = get(build_conn(), "/api/auth/github/begin")
+    assert github_conn.status == 503
+    assert Jason.decode!(github_conn.resp_body) == %{"success" => false, "error" => "GitHub SSO is not configured"}
+
+    System.put_env("GOOGLE_CLIENT_ID", "google-client")
+    System.put_env("GOOGLE_CLIENT_SECRET", "google-secret")
+    google_missing_redirect = get(build_conn(), "/api/auth/google/begin")
+    assert google_missing_redirect.status == 503
+
+    System.put_env("GITHUB_OAUTH_CLIENT_ID", "github-client")
+    System.put_env("GITHUB_OAUTH_CLIENT_SECRET", "github-secret")
+    github_missing_redirect = get(build_conn(), "/api/auth/github/begin")
+    assert github_missing_redirect.status == 503
+  end
+
+  test "SSO begin ignores an untrusted redirect_uri query parameter", %{conn: conn} do
+    sso_env = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]
+    original_env = Map.new(sso_env, &{&1, System.get_env(&1)})
+
+    System.put_env("GOOGLE_CLIENT_ID", "google-client")
+    System.put_env("GOOGLE_CLIENT_SECRET", "google-secret")
+    System.put_env("GOOGLE_REDIRECT_URI", "https://api.example.test/api/auth/google/callback")
+
+    on_exit(fn ->
+      Enum.each(original_env, fn {name, value} ->
+        if value, do: System.put_env(name, value), else: System.delete_env(name)
+      end)
+    end)
+
+    conn = get(conn, "/api/auth/google/begin?redirect_uri=https%3A%2F%2Fevil.example%2Fcallback")
+    assert conn.status == 200
+
+    %{"success" => true, "url" => url} = Jason.decode!(conn.resp_body)
+    params = URI.decode_query(URI.parse(url).query)
+    assert params["redirect_uri"] == "https://api.example.test/api/auth/google/callback"
+    refute params["redirect_uri"] == "https://evil.example/callback"
+  end
 end
