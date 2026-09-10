@@ -154,8 +154,8 @@ importers:
         specifier: ^3.14.3
         version: 3.14.9(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@treon-studio/radas-sdk':
-        specifier: ^0.1.6
-        version: 0.1.6(react@19.2.6)
+        specifier: ^0.1.8
+        version: 0.1.8(react@19.2.6)
       '@uiw/react-codemirror':
         specifier: ^4.25.10
         version: 4.25.11(@babel/runtime@7.29.7)(@codemirror/autocomplete@6.20.3)(@codemirror/language@6.12.4)(@codemirror/lint@6.9.7)(@codemirror/search@6.7.1)(@codemirror/state@6.7.1)(@codemirror/theme-one-dark@6.1.3)(@codemirror/view@6.43.8)(codemirror@6.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -2547,17 +2547,14 @@ packages:
   '@treon-studio/api-client@0.2.0':
     resolution: {integrity: sha512-paszlKT8OlKx3eQgIIRZhbsfvikN2k+7BOf5PQc5jJ/cfHz9QkvQuQ7UPpfxngfvqi07PwEfOUusdRWQc4P76A==, tarball: https://npm.pkg.github.com/download/@treon-studio/api-client/0.2.0/fcdeafde0fc57c6341fce563db7ea998bc75c7ec}
 
-  '@treon-studio/contracts@0.1.2':
-    resolution: {integrity: sha512-na703iEQ5Z2DxywNczgp65UAGB63gkqSNF1fJYRLUe7Gg/YkQzgHL4lyfE2estDADEUjaH4/K8Z99FPdkcBeLA==, tarball: https://npm.pkg.github.com/download/@treon-studio/contracts/0.1.2/890e02093f4fae390d8e52d932134a0a622b1faf}
-
   '@treon-studio/contracts@0.1.9':
     resolution: {integrity: sha512-FF+miXT5UYjiS3773GM6ecfTS8tvFJTSoQcJO8wjAJxOu+N+119K4g3mMCGGdWhlsM+voIRpknfrD74L//7Zcw==, tarball: https://npm.pkg.github.com/download/@treon-studio/contracts/0.1.9/79cdc2a9aec8d08b43aafd41c0e5400ee42ca468}
 
   '@treon-studio/observability@0.1.6':
     resolution: {integrity: sha512-S0OGok2YuS07hCCqPjigGufhs0/1bTSkgxCDovvlIBVPQoOVRTXvYFDfGVyw+KrYMBb1Qn/r9vodlqSZQjUndw==, tarball: https://npm.pkg.github.com/download/@treon-studio/observability/0.1.6/61a0e6fc99bf97063b07d6485bfd78ba074f86a7}
 
-  '@treon-studio/radas-sdk@0.1.6':
-    resolution: {integrity: sha512-KIjz7wq0qYdNQBBF67AD0QMI3mswFubg/NyZOh3NhJgVHXm6IpC3SR1KQv2DdcBxqjQ0Zuz+xofzBqUqjptTYw==, tarball: https://npm.pkg.github.com/download/@treon-studio/radas-sdk/0.1.6/c9b28417574925427c6d3afb5f5071e47c62c00a}
+  '@treon-studio/radas-sdk@0.1.8':
+    resolution: {integrity: sha512-p2GYHYiALhjR1S0sms2PU91VmVDzOltfx+d3jlNnebS1teoaN5K66/2+1Tx7KpNAYuuQQWyxe6yzP1wXgSuaZQ==, tarball: https://npm.pkg.github.com/download/@treon-studio/radas-sdk/0.1.8/e4a6dcdb8d8ceee7999ada44df687b3ee5b4bbb1}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
@@ -9432,15 +9429,14 @@ snapshots:
       '@treon-studio/contracts': 0.1.9
       '@treon-studio/observability': 0.1.6
 
-  '@treon-studio/contracts@0.1.2': {}
-
   '@treon-studio/contracts@0.1.9': {}
 
   '@treon-studio/observability@0.1.6': {}
 
-  '@treon-studio/radas-sdk@0.1.6(react@19.2.6)':
+  '@treon-studio/radas-sdk@0.1.8(react@19.2.6)':
     dependencies:
-      '@treon-studio/contracts': 0.1.2
+      '@treon-studio/api-client': 0.2.0
+      '@treon-studio/contracts': 0.1.9
       openapi-fetch: 0.13.8
       react: 19.2.6
 
@@ -9479,7 +9475,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -9527,7 +9523,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
 
   '@types/hast@3.0.5':
     dependencies:
@@ -9541,7 +9537,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -9563,7 +9559,7 @@ snapshots:
 
   '@types/plist@3.0.5':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
       xmlbuilder: 15.1.1
     optional: true
 
@@ -9588,7 +9584,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 22.20.1
 
   '@types/triple-beam@1.3.5': {}
 
